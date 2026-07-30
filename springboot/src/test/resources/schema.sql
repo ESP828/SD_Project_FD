@@ -12,6 +12,7 @@ CREATE TABLE IF NOT EXISTS restaurant (
     category_id INT,
     name VARCHAR(100) NOT NULL,
     address VARCHAR(255) NOT NULL,
+    address_detail VARCHAR(255),
     description VARCHAR(2000),
     latitude DECIMAL(10, 7),
     longitude DECIMAL(10, 7),
@@ -39,6 +40,7 @@ CREATE TABLE IF NOT EXISTS menu (
 CREATE TABLE IF NOT EXISTS favorite (
     account_id BIGINT NOT NULL,
     restaurant_id BIGINT NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (account_id, restaurant_id)
 );
 
@@ -47,7 +49,10 @@ CREATE TABLE IF NOT EXISTS review (
     restaurant_id BIGINT NOT NULL,
     account_id BIGINT NOT NULL,
     rating INT NOT NULL,
-    status VARCHAR(20) NOT NULL
+    content VARCHAR(1000),
+    status VARCHAR(20) NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS user_category_preference (
@@ -60,5 +65,12 @@ CREATE TABLE IF NOT EXISTS user_category_preference (
 CREATE TABLE IF NOT EXISTS notification (
     notification_id BIGINT AUTO_INCREMENT PRIMARY KEY,
     account_id BIGINT NOT NULL,
-    is_read BOOLEAN NOT NULL DEFAULT FALSE
+    type VARCHAR(50) NOT NULL DEFAULT 'COMMENT',
+    content VARCHAR(255) NOT NULL DEFAULT '',
+    target_type VARCHAR(30),
+    target_id BIGINT,
+    target_url VARCHAR(500),
+    is_read BOOLEAN NOT NULL DEFAULT FALSE,
+    read_at TIMESTAMP,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );

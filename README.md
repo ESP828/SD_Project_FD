@@ -55,7 +55,7 @@ SD_Project_FD/
 | 공통 기반 | 구현 | 공통 응답, 예외 처리, CORS, Security, JWT |
 | 인증 | 구현 | 회원가입, 로그인, Kakao·Naver·Google OAuth |
 | 커뮤니티 | 구현 | 게시글, 댓글, 좋아요, 권한 정책 |
-| 마이페이지 | 부분 구현 | 사용자 활동 요약 조회 |
+| 마이페이지 | 부분 구현 | 사용자 활동 요약 및 상세 목록 조회 |
 | 추천 | 부분 구현 | 추천 미리보기 및 조회 응답 |
 | 지도 | 부분 구현 | Kakao Maps 공개 설정과 정적 지도 화면 |
 | 음식점·찜·리뷰·알림·관리자 | 골격 | 패키지 구조 중심, 기능 구현 필요 |
@@ -189,6 +189,11 @@ DB 작업 전에는 [`db/migration/README.md`](./springboot/src/main/resources/d
 | 댓글 목록 | GET | `/api/board/posts/{postId}/comments` |
 | 댓글 작성 | POST | `/api/board/posts/{postId}/comments` |
 | 마이페이지 요약 | GET | `/api/mypage/overview` |
+| 찜한 가게 | GET | `/api/mypage/favorites` |
+| 작성한 리뷰 | GET | `/api/mypage/reviews` |
+| 작성한 게시글 | GET | `/api/mypage/posts` |
+| 작성한 댓글 | GET | `/api/mypage/comments` |
+| 읽지 않은 알림 | GET | `/api/mypage/notifications/unread` |
 | 추천 목록 | GET | `/api/recommendations` |
 | 지도 공개 설정 | GET | `/api/public/map/config` |
 
