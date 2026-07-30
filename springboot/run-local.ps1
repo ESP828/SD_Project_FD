@@ -17,4 +17,9 @@ Get-Content $envFile | ForEach-Object {
     [Environment]::SetEnvironmentVariable($key, $value, "Process")
 }
 
-& "$PSScriptRoot\mvnw.cmd" spring-boot:run
+Push-Location $PSScriptRoot
+& ".\mvnw.cmd" spring-boot:run
+$exitCode = $LASTEXITCODE
+Pop-Location
+
+exit $exitCode
