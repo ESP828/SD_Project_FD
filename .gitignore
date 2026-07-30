@@ -19,6 +19,7 @@ Thumbs.db
 .env
 .env.*
 !.env.example
+/springboot/env
 springboot/src/main/resources/application-local.properties
 springboot/src/main/resources/application-prod.properties
 .history
