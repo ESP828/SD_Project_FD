@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="푸드덕 마이페이지 활동 상세">
+  <title>마이페이지 상세 · 푸드덕</title>
+  <link rel="icon" href="/images/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/css/common.css">
+  <link rel="stylesheet" href="/pages/mypage/detail.css">
+</head>
+<body>
+  <div data-site-header></div>
+
+  <main class="mypage-detail-page">
+    <section class="mypage-detail-hero">
+      <div class="container">
+        <a class="mypage-detail-back" href="/pages/mypage/index.html">← 마이페이지 홈</a>
+        <p class="eyebrow">My activity</p>
+        <h1>나의 푸드덕 활동</h1>
+        <p>찜한 가게와 내가 남긴 기록을 항목별로 확인할 수 있습니다.</p>
+      </div>
+    </section>
+
+    <section id="mypage-detail-gate" class="container mypage-detail-gate" hidden>
+      <img src="/images/characters/waving.png" alt="" aria-hidden="true">
+      <div>
+        <h2>로그인 후 마이페이지를 이용해 주세요</h2>
+        <p>내 활동 상세 정보는 로그인한 계정 기준으로 조회합니다.</p>
+        <a id="mypage-detail-login" class="button button-navy" href="/pages/auth/login.html">로그인</a>
+      </div>
+    </section>
+
+    <section id="mypage-detail-content" class="container mypage-detail-content" aria-live="polite">
+      <div class="mypage-detail-loading">
+        <span class="material-symbols-rounded" aria-hidden="true">progress_activity</span>
+        <strong>내 활동을 불러오고 있습니다.</strong>
+      </div>
+    </section>
+  </main>
+
+  <div data-site-footer></div>
+
+  <script src="/js/api.js"></script>
+  <script src="/js/common.js"></script>
+  <script src="/pages/mypage/detail.js"></script>
+</body>
+</html>

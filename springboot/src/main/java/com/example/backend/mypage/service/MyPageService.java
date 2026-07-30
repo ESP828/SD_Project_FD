@@ -5,10 +5,17 @@ import com.example.backend.auth.repository.AccountRepository;
 import com.example.backend.auth.service.AuthorityService;
 import com.example.backend.global.exception.BusinessException;
 import com.example.backend.global.exception.ErrorCode;
+import com.example.backend.mypage.dto.response.MyPageActivityResponse.CommentItem;
+import com.example.backend.mypage.dto.response.MyPageActivityResponse.FavoriteItem;
+import com.example.backend.mypage.dto.response.MyPageActivityResponse.NotificationItem;
+import com.example.backend.mypage.dto.response.MyPageActivityResponse.PostItem;
+import com.example.backend.mypage.dto.response.MyPageActivityResponse.ReviewItem;
 import com.example.backend.mypage.dto.response.MyPageOverviewResponse;
 import com.example.backend.mypage.query.MyPageActivityQueryRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.util.List;
 
 @Service
 public class MyPageService {
@@ -50,5 +57,41 @@ public class MyPageService {
                 counts.comments(),
                 counts.unreadNotifications()
         );
+    }
+
+    @Transactional(readOnly = true)
+    public List<FavoriteItem> getFavorites(Long accountId) {
+        requireActiveAccount(accountId);
+        return activityQueryRepository.findFavorites(accountId);
+    }
+
+    @Transactional(readOnly = true)
+    public List<ReviewItem> getReviews(Long accountId) {
+        requireActiveAccount(accountId);
+        return activityQueryRepository.findReviews(accountId);
+    }
+
+    @Transactional(readOnly = true)
+    public List<PostItem> getPosts(Long accountId) {
+        requireActiveAccount(accountId);
+        return activityQueryRepository.findPosts(accountId);
+    }
+
+    @Transactional(readOnly = true)
+    public List<CommentItem> getComments(Long accountId) {
+        requireActiveAccount(accountId);
+        return activityQueryRepository.findComments(accountId);
+    }
+
+    @Transactional(readOnly = true)
+    public List<NotificationItem> getUnreadNotifications(Long accountId) {
+        requireActiveAccount(accountId);
+        return activityQueryRepository.findUnreadNotifications(accountId);
+    }
+
+    private void requireActiveAccount(Long accountId) {
+        accountRepository.findById(accountId)
+                .filter(Account::isActive)
+                .orElseThrow(() -> new BusinessException(ErrorCode.RESOURCE_NOT_FOUND));
     }
 }

@@ -48,11 +48,18 @@
     return wrapper;
   }
 
-  function activity(label, count) {
-    const card = element("article", "activity-card");
+  function detailPath(tab) {
+    return `/pages/mypage/detail.html?tab=${encodeURIComponent(tab)}`;
+  }
+
+  function activity(label, count, tab) {
+    const card = element("a", "activity-card");
+    card.href = detailPath(tab);
+    card.setAttribute("aria-label", `${label} ${count || 0}개 상세 보기`);
     card.append(
       element("span", "", label),
       element("strong", "", new Intl.NumberFormat("ko-KR").format(count || 0)),
+      element("em", "", "상세 보기 →"),
     );
     return card;
   }
@@ -105,11 +112,11 @@
 
     const activities = element("section", "activity-grid");
     activities.append(
-      activity("찜한 가게", data.favoriteCount),
-      activity("작성한 리뷰", data.reviewCount),
-      activity("작성한 게시글", data.postCount),
-      activity("작성한 댓글", data.commentCount),
-      activity("읽지 않은 알림", data.unreadNotificationCount),
+      activity("찜한 가게", data.favoriteCount, "favorites"),
+      activity("작성한 리뷰", data.reviewCount, "reviews"),
+      activity("작성한 게시글", data.postCount, "posts"),
+      activity("작성한 댓글", data.commentCount, "comments"),
+      activity("읽지 않은 알림", data.unreadNotificationCount, "notifications"),
     );
 
     const layout = element("div", "mypage-layout");
@@ -145,9 +152,11 @@
     actionHeader.append(actionTitle);
     const actionList = element("div", "mypage-action-list");
     actionList.append(
-      action("내 게시글·댓글", "커뮤니티에서 확인", "/pages/board/index.html"),
-      action("찜한 가게", "목록 상세 API 연결 예정"),
-      action("내 리뷰", "목록 상세 API 연결 예정"),
+      action("찜한 가게", "저장한 맛집 확인", detailPath("favorites")),
+      action("내 리뷰", "작성한 리뷰 확인", detailPath("reviews")),
+      action("내 게시글", "작성한 게시글 확인", detailPath("posts")),
+      action("내 댓글", "작성한 댓글 확인", detailPath("comments")),
+      action("읽지 않은 알림", "새 알림 확인", detailPath("notifications")),
       session.canManageBusiness
         ? action("사업자 관리", "내 가게와 사업자 기능", "/pages/business/index.html")
         : action("사업자 권한 신청", "신청 API 연결 예정", "/pages/business/index.html#application"),
@@ -159,7 +168,8 @@
 
     const notificationPanel = element("section", "mypage-side-panel");
     notificationPanel.id = "notifications";
-    const notification = element("div", "notification-summary");
+    const notification = element("a", "notification-summary");
+    notification.href = detailPath("notifications");
     const notificationImage = new Image();
     notificationImage.src = "/images/characters/notification.png";
     notificationImage.alt = "";
