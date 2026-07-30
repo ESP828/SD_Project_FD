@@ -155,7 +155,8 @@ macOS/Linux:
 springboot/src/main/resources/db/
 ├─ migration/
 │  ├─ V1__create_fooduck_v2_schema.sql
-│  └─ V2__seed_authorities.sql
+│  ├─ V2__seed_authorities.sql
+│  └─ V3__normalize_hierarchical_authorities.sql
 └─ legacy/
    └─ upgrade_sb_legacy_to_v2.sql
 ```

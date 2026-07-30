@@ -4,6 +4,7 @@
 
 - `V1__create_fooduck_v2_schema.sql`: 개선된 전체 스키마
 - `V2__seed_authorities.sql`: 기본 권한 기준값
+- `V3__normalize_hierarchical_authorities.sql`: 권한 ID를 0/1/2로 고정하고 누적 권한 및 기본 사용자 권한 적용
 
 SB가 사용하던 기존 `fooduck` 스키마에는 이 V1을 바로 적용하지 않습니다. 기존 데이터베이스를
 개선할 때는 `../legacy/upgrade_sb_legacy_to_v2.sql`을 먼저 별도 백업본에서 검증한 후 적용합니다.

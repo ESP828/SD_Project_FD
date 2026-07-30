@@ -1,6 +1,7 @@
 package com.example.backend.auth.service;
 
 import com.example.backend.auth.domain.entity.Account;
+import com.example.backend.auth.domain.type.AuthorityCode;
 import com.example.backend.auth.domain.type.SocialProvider;
 import com.example.backend.auth.dto.request.LoginRequest;
 import com.example.backend.auth.dto.request.SignupRequest;
@@ -153,6 +154,37 @@ class AuthServiceIntegrationTest {
                         "authorization-code",
                         "validated-state"
                 )
+        );
+    }
+
+    @Test
+    void authorityHierarchyIsCumulativeAndMissingMappingDefaultsToUser() {
+        Account account = accountRepository.save(Account.local(
+                "authoritytester",
+                "authoritytester@example.com",
+                "권한테스터"
+        ));
+
+        assertEquals(List.of("ROLE_USER"), authorityService.findCodes(account.getAccountId()));
+
+        authorityService.grant(account.getAccountId(), AuthorityCode.ROLE_BUSINESS);
+        assertEquals(
+                List.of("ROLE_USER", "ROLE_BUSINESS"),
+                authorityService.findCodes(account.getAccountId())
+        );
+
+        authorityService.grant(account.getAccountId(), AuthorityCode.ROLE_ADMIN);
+        assertEquals(
+                List.of("ROLE_USER", "ROLE_BUSINESS", "ROLE_ADMIN"),
+                authorityService.findCodes(account.getAccountId())
+        );
+        assertEquals(
+                List.of((short) 0, (short) 1, (short) 2),
+                accountAuthorityRepository.findAllByIdAccountId(account.getAccountId())
+                        .stream()
+                        .map(authority -> authority.getAuthorityId())
+                        .sorted()
+                        .toList()
         );
     }
 
