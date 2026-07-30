@@ -39,14 +39,14 @@
 
   function markerFor(place) {
     const category = `${place.category_name || ""} ${place.category_group_name || ""}`;
-    if (/카페|커피/.test(category)) return "category_cafe.svg";
-    if (/디저트|제과|베이커리|아이스크림/.test(category)) return "category_dessert.svg";
-    if (/중식|중국/.test(category)) return "category_chinese.svg";
-    if (/일식|일본|초밥|스시/.test(category)) return "category_japanese.svg";
-    if (/양식|이탈리안|프렌치|스테이크/.test(category)) return "category_western.svg";
-    if (/패스트푸드|햄버거|피자/.test(category)) return "category_fastfood.svg";
-    if (/술집|호프|주점|바/.test(category)) return "category_pub.svg";
-    if (/한식|국밥|고기|분식/.test(category)) return "category_korean.svg";
+    if (/카페|커피/.test(category)) return "category_cafe.png";
+    if (/디저트|제과|베이커리|아이스크림/.test(category)) return "category_dessert.png";
+    if (/중식|중국/.test(category)) return "category_chinese.png";
+    if (/일식|일본|초밥|스시/.test(category)) return "category_japanese.png";
+    if (/양식|이탈리안|프렌치|스테이크/.test(category)) return "category_western.png";
+    if (/패스트푸드|햄버거|피자/.test(category)) return "category_fastfood.png";
+    if (/술집|호프|주점|바/.test(category)) return "category_pub.png";
+    if (/한식|국밥|고기|분식/.test(category)) return "category_korean.png";
     return "state_default.svg";
   }
 
