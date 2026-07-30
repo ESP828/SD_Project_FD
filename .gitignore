@@ -22,6 +22,7 @@ Thumbs.db
 springboot/src/main/resources/application-local.properties
 springboot/src/main/resources/application-prod.properties
 .history
+_서버실행.bat
 
 # Maven / Java build output
 springboot/target/
