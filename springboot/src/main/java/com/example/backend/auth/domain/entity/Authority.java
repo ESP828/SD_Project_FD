@@ -2,6 +2,8 @@ package com.example.backend.auth.domain.entity;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
@@ -14,6 +16,7 @@ import java.util.Objects;
 public class Authority {
 
     @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "authority_id")
     private Short authorityId;
 
@@ -29,8 +32,7 @@ public class Authority {
     protected Authority() {
     }
 
-    public Authority(Short authorityId, String authorityCode, String authorityName) {
-        this.authorityId = Objects.requireNonNull(authorityId);
+    public Authority(String authorityCode, String authorityName) {
         this.authorityCode = Objects.requireNonNull(authorityCode);
         this.authorityName = Objects.requireNonNull(authorityName);
     }
