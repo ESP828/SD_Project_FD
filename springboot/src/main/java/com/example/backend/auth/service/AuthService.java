@@ -24,19 +24,22 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final AuthorityService authorityService;
     private final TokenService tokenService;
+    private final EmailVerificationService emailVerificationService;
 
     public AuthService(
             AccountRepository accountRepository,
             AccountCredentialRepository credentialRepository,
             PasswordEncoder passwordEncoder,
             AuthorityService authorityService,
-            TokenService tokenService
+            TokenService tokenService,
+            EmailVerificationService emailVerificationService
     ) {
         this.accountRepository = accountRepository;
         this.credentialRepository = credentialRepository;
         this.passwordEncoder = passwordEncoder;
         this.authorityService = authorityService;
         this.tokenService = tokenService;
+        this.emailVerificationService = emailVerificationService;
     }
 
     @Transactional
@@ -45,6 +48,7 @@ public class AuthService {
         String email = request.email().trim().toLowerCase(Locale.ROOT);
         String nickname = request.nickname().trim().replaceAll("\\s+", " ");
         validateDuplicates(loginId, email, nickname);
+        emailVerificationService.assertVerified(email);
         Account account = accountRepository.save(
                 Account.local(loginId, email, nickname)
         );
@@ -69,6 +73,10 @@ public class AuthService {
         }
         account.markLoginSucceeded();
         return tokenService.issueAccessToken(account);
+    }
+
+    public boolean isLoginIdAvailable(String loginId) {
+        return !accountRepository.existsByLoginId(loginId.trim());
     }
 
     private void validateDuplicates(String loginId, String email, String nickname) {

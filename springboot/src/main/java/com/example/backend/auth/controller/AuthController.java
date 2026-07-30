@@ -1,12 +1,16 @@
 package com.example.backend.auth.controller;
 
 import com.example.backend.auth.domain.type.SocialProvider;
+import com.example.backend.auth.dto.request.EmailVerificationConfirmRequest;
+import com.example.backend.auth.dto.request.EmailVerificationRequest;
 import com.example.backend.auth.dto.request.LoginRequest;
 import com.example.backend.auth.dto.request.OAuthTicketExchangeRequest;
 import com.example.backend.auth.dto.request.SignupRequest;
 import com.example.backend.auth.dto.response.AuthTokenResponse;
+import com.example.backend.auth.dto.response.LoginIdAvailabilityResponse;
 import com.example.backend.auth.integration.oauth.OAuthStateService;
 import com.example.backend.auth.service.AuthService;
+import com.example.backend.auth.service.EmailVerificationService;
 import com.example.backend.auth.service.OAuthLoginTicketService;
 import com.example.backend.auth.service.SocialAuthService;
 import com.example.backend.global.exception.BusinessException;
@@ -44,6 +48,7 @@ public class AuthController {
 
     private final AuthService authService;
     private final SocialAuthService socialAuthService;
+    private final EmailVerificationService emailVerificationService;
     private final OAuthStateService oauthStateService;
     private final OAuthLoginTicketService oauthLoginTicketService;
     private final String oauthSuccessUri;
@@ -52,6 +57,7 @@ public class AuthController {
     public AuthController(
             AuthService authService,
             SocialAuthService socialAuthService,
+            EmailVerificationService emailVerificationService,
             OAuthStateService oauthStateService,
             OAuthLoginTicketService oauthLoginTicketService,
             @Value("${app.oauth-success-uri}") String oauthSuccessUri,
@@ -59,6 +65,7 @@ public class AuthController {
     ) {
         this.authService = authService;
         this.socialAuthService = socialAuthService;
+        this.emailVerificationService = emailVerificationService;
         this.oauthStateService = oauthStateService;
         this.oauthLoginTicketService = oauthLoginTicketService;
         this.oauthSuccessUri = oauthSuccessUri;
@@ -69,6 +76,30 @@ public class AuthController {
     public ApiResponse<Void> signup(@Valid @RequestBody SignupRequest request) {
         authService.signup(request);
         return ApiResponse.success("회원가입이 완료되었습니다.", null);
+    }
+
+    @GetMapping("/check-login-id")
+    public ApiResponse<LoginIdAvailabilityResponse> checkLoginId(@RequestParam String loginId) {
+        if (!StringUtils.hasText(loginId)) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT);
+        }
+        boolean available = authService.isLoginIdAvailable(loginId);
+        return ApiResponse.success(
+                available ? "사용할 수 있는 아이디입니다." : "이미 사용 중인 아이디입니다.",
+                new LoginIdAvailabilityResponse(available)
+        );
+    }
+
+    @PostMapping("/email/verification-code")
+    public ApiResponse<Void> sendEmailVerificationCode(@Valid @RequestBody EmailVerificationRequest request) {
+        emailVerificationService.sendCode(request.email());
+        return ApiResponse.success("인증번호를 발송했습니다.", null);
+    }
+
+    @PostMapping("/email/verify")
+    public ApiResponse<Void> verifyEmailCode(@Valid @RequestBody EmailVerificationConfirmRequest request) {
+        emailVerificationService.confirmCode(request.email(), request.code());
+        return ApiResponse.success("이메일 인증이 완료되었습니다.", null);
     }
 
     @PostMapping("/login")
