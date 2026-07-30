@@ -101,9 +101,7 @@ public class BoardAccessPolicy {
             throw badRequest("게시 공간과 카테고리를 선택해 주세요.");
         }
 
-        if (boardType == BoardType.GENERAL
-                && category == PostCategory.NOTICE
-                && !isAdmin(account)) {
+        if (category == PostCategory.NOTICE && !isAdmin(account)) {
             throw new BoardException(
                     HttpStatus.FORBIDDEN,
                     "BOARD_NOTICE_WRITE_FORBIDDEN",
