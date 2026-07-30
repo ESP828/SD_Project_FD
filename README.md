@@ -22,6 +22,7 @@
 SD_Project_FD/
 ├─ .github/                         GitHub PR 템플릿
 ├─ .vscode/                         팀 공통 VS Code 설정
+├─ .history/						백업용 폴더
 ├─ springboot/
 │  ├─ src/main/java/com/example/backend/
 │  │  ├─ global/                    공통 설정·보안·예외·응답
