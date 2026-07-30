@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="푸드덕 맛집 통합 검색">
+  <title>검색 · 푸드덕</title>
+  <link rel="icon" href="/images/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/css/common.css">
+  <link rel="stylesheet" href="/css/feature-pages.css">
+  <link rel="stylesheet" href="/pages/search/search.css">
+</head>
+<body>
+  <div data-site-header data-active-nav="search"></div>
+
+  <main class="feature-main search-page">
+    <section class="feature-hero feature-hero--cream">
+      <div class="container feature-hero-grid">
+        <div class="feature-hero-copy">
+          <p class="eyebrow">Fooduck search</p>
+          <h1>원하는 맛집을<br>조건으로 찾아보세요</h1>
+        </div>
+        <div class="feature-hero-art">
+          <img src="/images/characters/laptop.png" alt="" aria-hidden="true">
+        </div>
+      </div>
+    </section>
+
+    <section class="container feature-content" aria-labelledby="search-title">
+      <h2 id="search-title" class="sr-only">맛집 검색</h2>
+
+      <form id="restaurant-search-form" class="surface-card search-form">
+        <label class="search-field search-field--main">
+          <span class="field-label">검색어</span>
+          <span class="search-input-wrap">
+            <span class="material-symbols-rounded" aria-hidden="true">search</span>
+            <input id="search-keyword" type="search"
+                   placeholder="가게 이름이나 메뉴를 입력하세요" maxlength="100" autocomplete="off">
+          </span>
+        </label>
+        <label class="search-field">
+          <span class="field-label">음식 종류</span>
+          <select id="search-category">
+            <option value="">전체</option>
+            <option value="한식">한식</option>
+            <option value="중식">중식</option>
+            <option value="일식">일식</option>
+            <option value="양식">양식</option>
+            <option value="카페">카페</option>
+            <option value="디저트">디저트</option>
+          </select>
+        </label>
+        <label class="search-field">
+          <span class="field-label">지역</span>
+          <input id="search-region" type="text" placeholder="예: 강남, 성수" maxlength="50">
+        </label>
+        <button class="button button-primary search-submit" type="submit">
+          검색하기
+          <span class="material-symbols-rounded" aria-hidden="true">arrow_forward</span>
+        </button>
+      </form>
+
+      <div class="quick-filter-row" aria-label="빠른 음식 종류">
+        <span>빠른 검색</span>
+        <button type="button" data-quick-category="한식">한식</button>
+        <button type="button" data-quick-category="중식">중식</button>
+        <button type="button" data-quick-category="일식">일식</button>
+        <button type="button" data-quick-category="양식">양식</button>
+        <button type="button" data-quick-category="카페">카페</button>
+        <button type="button" data-quick-category="디저트">디저트</button>
+      </div>
+
+      <section class="search-result-section" aria-labelledby="result-heading">
+        <div class="search-result-header">
+          <div>
+            <p class="eyebrow">Kakao Places</p>
+            <h2 id="result-heading">검색 결과 <span id="search-result-count">0</span></h2>
+          </div>
+          <p id="search-status" role="status" aria-live="polite">검색 조건을 입력해 주세요.</p>
+        </div>
+
+        <div id="search-results" class="search-result-grid">
+          <div class="surface-card search-empty">
+            <img src="/images/characters/map-256.png" alt="" aria-hidden="true">
+            <h3>찾고 싶은 맛집을 검색해 보세요</h3>
+            <p>결과는 Kakao Places에서 받아오며 지도 맛집찾기로 바로 이어집니다.</p>
+          </div>
+        </div>
+
+        <div class="search-pagination" aria-label="검색 결과 페이지">
+          <button id="search-prev" class="button button-secondary button-sm" type="button" disabled>
+            <span class="material-symbols-rounded" aria-hidden="true">arrow_back</span>
+            이전
+          </button>
+          <span id="search-page-label">1 / 1</span>
+          <button id="search-next" class="button button-secondary button-sm" type="button" disabled>
+            다음
+            <span class="material-symbols-rounded" aria-hidden="true">arrow_forward</span>
+          </button>
+        </div>
+      </section>
+    </section>
+  </main>
+
+  <div data-site-footer></div>
+
+  <script src="/js/api.js"></script>
+  <script src="/js/common.js"></script>
+  <script src="/pages/search/search.js"></script>
+</body>
+</html>

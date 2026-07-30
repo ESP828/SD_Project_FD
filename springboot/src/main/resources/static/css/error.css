@@ -1,0 +1,53 @@
+.error-page {
+  display: grid;
+  min-height: calc(100vh - var(--header-height));
+  place-items: center;
+  padding: 30px 20px;
+  background:
+    radial-gradient(circle at 18% 12%, rgba(255, 152, 0, 0.14), transparent 28%),
+    radial-gradient(circle at 84% 80%, rgba(0, 200, 83, 0.08), transparent 25%),
+    var(--color-canvas);
+}
+
+.error-card {
+  width: min(100%, 620px);
+  padding: 48px;
+  text-align: center;
+}
+
+.error-card img {
+  width: 180px;
+  margin: 0 auto 16px;
+}
+
+.error-code {
+  margin-bottom: 8px;
+  color: var(--color-orange-dark);
+  font-size: 0.8rem;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+}
+
+.error-card h1 {
+  margin-bottom: 12px;
+  font-size: clamp(2rem, 6vw, 3.2rem);
+}
+
+.error-card p {
+  max-width: 460px;
+  margin: 0 auto 26px;
+  color: var(--color-muted);
+}
+
+.error-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+}
+
+@media (max-width: 520px) {
+  .error-card {
+    padding: 36px 24px;
+  }
+}

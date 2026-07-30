@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>서버 오류 · 푸드덕</title>
+  <link rel="icon" href="/images/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/css/common.css">
+  <link rel="stylesheet" href="/css/error.css">
+</head>
+<body>
+  <div data-site-header></div>
+  <main class="error-page">
+    <section class="surface-card error-card">
+      <img src="/images/characters/error.png" alt="" aria-hidden="true">
+      <p class="error-code">ERROR 500</p>
+      <h1>잠시 쉬어가야 할 것 같아요</h1>
+      <p>서버에서 요청을 처리하지 못했습니다. 잠시 뒤 다시 시도하거나 홈으로 이동해 주세요.</p>
+      <div class="error-actions">
+        <a class="button button-primary" href="/">
+          <span class="material-symbols-rounded" aria-hidden="true">home</span>
+          홈으로
+        </a>
+        <button class="button button-secondary" type="button" onclick="window.location.reload()">다시 시도</button>
+      </div>
+    </section>
+  </main>
+  <div data-site-footer></div>
+  <script src="/js/common.js"></script>
+</body>
+</html>

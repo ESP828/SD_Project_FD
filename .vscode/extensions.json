@@ -1,0 +1,9 @@
+{
+  "// 설명": "이 프로젝트를 열면 VSCode가 아래 확장 설치를 자동으로 추천합니다.",
+  "recommendations": [
+    "vscjava.vscode-java-pack",
+    "vmware.vscode-boot-dev-pack",
+    "esbenp.prettier-vscode",
+    "eamodio.gitlens"
+  ]
+}

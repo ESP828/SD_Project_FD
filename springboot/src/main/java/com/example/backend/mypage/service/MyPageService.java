@@ -1,0 +1,54 @@
+package com.example.backend.mypage.service;
+
+import com.example.backend.auth.domain.entity.Account;
+import com.example.backend.auth.repository.AccountRepository;
+import com.example.backend.auth.service.AuthorityService;
+import com.example.backend.global.exception.BusinessException;
+import com.example.backend.global.exception.ErrorCode;
+import com.example.backend.mypage.dto.response.MyPageOverviewResponse;
+import com.example.backend.mypage.query.MyPageActivityQueryRepository;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+@Service
+public class MyPageService {
+
+    private final AccountRepository accountRepository;
+    private final AuthorityService authorityService;
+    private final MyPageActivityQueryRepository activityQueryRepository;
+
+    public MyPageService(
+            AccountRepository accountRepository,
+            AuthorityService authorityService,
+            MyPageActivityQueryRepository activityQueryRepository
+    ) {
+        this.accountRepository = accountRepository;
+        this.authorityService = authorityService;
+        this.activityQueryRepository = activityQueryRepository;
+    }
+
+    @Transactional(readOnly = true)
+    public MyPageOverviewResponse getOverview(Long accountId) {
+        Account account = accountRepository.findById(accountId)
+                .filter(Account::isActive)
+                .orElseThrow(() -> new BusinessException(ErrorCode.RESOURCE_NOT_FOUND));
+        var counts = activityQueryRepository.findCounts(accountId);
+        return new MyPageOverviewResponse(
+                account.getAccountId(),
+                account.getLoginId(),
+                account.getEmail(),
+                account.getNickname(),
+                account.getGender(),
+                account.getBirthDate(),
+                account.getProfileImageUrl(),
+                account.getStatus(),
+                account.getCreatedAt(),
+                authorityService.findCodes(accountId),
+                counts.favorites(),
+                counts.reviews(),
+                counts.posts(),
+                counts.comments(),
+                counts.unreadNotifications()
+        );
+    }
+}

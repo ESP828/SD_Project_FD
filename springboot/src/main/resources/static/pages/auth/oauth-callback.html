@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>소셜 로그인 처리 · 푸드덕</title>
+  <link rel="icon" href="/images/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/css/common.css">
+  <link rel="stylesheet" href="/pages/auth/auth.css">
+</head>
+<body>
+  <div data-site-header></div>
+
+  <main class="auth-page">
+    <section class="surface-card callback-shell callback-card" aria-live="polite">
+      <img class="callback-character" src="/images/characters/laptop.png" alt="" aria-hidden="true">
+      <div id="callback-spinner" class="callback-spinner" aria-hidden="true"></div>
+      <h1>로그인 확인 중</h1>
+      <p id="callback-message" class="auth-intro">소셜 로그인 결과를 안전하게 확인하고 있습니다.</p>
+      <a id="callback-retry" class="button button-secondary" href="/pages/auth/login.html" hidden>
+        <span class="material-symbols-rounded" aria-hidden="true">arrow_back</span>
+        로그인 화면으로 돌아가기
+      </a>
+    </section>
+  </main>
+
+  <div data-site-footer></div>
+
+  <script src="/js/api.js"></script>
+  <script src="/js/common.js"></script>
+  <script src="/pages/auth/oauth-callback.js"></script>
+</body>
+</html>

@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="푸드덕 계정과 맛집 활동을 확인하는 마이페이지">
+  <title>마이페이지 · 푸드덕</title>
+  <link rel="icon" href="/images/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/css/common.css">
+  <link rel="stylesheet" href="/pages/mypage/mypage.css">
+</head>
+<body>
+  <div data-site-header></div>
+
+  <main class="mypage-main">
+    <section class="mypage-hero">
+      <div class="container mypage-hero-grid">
+        <div>
+          <p class="eyebrow">My fooduck</p>
+          <h1>내가 모은 맛있는<br>기록을 한눈에</h1>
+        </div>
+        <img src="/images/characters/heart.png" alt="" aria-hidden="true">
+      </div>
+    </section>
+
+    <section id="mypage-gate" class="container mypage-gate" hidden>
+      <img src="/images/characters/waving.png" alt="" aria-hidden="true">
+      <div>
+        <h2>로그인 후 마이페이지를 이용해 주세요</h2>
+        <p>계정 정보와 찜·리뷰·게시글·댓글·알림 기록은 로그인한 계정 기준으로 조회합니다.</p>
+        <div class="mypage-gate-actions">
+          <a class="button button-navy" href="/pages/auth/login.html?next=%2Fpages%2Fmypage%2Findex.html">로그인</a>
+          <a class="button button-secondary" href="/pages/auth/signup.html">회원가입</a>
+        </div>
+      </div>
+    </section>
+
+    <section id="mypage-content" class="container mypage-content" aria-live="polite">
+      <div class="mypage-loading">
+        <span class="material-symbols-rounded" aria-hidden="true">progress_activity</span>
+        <strong>내 정보를 불러오고 있습니다.</strong>
+      </div>
+    </section>
+  </main>
+
+  <div data-site-footer></div>
+
+  <script src="/js/api.js"></script>
+  <script src="/js/common.js"></script>
+  <script src="/pages/mypage/mypage.js"></script>
+</body>
+</html>

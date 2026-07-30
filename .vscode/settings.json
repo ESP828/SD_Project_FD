@@ -1,0 +1,27 @@
+{
+  "// 설명": "팀 공통 에디터 설정. 줄바꿈/인코딩/포맷을 통일해 불필요한 diff를 방지합니다.",
+
+  "files.encoding": "utf8",
+  "files.eol": "\n",
+  "files.insertFinalNewline": true,
+  "files.trimTrailingWhitespace": true,
+
+  "editor.tabSize": 2,
+  "editor.formatOnSave": false,
+
+  "// Java 관련": "",
+  "[java]": {
+    "editor.tabSize": 4
+  },
+
+  "// 정적 HTML/CSS/JavaScript": "",
+  "[javascript]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "[html]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "[css]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  }
+}

@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="푸드덕 맛집 이야기 커뮤니티">
+  <title>커뮤니티 · 푸드덕</title>
+  <link rel="icon" href="/images/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/css/common.css">
+  <link rel="stylesheet" href="/pages/board/board.css">
+</head>
+<body>
+  <div data-site-header data-active-nav="board"></div>
+
+  <main class="board-main">
+    <section class="board-hero">
+      <div class="container board-hero-grid">
+        <div>
+          <p class="eyebrow">Food stories</p>
+          <h1>함께 나누는<br>맛있는 이야기</h1>
+          <a id="hero-write-button" class="button button-primary"
+             href="/pages/board/write.html?boardType=GENERAL" data-write-link>
+            <span class="material-symbols-rounded" aria-hidden="true">edit</span>
+            새 이야기 쓰기
+          </a>
+        </div>
+        <img src="/images/characters/review.png" alt="" aria-hidden="true">
+      </div>
+    </section>
+
+    <section class="container board-content" aria-labelledby="board-heading">
+      <div class="board-tabs" role="tablist" aria-label="커뮤니티 구분">
+        <button class="board-tab is-active" type="button" role="tab"
+                aria-selected="true" data-board-type="GENERAL">
+          일반 커뮤니티
+        </button>
+        <button id="business-board-tab" class="board-tab" type="button" role="tab"
+                aria-selected="false" data-board-type="BUSINESS" hidden>
+          사업자 커뮤니티
+        </button>
+      </div>
+
+      <form id="board-search-form" class="board-toolbar" role="search">
+        <label>
+          <span class="sr-only">카테고리</span>
+          <select id="board-category">
+            <option value="">전체 카테고리</option>
+            <option value="GENERAL">자유 이야기</option>
+            <option value="RECOMMENDATION">맛집 추천</option>
+            <option value="REVIEW">방문 후기</option>
+            <option value="QUESTION">질문</option>
+            <option value="TRAVEL">맛집 여행</option>
+          </select>
+        </label>
+        <label class="board-search-field">
+          <span class="material-symbols-rounded" aria-hidden="true">search</span>
+          <span class="sr-only">게시글 검색</span>
+          <input id="board-keyword" type="search" maxlength="100"
+                 placeholder="제목과 내용에서 검색">
+        </label>
+        <label>
+          <span class="sr-only">정렬</span>
+          <select id="board-sort">
+            <option value="LATEST">최신순</option>
+            <option value="LIKES">추천순</option>
+            <option value="COMMENTS">댓글순</option>
+          </select>
+        </label>
+        <button class="button button-sm button-navy" type="submit">검색</button>
+        <button id="board-reset-button" class="button button-sm button-secondary" type="button">
+          초기화
+        </button>
+      </form>
+
+      <div class="board-layout">
+        <section class="board-list-panel" aria-labelledby="board-heading">
+          <div class="board-panel-header">
+            <div>
+              <h2 id="board-heading">일반 커뮤니티</h2>
+              <p><strong id="board-total-count">0</strong>개의 이야기</p>
+            </div>
+            <a id="write-button" class="button button-sm button-primary"
+               href="/pages/board/write.html?boardType=GENERAL" data-write-link>
+              <span class="material-symbols-rounded" aria-hidden="true">edit</span>
+              글쓰기
+            </a>
+          </div>
+          <div id="board-list" class="board-list" aria-live="polite">
+            <div class="board-loading">
+              <span class="material-symbols-rounded" aria-hidden="true">progress_activity</span>
+              게시글을 불러오고 있습니다.
+            </div>
+          </div>
+          <nav id="board-pagination" class="board-pagination" aria-label="게시글 페이지"></nav>
+        </section>
+
+        <aside class="board-side-stack">
+          <section class="best-panel">
+            <div class="board-panel-header">
+              <div>
+                <h3>인기 이야기</h3>
+                <p>추천이 많은 게시글</p>
+              </div>
+            </div>
+            <ol id="best-post-list" class="best-post-list">
+              <li class="best-loading">불러오는 중</li>
+            </ol>
+          </section>
+          <section class="board-guide-panel">
+            <img src="/images/characters/laptop.png" alt="" aria-hidden="true">
+            <h3>커뮤니티 이용 안내</h3>
+            <p>비로그인·일반 회원은 일반 커뮤니티만 볼 수 있습니다. 사업자 게시판은 승인된 사업자와 관리자에게만 열립니다.</p>
+          </section>
+        </aside>
+      </div>
+    </section>
+  </main>
+
+  <div data-site-footer></div>
+
+  <script src="/js/api.js"></script>
+  <script src="/js/common.js"></script>
+  <script src="/pages/board/board-shared.js"></script>
+  <script src="/pages/board/board.js"></script>
+</body>
+</html>

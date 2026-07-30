@@ -1,0 +1,45 @@
+# FOODUCK repository
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE / editor
+.idea/
+.history/
+*.iml
+*.ipr
+*.iws
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+!.vscode/launch.json
+
+# Local secrets
+.env
+.env.*
+!.env.example
+springboot/src/main/resources/application-local.properties
+springboot/src/main/resources/application-prod.properties
+.history
+
+# Maven / Java build output
+springboot/target/
+springboot/build/
+springboot/.mvn/wrapper/maven-wrapper.jar
+*.class
+
+# IDE-generated Spring files
+springboot/.apt_generated/
+springboot/.classpath
+springboot/.factorypath
+springboot/.project
+springboot/.settings/
+springboot/.springBeans
+springboot/.sts4-cache/
+
+# Runtime output and local artifacts
+*.log
+*.zip
+springboot/db-backups/
+springboot/deliverables/

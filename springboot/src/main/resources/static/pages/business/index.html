@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="푸드덕 사업자 권한 신청과 음식점 관리">
+  <title>사업자 관리 · 푸드덕</title>
+  <link rel="icon" href="/images/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/css/common.css">
+  <link rel="stylesheet" href="/pages/management/management.css">
+</head>
+<body>
+  <div data-site-header data-active-nav="business"></div>
+
+  <main class="management-main">
+    <section class="management-hero">
+      <div class="container management-hero-grid">
+        <div>
+          <p class="eyebrow">Business center</p>
+          <h1>내 가게와 소식을<br>한곳에서 관리하세요</h1>
+        </div>
+        <img src="/images/characters/cooking.png" alt="" aria-hidden="true">
+      </div>
+    </section>
+
+    <section class="container management-content">
+      <section id="business-login-gate" class="access-card" hidden>
+        <img src="/images/characters/waving.png" alt="" aria-hidden="true">
+        <div>
+          <h2>로그인이 필요합니다</h2>
+          <p>일반 회원으로 로그인하면 사업자 권한 신청 화면을 확인할 수 있습니다.</p>
+          <a class="button button-navy" href="/pages/auth/login.html?next=%2Fpages%2Fbusiness%2Findex.html">로그인</a>
+        </div>
+      </section>
+
+      <section id="business-application" class="access-card" hidden>
+        <img src="/images/characters/laptop.png" alt="" aria-hidden="true">
+        <div>
+          <p class="eyebrow">Business application</p>
+          <h2>사업자 권한 신청</h2>
+          <p>기획된 입력 구조를 유지한 화면입니다. 신청 저장·상태 조회 API가 구현되기 전에는 제출하지 않습니다.</p>
+          <form class="application-form">
+            <label>사업자명<input type="text" disabled placeholder="사업자명"></label>
+            <label>사업자등록번호<input type="text" disabled placeholder="000-00-00000"></label>
+            <label>대표자명<input type="text" disabled placeholder="대표자명"></label>
+            <label>연락처<input type="tel" disabled placeholder="010-0000-0000"></label>
+            <label class="full">신청 사유<textarea rows="3" disabled placeholder="신청 사유"></textarea></label>
+            <button class="button button-primary full" type="button" disabled>신청 API 연결 전</button>
+          </form>
+        </div>
+      </section>
+
+      <section id="business-dashboard" class="management-dashboard" hidden>
+        <div class="management-summary">
+          <div>
+            <h2>사업자 관리</h2>
+            <p>현재 구현된 커뮤니티 기능과 후속 음식점 관리 기능을 구분했습니다.</p>
+          </div>
+          <a class="button button-primary" href="/pages/board/index.html">사업자 커뮤니티</a>
+        </div>
+        <div class="management-grid">
+          <article class="management-card">
+            <span class="material-symbols-rounded" aria-hidden="true">storefront</span>
+            <h3>내 음식점</h3>
+            <p>등록한 음식점 목록·상태·등록일과 수정·삭제 기능이 들어갈 영역입니다.</p>
+            <button class="button button-secondary" type="button" disabled>음식점 API 연결 전</button>
+          </article>
+          <article class="management-card">
+            <span class="material-symbols-rounded" aria-hidden="true">edit</span>
+            <h3>음식점 등록</h3>
+            <p>이름·카테고리·주소·좌표·영업시간·메뉴·태그를 입력하는 기능입니다.</p>
+            <button class="button button-secondary" type="button" disabled>등록 API 연결 전</button>
+          </article>
+          <article class="management-card">
+            <span class="material-symbols-rounded" aria-hidden="true">forum</span>
+            <h3>가게 소식</h3>
+            <p>내 음식점의 소식 작성·수정·삭제와 상세 페이지 노출 기능입니다.</p>
+            <button class="button button-secondary" type="button" disabled>소식 API 연결 전</button>
+          </article>
+        </div>
+      </section>
+    </section>
+  </main>
+
+  <div data-site-footer></div>
+  <script src="/js/common.js"></script>
+  <script src="/pages/business/business.js"></script>
+</body>
+</html>

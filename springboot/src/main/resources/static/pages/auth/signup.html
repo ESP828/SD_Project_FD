@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="푸드덕 일반 회원가입">
+  <title>회원가입 · 푸드덕</title>
+  <link rel="icon" href="/images/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/css/common.css">
+  <link rel="stylesheet" href="/pages/auth/auth.css">
+</head>
+<body>
+  <div data-site-header></div>
+
+  <main class="auth-page">
+    <div class="auth-shell">
+      <aside class="auth-visual" aria-label="푸드덕 회원가입 안내">
+        <div class="auth-visual-copy">
+          <p class="eyebrow">Join fooduck</p>
+          <h2>맛있는 발견을<br>함께 시작해요.</h2>
+        </div>
+        <img src="/images/characters/celebration.png" alt="" aria-hidden="true">
+      </aside>
+
+      <section class="auth-card" aria-labelledby="signup-title">
+        <p class="page-kicker">Create account</p>
+        <h1 id="signup-title">회원가입</h1>
+        <p class="auth-intro">필수 정보만 입력해 기본 계정을 만듭니다.</p>
+        <div id="recommendation-signup-note" class="auth-note auth-note--recommendation" hidden>
+          <span class="material-symbols-rounded" aria-hidden="true">auto_awesome</span>
+          <span>회원가입과 로그인 후 나를 위한 맛집 추천 화면으로 이동합니다.</span>
+        </div>
+
+        <form id="signup-form" class="auth-form">
+          <label class="field">
+            <span>아이디 <span class="field-hint">4~20자</span></span>
+            <input type="text" name="loginId" placeholder="로그인에 사용할 아이디" autocomplete="username" minlength="4" maxlength="20" required>
+          </label>
+          <label class="field">
+            <span>비밀번호 <span class="field-hint">8~64자</span></span>
+            <input type="password" name="password" placeholder="안전한 비밀번호를 입력해 주세요" autocomplete="new-password" minlength="8" maxlength="64" required>
+          </label>
+          <label class="field">
+            이메일
+            <input type="email" name="email" placeholder="example@fooduck.com" autocomplete="email" maxlength="254" required>
+          </label>
+          <label class="field">
+            <span>닉네임 <span class="field-hint">2~30자</span></span>
+            <input type="text" name="nickname" placeholder="서비스에 표시할 이름" autocomplete="nickname" minlength="2" maxlength="30" required>
+          </label>
+          <button class="button button-primary auth-submit" type="submit">
+            <span class="material-symbols-rounded" aria-hidden="true">person_add</span>
+            계정 만들기
+          </button>
+        </form>
+        <p id="signup-message" class="auth-message" role="alert"></p>
+
+        <div class="auth-note">
+          <span class="material-symbols-rounded" aria-hidden="true">verified_user</span>
+          <span>비밀번호는 서버에서 단방향 해시로 저장됩니다. 이메일 인증과 중복 확인은 다음 API 단계에서 연결합니다.</span>
+        </div>
+
+        <p class="auth-switch">
+          이미 계정이 있으신가요?
+          <a href="/pages/auth/login.html">로그인</a>
+        </p>
+      </section>
+    </div>
+  </main>
+
+  <div data-site-footer></div>
+
+  <script src="/js/api.js"></script>
+  <script src="/js/common.js"></script>
+  <script src="/pages/auth/signup.js"></script>
+</body>
+</html>

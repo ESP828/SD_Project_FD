@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="푸드덕 커뮤니티 게시글 상세">
+  <title>커뮤니티 이야기 · 푸드덕</title>
+  <link rel="icon" href="/images/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/css/common.css">
+  <link rel="stylesheet" href="/pages/board/board.css">
+</head>
+<body>
+  <div data-site-header data-active-nav="board"></div>
+
+  <main class="board-page-main">
+    <section class="board-detail-header">
+      <div class="container">
+        <a id="detail-list-link" class="board-back-link" href="/pages/board/index.html">
+          <span class="material-symbols-rounded" aria-hidden="true">arrow_back</span>
+          커뮤니티 목록
+        </a>
+      </div>
+    </section>
+
+    <section class="container board-detail-layout" aria-label="게시글 상세">
+      <div class="board-detail-column">
+        <article id="post-detail-content" class="board-detail-card" aria-live="polite">
+          <div class="board-loading">
+            <span class="material-symbols-rounded" aria-hidden="true">progress_activity</span>
+            게시글을 불러오고 있습니다.
+          </div>
+        </article>
+
+        <section class="comment-section board-comments-card" aria-labelledby="comment-heading">
+          <div class="comment-heading-row">
+            <div>
+              <span class="board-step-label">Conversation</span>
+              <h2 id="comment-heading">댓글 <span id="detail-comment-count">0</span></h2>
+            </div>
+          </div>
+          <form id="comment-form" class="comment-form">
+            <label class="sr-only" for="comment-content">댓글 내용</label>
+            <textarea id="comment-content" maxlength="1000" rows="4"
+                      placeholder="맛있는 이야기에 댓글을 남겨 보세요."></textarea>
+            <div class="comment-submit-row">
+              <p id="comment-login-note"></p>
+              <button class="button button-sm button-primary" type="submit">댓글 등록</button>
+            </div>
+          </form>
+          <div id="comment-list" class="comment-list" aria-live="polite"></div>
+        </section>
+      </div>
+
+      <aside class="detail-side-stack">
+        <section class="detail-side-card">
+          <img src="/images/characters/review.png" alt="" aria-hidden="true">
+          <h2>맛있는 대화를 이어가세요</h2>
+          <p>작성자 아이디와 회원 구분을 확인하고 서로를 존중하는 댓글을 남겨 주세요.</p>
+        </section>
+        <section id="detail-restaurant-side" class="detail-side-card" hidden></section>
+      </aside>
+    </section>
+  </main>
+
+  <div id="board-toast" class="board-toast" role="status" aria-live="polite" hidden></div>
+  <div data-site-footer></div>
+
+  <script src="/js/api.js"></script>
+  <script src="/js/common.js"></script>
+  <script src="/pages/board/board-shared.js"></script>
+  <script src="/pages/board/detail.js"></script>
+</body>
+</html>

@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="내 활동 데이터로 확인하는 푸드덕 맛집 추천">
+  <title>맛집 추천 · 푸드덕</title>
+  <link rel="icon" href="/images/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/css/common.css">
+  <link rel="stylesheet" href="/pages/recommendation/recommendation.css">
+</head>
+<body>
+  <div data-site-header data-active-nav="recommendation"></div>
+
+  <main class="recommendation-main">
+    <section class="recommendation-hero">
+      <div class="container recommendation-hero-grid">
+        <div>
+          <p class="eyebrow">Taste recommendation</p>
+          <h1>내 취향을 따라<br>찾아낸 맛있는 선택</h1>
+          <div class="recommendation-hero-actions">
+            <a class="button button-primary" href="#personal-section">
+              나를 위한 맛집 보기
+            </a>
+            <a class="button button-secondary" href="/pages/map/index.html">
+              <span class="material-symbols-rounded" aria-hidden="true">map</span>
+              지도에서 찾기
+            </a>
+          </div>
+        </div>
+        <img src="/images/characters/cooking.png" alt="" aria-hidden="true">
+      </div>
+    </section>
+
+    <section id="recommendation-content" class="container recommendation-content" aria-live="polite">
+      <div class="recommendation-loading">
+        <span class="material-symbols-rounded" aria-hidden="true">progress_activity</span>
+        <strong>추천 데이터를 확인하고 있습니다.</strong>
+      </div>
+    </section>
+  </main>
+
+  <div data-site-footer></div>
+
+  <script src="/js/api.js"></script>
+  <script src="/js/common.js"></script>
+  <script src="/pages/recommendation/recommendation.js"></script>
+</body>
+</html>

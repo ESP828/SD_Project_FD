@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Kakao Map으로 찾는 푸드덕 맛집 지도">
+  <title>맛집 찾기 · 푸드덕</title>
+  <link rel="icon" href="/images/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/css/common.css">
+  <link rel="stylesheet" href="/pages/map/map.css">
+</head>
+<body>
+  <div data-site-header data-active-nav="map"></div>
+
+  <main class="map-page">
+    <aside class="map-sidebar" aria-label="맛집 검색과 결과">
+      <div class="map-sidebar-heading">
+        <div>
+          <p class="eyebrow">Kakao restaurant map</p>
+          <h1>맛집 찾기</h1>
+        </div>
+        <img src="/images/characters/map-256.png" alt="" aria-hidden="true">
+      </div>
+
+      <form id="place-search-form" class="map-search" role="search">
+        <label class="sr-only" for="place-keyword">장소 검색어</label>
+        <span class="material-symbols-rounded" aria-hidden="true">search</span>
+        <input id="place-keyword" type="search" placeholder="예: 강남 파스타" autocomplete="off">
+        <button type="submit" aria-label="장소 검색">
+          <span class="material-symbols-rounded" aria-hidden="true">arrow_forward</span>
+        </button>
+      </form>
+
+      <div class="category-list" aria-label="음식점 빠른 검색">
+        <button type="button" data-category-keyword="한식">한식</button>
+        <button type="button" data-category-keyword="중식">중식</button>
+        <button type="button" data-category-keyword="일식">일식</button>
+        <button type="button" data-category-keyword="양식">양식</button>
+        <button type="button" data-category-keyword="카페">카페</button>
+      </div>
+
+      <div class="map-action-row">
+        <button id="current-location-button" class="location-button" type="button">
+          <span class="material-symbols-rounded" aria-hidden="true">my_location</span>
+          내 위치로 이동
+        </button>
+        <span class="provider-badge">
+          <span class="status-dot" aria-hidden="true"></span>
+          Kakao Map
+        </span>
+      </div>
+
+      <div class="result-summary">
+        <div>
+          <strong id="result-title">검색 결과</strong>
+          <span id="result-count">0</span>
+        </div>
+        <p id="map-status" class="map-status" aria-live="polite">카카오맵 설정을 확인하고 있습니다.</p>
+      </div>
+
+      <section id="place-results" class="place-results" aria-label="음식점 검색 결과">
+        <div class="result-loading">
+          <span class="material-symbols-rounded" aria-hidden="true">progress_activity</span>
+          <p>지도를 준비하고 있습니다.</p>
+        </div>
+      </section>
+    </aside>
+
+    <section class="map-stage" aria-label="카카오맵">
+      <div id="map"></div>
+      <div class="map-floating-guide">
+        <span class="material-symbols-rounded" aria-hidden="true">touch_app</span>
+        목록이나 마커를 선택하면 상세 위치를 확인할 수 있어요.
+      </div>
+      <div id="map-placeholder" class="map-placeholder">
+        <img src="/images/characters/map-256.png" alt="" aria-hidden="true">
+        <strong>카카오맵을 준비하고 있어요</strong>
+        <small>지도 설정을 확인한 뒤 장소 검색을 시작합니다.</small>
+      </div>
+    </section>
+  </main>
+
+  <div data-site-footer></div>
+
+  <script src="/js/api.js"></script>
+  <script src="/js/common.js"></script>
+  <script src="/pages/map/map.js"></script>
+</body>
+</html>
