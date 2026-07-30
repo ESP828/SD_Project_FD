@@ -21,7 +21,9 @@ public class BoardUserService {
         if (accountId == null) {
             return null;
         }
-        return accountRepository.findById(accountId).orElse(null);
+        return accountRepository.findById(accountId)
+                .filter(Account::isActive)
+                .orElse(null);
     }
 
     @Transactional(readOnly = true)
