@@ -255,13 +255,16 @@
 .social-button {
   position: relative;
   display: flex;
+  width: 100%;
   min-height: 47px;
   align-items: center;
   justify-content: center;
+  padding: 0 16px;
   border: 1px solid transparent;
   border-radius: 13px;
   font-size: 0.88rem;
   font-weight: 800;
+  box-sizing: border-box;
   transition: transform 150ms ease, filter 150ms ease;
 }
 
@@ -270,44 +273,120 @@
   filter: brightness(0.98);
 }
 
-.social-symbol {
+.social-icon-img {
   position: absolute;
   left: 16px;
-  display: grid;
-  width: 24px;
-  height: 24px;
-  place-items: center;
-  border-radius: 7px;
-  font-size: 0.78rem;
-  font-weight: 900;
+  top: 50%;
+  display: block;
+  width: 20px;
+  height: 20px;
+  transform: translateY(-50%);
+  object-fit: contain;
 }
 
+/* 카카오 로그인 버튼 공식 가이드: Background #FEE500, Label #000000 85% */
 .social-kakao {
-  color: #191919;
+  color: rgba(0, 0, 0, 0.85);
   background: #fee500;
 }
 
-.social-kakao .social-symbol {
-  background: rgba(25, 25, 25, 0.08);
-}
-
+/* 네이버 로그인 버튼 공식 가이드(완성형): Background #03A94D, Logo/Label #FFFFFF */
 .social-naver {
   color: #fff;
-  background: #03c75a;
+  background: #03a94d;
 }
 
-.social-naver .social-symbol {
-  background: rgba(255, 255, 255, 0.17);
+/* Google 공식 "Sign in with Google" 버튼 (Google Identity 브랜드 가이드) */
+.gsi-material-button {
+  -moz-user-select: none;
+  -webkit-user-select: none;
+  -ms-user-select: none;
+  -webkit-appearance: none;
+  display: block;
+  width: 100%;
+  max-width: none;
+  min-width: min-content;
+  background-color: white;
+  background-image: none;
+  border: 1px solid var(--color-line);
+  -webkit-border-radius: 13px;
+  border-radius: 13px;
+  -webkit-box-sizing: border-box;
+  box-sizing: border-box;
+  color: #1f1f1f;
+  cursor: pointer;
+  font-size: 0.88rem;
+  font-weight: 800;
+  height: 47px;
+  outline: none;
+  overflow: hidden;
+  padding: 0 16px;
+  position: relative;
+  text-align: center;
+  -webkit-transition: background-color .218s, border-color .218s, box-shadow .218s;
+  transition: background-color .218s, border-color .218s, box-shadow .218s;
+  vertical-align: middle;
+  white-space: nowrap;
 }
 
-.social-google {
-  border-color: #d8e0e9;
-  background: #fff;
+.gsi-material-button .gsi-material-button-icon {
+  position: absolute;
+  left: 16px;
+  top: 50%;
+  height: 20px;
+  min-width: 20px;
+  width: 20px;
+  transform: translateY(-50%);
 }
 
-.social-google .social-symbol {
-  color: #4285f4;
-  background: #f1f5fb;
+.gsi-material-button .gsi-material-button-content-wrapper {
+  -webkit-align-items: center;
+  align-items: center;
+  display: flex;
+  -webkit-flex-direction: row;
+  flex-direction: row;
+  -webkit-flex-wrap: nowrap;
+  flex-wrap: nowrap;
+  height: 100%;
+  justify-content: center;
+  position: relative;
+  width: 100%;
+}
+
+.gsi-material-button .gsi-material-button-contents {
+  -webkit-flex-grow: 0;
+  flex-grow: 0;
+  font-weight: 800;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: top;
+}
+
+.gsi-material-button .gsi-material-button-state {
+  -webkit-transition: opacity .218s;
+  transition: opacity .218s;
+  bottom: 0;
+  left: 0;
+  opacity: 0;
+  position: absolute;
+  right: 0;
+  top: 0;
+}
+
+.gsi-material-button:not(:disabled):hover {
+  -webkit-box-shadow: 0 1px 2px 0 rgba(60, 64, 67, .30), 0 1px 3px 1px rgba(60, 64, 67, .15);
+  box-shadow: 0 1px 2px 0 rgba(60, 64, 67, .30), 0 1px 3px 1px rgba(60, 64, 67, .15);
+}
+
+.gsi-material-button:not(:disabled):hover .gsi-material-button-state {
+  background-color: #303030;
+  opacity: 8%;
+}
+
+.gsi-material-button:not(:disabled):active .gsi-material-button-state,
+.gsi-material-button:not(:disabled):focus .gsi-material-button-state {
+  background-color: #303030;
+  opacity: 12%;
 }
 
 .auth-switch {
