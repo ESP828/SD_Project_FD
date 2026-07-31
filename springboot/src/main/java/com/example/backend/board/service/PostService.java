@@ -29,15 +29,20 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
+import java.util.Optional;
 
 @Service
 public class PostService {
 
     private static final int MAX_PAGE_SIZE = 50;
     private static final int MAX_BEST_SIZE = 10;
+    private static final Duration DUPLICATE_SUBMISSION_WINDOW =
+            Duration.ofMillis(3_500);
 
     private final PostRepository postRepository;
     private final CommentRepository commentRepository;
@@ -166,6 +171,7 @@ public class PostService {
             PostCreateRequest request,
             Long currentAccountId
     ) {
+        LocalDateTime submittedAt = LocalDateTime.now();
         Account currentAccount = boardUserService.require(currentAccountId);
         accessPolicy.assertCanWrite(
                 request.boardType(),
@@ -173,14 +179,27 @@ public class PostService {
                 request.restaurantId(),
                 currentAccount
         );
+        boardUserService.lockForSubmission(currentAccount.getAccountId());
 
+        String title = request.title().strip();
+        String content = request.content().strip();
+        Optional<Post> duplicatePost = findRecentDuplicatePost(
+                request,
+                currentAccount,
+                title,
+                content,
+                submittedAt
+        );
+        if (duplicatePost.isPresent()) {
+            return responseMapper.toDetail(duplicatePost.get(), currentAccount);
+        }
         Post post = Post.create(
                 currentAccount,
                 request.restaurantId(),
                 request.boardType(),
                 request.category(),
-                request.title().strip(),
-                request.content().strip()
+                title,
+                content
         );
         postRepository.save(post);
         return responseMapper.toDetail(post, currentAccount);
@@ -273,6 +292,30 @@ public class PostService {
         validateId(postId, "게시글");
         return postRepository.findByPostIdAndStatusForUpdate(postId, PostStatus.ACTIVE)
                 .orElseThrow(() -> notFound("게시글을 찾을 수 없습니다."));
+    }
+
+    private Optional<Post> findRecentDuplicatePost(
+            PostCreateRequest request,
+            Account currentAccount,
+            String title,
+            String content,
+            LocalDateTime submittedAt
+    ) {
+        return postRepository.findRecentPostsByAuthor(
+                        currentAccount.getAccountId(),
+                        PostStatus.ACTIVE,
+                        submittedAt.minus(DUPLICATE_SUBMISSION_WINDOW)
+                )
+                .stream()
+                .filter(post -> post.getBoardType() == request.boardType())
+                .filter(post -> post.getCategory() == request.category())
+                .filter(post -> Objects.equals(
+                        post.getRestaurantId(),
+                        request.restaurantId()
+                ))
+                .filter(post -> post.getTitle().equals(title))
+                .filter(post -> post.getContent().equals(content))
+                .findFirst();
     }
 
     private void assertOwnerOrAdmin(Post post, Account account) {

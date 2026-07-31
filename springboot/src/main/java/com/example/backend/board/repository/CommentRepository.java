@@ -65,6 +65,23 @@ public interface CommentRepository extends JpaRepository<Comment, Long> {
     );
 
     @Query("""
+            select c
+            from Comment c
+            join fetch c.author
+            where c.post.postId = :postId
+              and c.author.accountId = :accountId
+              and c.status = :status
+              and c.createdAt >= :createdAfter
+            order by c.createdAt desc
+            """)
+    List<Comment> findRecentCommentsByAuthor(
+            @Param("postId") Long postId,
+            @Param("accountId") Long accountId,
+            @Param("status") CommentStatus status,
+            @Param("createdAfter") LocalDateTime createdAfter
+    );
+
+    @Query("""
             select c.post.postId
             from Comment c
             where c.commentId = :commentId

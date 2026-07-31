@@ -21,12 +21,16 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Duration;
 import java.time.LocalDateTime;
+import java.util.Optional;
 
 @Service
 public class CommentService {
 
     private static final int MAX_PAGE_SIZE = 100;
+    private static final Duration DUPLICATE_SUBMISSION_WINDOW =
+            Duration.ofMillis(3_500);
 
     private final CommentRepository commentRepository;
     private final PostRepository postRepository;
@@ -82,12 +86,27 @@ public class CommentService {
             CommentCreateRequest request,
             Long currentAccountId
     ) {
+        LocalDateTime submittedAt = LocalDateTime.now();
         Account currentAccount = boardUserService.require(currentAccountId);
+        boardUserService.lockForSubmission(currentAccount.getAccountId());
         Post post = getReadablePostForCommentMutation(postId, currentAccount);
+        String content = request.content().strip();
+        Optional<Comment> duplicateComment = findRecentDuplicateComment(
+                post,
+                currentAccount,
+                content,
+                submittedAt
+        );
+        if (duplicateComment.isPresent()) {
+            return responseMapper.toComment(
+                    duplicateComment.get(),
+                    currentAccount
+            );
+        }
         Comment comment = Comment.create(
                 post,
                 currentAccount,
-                request.content().strip()
+                content
         );
         commentRepository.save(comment);
         return responseMapper.toComment(comment, currentAccount);
@@ -160,6 +179,23 @@ public class CommentService {
                         CommentStatus.ACTIVE
                 )
                 .orElseThrow(this::commentNotFound);
+    }
+
+    private Optional<Comment> findRecentDuplicateComment(
+            Post post,
+            Account currentAccount,
+            String content,
+            LocalDateTime submittedAt
+    ) {
+        return commentRepository.findRecentCommentsByAuthor(
+                        post.getPostId(),
+                        currentAccount.getAccountId(),
+                        CommentStatus.ACTIVE,
+                        submittedAt.minus(DUPLICATE_SUBMISSION_WINDOW)
+                )
+                .stream()
+                .filter(comment -> comment.getContent().equals(content))
+                .findFirst();
     }
 
     private void assertOwnerOrAdmin(Comment comment, Account account) {
