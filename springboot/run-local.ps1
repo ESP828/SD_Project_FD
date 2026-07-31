@@ -31,4 +31,4 @@ Push-Location $PSScriptRoot
 $exitCode = $LASTEXITCODE
 Pop-Location
 
-exit $mavenExitCode
+exit $exitCode

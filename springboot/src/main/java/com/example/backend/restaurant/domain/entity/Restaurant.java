@@ -49,7 +49,7 @@ public class Restaurant {
     @Column(name = "closed_days", length = 255)
     private String closedDays;
 
-    @Lob
+    @Column(columnDefinition = "TEXT")
     private String description;
 
     @Enumerated(EnumType.STRING)
