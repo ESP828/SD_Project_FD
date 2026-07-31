@@ -1,6 +1,8 @@
 package com.example.backend.auth.service;
 
 import com.example.backend.auth.domain.entity.Account;
+import com.example.backend.auth.domain.entity.EmailVerification;
+import com.example.backend.auth.domain.type.AuthorityCode;
 import com.example.backend.auth.domain.type.SocialProvider;
 import com.example.backend.auth.dto.request.LoginRequest;
 import com.example.backend.auth.dto.request.SignupRequest;
@@ -10,6 +12,7 @@ import com.example.backend.auth.integration.oauth.OAuthUserProfile;
 import com.example.backend.auth.repository.AccountAuthorityRepository;
 import com.example.backend.auth.repository.AccountCredentialRepository;
 import com.example.backend.auth.repository.AccountRepository;
+import com.example.backend.auth.repository.EmailVerificationRepository;
 import com.example.backend.auth.repository.SocialAccountRepository;
 import com.example.backend.global.exception.BusinessException;
 import com.example.backend.global.security.jwt.JwtProvider;
@@ -20,6 +23,7 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.net.URI;
+import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -58,10 +62,23 @@ class AuthServiceIntegrationTest {
     @Autowired
     private JwtProvider jwtProvider;
 
+    @Autowired
+    private EmailVerificationRepository emailVerificationRepository;
+
+    private void verifyEmail(String email) {
+        EmailVerification verification = new EmailVerification(
+                email, "000000", LocalDateTime.now().plusMinutes(5)
+        );
+        verification.markVerified(LocalDateTime.now().plusMinutes(30));
+        emailVerificationRepository.save(verification);
+    }
+
     @Test
     void localSignupSeparatesCredentialAndIssuesRoleAwareJwt() {
+        verifyEmail("localtester@example.com");
         SignupRequest signup = new SignupRequest(
                 "localtester",
+                "correct-password",
                 "correct-password",
                 "localtester@example.com",
                 "로컬테스터"
@@ -126,8 +143,10 @@ class AuthServiceIntegrationTest {
 
     @Test
     void socialSignupRequiresExplicitLinkWhenEmailAlreadyBelongsToLocalAccount() {
+        verifyEmail("same-email@example.com");
         authService.signup(new SignupRequest(
                 "linktester",
+                "correct-password",
                 "correct-password",
                 "same-email@example.com",
                 "연결테스터"
@@ -153,6 +172,37 @@ class AuthServiceIntegrationTest {
                         "authorization-code",
                         "validated-state"
                 )
+        );
+    }
+
+    @Test
+    void authorityHierarchyIsCumulativeAndMissingMappingDefaultsToUser() {
+        Account account = accountRepository.save(Account.local(
+                "authoritytester",
+                "authoritytester@example.com",
+                "권한테스터"
+        ));
+
+        assertEquals(List.of("ROLE_USER"), authorityService.findCodes(account.getAccountId()));
+
+        authorityService.grant(account.getAccountId(), AuthorityCode.ROLE_BUSINESS);
+        assertEquals(
+                List.of("ROLE_USER", "ROLE_BUSINESS"),
+                authorityService.findCodes(account.getAccountId())
+        );
+
+        authorityService.grant(account.getAccountId(), AuthorityCode.ROLE_ADMIN);
+        assertEquals(
+                List.of("ROLE_USER", "ROLE_BUSINESS", "ROLE_ADMIN"),
+                authorityService.findCodes(account.getAccountId())
+        );
+        assertEquals(
+                List.of((short) 0, (short) 1, (short) 2),
+                accountAuthorityRepository.findAllByIdAccountId(account.getAccountId())
+                        .stream()
+                        .map(authority -> authority.getAuthorityId())
+                        .sorted()
+                        .toList()
         );
     }
 

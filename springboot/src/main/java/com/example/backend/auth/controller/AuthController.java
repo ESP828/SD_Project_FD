@@ -1,17 +1,23 @@
 package com.example.backend.auth.controller;
 
 import com.example.backend.auth.domain.type.SocialProvider;
+import com.example.backend.auth.dto.request.EmailVerificationConfirmRequest;
+import com.example.backend.auth.dto.request.EmailVerificationRequest;
 import com.example.backend.auth.dto.request.LoginRequest;
 import com.example.backend.auth.dto.request.OAuthTicketExchangeRequest;
 import com.example.backend.auth.dto.request.SignupRequest;
 import com.example.backend.auth.dto.response.AuthTokenResponse;
+import com.example.backend.auth.dto.response.LoginIdAvailabilityResponse;
 import com.example.backend.auth.integration.oauth.OAuthStateService;
 import com.example.backend.auth.service.AuthService;
+import com.example.backend.auth.service.EmailVerificationService;
 import com.example.backend.auth.service.OAuthLoginTicketService;
 import com.example.backend.auth.service.SocialAuthService;
 import com.example.backend.global.exception.BusinessException;
 import com.example.backend.global.exception.ErrorCode;
 import com.example.backend.global.response.ApiResponse;
+import com.example.backend.global.util.RateLimiter;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Value;
@@ -29,6 +35,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.util.UriComponentsBuilder;
 
 import java.net.URI;
+import java.time.Duration;
 
 /**
  * 로컬 계정과 소셜 로그인 API.
@@ -44,23 +51,29 @@ public class AuthController {
 
     private final AuthService authService;
     private final SocialAuthService socialAuthService;
+    private final EmailVerificationService emailVerificationService;
     private final OAuthStateService oauthStateService;
     private final OAuthLoginTicketService oauthLoginTicketService;
+    private final RateLimiter rateLimiter;
     private final String oauthSuccessUri;
     private final boolean secureCookies;
 
     public AuthController(
             AuthService authService,
             SocialAuthService socialAuthService,
+            EmailVerificationService emailVerificationService,
             OAuthStateService oauthStateService,
             OAuthLoginTicketService oauthLoginTicketService,
+            RateLimiter rateLimiter,
             @Value("${app.oauth-success-uri}") String oauthSuccessUri,
             @Value("${app.security.secure-cookies:false}") boolean secureCookies
     ) {
         this.authService = authService;
         this.socialAuthService = socialAuthService;
+        this.emailVerificationService = emailVerificationService;
         this.oauthStateService = oauthStateService;
         this.oauthLoginTicketService = oauthLoginTicketService;
+        this.rateLimiter = rateLimiter;
         this.oauthSuccessUri = oauthSuccessUri;
         this.secureCookies = secureCookies;
     }
@@ -69,6 +82,53 @@ public class AuthController {
     public ApiResponse<Void> signup(@Valid @RequestBody SignupRequest request) {
         authService.signup(request);
         return ApiResponse.success("회원가입이 완료되었습니다.", null);
+    }
+
+    @GetMapping("/check-login-id")
+    public ApiResponse<LoginIdAvailabilityResponse> checkLoginId(
+            @RequestParam String loginId,
+            HttpServletRequest servletRequest
+    ) {
+        if (!StringUtils.hasText(loginId)) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT);
+        }
+        requireWithinLimit("check-login-id:" + clientIp(servletRequest), 20, Duration.ofMinutes(1));
+        boolean available = authService.isLoginIdAvailable(loginId);
+        return ApiResponse.success(
+                available ? "사용할 수 있는 아이디입니다." : "이미 사용 중인 아이디입니다.",
+                new LoginIdAvailabilityResponse(available)
+        );
+    }
+
+    @PostMapping("/email/verification-code")
+    public ApiResponse<Void> sendEmailVerificationCode(
+            @Valid @RequestBody EmailVerificationRequest request,
+            HttpServletRequest servletRequest
+    ) {
+        requireWithinLimit("email-code-ip:" + clientIp(servletRequest), 5, Duration.ofMinutes(10));
+        requireWithinLimit("email-code-addr:" + request.email().trim().toLowerCase(), 3, Duration.ofMinutes(10));
+        emailVerificationService.sendCode(request.email());
+        return ApiResponse.success("인증번호를 발송했습니다.", null);
+    }
+
+    @PostMapping("/email/verify")
+    public ApiResponse<Void> verifyEmailCode(
+            @Valid @RequestBody EmailVerificationConfirmRequest request,
+            HttpServletRequest servletRequest
+    ) {
+        requireWithinLimit("email-verify-ip:" + clientIp(servletRequest), 15, Duration.ofMinutes(10));
+        emailVerificationService.confirmCode(request.email(), request.code());
+        return ApiResponse.success("이메일 인증이 완료되었습니다.", null);
+    }
+
+    private void requireWithinLimit(String key, int maxRequests, Duration window) {
+        if (!rateLimiter.allow(key, maxRequests, window)) {
+            throw new BusinessException(ErrorCode.RATE_LIMIT_EXCEEDED);
+        }
+    }
+
+    private String clientIp(HttpServletRequest request) {
+        return request.getRemoteAddr();
     }
 
     @PostMapping("/login")

@@ -8,6 +8,9 @@ public enum ErrorCode {
     DUPLICATE_LOGIN_ID(HttpStatus.CONFLICT, "AUTH_DUPLICATE_LOGIN_ID", "이미 사용 중인 아이디입니다."),
     DUPLICATE_EMAIL(HttpStatus.CONFLICT, "AUTH_DUPLICATE_EMAIL", "이미 사용 중인 이메일입니다."),
     DUPLICATE_NICKNAME(HttpStatus.CONFLICT, "AUTH_DUPLICATE_NICKNAME", "이미 사용 중인 닉네임입니다."),
+    INVALID_VERIFICATION_CODE(HttpStatus.BAD_REQUEST, "AUTH_INVALID_VERIFICATION_CODE", "인증번호가 올바르지 않거나 만료되었습니다."),
+    EMAIL_NOT_VERIFIED(HttpStatus.BAD_REQUEST, "AUTH_EMAIL_NOT_VERIFIED", "이메일 인증을 먼저 완료해 주세요."),
+    EMAIL_SEND_FAILED(HttpStatus.BAD_GATEWAY, "AUTH_EMAIL_SEND_FAILED", "인증 메일을 발송하지 못했습니다."),
     INVALID_CREDENTIALS(HttpStatus.UNAUTHORIZED, "AUTH_INVALID_CREDENTIALS", "아이디 또는 비밀번호가 올바르지 않습니다."),
     ACCOUNT_UNAVAILABLE(HttpStatus.FORBIDDEN, "AUTH_ACCOUNT_UNAVAILABLE", "현재 로그인할 수 없는 계정입니다."),
     SOCIAL_LINK_REQUIRED(HttpStatus.CONFLICT, "AUTH_SOCIAL_LINK_REQUIRED", "같은 이메일 계정이 있습니다. 기존 계정으로 로그인한 뒤 소셜 계정을 연결해 주세요."),
@@ -17,6 +20,7 @@ public enum ErrorCode {
     INVALID_OAUTH_TICKET(HttpStatus.BAD_REQUEST, "AUTH_INVALID_OAUTH_TICKET", "소셜 로그인 교환 코드가 만료되었거나 이미 사용되었습니다."),
     RESOURCE_NOT_FOUND(HttpStatus.NOT_FOUND, "COMMON_RESOURCE_NOT_FOUND", "요청한 리소스를 찾을 수 없습니다."),
     DATA_CONFLICT(HttpStatus.CONFLICT, "COMMON_DATA_CONFLICT", "이미 존재하거나 현재 상태와 충돌하는 데이터입니다."),
+    RATE_LIMIT_EXCEEDED(HttpStatus.TOO_MANY_REQUESTS, "COMMON_RATE_LIMIT_EXCEEDED", "요청이 너무 많습니다. 잠시 후 다시 시도해 주세요."),
     INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "COMMON_INTERNAL_ERROR", "서버 처리 중 오류가 발생했습니다.");
 
     private final HttpStatus status;

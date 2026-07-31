@@ -25,7 +25,7 @@
       <section class="auth-card" aria-labelledby="signup-title">
         <p class="page-kicker">Create account</p>
         <h1 id="signup-title">회원가입</h1>
-        <p class="auth-intro">필수 정보만 입력해 기본 계정을 만듭니다.</p>
+        <p></p>
         <div id="recommendation-signup-note" class="auth-note auth-note--recommendation" hidden>
           <span class="material-symbols-rounded" aria-hidden="true">auto_awesome</span>
           <span>회원가입과 로그인 후 나를 위한 맛집 추천 화면으로 이동합니다.</span>
@@ -33,16 +33,36 @@
 
         <form id="signup-form" class="auth-form">
           <label class="field">
-            <span>아이디 <span class="field-hint">4~20자</span></span>
-            <input type="text" name="loginId" placeholder="로그인에 사용할 아이디" autocomplete="username" minlength="4" maxlength="20" required>
+            <span>아이디 <span class="field-hint">4~20자, 영문/숫자/밑줄</span></span>
+            <div class="field-row">
+              <input type="text" name="loginId" id="signup-login-id" placeholder="로그인에 사용할 아이디" autocomplete="username" minlength="4" maxlength="20" pattern="^[A-Za-z0-9_]+$" required>
+              <button type="button" class="button button-secondary button-sm field-action" id="check-login-id-btn">중복확인</button>
+            </div>
+            <p class="field-status" id="login-id-status"></p>
           </label>
           <label class="field">
-            <span>비밀번호 <span class="field-hint">8~64자</span></span>
-            <input type="password" name="password" placeholder="안전한 비밀번호를 입력해 주세요" autocomplete="new-password" minlength="8" maxlength="64" required>
+            <span>비밀번호 <span class="field-hint">영문/숫자/특수문자 조합 8~64자</span></span>
+            <input type="password" name="password" id="signup-password" placeholder="안전한 비밀번호를 입력해 주세요" autocomplete="new-password" minlength="8" maxlength="64" pattern="^(?=.*[A-Za-z])(?=.*\d)(?=.*[^A-Za-z0-9]).+$" required>
+          </label>
+          <label class="field">
+            비밀번호 확인
+            <input type="password" name="passwordConfirm" id="signup-password-confirm" placeholder="비밀번호를 다시 입력해 주세요" autocomplete="new-password" minlength="8" maxlength="64" required>
+            <p class="field-status" id="password-confirm-status"></p>
           </label>
           <label class="field">
             이메일
-            <input type="email" name="email" placeholder="example@fooduck.com" autocomplete="email" maxlength="254" required>
+            <div class="field-row">
+              <input type="email" name="email" id="signup-email" placeholder="example@fooduck.com" autocomplete="email" maxlength="254" required>
+              <button type="button" class="button button-secondary button-sm field-action" id="send-code-btn">인증코드 발송</button>
+            </div>
+          </label>
+          <label class="field">
+            <span>인증번호 <span class="field-hint">숫자 6자리, 5분 이내 입력</span></span>
+            <div class="field-row">
+              <input type="text" name="verificationCode" id="signup-verification-code" placeholder="이메일로 받은 인증번호" inputmode="numeric" pattern="^[0-9]{6}$" maxlength="6" disabled required>
+              <button type="button" class="button button-secondary button-sm field-action" id="verify-code-btn" disabled>인증확인</button>
+            </div>
+            <p class="field-status" id="email-verify-status"></p>
           </label>
           <label class="field">
             <span>닉네임 <span class="field-hint">2~30자</span></span>
@@ -55,10 +75,6 @@
         </form>
         <p id="signup-message" class="auth-message" role="alert"></p>
 
-        <div class="auth-note">
-          <span class="material-symbols-rounded" aria-hidden="true">verified_user</span>
-          <span>비밀번호는 서버에서 단방향 해시로 저장됩니다. 이메일 인증과 중복 확인은 다음 API 단계에서 연결합니다.</span>
-        </div>
 
         <p class="auth-switch">
           이미 계정이 있으신가요?

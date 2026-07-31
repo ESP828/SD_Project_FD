@@ -1,7 +1,9 @@
 package com.example.backend.board.controller;
 
+import com.example.backend.auth.domain.entity.EmailVerification;
 import com.example.backend.auth.dto.request.LoginRequest;
 import com.example.backend.auth.dto.request.SignupRequest;
+import com.example.backend.auth.repository.EmailVerificationRepository;
 import com.example.backend.auth.service.AuthService;
 import com.example.backend.auth.dto.response.AuthTokenResponse;
 import org.junit.jupiter.api.BeforeEach;
@@ -14,6 +16,8 @@ import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.time.LocalDateTime;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -34,12 +38,22 @@ class BoardControllerIntegrationTest {
     @Autowired
     private AuthService authService;
 
+    @Autowired
+    private EmailVerificationRepository emailVerificationRepository;
+
     private String accessToken;
 
     @BeforeEach
     void setUp() {
+        EmailVerification verification = new EmailVerification(
+                "boardtester@example.com", "000000", LocalDateTime.now().plusMinutes(5)
+        );
+        verification.markVerified(LocalDateTime.now().plusMinutes(30));
+        emailVerificationRepository.save(verification);
+
         authService.signup(new SignupRequest(
                 "boardtester",
+                "correct-password",
                 "correct-password",
                 "boardtester@example.com",
                 "게시판테스터"

@@ -8,6 +8,7 @@ import com.example.backend.auth.repository.AuthorityRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Arrays;
 import java.util.List;
 
 @Service
@@ -26,10 +27,17 @@ public class AuthorityService {
 
     @Transactional
     public void grant(Long accountId, AuthorityCode authorityCode) {
+        authorityCode.includedAuthorities()
+                .forEach(includedAuthority -> grantSingle(accountId, includedAuthority));
+    }
+
+    private void grantSingle(Long accountId, AuthorityCode authorityCode) {
         Authority authority = authorityRepository.findByAuthorityCode(authorityCode.name())
-                .orElseGet(() -> authorityRepository.save(
-                        new Authority(authorityCode.name(), displayName(authorityCode))
-                ));
+                .orElseGet(() -> authorityRepository.save(new Authority(
+                        authorityCode.authorityId(),
+                        authorityCode.name(),
+                        authorityCode.displayName()
+                )));
         var id = new com.example.backend.auth.domain.entity.AccountAuthorityId(
                 accountId,
                 authority.getAuthorityId()
@@ -45,18 +53,19 @@ public class AuthorityService {
                 .stream()
                 .map(AccountAuthority::getAuthorityId)
                 .toList();
-        return authorityRepository.findAllById(authorityIds)
+
+        int highestAuthorityId = authorityRepository.findAllById(authorityIds)
                 .stream()
                 .map(Authority::getAuthorityCode)
-                .sorted()
-                .toList();
-    }
+                .map(AuthorityCode::fromCode)
+                .flatMap(java.util.Optional::stream)
+                .mapToInt(AuthorityCode::authorityId)
+                .max()
+                .orElse(AuthorityCode.ROLE_USER.authorityId());
 
-    private String displayName(AuthorityCode authorityCode) {
-        return switch (authorityCode) {
-            case ROLE_USER -> "일반 사용자";
-            case ROLE_BUSINESS -> "사업자";
-            case ROLE_ADMIN -> "관리자";
-        };
+        return Arrays.stream(AuthorityCode.values())
+                .filter(code -> code.authorityId() <= highestAuthorityId)
+                .map(AuthorityCode::name)
+                .toList();
     }
 }
