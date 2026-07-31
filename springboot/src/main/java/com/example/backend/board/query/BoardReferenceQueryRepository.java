@@ -160,6 +160,14 @@ public class BoardReferenceQueryRepository {
         ));
     }
 
+    public Set<String> findAuthorityCodes(Long accountId) {
+        if (accountId == null) {
+            return Set.of();
+        }
+        return findAuthorityCodes(Set.of(accountId))
+                .getOrDefault(accountId, Set.of());
+    }
+
     public Set<Long> findBusinessProfileAccountIds(Collection<Long> accountIds) {
         if (accountIds == null || accountIds.isEmpty()) {
             return Set.of();

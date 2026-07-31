@@ -33,15 +33,13 @@ import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Locale;
-import java.util.Objects;
-import java.util.Optional;
 
 @Service
 public class PostService {
 
     private static final int MAX_PAGE_SIZE = 50;
     private static final int MAX_BEST_SIZE = 10;
-    private static final Duration DUPLICATE_SUBMISSION_WINDOW =
+    private static final Duration RAPID_DUPLICATE_WINDOW =
             Duration.ofMillis(3_500);
 
     private final PostRepository postRepository;
@@ -171,28 +169,18 @@ public class PostService {
             PostCreateRequest request,
             Long currentAccountId
     ) {
-        LocalDateTime submittedAt = LocalDateTime.now();
         Account currentAccount = boardUserService.require(currentAccountId);
+        String title = request.title().strip();
+        String content = request.content().strip();
         accessPolicy.assertCanWrite(
                 request.boardType(),
                 request.category(),
                 request.restaurantId(),
                 currentAccount
         );
-        boardUserService.lockForSubmission(currentAccount.getAccountId());
+        assertNotRapidDuplicate(currentAccount.getAccountId(), content);
+        String authorRole = accessPolicy.displayRole(currentAccount);
 
-        String title = request.title().strip();
-        String content = request.content().strip();
-        Optional<Post> duplicatePost = findRecentDuplicatePost(
-                request,
-                currentAccount,
-                title,
-                content,
-                submittedAt
-        );
-        if (duplicatePost.isPresent()) {
-            return responseMapper.toDetail(duplicatePost.get(), currentAccount);
-        }
         Post post = Post.create(
                 currentAccount,
                 request.restaurantId(),
@@ -202,7 +190,7 @@ public class PostService {
                 content
         );
         postRepository.save(post);
-        return responseMapper.toDetail(post, currentAccount);
+        return responseMapper.toDetail(post, currentAccount, authorRole);
     }
 
     @Transactional
@@ -294,30 +282,6 @@ public class PostService {
                 .orElseThrow(() -> notFound("게시글을 찾을 수 없습니다."));
     }
 
-    private Optional<Post> findRecentDuplicatePost(
-            PostCreateRequest request,
-            Account currentAccount,
-            String title,
-            String content,
-            LocalDateTime submittedAt
-    ) {
-        return postRepository.findRecentPostsByAuthor(
-                        currentAccount.getAccountId(),
-                        PostStatus.ACTIVE,
-                        submittedAt.minus(DUPLICATE_SUBMISSION_WINDOW)
-                )
-                .stream()
-                .filter(post -> post.getBoardType() == request.boardType())
-                .filter(post -> post.getCategory() == request.category())
-                .filter(post -> Objects.equals(
-                        post.getRestaurantId(),
-                        request.restaurantId()
-                ))
-                .filter(post -> post.getTitle().equals(title))
-                .filter(post -> post.getContent().equals(content))
-                .findFirst();
-    }
-
     private void assertOwnerOrAdmin(Post post, Account account) {
         boolean owned = post.getAuthor().getAccountId().equals(account.getAccountId());
         if (!owned && !accessPolicy.isAdmin(account)) {
@@ -395,6 +359,22 @@ public class PostService {
                 "BOARD_INVALID_INPUT",
                 message
         );
+    }
+
+    private void assertNotRapidDuplicate(Long accountId, String content) {
+        LocalDateTime createdAfter = LocalDateTime.now()
+                .minus(RAPID_DUPLICATE_WINDOW);
+        if (postRepository.existsByAuthorAccountIdAndContentAndCreatedAtAfter(
+                accountId,
+                content,
+                createdAfter
+        )) {
+            throw new BoardException(
+                    HttpStatus.TOO_MANY_REQUESTS,
+                    "BOARD_RAPID_DUPLICATE",
+                    "같은 내용을 연달아 등록할 수 없습니다. 잠시 후 다시 시도해 주세요."
+            );
+        }
     }
 
     private BoardException notFound(String message) {

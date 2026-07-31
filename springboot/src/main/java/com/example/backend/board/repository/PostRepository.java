@@ -20,6 +20,12 @@ import java.util.Optional;
 
 public interface PostRepository extends JpaRepository<Post, Long> {
 
+    boolean existsByAuthorAccountIdAndContentAndCreatedAtAfter(
+            Long accountId,
+            String content,
+            LocalDateTime createdAfter
+    );
+
     @Query(value = """
             select p
             from Post p
@@ -125,33 +131,6 @@ public interface PostRepository extends JpaRepository<Post, Long> {
               and p.status = :status
             """)
     Optional<Post> findByPostIdAndStatus(
-            @Param("postId") Long postId,
-            @Param("status") PostStatus status
-    );
-
-    @Query("""
-            select p
-            from Post p
-            join fetch p.author
-            where p.author.accountId = :accountId
-              and p.status = :status
-              and p.createdAt >= :createdAfter
-            order by p.createdAt desc
-            """)
-    List<Post> findRecentPostsByAuthor(
-            @Param("accountId") Long accountId,
-            @Param("status") PostStatus status,
-            @Param("createdAfter") LocalDateTime createdAfter
-    );
-
-    @Lock(LockModeType.PESSIMISTIC_READ)
-    @Query("""
-            select p
-            from Post p
-            where p.postId = :postId
-              and p.status = :status
-            """)
-    Optional<Post> findByPostIdAndStatusForShare(
             @Param("postId") Long postId,
             @Param("status") PostStatus status
     );

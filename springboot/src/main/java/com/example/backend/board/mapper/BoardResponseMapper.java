@@ -110,13 +110,17 @@ public class BoardResponseMapper {
     }
 
     public PostDetailResponse toDetail(Post post, Account currentAccount) {
-        return toDetail(post, currentAccount, post.getViewCount());
+        return toDetail(
+                post,
+                currentAccount,
+                accessPolicy.displayRole(post.getAuthor())
+        );
     }
 
     public PostDetailResponse toDetail(
             Post post,
             Account currentAccount,
-            long viewCount
+            String authorRole
     ) {
         RestaurantSummaryResponse restaurant = post.getRestaurantId() == null
                 ? null
@@ -128,12 +132,12 @@ public class BoardResponseMapper {
                 post.getAuthor().getAccountId(),
                 post.getAuthor().getLoginId(),
                 post.getAuthor().getNickname(),
-                accessPolicy.displayRole(post.getAuthor()),
+                authorRole,
                 post.getBoardType(),
                 post.getCategory(),
                 post.getRestaurantId(),
                 restaurant,
-                viewCount,
+                post.getViewCount(),
                 commentRepository.countByPostPostIdAndStatus(
                         post.getPostId(),
                         CommentStatus.ACTIVE
@@ -154,45 +158,10 @@ public class BoardResponseMapper {
         );
     }
 
-    public List<CommentResponse> toComments(
-            List<Comment> comments,
-            Account currentAccount
-    ) {
-        if (comments.isEmpty()) {
-            return List.of();
-        }
-
-        Set<Long> authorIds = comments.stream()
-                .map(comment -> comment.getAuthor().getAccountId())
-                .collect(Collectors.toSet());
-        Map<Long, Set<String>> authorityCodes =
-                referenceRepository.findAuthorityCodes(authorIds);
-        Set<Long> businessRoleAccountIds = authorityCodes.entrySet().stream()
-                .filter(entry -> entry.getValue().contains("ROLE_BUSINESS"))
-                .map(Map.Entry::getKey)
-                .collect(Collectors.toSet());
-        Set<Long> businessProfiles =
-                referenceRepository.findBusinessProfileAccountIds(
-                        businessRoleAccountIds
-                );
-
-        return comments.stream().map(comment -> {
-            Long authorId = comment.getAuthor().getAccountId();
-            return toComment(
-                    comment,
-                    currentAccount,
-                    accessPolicy.displayRole(
-                            authorityCodes.getOrDefault(authorId, Set.of()),
-                            businessProfiles.contains(authorId)
-                    )
-            );
-        }).toList();
-    }
-
-    private CommentResponse toComment(
+    public CommentResponse toComment(
             Comment comment,
             Account currentAccount,
-            String displayRole
+            String authorRole
     ) {
         return new CommentResponse(
                 comment.getCommentId(),
@@ -200,7 +169,7 @@ public class BoardResponseMapper {
                 comment.getAuthor().getAccountId(),
                 comment.getAuthor().getLoginId(),
                 comment.getAuthor().getNickname(),
-                displayRole,
+                authorRole,
                 comment.getContent(),
                 isOwned(comment.getAuthor(), currentAccount),
                 comment.getCreatedAt(),

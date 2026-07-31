@@ -23,13 +23,12 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
-import java.util.Optional;
 
 @Service
 public class CommentService {
 
     private static final int MAX_PAGE_SIZE = 100;
-    private static final Duration DUPLICATE_SUBMISSION_WINDOW =
+    private static final Duration RAPID_DUPLICATE_WINDOW =
             Duration.ofMillis(3_500);
 
     private final CommentRepository commentRepository;
@@ -86,30 +85,18 @@ public class CommentService {
             CommentCreateRequest request,
             Long currentAccountId
     ) {
-        LocalDateTime submittedAt = LocalDateTime.now();
         Account currentAccount = boardUserService.require(currentAccountId);
-        boardUserService.lockForSubmission(currentAccount.getAccountId());
-        Post post = getReadablePostForCommentMutation(postId, currentAccount);
+        Post post = getReadablePost(postId, currentAccount);
         String content = request.content().strip();
-        Optional<Comment> duplicateComment = findRecentDuplicateComment(
-                post,
-                currentAccount,
-                content,
-                submittedAt
-        );
-        if (duplicateComment.isPresent()) {
-            return responseMapper.toComment(
-                    duplicateComment.get(),
-                    currentAccount
-            );
-        }
+        assertNotRapidDuplicate(currentAccount.getAccountId(), content);
+        String authorRole = accessPolicy.displayRole(currentAccount);
         Comment comment = Comment.create(
                 post,
                 currentAccount,
                 content
         );
         commentRepository.save(comment);
-        return responseMapper.toComment(comment, currentAccount);
+        return responseMapper.toComment(comment, currentAccount, authorRole);
     }
 
     @Transactional
@@ -119,7 +106,8 @@ public class CommentService {
             Long currentAccountId
     ) {
         Account currentAccount = boardUserService.require(currentAccountId);
-        Comment comment = getExistingCommentForUpdate(commentId, currentAccount);
+        Comment comment = getExistingComment(commentId);
+        assertParentPostReadable(comment, currentAccount);
         assertOwnerOrAdmin(comment, currentAccount);
         comment.update(request.content().strip());
         return responseMapper.toComment(comment, currentAccount);
@@ -128,7 +116,8 @@ public class CommentService {
     @Transactional
     public void deleteComment(Long commentId, Long currentAccountId) {
         Account currentAccount = boardUserService.require(currentAccountId);
-        Comment comment = getExistingCommentForUpdate(commentId, currentAccount);
+        Comment comment = getExistingComment(commentId);
+        assertParentPostReadable(comment, currentAccount);
         assertOwnerOrAdmin(comment, currentAccount);
         comment.softDelete(LocalDateTime.now());
     }
@@ -145,57 +134,29 @@ public class CommentService {
         return post;
     }
 
-    private Post getReadablePostForCommentMutation(
-            Long postId,
-            Account currentAccount
-    ) {
-        validateId(postId, "게시글");
-        Post post = postRepository.findByPostIdAndStatusForShare(
-                        postId,
-                        PostStatus.ACTIVE
+    private Comment getExistingComment(Long commentId) {
+        validateId(commentId, "댓글");
+        return commentRepository.findActiveCommentWithRelations(
+                        commentId,
+                        CommentStatus.ACTIVE
                 )
                 .orElseThrow(() -> new BoardException(
                         HttpStatus.NOT_FOUND,
-                        "BOARD_POST_NOT_FOUND",
-                        "게시글을 찾을 수 없습니다."
+                        "BOARD_COMMENT_NOT_FOUND",
+                        "댓글을 찾을 수 없습니다."
                 ));
+    }
+
+    private void assertParentPostReadable(Comment comment, Account currentAccount) {
+        Post post = comment.getPost();
+        if (post.isDeleted()) {
+            throw new BoardException(
+                    HttpStatus.NOT_FOUND,
+                    "BOARD_POST_NOT_FOUND",
+                    "게시글을 찾을 수 없습니다."
+            );
+        }
         accessPolicy.assertCanRead(post.getBoardType(), currentAccount);
-        return post;
-    }
-
-    private Comment getExistingCommentForUpdate(
-            Long commentId,
-            Account currentAccount
-    ) {
-        validateId(commentId, "댓글");
-        Long postId = commentRepository.findActiveCommentPostId(
-                        commentId,
-                        CommentStatus.ACTIVE
-                )
-                .orElseThrow(this::commentNotFound);
-        getReadablePostForCommentMutation(postId, currentAccount);
-        return commentRepository.findByCommentIdAndStatus(
-                        commentId,
-                        CommentStatus.ACTIVE
-                )
-                .orElseThrow(this::commentNotFound);
-    }
-
-    private Optional<Comment> findRecentDuplicateComment(
-            Post post,
-            Account currentAccount,
-            String content,
-            LocalDateTime submittedAt
-    ) {
-        return commentRepository.findRecentCommentsByAuthor(
-                        post.getPostId(),
-                        currentAccount.getAccountId(),
-                        CommentStatus.ACTIVE,
-                        submittedAt.minus(DUPLICATE_SUBMISSION_WINDOW)
-                )
-                .stream()
-                .filter(comment -> comment.getContent().equals(content))
-                .findFirst();
     }
 
     private void assertOwnerOrAdmin(Comment comment, Account account) {
@@ -207,14 +168,6 @@ public class CommentService {
                     "댓글 작성자 또는 관리자만 수정·삭제할 수 있습니다."
             );
         }
-    }
-
-    private BoardException commentNotFound() {
-        return new BoardException(
-                HttpStatus.NOT_FOUND,
-                "BOARD_COMMENT_NOT_FOUND",
-                "댓글을 찾을 수 없습니다."
-        );
     }
 
     private void validateId(Long id, String field) {
@@ -240,5 +193,21 @@ public class CommentService {
                 "BOARD_INVALID_INPUT",
                 message
         );
+    }
+
+    private void assertNotRapidDuplicate(Long accountId, String content) {
+        LocalDateTime createdAfter = LocalDateTime.now()
+                .minus(RAPID_DUPLICATE_WINDOW);
+        if (commentRepository.existsByAuthorAccountIdAndContentAndCreatedAtAfter(
+                accountId,
+                content,
+                createdAfter
+        )) {
+            throw new BoardException(
+                    HttpStatus.TOO_MANY_REQUESTS,
+                    "BOARD_RAPID_DUPLICATE",
+                    "같은 내용을 연달아 등록할 수 없습니다. 잠시 후 다시 시도해 주세요."
+            );
+        }
     }
 }
