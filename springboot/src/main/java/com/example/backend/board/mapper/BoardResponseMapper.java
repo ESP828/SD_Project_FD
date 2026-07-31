@@ -139,13 +139,60 @@ public class BoardResponseMapper {
     }
 
     public CommentResponse toComment(Comment comment, Account currentAccount) {
+        return toComment(
+                comment,
+                currentAccount,
+                accessPolicy.displayRole(comment.getAuthor())
+        );
+    }
+
+    public List<CommentResponse> toComments(
+            List<Comment> comments,
+            Account currentAccount
+    ) {
+        if (comments.isEmpty()) {
+            return List.of();
+        }
+
+        Set<Long> authorIds = comments.stream()
+                .map(comment -> comment.getAuthor().getAccountId())
+                .collect(Collectors.toSet());
+        Map<Long, Set<String>> authorityCodes =
+                referenceRepository.findAuthorityCodes(authorIds);
+        Set<Long> businessRoleAccountIds = authorityCodes.entrySet().stream()
+                .filter(entry -> entry.getValue().contains("ROLE_BUSINESS"))
+                .map(Map.Entry::getKey)
+                .collect(Collectors.toSet());
+        Set<Long> businessProfiles =
+                referenceRepository.findBusinessProfileAccountIds(
+                        businessRoleAccountIds
+                );
+
+        return comments.stream().map(comment -> {
+            Long authorId = comment.getAuthor().getAccountId();
+            return toComment(
+                    comment,
+                    currentAccount,
+                    accessPolicy.displayRole(
+                            authorityCodes.getOrDefault(authorId, Set.of()),
+                            businessProfiles.contains(authorId)
+                    )
+            );
+        }).toList();
+    }
+
+    private CommentResponse toComment(
+            Comment comment,
+            Account currentAccount,
+            String displayRole
+    ) {
         return new CommentResponse(
                 comment.getCommentId(),
                 comment.getPost().getPostId(),
                 comment.getAuthor().getAccountId(),
                 comment.getAuthor().getLoginId(),
                 comment.getAuthor().getNickname(),
-                accessPolicy.displayRole(comment.getAuthor()),
+                displayRole,
                 comment.getContent(),
                 isOwned(comment.getAuthor(), currentAccount),
                 comment.getCreatedAt(),

@@ -55,6 +55,65 @@ public class BoardReferenceQueryRepository {
         return count != null && count > 0;
     }
 
+    public String findDisplayRole(Long accountId) {
+        if (accountId == null) {
+            return "USER";
+        }
+        return findDisplayRoles(List.of(accountId))
+                .getOrDefault(accountId, "USER");
+    }
+
+    public Map<Long, String> findDisplayRoles(Collection<Long> accountIds) {
+        if (accountIds == null || accountIds.isEmpty()) {
+            return Map.of();
+        }
+
+        List<Map.Entry<Long, String>> rows = jdbcTemplate.query(
+                """
+                select acc.account_id,
+                       case
+                           when max(
+                               case
+                                   when upper(auth.authority_code) = 'ROLE_ADMIN'
+                                   then 1 else 0
+                               end
+                           ) = 1 then 'ADMIN'
+                           when max(
+                               case
+                                   when upper(auth.authority_code) = 'ROLE_BUSINESS'
+                                   then 1 else 0
+                               end
+                           ) = 1
+                           and max(
+                               case
+                                   when bp.account_id is not null
+                                   then 1 else 0
+                               end
+                           ) = 1 then 'BUSINESS'
+                           else 'USER'
+                       end as display_role
+                  from account acc
+                  left join account_authority aa
+                    on aa.account_id = acc.account_id
+                  left join authority auth
+                    on auth.authority_id = aa.authority_id
+                  left join business_profile bp
+                    on bp.account_id = acc.account_id
+                 where acc.account_id in (:accountIds)
+                 group by acc.account_id
+                """,
+                new MapSqlParameterSource("accountIds", accountIds),
+                (resultSet, rowNumber) -> Map.entry(
+                        resultSet.getLong("account_id"),
+                        resultSet.getString("display_role")
+                )
+        );
+        return rows.stream().collect(Collectors.toUnmodifiableMap(
+                Map.Entry::getKey,
+                Map.Entry::getValue
+        ));
+    }
+
     public boolean restaurantExists(Long restaurantId) {
         Integer count = jdbcTemplate.queryForObject(
                 """
