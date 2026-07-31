@@ -110,6 +110,14 @@ public class BoardResponseMapper {
     }
 
     public PostDetailResponse toDetail(Post post, Account currentAccount) {
+        return toDetail(post, currentAccount, post.getViewCount());
+    }
+
+    public PostDetailResponse toDetail(
+            Post post,
+            Account currentAccount,
+            long viewCount
+    ) {
         RestaurantSummaryResponse restaurant = post.getRestaurantId() == null
                 ? null
                 : referenceRepository.findRestaurant(post.getRestaurantId()).orElse(null);
@@ -125,7 +133,7 @@ public class BoardResponseMapper {
                 post.getCategory(),
                 post.getRestaurantId(),
                 restaurant,
-                post.getViewCount(),
+                viewCount,
                 commentRepository.countByPostPostIdAndStatus(
                         post.getPostId(),
                         CommentStatus.ACTIVE

@@ -24,25 +24,32 @@ public class BoardAccessPolicy {
 
     public boolean isAdmin(Account account) {
         return account != null
-                && "ADMIN".equals(
-                        referenceRepository.findDisplayRole(account.getAccountId())
-                );
+                && referenceRepository.hasAuthority(account.getAccountId(), ROLE_ADMIN);
     }
 
     public boolean isApprovedBusiness(Account account) {
         if (account == null) {
             return false;
         }
-        String displayRole =
-                referenceRepository.findDisplayRole(account.getAccountId());
-        return "ADMIN".equals(displayRole) || "BUSINESS".equals(displayRole);
+        if (isAdmin(account)) {
+            return true;
+        }
+        return referenceRepository.hasAuthority(account.getAccountId(), ROLE_BUSINESS)
+                && referenceRepository.hasBusinessProfile(account.getAccountId());
     }
 
     public String displayRole(Account account) {
         if (account == null) {
             return "USER";
         }
-        return referenceRepository.findDisplayRole(account.getAccountId());
+        if (isAdmin(account)) {
+            return "ADMIN";
+        }
+        if (referenceRepository.hasAuthority(account.getAccountId(), ROLE_BUSINESS)
+                && referenceRepository.hasBusinessProfile(account.getAccountId())) {
+            return "BUSINESS";
+        }
+        return "USER";
     }
 
     public String displayRole(Set<String> authorityCodes, boolean hasBusinessProfile) {
