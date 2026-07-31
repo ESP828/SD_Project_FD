@@ -83,7 +83,7 @@ public class CommentService {
             Long currentAccountId
     ) {
         Account currentAccount = boardUserService.require(currentAccountId);
-        Post post = getReadablePost(postId, currentAccount);
+        Post post = getReadablePostForCommentMutation(postId, currentAccount);
         Comment comment = Comment.create(
                 post,
                 currentAccount,
@@ -100,8 +100,7 @@ public class CommentService {
             Long currentAccountId
     ) {
         Account currentAccount = boardUserService.require(currentAccountId);
-        Comment comment = getExistingComment(commentId);
-        assertParentPostReadable(comment, currentAccount);
+        Comment comment = getExistingCommentForUpdate(commentId, currentAccount);
         assertOwnerOrAdmin(comment, currentAccount);
         comment.update(request.content().strip());
         return responseMapper.toComment(comment, currentAccount);
@@ -110,8 +109,7 @@ public class CommentService {
     @Transactional
     public void deleteComment(Long commentId, Long currentAccountId) {
         Account currentAccount = boardUserService.require(currentAccountId);
-        Comment comment = getExistingComment(commentId);
-        assertParentPostReadable(comment, currentAccount);
+        Comment comment = getExistingCommentForUpdate(commentId, currentAccount);
         assertOwnerOrAdmin(comment, currentAccount);
         comment.softDelete(LocalDateTime.now());
     }
@@ -128,29 +126,40 @@ public class CommentService {
         return post;
     }
 
-    private Comment getExistingComment(Long commentId) {
-        validateId(commentId, "댓글");
-        return commentRepository.findActiveCommentWithRelations(
-                        commentId,
-                        CommentStatus.ACTIVE
+    private Post getReadablePostForCommentMutation(
+            Long postId,
+            Account currentAccount
+    ) {
+        validateId(postId, "게시글");
+        Post post = postRepository.findByPostIdAndStatusForShare(
+                        postId,
+                        PostStatus.ACTIVE
                 )
                 .orElseThrow(() -> new BoardException(
                         HttpStatus.NOT_FOUND,
-                        "BOARD_COMMENT_NOT_FOUND",
-                        "댓글을 찾을 수 없습니다."
+                        "BOARD_POST_NOT_FOUND",
+                        "게시글을 찾을 수 없습니다."
                 ));
+        accessPolicy.assertCanRead(post.getBoardType(), currentAccount);
+        return post;
     }
 
-    private void assertParentPostReadable(Comment comment, Account currentAccount) {
-        Post post = comment.getPost();
-        if (post.isDeleted()) {
-            throw new BoardException(
-                    HttpStatus.NOT_FOUND,
-                    "BOARD_POST_NOT_FOUND",
-                    "게시글을 찾을 수 없습니다."
-            );
-        }
-        accessPolicy.assertCanRead(post.getBoardType(), currentAccount);
+    private Comment getExistingCommentForUpdate(
+            Long commentId,
+            Account currentAccount
+    ) {
+        validateId(commentId, "댓글");
+        Long postId = commentRepository.findActiveCommentPostId(
+                        commentId,
+                        CommentStatus.ACTIVE
+                )
+                .orElseThrow(this::commentNotFound);
+        getReadablePostForCommentMutation(postId, currentAccount);
+        return commentRepository.findByCommentIdAndStatus(
+                        commentId,
+                        CommentStatus.ACTIVE
+                )
+                .orElseThrow(this::commentNotFound);
     }
 
     private void assertOwnerOrAdmin(Comment comment, Account account) {
@@ -162,6 +171,14 @@ public class CommentService {
                     "댓글 작성자 또는 관리자만 수정·삭제할 수 있습니다."
             );
         }
+    }
+
+    private BoardException commentNotFound() {
+        return new BoardException(
+                HttpStatus.NOT_FOUND,
+                "BOARD_COMMENT_NOT_FOUND",
+                "댓글을 찾을 수 없습니다."
+        );
     }
 
     private void validateId(Long id, String field) {

@@ -129,6 +129,18 @@ public interface PostRepository extends JpaRepository<Post, Long> {
             @Param("status") PostStatus status
     );
 
+    @Lock(LockModeType.PESSIMISTIC_READ)
+    @Query("""
+            select p
+            from Post p
+            where p.postId = :postId
+              and p.status = :status
+            """)
+    Optional<Post> findByPostIdAndStatusForShare(
+            @Param("postId") Long postId,
+            @Param("status") PostStatus status
+    );
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("""
             select p
