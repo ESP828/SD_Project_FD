@@ -15,7 +15,8 @@ import java.util.Optional;
 
 public interface CommentRepository extends JpaRepository<Comment, Long> {
 
-    boolean existsByAuthorAccountIdAndContentAndCreatedAtAfter(
+    boolean existsByPostPostIdAndAuthorAccountIdAndContentAndCreatedAtAfter(
+            Long postId,
             Long accountId,
             String content,
             LocalDateTime createdAfter
