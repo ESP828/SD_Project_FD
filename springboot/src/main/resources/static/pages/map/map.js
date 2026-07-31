@@ -48,8 +48,8 @@ function getMarkerImage(assetName) {
 
   const image = new kakao.maps.MarkerImage(
     `${markerAssetRoot}/${assetName}`,
-    new kakao.maps.Size(72, 48),
-    { offset: new kakao.maps.Point(36, 48) },
+    new kakao.maps.Size(42, 56),
+    { offset: new kakao.maps.Point(21, 56) },
   );
   markerImageCache.set(assetName, image);
   return image;
