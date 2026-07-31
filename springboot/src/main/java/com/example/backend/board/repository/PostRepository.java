@@ -129,21 +129,6 @@ public interface PostRepository extends JpaRepository<Post, Long> {
             @Param("status") PostStatus status
     );
 
-    @Query("""
-            select p
-            from Post p
-            join fetch p.author
-            where p.author.accountId = :accountId
-              and p.status = :status
-              and p.createdAt >= :createdAfter
-            order by p.createdAt desc
-            """)
-    List<Post> findRecentPostsByAuthor(
-            @Param("accountId") Long accountId,
-            @Param("status") PostStatus status,
-            @Param("createdAfter") LocalDateTime createdAfter
-    );
-
     @Lock(LockModeType.PESSIMISTIC_READ)
     @Query("""
             select p

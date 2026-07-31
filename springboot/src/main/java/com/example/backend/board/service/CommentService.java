@@ -23,14 +23,22 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
-import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.atomic.AtomicInteger;
 
 @Service
 public class CommentService {
 
     private static final int MAX_PAGE_SIZE = 100;
-    private static final Duration DUPLICATE_SUBMISSION_WINDOW =
-            Duration.ofMillis(3_500);
+    private static final long DUPLICATE_SUBMISSION_WINDOW_NANOS =
+            Duration.ofMillis(3_500).toNanos();
+    private static final long SUBMISSION_IN_PROGRESS = Long.MAX_VALUE;
+    private static final int SUBMISSION_CLEANUP_INTERVAL = 256;
+
+    private final ConcurrentMap<CommentSubmissionKey, Long>
+            recentCommentSubmissions = new ConcurrentHashMap<>();
+    private final AtomicInteger commentSubmissionChecks = new AtomicInteger();
 
     private final CommentRepository commentRepository;
     private final PostRepository postRepository;
@@ -86,30 +94,41 @@ public class CommentService {
             CommentCreateRequest request,
             Long currentAccountId
     ) {
-        LocalDateTime submittedAt = LocalDateTime.now();
-        Account currentAccount = boardUserService.require(currentAccountId);
-        boardUserService.lockForSubmission(currentAccount.getAccountId());
-        Post post = getReadablePostForCommentMutation(postId, currentAccount);
+        validateId(postId, "게시글");
         String content = request.content().strip();
-        Optional<Comment> duplicateComment = findRecentDuplicateComment(
-                post,
-                currentAccount,
-                content,
-                submittedAt
-        );
-        if (duplicateComment.isPresent()) {
-            return responseMapper.toComment(
-                    duplicateComment.get(),
-                    currentAccount
-            );
-        }
-        Comment comment = Comment.create(
-                post,
-                currentAccount,
+        CommentSubmissionKey submissionKey = new CommentSubmissionKey(
+                currentAccountId,
+                postId,
                 content
         );
-        commentRepository.save(comment);
-        return responseMapper.toComment(comment, currentAccount);
+        long checkedAt = System.nanoTime();
+        if (!reserveCommentSubmission(submissionKey, checkedAt)) {
+            throw duplicateCommentSubmission();
+        }
+
+        try {
+            Account currentAccount = boardUserService.require(currentAccountId);
+            Post post = getReadablePostForCommentMutation(
+                    postId,
+                    currentAccount
+            );
+            Comment comment = Comment.create(
+                    post,
+                    currentAccount,
+                    content
+            );
+            commentRepository.save(comment);
+            CommentResponse response =
+                    responseMapper.toComment(comment, currentAccount);
+            completeCommentSubmission(submissionKey);
+            return response;
+        } catch (RuntimeException exception) {
+            recentCommentSubmissions.remove(
+                    submissionKey,
+                    SUBMISSION_IN_PROGRESS
+            );
+            throw exception;
+        }
     }
 
     @Transactional
@@ -181,21 +200,63 @@ public class CommentService {
                 .orElseThrow(this::commentNotFound);
     }
 
-    private Optional<Comment> findRecentDuplicateComment(
-            Post post,
-            Account currentAccount,
-            String content,
-            LocalDateTime submittedAt
+    private boolean reserveCommentSubmission(
+            CommentSubmissionKey submissionKey,
+            long checkedAt
     ) {
-        return commentRepository.findRecentCommentsByAuthor(
-                        post.getPostId(),
-                        currentAccount.getAccountId(),
-                        CommentStatus.ACTIVE,
-                        submittedAt.minus(DUPLICATE_SUBMISSION_WINDOW)
-                )
-                .stream()
-                .filter(comment -> comment.getContent().equals(content))
-                .findFirst();
+        cleanExpiredCommentSubmissions(checkedAt);
+        while (true) {
+            Long previous = recentCommentSubmissions.putIfAbsent(
+                    submissionKey,
+                    SUBMISSION_IN_PROGRESS
+            );
+            if (previous == null) {
+                return true;
+            }
+            if (previous == SUBMISSION_IN_PROGRESS
+                    || checkedAt - previous < DUPLICATE_SUBMISSION_WINDOW_NANOS) {
+                return false;
+            }
+            if (recentCommentSubmissions.replace(
+                    submissionKey,
+                    previous,
+                    SUBMISSION_IN_PROGRESS
+            )) {
+                return true;
+            }
+        }
+    }
+
+    private void completeCommentSubmission(
+            CommentSubmissionKey submissionKey
+    ) {
+        recentCommentSubmissions.replace(
+                submissionKey,
+                SUBMISSION_IN_PROGRESS,
+                System.nanoTime()
+        );
+    }
+
+    private void cleanExpiredCommentSubmissions(long checkedAt) {
+        if ((commentSubmissionChecks.incrementAndGet()
+                & (SUBMISSION_CLEANUP_INTERVAL - 1)) != 0) {
+            return;
+        }
+        recentCommentSubmissions.forEach((submissionKey, completedAt) -> {
+            if (completedAt != SUBMISSION_IN_PROGRESS
+                    && checkedAt - completedAt
+                    >= DUPLICATE_SUBMISSION_WINDOW_NANOS) {
+                recentCommentSubmissions.remove(submissionKey, completedAt);
+            }
+        });
+    }
+
+    private BoardException duplicateCommentSubmission() {
+        return new BoardException(
+                HttpStatus.CONFLICT,
+                "BOARD_DUPLICATE_COMMENT_SUBMISSION",
+                "같은 내용의 댓글이 이미 등록 중이거나 방금 등록되었습니다."
+        );
     }
 
     private void assertOwnerOrAdmin(Comment comment, Account account) {
@@ -240,5 +301,12 @@ public class CommentService {
                 "BOARD_INVALID_INPUT",
                 message
         );
+    }
+
+    private record CommentSubmissionKey(
+            Long accountId,
+            Long postId,
+            String content
+    ) {
     }
 }

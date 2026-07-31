@@ -33,16 +33,23 @@ import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Locale;
-import java.util.Objects;
-import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.atomic.AtomicInteger;
 
 @Service
 public class PostService {
 
     private static final int MAX_PAGE_SIZE = 50;
     private static final int MAX_BEST_SIZE = 10;
-    private static final Duration DUPLICATE_SUBMISSION_WINDOW =
-            Duration.ofMillis(3_500);
+    private static final long DUPLICATE_SUBMISSION_WINDOW_NANOS =
+            Duration.ofMillis(3_500).toNanos();
+    private static final long SUBMISSION_IN_PROGRESS = Long.MAX_VALUE;
+    private static final int SUBMISSION_CLEANUP_INTERVAL = 256;
+
+    private final ConcurrentMap<PostSubmissionKey, Long> recentPostSubmissions =
+            new ConcurrentHashMap<>();
+    private final AtomicInteger postSubmissionChecks = new AtomicInteger();
 
     private final PostRepository postRepository;
     private final CommentRepository commentRepository;
@@ -171,38 +178,50 @@ public class PostService {
             PostCreateRequest request,
             Long currentAccountId
     ) {
-        LocalDateTime submittedAt = LocalDateTime.now();
-        Account currentAccount = boardUserService.require(currentAccountId);
-        accessPolicy.assertCanWrite(
-                request.boardType(),
-                request.category(),
-                request.restaurantId(),
-                currentAccount
-        );
-        boardUserService.lockForSubmission(currentAccount.getAccountId());
-
         String title = request.title().strip();
         String content = request.content().strip();
-        Optional<Post> duplicatePost = findRecentDuplicatePost(
-                request,
-                currentAccount,
-                title,
-                content,
-                submittedAt
-        );
-        if (duplicatePost.isPresent()) {
-            return responseMapper.toDetail(duplicatePost.get(), currentAccount);
-        }
-        Post post = Post.create(
-                currentAccount,
-                request.restaurantId(),
+        PostSubmissionKey submissionKey = new PostSubmissionKey(
+                currentAccountId,
                 request.boardType(),
                 request.category(),
+                request.restaurantId(),
                 title,
                 content
         );
-        postRepository.save(post);
-        return responseMapper.toDetail(post, currentAccount);
+        long checkedAt = System.nanoTime();
+        if (!reservePostSubmission(submissionKey, checkedAt)) {
+            throw duplicatePostSubmission();
+        }
+
+        try {
+            Account currentAccount = boardUserService.require(currentAccountId);
+            accessPolicy.assertCanWrite(
+                    request.boardType(),
+                    request.category(),
+                    request.restaurantId(),
+                    currentAccount
+            );
+
+            Post post = Post.create(
+                    currentAccount,
+                    request.restaurantId(),
+                    request.boardType(),
+                    request.category(),
+                    title,
+                    content
+            );
+            postRepository.save(post);
+            PostDetailResponse response =
+                    responseMapper.toDetail(post, currentAccount);
+            completePostSubmission(submissionKey);
+            return response;
+        } catch (RuntimeException exception) {
+            recentPostSubmissions.remove(
+                    submissionKey,
+                    SUBMISSION_IN_PROGRESS
+            );
+            throw exception;
+        }
     }
 
     @Transactional
@@ -294,28 +313,61 @@ public class PostService {
                 .orElseThrow(() -> notFound("게시글을 찾을 수 없습니다."));
     }
 
-    private Optional<Post> findRecentDuplicatePost(
-            PostCreateRequest request,
-            Account currentAccount,
-            String title,
-            String content,
-            LocalDateTime submittedAt
+    private boolean reservePostSubmission(
+            PostSubmissionKey submissionKey,
+            long checkedAt
     ) {
-        return postRepository.findRecentPostsByAuthor(
-                        currentAccount.getAccountId(),
-                        PostStatus.ACTIVE,
-                        submittedAt.minus(DUPLICATE_SUBMISSION_WINDOW)
-                )
-                .stream()
-                .filter(post -> post.getBoardType() == request.boardType())
-                .filter(post -> post.getCategory() == request.category())
-                .filter(post -> Objects.equals(
-                        post.getRestaurantId(),
-                        request.restaurantId()
-                ))
-                .filter(post -> post.getTitle().equals(title))
-                .filter(post -> post.getContent().equals(content))
-                .findFirst();
+        cleanExpiredPostSubmissions(checkedAt);
+        while (true) {
+            Long previous = recentPostSubmissions.putIfAbsent(
+                    submissionKey,
+                    SUBMISSION_IN_PROGRESS
+            );
+            if (previous == null) {
+                return true;
+            }
+            if (previous == SUBMISSION_IN_PROGRESS
+                    || checkedAt - previous < DUPLICATE_SUBMISSION_WINDOW_NANOS) {
+                return false;
+            }
+            if (recentPostSubmissions.replace(
+                    submissionKey,
+                    previous,
+                    SUBMISSION_IN_PROGRESS
+            )) {
+                return true;
+            }
+        }
+    }
+
+    private void completePostSubmission(PostSubmissionKey submissionKey) {
+        recentPostSubmissions.replace(
+                submissionKey,
+                SUBMISSION_IN_PROGRESS,
+                System.nanoTime()
+        );
+    }
+
+    private void cleanExpiredPostSubmissions(long checkedAt) {
+        if ((postSubmissionChecks.incrementAndGet()
+                & (SUBMISSION_CLEANUP_INTERVAL - 1)) != 0) {
+            return;
+        }
+        recentPostSubmissions.forEach((submissionKey, completedAt) -> {
+            if (completedAt != SUBMISSION_IN_PROGRESS
+                    && checkedAt - completedAt
+                    >= DUPLICATE_SUBMISSION_WINDOW_NANOS) {
+                recentPostSubmissions.remove(submissionKey, completedAt);
+            }
+        });
+    }
+
+    private BoardException duplicatePostSubmission() {
+        return new BoardException(
+                HttpStatus.CONFLICT,
+                "BOARD_DUPLICATE_POST_SUBMISSION",
+                "같은 내용의 게시글이 이미 등록 중이거나 방금 등록되었습니다."
+        );
     }
 
     private void assertOwnerOrAdmin(Post post, Account account) {
@@ -403,5 +455,15 @@ public class PostService {
                 "BOARD_POST_NOT_FOUND",
                 message
         );
+    }
+
+    private record PostSubmissionKey(
+            Long accountId,
+            BoardType boardType,
+            PostCategory category,
+            Long restaurantId,
+            String title,
+            String content
+    ) {
     }
 }
