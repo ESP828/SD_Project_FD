@@ -4,6 +4,7 @@
  */
 const Api = {
   baseUrl: "/api",
+  _refreshPromise: null,
 
   getToken() {
     return localStorage.getItem("accessToken");
@@ -20,7 +21,7 @@ const Api = {
     localStorage.removeItem("accessToken");
   },
 
-  async request(path, { method = "GET", body, auth = true } = {}) {
+  async request(path, { method = "GET", body, auth = true, _retried = false } = {}) {
     const headers = { Accept: "application/json" };
     if (body !== undefined) {
       headers["Content-Type"] = "application/json";
@@ -44,6 +45,13 @@ const Api = {
       : await response.text();
 
     if (!response.ok) {
+      // 액세스 토큰 만료(401)면, 리프레시 토큰 쿠키로 새 토큰을 받아 원요청을 한 번만 재시도한다.
+      if (response.status === 401 && auth && !_retried && path !== "/auth/refresh") {
+        const refreshed = await this._refreshAccessToken();
+        if (refreshed) {
+          return this.request(path, { method, body, auth, _retried: true });
+        }
+      }
       if (response.status === 401) {
         this.clearToken();
       }
@@ -55,6 +63,29 @@ const Api = {
     }
 
     return payload;
+  },
+
+  _refreshAccessToken() {
+    if (!this._refreshPromise) {
+      this._refreshPromise = this.request("/auth/refresh", { method: "POST", auth: false })
+        .then((response) => {
+          this.setToken(response.data.token);
+          return true;
+        })
+        .catch(() => false)
+        .finally(() => {
+          this._refreshPromise = null;
+        });
+    }
+    return this._refreshPromise;
+  },
+
+  async logout() {
+    try {
+      await this.request("/auth/logout", { method: "POST", auth: false });
+    } finally {
+      this.clearToken();
+    }
   },
 
   get(path, options = {}) {

@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="푸드덕 아이디 찾기">
+  <title>아이디 찾기 · 푸드덕</title>
+  <link rel="icon" href="/images/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/css/common.css">
+  <link rel="stylesheet" href="/pages/auth/auth.css">
+</head>
+<body>
+  <div data-site-header></div>
+
+  <main class="auth-page">
+    <div class="auth-shell">
+      <aside class="auth-visual" aria-label="푸드덕 아이디 찾기 안내">
+        <div class="auth-visual-copy">
+          <p class="eyebrow">Find account</p>
+          <h2>아이디가<br>기억나지 않나요?</h2>
+        </div>
+        <img src="/images/characters/waving.png" alt="" aria-hidden="true">
+      </aside>
+
+      <section class="auth-card" aria-labelledby="find-id-title">
+        <p class="page-kicker">Find login ID</p>
+        <h1 id="find-id-title">아이디 찾기</h1>
+        <p></p>
+
+        <form id="find-id-form" class="auth-form">
+          <label class="field">
+            이메일
+            <div class="field-row">
+              <input type="email" name="email" id="find-id-email" placeholder="가입 시 등록한 이메일" autocomplete="email" maxlength="254" required>
+              <button type="button" class="button button-secondary button-sm field-action" id="send-code-btn">인증코드 발송</button>
+            </div>
+          </label>
+          <label class="field">
+            <span>인증번호 <span class="field-hint">숫자 6자리, 5분 이내 입력</span></span>
+            <div class="field-row">
+              <input type="text" name="verificationCode" id="find-id-code" placeholder="이메일로 받은 인증번호" inputmode="numeric" pattern="^[0-9]{6}$" maxlength="6" required>
+              <button type="button" class="button button-secondary button-sm field-action" id="verify-code-btn">인증확인</button>
+            </div>
+            <p class="field-status" id="email-verify-status"></p>
+          </label>
+        </form>
+        <p id="find-id-message" class="auth-message" role="alert"></p>
+
+        <p class="auth-switch">
+          <a href="/pages/auth/find-password.html">비밀번호 찾기</a>
+          ·
+          <a href="/pages/auth/login.html">로그인으로 돌아가기</a>
+        </p>
+      </section>
+    </div>
+  </main>
+
+  <div data-site-footer></div>
+
+  <script src="/js/api.js"></script>
+  <script src="/js/common.js"></script>
+  <script src="/pages/auth/find-id.js"></script>
+</body>
+</html>

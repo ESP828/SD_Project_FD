@@ -1,0 +1,75 @@
+const findIdForm = document.getElementById("find-id-form");
+const findIdMessage = document.getElementById("find-id-message");
+
+const emailInput = document.getElementById("find-id-email");
+const sendCodeBtn = document.getElementById("send-code-btn");
+const verificationCodeInput = document.getElementById("find-id-code");
+const verifyCodeBtn = document.getElementById("verify-code-btn");
+const emailVerifyStatus = document.getElementById("email-verify-status");
+
+function setStatus(element, text, isSuccess) {
+  element.textContent = text;
+  element.classList.toggle("is-success", Boolean(isSuccess));
+}
+
+function resetVerificationState() {
+  verificationCodeInput.value = "";
+  setStatus(emailVerifyStatus, "", false);
+}
+
+emailInput.addEventListener("input", () => {
+  resetVerificationState();
+  findIdMessage.classList.remove("is-success");
+  findIdMessage.textContent = "";
+});
+
+sendCodeBtn.addEventListener("click", async () => {
+  const email = emailInput.value.trim();
+  if (!emailInput.checkValidity() || !email) {
+    setStatus(emailVerifyStatus, "이메일 형식을 확인해 주세요.", false);
+    return;
+  }
+  sendCodeBtn.disabled = true;
+  const originalLabel = sendCodeBtn.textContent;
+  sendCodeBtn.textContent = "발송 중...";
+  setStatus(emailVerifyStatus, "인증번호를 보내고 있습니다. 최대 1분 정도 걸릴 수 있어요.", false);
+  try {
+    await Api.post("/auth/find-id/verification-code", { email }, { auth: false });
+    verificationCodeInput.value = "";
+    verificationCodeInput.focus();
+    setStatus(emailVerifyStatus, "인증번호를 발송했습니다. 5분 이내에 입력해 주세요.", true);
+  } catch (error) {
+    setStatus(emailVerifyStatus, error.message, false);
+  } finally {
+    sendCodeBtn.disabled = false;
+    sendCodeBtn.textContent = originalLabel;
+  }
+});
+
+verifyCodeBtn.addEventListener("click", async () => {
+  const email = emailInput.value.trim();
+  const code = verificationCodeInput.value.trim();
+  if (!/^[0-9]{6}$/.test(code)) {
+    setStatus(emailVerifyStatus, "인증번호 6자리를 입력해 주세요.", false);
+    return;
+  }
+  setStatus(emailVerifyStatus, "인증번호를 다시 확인해주세요.", false);
+  try {
+    const response = await Api.post("/auth/find-id/verify", { email, code }, { auth: false });
+    setStatus(emailVerifyStatus, "이메일 인증이 완료되었습니다.", true);
+    findIdMessage.classList.add("is-success");
+    findIdMessage.textContent = `회원님의 아이디는 [${response.data.loginId}] 입니다.`;
+    emailInput.disabled = true;
+    sendCodeBtn.disabled = true;
+    verificationCodeInput.disabled = true;
+    verifyCodeBtn.disabled = true;
+  } catch (error) {
+    findIdMessage.classList.remove("is-success");
+    findIdMessage.textContent = "";
+    setStatus(emailVerifyStatus, error.message, false);
+  }
+});
+
+findIdForm.addEventListener("submit", (event) => {
+  event.preventDefault();
+});

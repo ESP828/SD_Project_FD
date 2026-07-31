@@ -27,6 +27,7 @@ loginForm.addEventListener("submit", async (event) => {
       {
         loginId: form.get("loginId"),
         password: form.get("password"),
+        rememberLogin: Boolean(form.get("rememberLogin")),
       },
       { auth: false },
     );

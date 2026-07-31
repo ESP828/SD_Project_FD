@@ -25,6 +25,8 @@
     ],
     arrow_forward: ["M5 12h14", "M13 6l6 6-6 6"],
     arrow_back: ["M19 12H5", "M11 18l-6-6 6-6"],
+    chevron_left: ["M15 18l-6-6 6-6"],
+    chevron_right: ["M9 18l6-6-6-6"],
     favorite: [
       "M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.6a5.5 5.5 0 0 0 1-8.8z",
     ],
@@ -388,8 +390,12 @@
   });
 
   document.querySelectorAll("[data-logout]").forEach((button) => {
-    button.addEventListener("click", () => {
-      localStorage.removeItem("accessToken");
+    button.addEventListener("click", async () => {
+      try {
+        await Api.logout();
+      } catch (error) {
+        localStorage.removeItem("accessToken");
+      }
       window.location.assign("/");
     });
   });

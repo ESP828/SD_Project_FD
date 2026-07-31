@@ -15,6 +15,12 @@ import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.Locale;
 
+/**
+ * signup_email_verification 테이블은 회원가입 이메일 인증뿐 아니라
+ * 아이디/비밀번호 찾기(계정 복구) 인증에도 함께 사용된다. email 단일 unique 제약이라
+ * 같은 이메일로 회원가입 인증과 계정 복구 인증이 동시에 진행되면 서로 코드를 덮어쓸 수 있으나,
+ * 실제 영향은 "인증번호 재발급 필요" 수준이라 별도 purpose 컬럼/마이그레이션 없이 허용한다.
+ */
 @Service
 public class EmailVerificationService {
 
@@ -47,6 +53,22 @@ public class EmailVerificationService {
         if (accountRepository.existsByEmail(email)) {
             throw new BusinessException(ErrorCode.DUPLICATE_EMAIL);
         }
+        issueAndSend(email);
+    }
+
+    /**
+     * 아이디/비밀번호 찾기용 인증코드 발송. sendCode()와 반대로 계정이 이미 존재해야 한다.
+     */
+    @Transactional
+    public void sendRecoveryCode(String rawEmail) {
+        String email = normalize(rawEmail);
+        if (!accountRepository.existsByEmail(email)) {
+            throw new BusinessException(ErrorCode.ACCOUNT_NOT_FOUND);
+        }
+        issueAndSend(email);
+    }
+
+    private void issueAndSend(String email) {
         String code = generateCode();
         LocalDateTime expiresAt = LocalDateTime.now().plus(codeValidity);
         EmailVerification verification = verificationRepository.findByEmail(email)
