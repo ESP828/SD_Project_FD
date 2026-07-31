@@ -388,8 +388,12 @@
   });
 
   document.querySelectorAll("[data-logout]").forEach((button) => {
-    button.addEventListener("click", () => {
-      localStorage.removeItem("accessToken");
+    button.addEventListener("click", async () => {
+      try {
+        await Api.logout();
+      } catch (error) {
+        localStorage.removeItem("accessToken");
+      }
       window.location.assign("/");
     });
   });

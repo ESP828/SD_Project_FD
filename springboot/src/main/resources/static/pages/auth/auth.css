@@ -206,6 +206,16 @@
   accent-color: var(--color-orange);
 }
 
+.account-find-links {
+  display: inline-flex;
+  gap: 10px;
+}
+
+.account-find-links a {
+  color: var(--color-orange-dark);
+  font-weight: 700;
+}
+
 .auth-submit {
   width: 100%;
   margin-top: 4px;
@@ -428,6 +438,122 @@
   flex: 0 0 auto;
   color: var(--color-green);
   font-size: 1.15rem;
+}
+
+.consent-group {
+  display: grid;
+  gap: 8px;
+  padding: 13px 15px;
+  border: 1px solid var(--color-line);
+  border-radius: 13px;
+  background: #f9fbfd;
+}
+
+.consent-all {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--color-line);
+  color: var(--color-navy);
+  font-size: 0.86rem;
+  font-weight: 800;
+}
+
+.consent-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 0.82rem;
+  font-weight: 650;
+}
+
+.consent-item label,
+.consent-all {
+  cursor: pointer;
+}
+
+.consent-item label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.consent-all input,
+.consent-item input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--color-orange);
+}
+
+.consent-view-btn {
+  flex: 0 0 auto;
+  padding: 5px 11px;
+  border: 1px solid var(--color-line);
+  border-radius: 9px;
+  color: var(--color-muted);
+  font-size: 0.76rem;
+  font-weight: 700;
+  background: #fff;
+  cursor: pointer;
+  transition: border-color 150ms ease, color 150ms ease;
+}
+
+.consent-view-btn:hover {
+  border-color: var(--color-orange);
+  color: var(--color-orange-dark);
+}
+
+.legal-dialog {
+  width: min(560px, calc(100% - 32px));
+  max-height: calc(100vh - 60px);
+  padding: 0;
+  border: 0;
+  border-radius: 22px;
+  box-shadow: var(--shadow-float);
+}
+
+.legal-dialog::backdrop {
+  background: rgba(9, 23, 41, 0.55);
+  backdrop-filter: blur(4px);
+}
+
+.legal-dialog h2 {
+  margin: 0;
+  padding: 26px 30px 14px;
+  color: var(--color-navy);
+  font-size: 1.25rem;
+}
+
+.legal-body {
+  overflow-y: auto;
+  max-height: calc(100vh - 190px);
+  padding: 0 30px;
+  color: var(--color-muted);
+  font-size: 0.84rem;
+  line-height: 1.6;
+}
+
+.legal-body p {
+  margin: 0 0 14px;
+}
+
+.legal-body strong {
+  color: var(--color-navy);
+}
+
+.dialog-close {
+  display: block;
+  width: calc(100% - 60px);
+  margin: 18px 30px 26px;
+  padding: 11px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--color-navy);
+  color: #fff;
+  font-weight: 800;
+  cursor: pointer;
 }
 
 .callback-shell {
