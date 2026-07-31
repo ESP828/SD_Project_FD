@@ -331,7 +331,7 @@
 
 .gsi-material-button .gsi-material-button-icon {
   position: absolute;
-  left: 16px;
+  left: 0;
   top: 50%;
   height: 20px;
   min-width: 20px;
