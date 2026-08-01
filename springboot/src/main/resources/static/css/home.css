@@ -366,43 +366,6 @@
   display: block;
 }
 
-.home-cta {
-  padding: 36px 0 96px;
-}
-
-.cta-card {
-  position: relative;
-  display: grid;
-  overflow: hidden;
-  grid-template-columns: 1fr auto;
-  align-items: center;
-  gap: 40px;
-  min-height: 250px;
-  padding: 46px 54px;
-  border-radius: var(--radius-xl);
-  color: #fff;
-  background:
-    radial-gradient(circle at 80% 20%, rgba(255, 152, 0, 0.32), transparent 28%),
-    var(--color-navy);
-  box-shadow: var(--shadow-card);
-}
-
-.cta-card h2 {
-  max-width: 670px;
-  margin-bottom: 14px;
-  font-size: clamp(1.9rem, 4vw, 3.1rem);
-}
-
-.cta-card p {
-  max-width: 590px;
-  margin-bottom: 24px;
-  color: rgba(255, 255, 255, 0.72);
-}
-
-.cta-card img {
-  width: 196px;
-}
-
 @media (max-width: 980px) {
   .hero-grid {
     grid-template-columns: 1fr 0.78fr;
@@ -475,15 +438,6 @@
     min-height: 330px;
   }
 
-  .cta-card {
-    grid-template-columns: 1fr;
-    padding: 38px 28px 0;
-  }
-
-  .cta-card img {
-    width: 168px;
-    margin-inline: auto;
-  }
 }
 
 /* 팀 요구: 홈 배너는 부유 카드 없이 원본 푸드덕 캐릭터만 사용한다. */
@@ -530,44 +484,39 @@
   }
 }
 
-/* 홈 기능은 유지하고 추천 화면과 동일한 디자인 토큰으로 히어로를 통일한다. */
+/* 카테고리 페이지와 동일한 풀 너비 히어로 구조를 사용한다. */
 .home-hero {
-  padding: 42px 0 74px;
-  background: #f6f8fb;
+  position: relative;
+  overflow: hidden;
+  padding: 62px 0 58px;
+  background:
+    radial-gradient(circle at 86% 24%, rgba(255, 152, 0, 0.17), transparent 27%),
+    var(--color-cream);
 }
 
 .home-hero::after {
-  display: none;
-}
-
-.hero-grid {
-  position: relative;
-  isolation: isolate;
-  overflow: hidden;
-  min-height: 540px;
-  padding: clamp(42px, 6vw, 72px);
-  border: 1px solid rgba(15, 43, 77, 0.08);
-  border-radius: var(--radius-xl);
-  background:
-    radial-gradient(circle at 83% 12%, rgba(0, 168, 72, 0.13), transparent 25%),
-    radial-gradient(circle at 10% 92%, rgba(255, 152, 0, 0.14), transparent 27%),
-    linear-gradient(135deg, #fffaf0 0%, #fff 64%);
-  box-shadow: var(--shadow-sm);
-}
-
-.hero-grid::after {
   position: absolute;
-  z-index: -1;
+  top: -150px;
   right: -90px;
-  bottom: -125px;
   width: 410px;
   height: 410px;
   border: 1px solid rgba(15, 43, 77, 0.055);
   border-radius: 50%;
-  box-shadow:
-    0 0 0 48px rgba(15, 43, 77, 0.018),
-    0 0 0 96px rgba(15, 43, 77, 0.012);
+  box-shadow: 0 0 0 50px rgba(15, 43, 77, 0.018);
   content: "";
+}
+
+.hero-grid {
+  position: relative;
+  z-index: 1;
+  isolation: isolate;
+  min-height: 290px;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  gap: 50px;
+}
+
+.hero-grid::after {
+  display: none;
 }
 
 .hero-copy {
@@ -576,10 +525,9 @@
 }
 
 .hero-copy h1 {
-  max-width: 430px;
-  line-height: 1.3;
-  margin-bottom: 30px;
-  font-size: clamp(2.75rem, 5.5vw, 4.65rem);
+  max-width: 720px;
+  margin-bottom: 28px;
+  font-size: clamp(2.6rem, 5vw, 4.4rem);
 }
 
 .hero-actions {
@@ -588,25 +536,23 @@
 
 .hero-visual--duck {
   position: relative;
-  min-height: 410px;
+  display: grid;
+  place-items: center;
+  min-height: 290px;
 }
 
 .hero-visual--duck::before {
-  position: absolute;
-  inset: 9% 3% 5% 8%;
-  border: 1px solid rgba(255, 152, 0, 0.14);
-  border-radius: 52% 48% 42% 58% / 51% 42% 58% 49%;
-  background:
-    radial-gradient(circle at 68% 28%, rgba(0, 168, 72, 0.13), transparent 20%),
-    #fff3dc;
-  content: "";
+  display: none;
 }
 
 .hero-duck {
   position: relative;
   z-index: 1;
-  width: min(100%, 450px);
-  max-height: 430px;
+  width: min(100%, 310px);
+  max-height: 310px;
+  border-radius: 28px;
+  object-fit: contain;
+  filter: drop-shadow(0 20px 30px rgba(15, 43, 77, 0.14));
 }
 
 .home-section {
@@ -620,25 +566,30 @@
 
 @media (max-width: 980px) {
   .hero-grid {
-    min-height: 480px;
-    padding: 44px;
+    min-height: 270px;
+    grid-template-columns: minmax(0, 1fr) 280px;
+    gap: 36px;
   }
 
   .hero-visual--duck {
-    min-height: 360px;
+    min-height: 260px;
+  }
+
+  .hero-duck {
+    width: min(100%, 260px);
+    max-height: 260px;
   }
 }
 
 @media (max-width: 760px) {
   .home-hero {
-    padding: 24px 0 58px;
+    padding: 48px 0 42px;
   }
 
   .hero-grid {
     min-height: auto;
+    grid-template-columns: 1fr;
     gap: 28px;
-    padding: 38px 24px 24px;
-    border-radius: 25px;
   }
 
   .hero-copy h1 {
@@ -650,11 +601,12 @@
   }
 
   .hero-visual--duck {
-    min-height: 305px;
+    min-height: 240px;
   }
 
   .hero-duck {
-    max-height: 320px;
+    width: min(78vw, 260px);
+    max-height: 260px;
   }
 
   .home-section {

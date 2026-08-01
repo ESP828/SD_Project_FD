@@ -30,34 +30,60 @@
       <h2 id="search-title" class="sr-only">맛집 검색</h2>
 
       <form id="restaurant-search-form" class="surface-card search-form">
-        <label class="search-field search-field--main">
-          <span class="field-label">검색어</span>
-          <span class="search-input-wrap">
-            <span class="material-symbols-rounded" aria-hidden="true">search</span>
-            <input id="search-keyword" type="search"
-                   placeholder="가게 이름이나 메뉴를 입력하세요" maxlength="100" autocomplete="off">
-          </span>
-        </label>
-        <label class="search-field">
-          <span class="field-label">음식 종류</span>
-          <select id="search-category">
-            <option value="">전체</option>
-            <option value="한식">한식</option>
-            <option value="중식">중식</option>
-            <option value="일식">일식</option>
-            <option value="양식">양식</option>
-            <option value="카페">카페</option>
-            <option value="디저트">디저트</option>
-          </select>
-        </label>
-        <label class="search-field">
-          <span class="field-label">지역</span>
-          <input id="search-region" type="text" placeholder="예: 강남, 성수" maxlength="50">
-        </label>
-        <button class="button button-primary search-submit" type="submit">
-          검색하기
-          <span class="material-symbols-rounded" aria-hidden="true">arrow_forward</span>
-        </button>
+        <div class="search-form-heading">
+          <div>
+            <span class="search-form-kicker">Restaurant finder</span>
+          </div>
+        </div>
+
+        <div class="search-primary-row">
+          <div class="search-field search-field--main">
+            <label class="field-label" for="search-keyword">가게·메뉴 검색</label>
+            <span class="search-input-wrap">
+              <span class="material-symbols-rounded" aria-hidden="true">search</span>
+              <input id="search-keyword" type="search"
+                     placeholder="예: 성수 파스타, 강남 초밥" maxlength="100" autocomplete="off">
+              <button id="search-filter-toggle" class="search-filter-toggle" type="button"
+                      aria-label="상세 조건" title="상세 조건"
+                      aria-expanded="false" aria-controls="search-filter-panel">
+                <span class="material-symbols-rounded" aria-hidden="true">tune</span>
+              </button>
+            </span>
+          </div>
+          <button class="button button-primary search-submit" type="submit">
+            검색하기
+            <span class="material-symbols-rounded" aria-hidden="true">arrow_forward</span>
+          </button>
+        </div>
+
+        <div id="search-filter-panel" class="search-filter-panel" hidden>
+          <div class="search-filter-heading">
+            <span class="material-symbols-rounded" aria-hidden="true">tune</span>
+            <span>상세 조건</span>
+            <small>선택 사항</small>
+          </div>
+          <div class="search-filter-grid">
+            <label class="search-field">
+              <span class="field-label">음식 종류</span>
+              <select id="search-category">
+                <option value="">전체 음식</option>
+                <option value="한식">한식</option>
+                <option value="중식">중식</option>
+                <option value="일식">일식</option>
+                <option value="양식">양식</option>
+                <option value="카페">카페</option>
+                <option value="디저트">디저트</option>
+              </select>
+            </label>
+            <label class="search-field">
+              <span class="field-label">지역</span>
+              <span class="search-region-wrap">
+                <span class="material-symbols-rounded" aria-hidden="true">location_on</span>
+                <input id="search-region" type="text" placeholder="예: 강남, 성수" maxlength="50">
+              </span>
+            </label>
+          </div>
+        </div>
       </form>
 
       <div class="quick-filter-row" aria-label="빠른 음식 종류">

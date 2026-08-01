@@ -59,7 +59,7 @@ function resolveCategoryMarker(place) {
   const category = `${place.category_name || ""} ${place.category_group_name || ""}`;
 
   if (/카페|커피/.test(category)) return "category_cafe.png";
-  if (/디저트|제과|베이커리|아이스크림/.test(category)) return "category_dessert.png";
+  if (/디저트|제과|베이커리|아이스크림/.test(category)) return "category_cafe.png";
   if (/중식|중국/.test(category)) return "category_chinese.png";
   if (/일식|일본|초밥|스시/.test(category)) return "category_japanese.png";
   if (/양식|이탈리안|프렌치|스테이크/.test(category)) return "category_western.png";
