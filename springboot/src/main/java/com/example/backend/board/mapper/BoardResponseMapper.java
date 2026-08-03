@@ -10,6 +10,7 @@ import com.example.backend.board.dto.response.PostListItemResponse;
 import com.example.backend.board.dto.response.RestaurantSummaryResponse;
 import com.example.backend.board.policy.BoardAccessPolicy;
 import com.example.backend.board.query.BoardReferenceQueryRepository;
+import com.example.backend.board.query.BoardReferenceQueryRepository.AuthorRoleReference;
 import com.example.backend.board.repository.CommentRepository;
 import com.example.backend.board.repository.PostLikeRepository;
 import org.springframework.stereotype.Component;
@@ -26,6 +27,8 @@ import java.util.stream.Collectors;
 public class BoardResponseMapper {
 
     private static final int PREVIEW_LENGTH = 180;
+    private static final AuthorRoleReference DEFAULT_AUTHOR_ROLE =
+            new AuthorRoleReference(Set.of(), false);
 
     private final CommentRepository commentRepository;
     private final PostLikeRepository postLikeRepository;
@@ -66,16 +69,8 @@ public class BoardResponseMapper {
         Set<Long> authorIds = posts.stream()
                 .map(post -> post.getAuthor().getAccountId())
                 .collect(Collectors.toSet());
-        Map<Long, Set<String>> authorityCodes =
-                referenceRepository.findAuthorityCodes(authorIds);
-        Set<Long> businessRoleAccountIds = authorityCodes.entrySet().stream()
-                .filter(entry -> entry.getValue().contains("ROLE_BUSINESS"))
-                .map(Map.Entry::getKey)
-                .collect(Collectors.toSet());
-        Set<Long> businessProfiles =
-                referenceRepository.findBusinessProfileAccountIds(
-                        businessRoleAccountIds
-                );
+        Map<Long, AuthorRoleReference> authorRoles =
+                referenceRepository.findAuthorRoleReferences(authorIds);
 
         return posts.stream().map(post -> {
             Long authorId = post.getAuthor().getAccountId();
@@ -90,10 +85,7 @@ public class BoardResponseMapper {
                     authorId,
                     post.getAuthor().getLoginId(),
                     post.getAuthor().getNickname(),
-                    accessPolicy.displayRole(
-                            authorityCodes.getOrDefault(authorId, Set.of()),
-                            businessProfiles.contains(authorId)
-                    ),
+                    displayAuthorRole(authorId, authorRoles),
                     post.getBoardType(),
                     post.getCategory(),
                     restaurantId,
@@ -169,23 +161,12 @@ public class BoardResponseMapper {
         Set<Long> authorIds = comments.stream()
                 .map(comment -> comment.getAuthor().getAccountId())
                 .collect(Collectors.toSet());
-        Map<Long, Set<String>> authorityCodes =
-                referenceRepository.findAuthorityCodes(authorIds);
-        Set<Long> businessRoleAccountIds = authorityCodes.entrySet().stream()
-                .filter(entry -> entry.getValue().contains("ROLE_BUSINESS"))
-                .map(Map.Entry::getKey)
-                .collect(Collectors.toSet());
-        Set<Long> businessProfiles =
-                referenceRepository.findBusinessProfileAccountIds(
-                        businessRoleAccountIds
-                );
+        Map<Long, AuthorRoleReference> authorRoles =
+                referenceRepository.findAuthorRoleReferences(authorIds);
 
         return comments.stream().map(comment -> {
             Long authorId = comment.getAuthor().getAccountId();
-            String authorRole = accessPolicy.displayRole(
-                    authorityCodes.getOrDefault(authorId, Set.of()),
-                    businessProfiles.contains(authorId)
-            );
+            String authorRole = displayAuthorRole(authorId, authorRoles);
             return toComment(comment, currentAccount, authorRole);
         }).toList();
     }
@@ -244,6 +225,20 @@ public class BoardResponseMapper {
     private boolean isOwned(Account author, Account currentAccount) {
         return currentAccount != null
                 && author.getAccountId().equals(currentAccount.getAccountId());
+    }
+
+    private String displayAuthorRole(
+            Long authorId,
+            Map<Long, AuthorRoleReference> authorRoles
+    ) {
+        AuthorRoleReference authorRole = authorRoles.getOrDefault(
+                authorId,
+                DEFAULT_AUTHOR_ROLE
+        );
+        return accessPolicy.displayRole(
+                authorRole.authorityCodes(),
+                authorRole.hasBusinessProfile()
+        );
     }
 
     private String makePreview(String content) {
