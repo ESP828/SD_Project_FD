@@ -80,9 +80,7 @@ public class CommentService {
                 PageRequest.of(page, size, Sort.by(Sort.Order.asc("createdAt")))
         );
         return new CommentPageResponse(
-                result.getContent().stream()
-                        .map(comment -> responseMapper.toComment(comment, currentAccount))
-                        .toList(),
+                responseMapper.toComments(result.getContent(), currentAccount),
                 result.getNumber(),
                 result.getSize(),
                 result.getTotalElements(),

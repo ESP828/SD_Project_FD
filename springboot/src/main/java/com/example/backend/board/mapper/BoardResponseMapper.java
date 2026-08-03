@@ -158,6 +158,38 @@ public class BoardResponseMapper {
         );
     }
 
+    public List<CommentResponse> toComments(
+            List<Comment> comments,
+            Account currentAccount
+    ) {
+        if (comments.isEmpty()) {
+            return List.of();
+        }
+
+        Set<Long> authorIds = comments.stream()
+                .map(comment -> comment.getAuthor().getAccountId())
+                .collect(Collectors.toSet());
+        Map<Long, Set<String>> authorityCodes =
+                referenceRepository.findAuthorityCodes(authorIds);
+        Set<Long> businessRoleAccountIds = authorityCodes.entrySet().stream()
+                .filter(entry -> entry.getValue().contains("ROLE_BUSINESS"))
+                .map(Map.Entry::getKey)
+                .collect(Collectors.toSet());
+        Set<Long> businessProfiles =
+                referenceRepository.findBusinessProfileAccountIds(
+                        businessRoleAccountIds
+                );
+
+        return comments.stream().map(comment -> {
+            Long authorId = comment.getAuthor().getAccountId();
+            String authorRole = accessPolicy.displayRole(
+                    authorityCodes.getOrDefault(authorId, Set.of()),
+                    businessProfiles.contains(authorId)
+            );
+            return toComment(comment, currentAccount, authorRole);
+        }).toList();
+    }
+
     public CommentResponse toComment(
             Comment comment,
             Account currentAccount,
