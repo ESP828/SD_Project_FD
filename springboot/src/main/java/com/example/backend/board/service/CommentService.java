@@ -20,13 +20,29 @@ import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
+import java.time.Duration;
 import java.time.LocalDateTime;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.atomic.AtomicInteger;
 
 @Service
 public class CommentService {
 
     private static final int MAX_PAGE_SIZE = 100;
+    private static final Duration RAPID_DUPLICATE_WINDOW =
+            Duration.ofMillis(3_500);
+    private static final long RAPID_DUPLICATE_WINDOW_NANOS =
+            RAPID_DUPLICATE_WINDOW.toNanos();
+    private static final long SUBMISSION_IN_PROGRESS = Long.MAX_VALUE;
+    private static final int SUBMISSION_CLEANUP_INTERVAL = 256;
+
+    private final ConcurrentMap<CommentSubmissionKey, Long>
+            recentCommentSubmissions = new ConcurrentHashMap<>();
+    private final AtomicInteger commentSubmissionChecks = new AtomicInteger();
 
     private final CommentRepository commentRepository;
     private final PostRepository postRepository;
@@ -82,15 +98,44 @@ public class CommentService {
             CommentCreateRequest request,
             Long currentAccountId
     ) {
+        validateId(postId, "게시글");
         Account currentAccount = boardUserService.require(currentAccountId);
-        Post post = getReadablePost(postId, currentAccount);
-        Comment comment = Comment.create(
-                post,
-                currentAccount,
-                request.content().strip()
+        String content = request.content().strip();
+        CommentSubmissionKey submissionKey = new CommentSubmissionKey(
+                currentAccount.getAccountId(),
+                postId,
+                content
         );
-        commentRepository.save(comment);
-        return responseMapper.toComment(comment, currentAccount);
+        long checkedAt = System.nanoTime();
+        if (!reserveCommentSubmission(submissionKey, checkedAt)) {
+            throw rapidDuplicateComment();
+        }
+
+        try {
+            Post post = getReadablePostForCommentCreate(postId, currentAccount);
+            assertNotRapidDuplicate(
+                    postId,
+                    currentAccount.getAccountId(),
+                    content
+            );
+            String authorRole = accessPolicy.displayRole(currentAccount);
+            Comment comment = Comment.create(
+                    post,
+                    currentAccount,
+                    content
+            );
+            commentRepository.save(comment);
+            CommentResponse response = responseMapper.toComment(
+                    comment,
+                    currentAccount,
+                    authorRole
+            );
+            completeCommentSubmissionAfterTransaction(submissionKey);
+            return response;
+        } catch (RuntimeException | Error exception) {
+            releaseCommentSubmission(submissionKey);
+            throw exception;
+        }
     }
 
     @Transactional
@@ -119,6 +164,23 @@ public class CommentService {
     private Post getReadablePost(Long postId, Account currentAccount) {
         validateId(postId, "게시글");
         Post post = postRepository.findByPostIdAndStatus(postId, PostStatus.ACTIVE)
+                .orElseThrow(() -> new BoardException(
+                        HttpStatus.NOT_FOUND,
+                        "BOARD_POST_NOT_FOUND",
+                        "게시글을 찾을 수 없습니다."
+                ));
+        accessPolicy.assertCanRead(post.getBoardType(), currentAccount);
+        return post;
+    }
+
+    private Post getReadablePostForCommentCreate(
+            Long postId,
+            Account currentAccount
+    ) {
+        Post post = postRepository.findByPostIdAndStatusForUpdate(
+                        postId,
+                        PostStatus.ACTIVE
+                )
                 .orElseThrow(() -> new BoardException(
                         HttpStatus.NOT_FOUND,
                         "BOARD_POST_NOT_FOUND",
@@ -187,5 +249,122 @@ public class CommentService {
                 "BOARD_INVALID_INPUT",
                 message
         );
+    }
+
+    private void assertNotRapidDuplicate(
+            Long postId,
+            Long accountId,
+            String content
+    ) {
+        LocalDateTime createdAfter = LocalDateTime.now()
+                .minus(RAPID_DUPLICATE_WINDOW);
+        if (commentRepository
+                .existsByPostPostIdAndAuthorAccountIdAndContentAndCreatedAtAfter(
+                        postId,
+                        accountId,
+                        content,
+                        createdAfter
+                )) {
+            throw rapidDuplicateComment();
+        }
+    }
+
+    private boolean reserveCommentSubmission(
+            CommentSubmissionKey submissionKey,
+            long checkedAt
+    ) {
+        cleanExpiredCommentSubmissions(checkedAt);
+        while (true) {
+            Long previous = recentCommentSubmissions.putIfAbsent(
+                    submissionKey,
+                    SUBMISSION_IN_PROGRESS
+            );
+            if (previous == null) {
+                return true;
+            }
+            if (previous == SUBMISSION_IN_PROGRESS
+                    || checkedAt - previous < RAPID_DUPLICATE_WINDOW_NANOS) {
+                return false;
+            }
+            if (recentCommentSubmissions.replace(
+                    submissionKey,
+                    previous,
+                    SUBMISSION_IN_PROGRESS
+            )) {
+                return true;
+            }
+        }
+    }
+
+    private void completeCommentSubmissionAfterTransaction(
+            CommentSubmissionKey submissionKey
+    ) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()
+                || !TransactionSynchronizationManager
+                .isActualTransactionActive()) {
+            completeCommentSubmission(submissionKey);
+            return;
+        }
+
+        TransactionSynchronizationManager.registerSynchronization(
+                new TransactionSynchronization() {
+                    @Override
+                    public void afterCompletion(int status) {
+                        if (status == STATUS_COMMITTED) {
+                            completeCommentSubmission(submissionKey);
+                        } else {
+                            releaseCommentSubmission(submissionKey);
+                        }
+                    }
+                }
+        );
+    }
+
+    private void completeCommentSubmission(
+            CommentSubmissionKey submissionKey
+    ) {
+        recentCommentSubmissions.replace(
+                submissionKey,
+                SUBMISSION_IN_PROGRESS,
+                System.nanoTime()
+        );
+    }
+
+    private void releaseCommentSubmission(
+            CommentSubmissionKey submissionKey
+    ) {
+        recentCommentSubmissions.remove(
+                submissionKey,
+                SUBMISSION_IN_PROGRESS
+        );
+    }
+
+    private void cleanExpiredCommentSubmissions(long checkedAt) {
+        if ((commentSubmissionChecks.incrementAndGet()
+                & (SUBMISSION_CLEANUP_INTERVAL - 1)) != 0) {
+            return;
+        }
+        recentCommentSubmissions.forEach((submissionKey, completedAt) -> {
+            if (completedAt != SUBMISSION_IN_PROGRESS
+                    && checkedAt - completedAt
+                    >= RAPID_DUPLICATE_WINDOW_NANOS) {
+                recentCommentSubmissions.remove(submissionKey, completedAt);
+            }
+        });
+    }
+
+    private BoardException rapidDuplicateComment() {
+        return new BoardException(
+                HttpStatus.TOO_MANY_REQUESTS,
+                "BOARD_RAPID_DUPLICATE",
+                "같은 내용을 연달아 등록할 수 없습니다. 잠시 후 다시 시도해 주세요."
+        );
+    }
+
+    private record CommentSubmissionKey(
+            Long accountId,
+            Long postId,
+            String content
+    ) {
     }
 }

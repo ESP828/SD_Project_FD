@@ -15,6 +15,13 @@ import java.util.Optional;
 
 public interface CommentRepository extends JpaRepository<Comment, Long> {
 
+    boolean existsByPostPostIdAndAuthorAccountIdAndContentAndCreatedAtAfter(
+            Long postId,
+            Long accountId,
+            String content,
+            LocalDateTime createdAfter
+    );
+
     @Query(value = """
             select c
             from Comment c

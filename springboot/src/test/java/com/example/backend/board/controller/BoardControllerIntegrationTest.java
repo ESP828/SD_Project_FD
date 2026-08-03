@@ -59,8 +59,8 @@ class BoardControllerIntegrationTest {
                 "게시판테스터"
         ));
         AuthTokenResponse token = authService.login(
-                new LoginRequest("boardtester", "correct-password")
-        );
+                new LoginRequest("boardtester", "correct-password", false)
+        ).accessToken();
         accessToken = token.token();
     }
 

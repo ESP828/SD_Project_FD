@@ -42,14 +42,14 @@ public class BoardAccessPolicy {
         if (account == null) {
             return "USER";
         }
-        if (isAdmin(account)) {
-            return "ADMIN";
-        }
-        if (referenceRepository.hasAuthority(account.getAccountId(), ROLE_BUSINESS)
-                && referenceRepository.hasBusinessProfile(account.getAccountId())) {
-            return "BUSINESS";
-        }
-        return "USER";
+        Long accountId = account.getAccountId();
+        Set<String> authorityCodes =
+                referenceRepository.findAuthorityCodes(accountId);
+        boolean hasBusinessProfile = authorityCodes.contains(ROLE_BUSINESS)
+                && referenceRepository.findBusinessProfileAccountIds(
+                        Set.of(accountId)
+                ).contains(accountId);
+        return displayRole(authorityCodes, hasBusinessProfile);
     }
 
     public String displayRole(Set<String> authorityCodes, boolean hasBusinessProfile) {

@@ -102,6 +102,9 @@ sendCodeBtn.addEventListener("click", async () => {
     return;
   }
   sendCodeBtn.disabled = true;
+  const originalLabel = sendCodeBtn.textContent;
+  sendCodeBtn.textContent = "발송 중...";
+  setStatus(emailVerifyStatus, "인증번호를 보내고 있습니다. 최대 1분 정도 걸릴 수 있어요.", false);
   try {
     await Api.post("/auth/email/verification-code", { email }, { auth: false });
     verifiedEmail = null;
@@ -114,6 +117,7 @@ sendCodeBtn.addEventListener("click", async () => {
     setStatus(emailVerifyStatus, error.message, false);
   } finally {
     sendCodeBtn.disabled = false;
+    sendCodeBtn.textContent = originalLabel;
   }
 });
 
@@ -137,6 +141,40 @@ verifyCodeBtn.addEventListener("click", async () => {
   }
 });
 
+const consentAllInput = document.getElementById("consent-all");
+const consentTermsInput = document.getElementById("consent-terms");
+const consentPrivacyInput = document.getElementById("consent-privacy");
+
+function updateConsentAll() {
+  consentAllInput.checked = consentTermsInput.checked && consentPrivacyInput.checked;
+}
+
+consentAllInput.addEventListener("change", () => {
+  consentTermsInput.checked = consentAllInput.checked;
+  consentPrivacyInput.checked = consentAllInput.checked;
+});
+
+consentTermsInput.addEventListener("change", updateConsentAll);
+consentPrivacyInput.addEventListener("change", updateConsentAll);
+
+document.querySelectorAll(".consent-view-btn").forEach((button) => {
+  button.addEventListener("click", () => {
+    const dialog = document.getElementById(button.dataset.dialog);
+    if (dialog) {
+      dialog.showModal();
+    }
+  });
+});
+
+document.querySelectorAll(".legal-dialog").forEach((dialog) => {
+  dialog.querySelector("[data-close]").addEventListener("click", () => dialog.close());
+  dialog.addEventListener("click", (event) => {
+    if (event.target === dialog) {
+      dialog.close();
+    }
+  });
+});
+
 signupForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   signupMessage.classList.remove("is-success");
@@ -155,6 +193,10 @@ signupForm.addEventListener("submit", async (event) => {
   }
   if (verifiedEmail !== email) {
     signupMessage.textContent = "이메일 인증을 완료해 주세요.";
+    return;
+  }
+  if (!consentTermsInput.checked || !consentPrivacyInput.checked) {
+    signupMessage.textContent = "이용약관과 개인정보처리방침에 모두 동의해 주세요.";
     return;
   }
 

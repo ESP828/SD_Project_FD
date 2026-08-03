@@ -72,4 +72,11 @@ public class AccountCredential {
     public LocalDateTime getLockedUntil() {
         return lockedUntil;
     }
+
+    public void changePassword(String newPasswordHash) {
+        this.passwordHash = Objects.requireNonNull(newPasswordHash);
+        this.passwordChangedAt = LocalDateTime.now();
+        this.failedLoginCount = 0;
+        this.lockedUntil = null;
+    }
 }

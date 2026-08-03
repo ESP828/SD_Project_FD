@@ -95,8 +95,8 @@ class AuthServiceIntegrationTest {
         assertEquals(List.of("ROLE_USER"), authorityService.findCodes(account.getAccountId()));
 
         AuthTokenResponse token = authService.login(
-                new LoginRequest("localtester", "correct-password")
-        );
+                new LoginRequest("localtester", "correct-password", false)
+        ).accessToken();
         assertEquals("Bearer", token.tokenType());
         assertEquals(account.getAccountId(), jwtProvider.getAccountId(token.token()));
         assertEquals(List.of("ROLE_USER"), jwtProvider.getAuthorities(token.token()));
@@ -104,7 +104,7 @@ class AuthServiceIntegrationTest {
 
         assertThrows(
                 BusinessException.class,
-                () -> authService.login(new LoginRequest("localtester", "wrong-password"))
+                () -> authService.login(new LoginRequest("localtester", "wrong-password", false))
         );
     }
 

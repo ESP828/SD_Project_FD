@@ -110,6 +110,18 @@ public class BoardResponseMapper {
     }
 
     public PostDetailResponse toDetail(Post post, Account currentAccount) {
+        return toDetail(
+                post,
+                currentAccount,
+                accessPolicy.displayRole(post.getAuthor())
+        );
+    }
+
+    public PostDetailResponse toDetail(
+            Post post,
+            Account currentAccount,
+            String authorRole
+    ) {
         RestaurantSummaryResponse restaurant = post.getRestaurantId() == null
                 ? null
                 : referenceRepository.findRestaurant(post.getRestaurantId()).orElse(null);
@@ -120,7 +132,7 @@ public class BoardResponseMapper {
                 post.getAuthor().getAccountId(),
                 post.getAuthor().getLoginId(),
                 post.getAuthor().getNickname(),
-                accessPolicy.displayRole(post.getAuthor()),
+                authorRole,
                 post.getBoardType(),
                 post.getCategory(),
                 post.getRestaurantId(),
@@ -139,13 +151,25 @@ public class BoardResponseMapper {
     }
 
     public CommentResponse toComment(Comment comment, Account currentAccount) {
+        return toComment(
+                comment,
+                currentAccount,
+                accessPolicy.displayRole(comment.getAuthor())
+        );
+    }
+
+    public CommentResponse toComment(
+            Comment comment,
+            Account currentAccount,
+            String authorRole
+    ) {
         return new CommentResponse(
                 comment.getCommentId(),
                 comment.getPost().getPostId(),
                 comment.getAuthor().getAccountId(),
                 comment.getAuthor().getLoginId(),
                 comment.getAuthor().getNickname(),
-                accessPolicy.displayRole(comment.getAuthor()),
+                authorRole,
                 comment.getContent(),
                 isOwned(comment.getAuthor(), currentAccount),
                 comment.getCreatedAt(),

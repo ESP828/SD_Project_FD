@@ -29,6 +29,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Locale;
@@ -38,6 +39,8 @@ public class PostService {
 
     private static final int MAX_PAGE_SIZE = 50;
     private static final int MAX_BEST_SIZE = 10;
+    private static final Duration RAPID_DUPLICATE_WINDOW =
+            Duration.ofMillis(3_500);
 
     private final PostRepository postRepository;
     private final CommentRepository commentRepository;
@@ -167,23 +170,27 @@ public class PostService {
             Long currentAccountId
     ) {
         Account currentAccount = boardUserService.require(currentAccountId);
+        String title = request.title().strip();
+        String content = request.content().strip();
         accessPolicy.assertCanWrite(
                 request.boardType(),
                 request.category(),
                 request.restaurantId(),
                 currentAccount
         );
+        assertNotRapidDuplicate(currentAccount.getAccountId(), content);
+        String authorRole = accessPolicy.displayRole(currentAccount);
 
         Post post = Post.create(
                 currentAccount,
                 request.restaurantId(),
                 request.boardType(),
                 request.category(),
-                request.title().strip(),
-                request.content().strip()
+                title,
+                content
         );
         postRepository.save(post);
-        return responseMapper.toDetail(post, currentAccount);
+        return responseMapper.toDetail(post, currentAccount, authorRole);
     }
 
     @Transactional
@@ -352,6 +359,22 @@ public class PostService {
                 "BOARD_INVALID_INPUT",
                 message
         );
+    }
+
+    private void assertNotRapidDuplicate(Long accountId, String content) {
+        LocalDateTime createdAfter = LocalDateTime.now()
+                .minus(RAPID_DUPLICATE_WINDOW);
+        if (postRepository.existsByAuthorAccountIdAndContentAndCreatedAtAfter(
+                accountId,
+                content,
+                createdAfter
+        )) {
+            throw new BoardException(
+                    HttpStatus.TOO_MANY_REQUESTS,
+                    "BOARD_RAPID_DUPLICATE",
+                    "같은 내용을 연달아 등록할 수 없습니다. 잠시 후 다시 시도해 주세요."
+            );
+        }
     }
 
     private BoardException notFound(String message) {

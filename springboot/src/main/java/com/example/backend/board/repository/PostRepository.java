@@ -20,6 +20,12 @@ import java.util.Optional;
 
 public interface PostRepository extends JpaRepository<Post, Long> {
 
+    boolean existsByAuthorAccountIdAndContentAndCreatedAtAfter(
+            Long accountId,
+            String content,
+            LocalDateTime createdAfter
+    );
+
     @Query(value = """
             select p
             from Post p

@@ -7,6 +7,12 @@ const placeResults = document.getElementById("place-results");
 const resultCount = document.getElementById("result-count");
 const resultTitle = document.getElementById("result-title");
 const categoryButtons = document.querySelectorAll("[data-category-keyword]");
+const mapPage = document.querySelector(".map-page");
+const sidebarToggleButton = document.getElementById("sidebar-toggle-btn");
+const sidebarToggleIcon = sidebarToggleButton.querySelector(".material-symbols-rounded");
+const searchAreaButton = document.getElementById("search-area-button");
+
+let lastSearchKeyword = "";
 
 const markerAssetRoot = "/images/markers";
 const markerImageCache = new Map();
@@ -14,7 +20,6 @@ const markerImageCache = new Map();
 let kakaoMap;
 let currentPositionMarker;
 let placeMarkers = [];
-let placesService;
 let activeMarkerEntry;
 let activeInfoWindow;
 
@@ -34,7 +39,7 @@ function loadKakaoSdk(javascriptKey) {
     script.async = true;
     script.src =
       `https://dapi.kakao.com/v2/maps/sdk.js?appkey=${encodeURIComponent(javascriptKey)}` +
-      "&autoload=false&libraries=services";
+      "&autoload=false";
     script.onload = () => window.kakao.maps.load(resolve);
     script.onerror = () => reject(new Error("카카오맵 SDK를 불러오지 못했습니다."));
     document.head.appendChild(script);
@@ -79,9 +84,16 @@ function initializeMap() {
     new kakao.maps.ZoomControl(),
     kakao.maps.ControlPosition.RIGHT,
   );
-  placesService = new kakao.maps.services.Places();
   mapPlaceholder.hidden = true;
   setMapStatus("서울 시청을 기준으로 지도를 열었습니다.");
+
+  const showSearchAreaButton = () => {
+    if (lastSearchKeyword) {
+      searchAreaButton.hidden = false;
+    }
+  };
+  kakao.maps.event.addListener(kakaoMap, "dragend", showSearchAreaButton);
+  kakao.maps.event.addListener(kakaoMap, "zoom_changed", showSearchAreaButton);
 }
 
 function clearPlaceMarkers() {
@@ -259,8 +271,55 @@ function selectPlace(index, moveMap = true) {
   setMapStatus(`“${markerEntry.place.place_name}” 위치를 선택했습니다.`);
 }
 
-function searchPlaces(keyword, { nearby = false } = {}) {
-  if (!kakaoMap || !placesService) {
+function metersToLatDelta(meters) {
+  return meters / 111320;
+}
+
+function metersToLngDelta(meters, atLat) {
+  return meters / (111320 * Math.cos((atLat * Math.PI) / 180));
+}
+
+function boundsAroundCenter(center, radiusMeters) {
+  const latDelta = metersToLatDelta(radiusMeters);
+  const lngDelta = metersToLngDelta(radiusMeters, center.getLat());
+  const bounds = new kakao.maps.LatLngBounds();
+  bounds.extend(new kakao.maps.LatLng(center.getLat() - latDelta, center.getLng() - lngDelta));
+  bounds.extend(new kakao.maps.LatLng(center.getLat() + latDelta, center.getLng() + lngDelta));
+  return bounds;
+}
+
+function toPlaceLike(item) {
+  return {
+    place_name: item.name,
+    category_name: item.categoryName || "",
+    category_group_name: "",
+    road_address_name: item.roadAddress || "",
+    address_name: item.lotAddress || "",
+    phone: "",
+    place_url: "",
+    y: item.lat,
+    x: item.lon,
+  };
+}
+
+async function fetchRestaurantsInBounds(bounds, keyword) {
+  const sw = bounds.getSouthWest();
+  const ne = bounds.getNorthEast();
+  const params = new URLSearchParams({
+    swLat: sw.getLat(),
+    swLng: sw.getLng(),
+    neLat: ne.getLat(),
+    neLng: ne.getLng(),
+  });
+  if (keyword) {
+    params.set("keyword", keyword);
+  }
+  const response = await Api.get(`/public/map/restaurants?${params.toString()}`, { auth: false });
+  return response.data ?? [];
+}
+
+async function searchPlaces(keyword, { nearby = false } = {}) {
+  if (!kakaoMap) {
     setMapStatus("지도가 아직 준비되지 않았습니다.", true);
     return;
   }
@@ -272,77 +331,74 @@ function searchPlaces(keyword, { nearby = false } = {}) {
     return;
   }
 
+  lastSearchKeyword = normalizedKeyword;
+  searchAreaButton.hidden = true;
+
   setMapStatus(`“${normalizedKeyword}” 검색 중입니다.`);
   placeResults.innerHTML =
     '<div class="result-loading"><span class="material-symbols-rounded" aria-hidden="true">progress_activity</span><p>맛집을 찾고 있습니다.</p></div>';
 
-  const options = nearby
-    ? {
-        location: kakaoMap.getCenter(),
-        radius: 10000,
-        sort: kakao.maps.services.SortBy.DISTANCE,
-      }
-    : undefined;
+  const bounds = nearby
+    ? boundsAroundCenter(kakaoMap.getCenter(), 3000)
+    : kakaoMap.getBounds();
 
-  placesService.keywordSearch(
-    normalizedKeyword,
-    (results, status) => {
-      categoryButtons.forEach((button) => {
-        button.classList.toggle(
-          "is-active",
-          button.dataset.categoryKeyword === normalizedKeyword,
-        );
-      });
+  let items;
+  try {
+    items = await fetchRestaurantsInBounds(bounds, normalizedKeyword);
+  } catch (error) {
+    clearPlaceMarkers();
+    setResultsState(0);
+    renderEmptyResults("장소 검색 중 오류가 발생했습니다.");
+    setMapStatus("장소 검색에 실패했습니다.", true);
+    return;
+  }
 
-      if (status === kakao.maps.services.Status.ZERO_RESULT) {
-        clearPlaceMarkers();
-        setResultsState(0);
-        renderEmptyResults("검색 결과가 없습니다. 다른 지역이나 음식점 이름을 입력해 보세요.");
-        setMapStatus("검색 결과가 없습니다.", true);
-        return;
-      }
+  categoryButtons.forEach((button) => {
+    button.classList.toggle(
+      "is-active",
+      button.dataset.categoryKeyword === normalizedKeyword,
+    );
+  });
 
-      if (status !== kakao.maps.services.Status.OK) {
-        clearPlaceMarkers();
-        setResultsState(0);
-        renderEmptyResults("장소 검색 중 오류가 발생했습니다.");
-        setMapStatus("장소 검색에 실패했습니다.", true);
-        return;
-      }
+  if (items.length === 0) {
+    clearPlaceMarkers();
+    setResultsState(0);
+    renderEmptyResults("검색 결과가 없습니다. 다른 지역이나 음식점 이름을 입력해 보세요.");
+    setMapStatus("검색 결과가 없습니다.", true);
+    return;
+  }
 
-      clearPlaceMarkers();
-      const bounds = new kakao.maps.LatLngBounds();
+  clearPlaceMarkers();
+  const results = items.map(toPlaceLike);
+  const resultBounds = new kakao.maps.LatLngBounds();
 
-      results.forEach((place, index) => {
-        const position = new kakao.maps.LatLng(place.y, place.x);
-        const assetName = resolveCategoryMarker(place);
-        const marker = new kakao.maps.Marker({
-          map: kakaoMap,
-          position,
-          image: getMarkerImage(assetName),
-          zIndex: index + 1,
-        });
+  results.forEach((place, index) => {
+    const position = new kakao.maps.LatLng(place.y, place.x);
+    const assetName = resolveCategoryMarker(place);
+    const marker = new kakao.maps.Marker({
+      map: kakaoMap,
+      position,
+      image: getMarkerImage(assetName),
+      zIndex: index + 1,
+    });
 
-        const markerEntry = { marker, position, place, assetName };
-        kakao.maps.event.addListener(marker, "click", () => {
-          selectPlace(index, false);
-          document
-            .querySelector(`[data-result-index="${index}"]`)
-            ?.scrollIntoView({ behavior: "smooth", block: "nearest" });
-        });
-        placeMarkers.push(markerEntry);
-        bounds.extend(position);
-      });
+    const markerEntry = { marker, position, place, assetName };
+    kakao.maps.event.addListener(marker, "click", () => {
+      selectPlace(index, false);
+      document
+        .querySelector(`[data-result-index="${index}"]`)
+        ?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    });
+    placeMarkers.push(markerEntry);
+    resultBounds.extend(position);
+  });
 
-      if (!nearby) {
-        kakaoMap.setBounds(bounds);
-      }
-      renderPlaceResults(results);
-      setResultsState(results.length);
-      setMapStatus(`${results.length}개의 장소를 표시했습니다.`);
-    },
-    options,
-  );
+  if (!nearby) {
+    kakaoMap.setBounds(resultBounds);
+  }
+  renderPlaceResults(results);
+  setResultsState(results.length);
+  setMapStatus(`${results.length}개의 장소를 표시했습니다.`);
 }
 
 locationButton.addEventListener("click", () => {
@@ -391,6 +447,38 @@ categoryButtons.forEach((button) => {
     searchPlaces(keyword, { nearby: true });
   });
 });
+
+searchAreaButton.addEventListener("click", () => {
+  if (lastSearchKeyword) {
+    searchPlaces(lastSearchKeyword, { nearby: false });
+  }
+});
+
+function setSidebarCollapsed(collapsed) {
+  mapPage.classList.toggle("sidebar-collapsed", collapsed);
+  sidebarToggleButton.setAttribute("aria-expanded", String(!collapsed));
+  sidebarToggleButton.setAttribute("aria-label", collapsed ? "검색 패널 펼치기" : "검색 패널 접기");
+  sidebarToggleIcon.textContent = collapsed ? "chevron_right" : "chevron_left";
+  try {
+    localStorage.setItem("mapSidebarCollapsed", collapsed ? "1" : "0");
+  } catch {
+    // 프라이빗 브라우징 등으로 localStorage를 못 쓰면 상태 기억만 생략한다.
+  }
+}
+
+mapPage.addEventListener("transitionend", (event) => {
+  if (event.propertyName === "width" && event.target.classList.contains("map-sidebar") && kakaoMap) {
+    kakaoMap.relayout();
+  }
+});
+
+sidebarToggleButton.addEventListener("click", () => {
+  setSidebarCollapsed(!mapPage.classList.contains("sidebar-collapsed"));
+});
+
+if (localStorage.getItem("mapSidebarCollapsed") === "1") {
+  setSidebarCollapsed(true);
+}
 
 (async () => {
   try {
