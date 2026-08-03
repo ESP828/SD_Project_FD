@@ -2,10 +2,10 @@ package com.example.backend.restaurant.service;
 
 import com.example.backend.auth.domain.entity.Account;
 import com.example.backend.auth.repository.AccountRepository;
-import com.example.backend.restaurant.domain.entity.Restaurant;
-import com.example.backend.restaurant.domain.entity.RestaurantCategory;
+import com.example.backend.restaurant.domain.entity.*;
 import com.example.backend.restaurant.dto.request.RestaurantCreateRequest;
 import com.example.backend.restaurant.dto.response.RestaurantResponse;
+import com.example.backend.restaurant.exception.*;
 import com.example.backend.restaurant.mapper.RestaurantMapper;
 import com.example.backend.restaurant.repository.RestaurantCategoryRepository;
 import com.example.backend.restaurant.repository.RestaurantRepository;
@@ -38,15 +38,17 @@ public class RestaurantService {
     ) {
 
         Account owner = accountRepository.findById(accountId)
-                .orElseThrow(() -> new RuntimeException("사업자를 찾을 수 없습니다."));
+                .orElseThrow(OwnerNotFoundException::new);
 
         RestaurantCategory category = null;
 
         if (request.getCategoryId() != null) {
             category = categoryRepository.findById(request.getCategoryId())
-                    .orElseThrow(() -> new RuntimeException("카테고리를 찾을 수 없습니다."));
+                    .orElseThrow(CategoryNotFoundException::new);
         }
-
+        if (restaurantRepository.existsByName(request.getName())) {
+    throw new DuplicateRestaurantException();
+}
         Restaurant restaurant = Restaurant.create(
                 owner,
                 category,

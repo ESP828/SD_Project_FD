@@ -20,8 +20,32 @@ public enum ErrorCode {
     INVALID_OAUTH_TICKET(HttpStatus.BAD_REQUEST, "AUTH_INVALID_OAUTH_TICKET", "소셜 로그인 교환 코드가 만료되었거나 이미 사용되었습니다."),
     RESOURCE_NOT_FOUND(HttpStatus.NOT_FOUND, "COMMON_RESOURCE_NOT_FOUND", "요청한 리소스를 찾을 수 없습니다."),
     DATA_CONFLICT(HttpStatus.CONFLICT, "COMMON_DATA_CONFLICT", "이미 존재하거나 현재 상태와 충돌하는 데이터입니다."),
+    RESTAURANT_NOT_FOUND(
+        HttpStatus.NOT_FOUND,
+        "RESTAURANT_NOT_FOUND",
+        "식당을 찾을 수 없습니다."
+),
+
+DUPLICATE_RESTAURANT(
+        HttpStatus.CONFLICT,
+        "RESTAURANT_DUPLICATE",
+        "이미 등록된 식당입니다."
+),
+
+CATEGORY_NOT_FOUND(
+        HttpStatus.NOT_FOUND,
+        "CATEGORY_NOT_FOUND",
+        "카테고리를 찾을 수 없습니다."
+),
+
+OWNER_NOT_FOUND(
+        HttpStatus.NOT_FOUND,
+        "OWNER_NOT_FOUND",
+        "사업자를 찾을 수 없습니다."
+),
     RATE_LIMIT_EXCEEDED(HttpStatus.TOO_MANY_REQUESTS, "COMMON_RATE_LIMIT_EXCEEDED", "요청이 너무 많습니다. 잠시 후 다시 시도해 주세요."),
     INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "COMMON_INTERNAL_ERROR", "서버 처리 중 오류가 발생했습니다.");
+
 
     private final HttpStatus status;
     private final String code;
