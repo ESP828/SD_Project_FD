@@ -28,11 +28,16 @@ import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Locale;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.atomic.AtomicInteger;
 
 @Service
 public class PostService {
@@ -41,6 +46,14 @@ public class PostService {
     private static final int MAX_BEST_SIZE = 10;
     private static final Duration RAPID_DUPLICATE_WINDOW =
             Duration.ofMillis(3_500);
+    private static final long RAPID_DUPLICATE_WINDOW_NANOS =
+            RAPID_DUPLICATE_WINDOW.toNanos();
+    private static final long SUBMISSION_IN_PROGRESS = Long.MAX_VALUE;
+    private static final int SUBMISSION_CLEANUP_INTERVAL = 256;
+
+    private final ConcurrentMap<PostSubmissionKey, Long>
+            recentPostSubmissions = new ConcurrentHashMap<>();
+    private final AtomicInteger postSubmissionChecks = new AtomicInteger();
 
     private final PostRepository postRepository;
     private final CommentRepository commentRepository;
@@ -178,19 +191,39 @@ public class PostService {
                 request.restaurantId(),
                 currentAccount
         );
-        assertNotRapidDuplicate(currentAccount.getAccountId(), content);
-        String authorRole = accessPolicy.displayRole(currentAccount);
-
-        Post post = Post.create(
-                currentAccount,
-                request.restaurantId(),
-                request.boardType(),
-                request.category(),
-                title,
+        PostSubmissionKey submissionKey = new PostSubmissionKey(
+                currentAccount.getAccountId(),
                 content
         );
-        postRepository.save(post);
-        return responseMapper.toDetail(post, currentAccount, authorRole);
+        long checkedAt = System.nanoTime();
+        if (!reservePostSubmission(submissionKey, checkedAt)) {
+            throw rapidDuplicatePost();
+        }
+
+        try {
+            assertNotRapidDuplicate(currentAccount.getAccountId(), content);
+            String authorRole = accessPolicy.displayRole(currentAccount);
+
+            Post post = Post.create(
+                    currentAccount,
+                    request.restaurantId(),
+                    request.boardType(),
+                    request.category(),
+                    title,
+                    content
+            );
+            postRepository.save(post);
+            PostDetailResponse response = responseMapper.toDetail(
+                    post,
+                    currentAccount,
+                    authorRole
+            );
+            completePostSubmissionAfterTransaction(submissionKey);
+            return response;
+        } catch (RuntimeException | Error exception) {
+            releasePostSubmission(submissionKey);
+            throw exception;
+        }
     }
 
     @Transactional
@@ -359,12 +392,96 @@ public class PostService {
                 content,
                 createdAfter
         )) {
-            throw new BoardException(
-                    HttpStatus.TOO_MANY_REQUESTS,
-                    "BOARD_RAPID_DUPLICATE",
-                    "같은 내용을 연달아 등록할 수 없습니다. 잠시 후 다시 시도해 주세요."
-            );
+            throw rapidDuplicatePost();
         }
+    }
+
+    private boolean reservePostSubmission(
+            PostSubmissionKey submissionKey,
+            long checkedAt
+    ) {
+        cleanExpiredPostSubmissions(checkedAt);
+        while (true) {
+            Long previous = recentPostSubmissions.putIfAbsent(
+                    submissionKey,
+                    SUBMISSION_IN_PROGRESS
+            );
+            if (previous == null) {
+                return true;
+            }
+            if (previous == SUBMISSION_IN_PROGRESS
+                    || checkedAt - previous < RAPID_DUPLICATE_WINDOW_NANOS) {
+                return false;
+            }
+            if (recentPostSubmissions.replace(
+                    submissionKey,
+                    previous,
+                    SUBMISSION_IN_PROGRESS
+            )) {
+                return true;
+            }
+        }
+    }
+
+    private void completePostSubmissionAfterTransaction(
+            PostSubmissionKey submissionKey
+    ) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()
+                || !TransactionSynchronizationManager
+                .isActualTransactionActive()) {
+            completePostSubmission(submissionKey);
+            return;
+        }
+
+        TransactionSynchronizationManager.registerSynchronization(
+                new TransactionSynchronization() {
+                    @Override
+                    public void afterCompletion(int status) {
+                        if (status == STATUS_COMMITTED) {
+                            completePostSubmission(submissionKey);
+                        } else {
+                            releasePostSubmission(submissionKey);
+                        }
+                    }
+                }
+        );
+    }
+
+    private void completePostSubmission(PostSubmissionKey submissionKey) {
+        recentPostSubmissions.replace(
+                submissionKey,
+                SUBMISSION_IN_PROGRESS,
+                System.nanoTime()
+        );
+    }
+
+    private void releasePostSubmission(PostSubmissionKey submissionKey) {
+        recentPostSubmissions.remove(
+                submissionKey,
+                SUBMISSION_IN_PROGRESS
+        );
+    }
+
+    private void cleanExpiredPostSubmissions(long checkedAt) {
+        if ((postSubmissionChecks.incrementAndGet()
+                & (SUBMISSION_CLEANUP_INTERVAL - 1)) != 0) {
+            return;
+        }
+        recentPostSubmissions.forEach((submissionKey, completedAt) -> {
+            if (completedAt != SUBMISSION_IN_PROGRESS
+                    && checkedAt - completedAt
+                    >= RAPID_DUPLICATE_WINDOW_NANOS) {
+                recentPostSubmissions.remove(submissionKey, completedAt);
+            }
+        });
+    }
+
+    private BoardException rapidDuplicatePost() {
+        return new BoardException(
+                HttpStatus.TOO_MANY_REQUESTS,
+                "BOARD_RAPID_DUPLICATE",
+                "같은 내용을 연달아 등록할 수 없습니다. 잠시 후 다시 시도해 주세요."
+        );
     }
 
     private BoardException notFound(String message) {
@@ -373,5 +490,11 @@ public class PostService {
                 "BOARD_POST_NOT_FOUND",
                 message
         );
+    }
+
+    private record PostSubmissionKey(
+            Long accountId,
+            String content
+    ) {
     }
 }
