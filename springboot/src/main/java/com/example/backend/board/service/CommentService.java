@@ -158,7 +158,7 @@ public class CommentService {
         Comment comment = getExistingComment(commentId);
         assertParentPostReadable(comment, currentAccount);
         assertOwnerOrAdmin(comment, currentAccount);
-        comment.softDelete(LocalDateTime.now());
+        commentRepository.delete(comment);
     }
 
     private Post getReadablePost(Long postId, Account currentAccount) {

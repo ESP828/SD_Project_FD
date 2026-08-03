@@ -229,17 +229,7 @@ public class PostService {
         Account currentAccount = boardUserService.require(currentAccountId);
         Post post = getExistingPostForUpdate(postId);
         assertOwnerOrAdmin(post, currentAccount);
-
-        LocalDateTime deletedAt = LocalDateTime.now();
-        commentRepository.softDeleteAllByPostId(
-                postId,
-                CommentStatus.ACTIVE,
-                CommentStatus.DELETED,
-                deletedAt
-        );
-        postLikeRepository.deleteAllByPostId(postId);
-        post.clearLikeCount();
-        post.softDelete(deletedAt);
+        postRepository.delete(post);
     }
 
     @Transactional
