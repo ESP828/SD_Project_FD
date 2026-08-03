@@ -4,10 +4,46 @@
 
 .search-form {
   display: grid;
-  grid-template-columns: minmax(280px, 1.5fr) minmax(150px, 0.55fr) minmax(150px, 0.55fr) auto;
+  gap: 24px;
+  padding: clamp(24px, 4vw, 38px);
+}
+
+.search-form-heading {
+  display: flex;
   align-items: end;
-  gap: 14px;
-  padding: 24px;
+  justify-content: space-between;
+  gap: 24px;
+  padding-bottom: 2px;
+}
+
+.search-form-kicker {
+  display: block;
+  margin-bottom: 7px;
+  color: var(--color-orange-dark);
+  font-size: 0.72rem;
+  font-weight: 850;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+.search-form-heading h2 {
+  margin-bottom: 0;
+  font-size: clamp(1.45rem, 3vw, 2rem);
+}
+
+.search-form-heading p {
+  max-width: 360px;
+  margin-bottom: 2px;
+  color: var(--color-muted);
+  font-size: 0.86rem;
+  text-align: right;
+}
+
+.search-primary-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 12px;
 }
 
 .search-field {
@@ -32,6 +68,14 @@
   background: #fff;
 }
 
+.search-field--main input {
+  min-height: 58px;
+  border-width: 2px;
+  border-color: rgba(255, 152, 0, 0.45);
+  border-radius: 16px;
+  font-size: 1rem;
+}
+
 .search-field input:focus,
 .search-field select:focus {
   border-color: var(--color-orange);
@@ -52,11 +96,111 @@
 }
 
 .search-input-wrap input {
-  padding-left: 46px;
+  padding-left: 48px;
+  padding-right: 54px;
+}
+
+.search-filter-toggle {
+  position: absolute;
+  top: 50%;
+  right: 8px;
+  display: inline-flex;
+  width: 42px;
+  min-height: 42px;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0;
+  border: 1px solid rgba(255, 152, 0, 0.28);
+  border-radius: 11px;
+  color: var(--color-orange-dark);
+  background: var(--color-orange-soft);
+  font-size: 0;
+  font-weight: 800;
+  transform: translateY(-50%);
+  transition:
+    border-color 160ms ease,
+    background 160ms ease;
+}
+
+.search-filter-toggle:hover,
+.search-filter-toggle[aria-expanded="true"] {
+  border-color: rgba(255, 152, 0, 0.58);
+  background: #ffe6bb;
+}
+
+.search-filter-toggle .material-symbols-rounded {
+  position: static;
+  color: currentColor;
+  font-size: 19px;
+  transform: none;
 }
 
 .search-submit {
-  min-height: 50px;
+  min-width: 142px;
+  min-height: 58px;
+  border-radius: 16px;
+}
+
+.search-filter-panel {
+  display: grid;
+  grid-template-columns: 150px minmax(0, 1fr);
+  align-items: center;
+  gap: 24px;
+  padding: 20px 22px;
+  border: 1px solid var(--color-line);
+  border-radius: 16px;
+  background: var(--color-canvas);
+}
+
+.search-filter-panel[hidden] {
+  display: none;
+}
+
+.search-filter-heading {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 2px 8px;
+  color: var(--color-navy);
+  font-size: 0.86rem;
+  font-weight: 850;
+}
+
+.search-filter-heading .material-symbols-rounded {
+  grid-row: 1 / 3;
+  color: var(--color-orange-dark);
+  font-size: 22px;
+}
+
+.search-filter-heading small {
+  color: var(--color-muted);
+  font-size: 0.7rem;
+  font-weight: 650;
+}
+
+.search-filter-grid {
+  display: grid;
+  grid-template-columns: minmax(160px, 0.75fr) minmax(220px, 1.25fr);
+  gap: 14px;
+}
+
+.search-region-wrap {
+  position: relative;
+  display: block;
+}
+
+.search-region-wrap .material-symbols-rounded {
+  position: absolute;
+  top: 50%;
+  left: 13px;
+  color: var(--color-muted);
+  font-size: 20px;
+  transform: translateY(-50%);
+}
+
+.search-region-wrap input {
+  padding-left: 42px;
 }
 
 .quick-filter-row {
@@ -234,13 +378,19 @@
 }
 
 @media (max-width: 980px) {
-  .search-form {
-    grid-template-columns: 1fr 1fr;
+  .search-form-heading {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 8px;
   }
 
-  .search-field--main,
-  .search-submit {
-    grid-column: 1 / -1;
+  .search-form-heading p {
+    text-align: left;
+  }
+
+  .search-filter-panel {
+    grid-template-columns: 1fr;
+    gap: 14px;
   }
 
   .search-result-grid {
@@ -249,14 +399,18 @@
 }
 
 @media (max-width: 640px) {
-  .search-form,
+  .search-primary-row,
+  .search-filter-grid,
   .search-result-grid {
     grid-template-columns: 1fr;
   }
 
-  .search-field--main,
   .search-submit {
-    grid-column: auto;
+    width: 100%;
+  }
+
+  .search-filter-panel {
+    padding: 18px;
   }
 
   .search-result-header {

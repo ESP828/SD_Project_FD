@@ -3,6 +3,8 @@
   const keywordInput = document.getElementById("search-keyword");
   const categorySelect = document.getElementById("search-category");
   const regionInput = document.getElementById("search-region");
+  const filterToggle = document.getElementById("search-filter-toggle");
+  const filterPanel = document.getElementById("search-filter-panel");
   const results = document.getElementById("search-results");
   const count = document.getElementById("search-result-count");
   const status = document.getElementById("search-status");
@@ -14,6 +16,11 @@
   let placesService;
   let activePagination;
   let sdkReady = false;
+
+  function setFilterPanelOpen(isOpen) {
+    filterPanel.hidden = !isOpen;
+    filterToggle.setAttribute("aria-expanded", String(isOpen));
+  }
 
   function setStatus(message, isError = false) {
     status.textContent = message;
@@ -189,6 +196,10 @@
   form.addEventListener("submit", (event) => {
     event.preventDefault();
     runSearch();
+  });
+
+  filterToggle.addEventListener("click", () => {
+    setFilterPanelOpen(filterPanel.hidden);
   });
 
   quickButtons.forEach((button) => {

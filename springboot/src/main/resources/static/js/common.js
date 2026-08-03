@@ -25,6 +25,8 @@
     ],
     arrow_forward: ["M5 12h14", "M13 6l6 6-6 6"],
     arrow_back: ["M19 12H5", "M11 18l-6-6 6-6"],
+    chevron_left: ["M15 18l-6-6 6-6"],
+    chevron_right: ["M9 18l6-6-6-6"],
     favorite: [
       "M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.6a5.5 5.5 0 0 0 1-8.8z",
     ],
@@ -33,6 +35,18 @@
       "M22 4L12 14.1l-3-3",
     ],
     search: ["M11 19a8 8 0 1 1 0-16 8 8 0 0 1 0 16z", "M21 21l-4.3-4.3"],
+    visibility: [
+      "M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12z",
+      "M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z",
+    ],
+    tune: [
+      "M4 7h10",
+      "M18 7h2",
+      "M14 4v6",
+      "M4 17h2",
+      "M10 17h10",
+      "M10 14v6",
+    ],
     near_me: ["M21 3L10 14", "M21 3l-7 18-4-7-7-4 18-7z"],
     auto_awesome: [
       "M12 3l1.1 3.4L16.5 7.5l-3.4 1.1L12 12l-1.1-3.4-3.4-1.1 3.4-1.1L12 3z",
@@ -388,8 +402,12 @@
   });
 
   document.querySelectorAll("[data-logout]").forEach((button) => {
-    button.addEventListener("click", () => {
-      localStorage.removeItem("accessToken");
+    button.addEventListener("click", async () => {
+      try {
+        await Api.logout();
+      } catch (error) {
+        localStorage.removeItem("accessToken");
+      }
       window.location.assign("/");
     });
   });
