@@ -1,4 +1,6 @@
 (() => {
+  const PAGE_SIZE = 12;
+
   const form = document.getElementById("restaurant-search-form");
   const keywordInput = document.getElementById("search-keyword");
   const categorySelect = document.getElementById("search-category");
@@ -13,9 +15,7 @@
   const pageLabel = document.getElementById("search-page-label");
   const quickButtons = document.querySelectorAll("[data-quick-category]");
 
-  let placesService;
-  let activePagination;
-  let sdkReady = false;
+  let currentPage = 0;
 
   function setFilterPanelOpen(isOpen) {
     filterPanel.hidden = !isOpen;
@@ -27,31 +27,14 @@
     status.classList.toggle("is-error", isError);
   }
 
-  function loadKakaoSdk(javascriptKey) {
-    return new Promise((resolve, reject) => {
-      if (window.kakao?.maps) {
-        window.kakao.maps.load(resolve);
-        return;
-      }
-      const script = document.createElement("script");
-      script.async = true;
-      script.src =
-        `https://dapi.kakao.com/v2/maps/sdk.js?appkey=${encodeURIComponent(javascriptKey)}` +
-        "&autoload=false&libraries=services";
-      script.onload = () => window.kakao.maps.load(resolve);
-      script.onerror = () => reject(new Error("카카오 검색 SDK를 불러오지 못했습니다."));
-      document.head.appendChild(script);
-    });
-  }
-
   function markerFor(place) {
-    const category = `${place.category_name || ""} ${place.category_group_name || ""}`;
+    const category = place.categoryName || "";
     if (/카페|커피/.test(category)) return "category_cafe.png";
-    if (/디저트|제과|베이커리|아이스크림/.test(category)) return "category_dessert.png";
+    if (/디저트|제과|베이커리|아이스크림|빵|도넛|떡|한과/.test(category)) return "category_dessert.png";
     if (/중식|중국/.test(category)) return "category_chinese.png";
     if (/일식|일본|초밥|스시/.test(category)) return "category_japanese.png";
-    if (/양식|이탈리안|프렌치|스테이크/.test(category)) return "category_western.png";
-    if (/패스트푸드|햄버거|피자/.test(category)) return "category_fastfood.png";
+    if (/양식|서양식|이탈리안|프렌치|스테이크/.test(category)) return "category_western.png";
+    if (/패스트푸드|햄버거|피자|버거/.test(category)) return "category_fastfood.png";
     if (/술집|호프|주점|바/.test(category)) return "category_pub.png";
     if (/한식|국밥|고기|분식/.test(category)) return "category_korean.png";
     return "state_default.svg";
@@ -90,43 +73,27 @@
 
     const category = document.createElement("span");
     category.className = "search-result-category";
-    category.textContent =
-      place.category_name?.split(" > ").slice(-1)[0] ||
-      place.category_group_name ||
-      "음식점";
+    category.textContent = place.categoryName || "음식점";
 
     const title = document.createElement("h3");
-    title.textContent = place.place_name;
+    title.textContent = place.name;
 
     const address = createTextRow(
       "search-result-address",
       "location_on",
-      place.road_address_name || place.address_name || "주소 정보 없음",
+      place.roadAddress || place.lotAddress || "주소 정보 없음",
     );
     body.append(category, title, address);
-
-    if (place.phone) {
-      body.append(createTextRow("search-result-phone", null, place.phone));
-    }
 
     const actions = document.createElement("div");
     actions.className = "search-result-actions";
     const mapLink = document.createElement("a");
     mapLink.className = "button button-primary";
-    mapLink.href = `/pages/map/index.html?q=${encodeURIComponent(place.place_name)}`;
+    mapLink.href = `/pages/map/index.html?q=${encodeURIComponent(place.name)}`;
     mapLink.textContent = "지도에서 찾기";
     actions.append(mapLink);
-
-    if (place.place_url?.startsWith("http")) {
-      const detailLink = document.createElement("a");
-      detailLink.className = "button button-secondary";
-      detailLink.href = place.place_url;
-      detailLink.target = "_blank";
-      detailLink.rel = "noopener noreferrer";
-      detailLink.textContent = "상세보기";
-      actions.append(detailLink);
-    }
     body.append(actions);
+
     article.append(visual, body);
     return article;
   }
@@ -148,54 +115,58 @@
     count.textContent = "0";
   }
 
-  function updatePagination(pagination) {
-    activePagination = pagination;
-    const current = pagination.current;
-    const total = Math.max(1, pagination.last);
+  function updatePagination(response) {
+    const current = response.page + 1;
+    const total = Math.max(1, response.totalPages);
     pageLabel.textContent = `${current} / ${total}`;
-    previousButton.disabled = !pagination.hasPrevPage;
-    nextButton.disabled = !pagination.hasNextPage;
+    previousButton.disabled = !response.hasPrevPage;
+    nextButton.disabled = !response.hasNextPage;
   }
 
-  function runSearch() {
-    if (!sdkReady || !placesService) {
-      setStatus("카카오 검색 기능을 준비하고 있습니다.");
-      return;
-    }
-    const parts = [
-      regionInput.value.trim(),
-      categorySelect.value,
-      keywordInput.value.trim(),
-    ].filter(Boolean);
-    const query = parts.length ? parts.join(" ") : "서울 맛집";
+  async function runSearch(page = 0) {
+    const params = new URLSearchParams({
+      page: String(page),
+      size: String(PAGE_SIZE),
+    });
+    const keyword = keywordInput.value.trim();
+    const region = regionInput.value.trim();
+    const category = categorySelect.value;
+    if (keyword) params.set("keyword", keyword);
+    if (region) params.set("region", region);
+    if (category) params.set("category", category);
 
-    setStatus(`“${query}” 검색 중입니다.`);
+    setStatus("검색 중입니다.");
     results.setAttribute("aria-busy", "true");
-    placesService.keywordSearch(query, (places, kakaoStatus, pagination) => {
+
+    try {
+      const response = await Api.get(`/public/map/restaurants/search?${params.toString()}`, { auth: false });
+      const data = response.data;
       results.removeAttribute("aria-busy");
-      if (kakaoStatus === kakao.maps.services.Status.ZERO_RESULT) {
+      currentPage = data.page;
+
+      if (data.items.length === 0) {
         renderEmpty("다른 검색어나 지역으로 다시 찾아보세요.");
-        setStatus("조건에 맞는 장소를 찾지 못했습니다.");
+        setStatus("조건에 맞는 맛집을 찾지 못했습니다.");
         previousButton.disabled = true;
         nextButton.disabled = true;
         pageLabel.textContent = "1 / 1";
         return;
       }
-      if (kakaoStatus !== kakao.maps.services.Status.OK) {
-        renderEmpty("Kakao Places 요청을 완료하지 못했습니다.");
-        setStatus("검색 요청에 실패했습니다.", true);
-        return;
-      }
-      results.replaceChildren(...places.map(createResultCard));
-      count.textContent = String(places.length);
-      setStatus(`${pagination.current}페이지 결과입니다.`);
-      updatePagination(pagination);
-    });
+
+      results.replaceChildren(...data.items.map(createResultCard));
+      count.textContent = String(data.totalCount);
+      setStatus(`총 ${data.totalCount}개 중 ${data.page + 1}페이지 결과입니다.`);
+      updatePagination(data);
+    } catch (error) {
+      results.removeAttribute("aria-busy");
+      renderEmpty("검색 요청을 완료하지 못했습니다.");
+      setStatus("검색 요청에 실패했습니다.", true);
+    }
   }
 
   form.addEventListener("submit", (event) => {
     event.preventDefault();
-    runSearch();
+    runSearch(0);
   });
 
   filterToggle.addEventListener("click", () => {
@@ -208,7 +179,7 @@
       quickButtons.forEach((item) =>
         item.classList.toggle("is-active", item === button),
       );
-      runSearch();
+      runSearch(0);
     });
   });
 
@@ -222,35 +193,19 @@
   });
 
   previousButton.addEventListener("click", () => {
-    if (activePagination?.hasPrevPage) {
-      activePagination.prevPage();
+    if (currentPage > 0) {
+      runSearch(currentPage - 1);
     }
   });
   nextButton.addEventListener("click", () => {
-    if (activePagination?.hasNextPage) {
-      activePagination.nextPage();
-    }
+    runSearch(currentPage + 1);
   });
 
-  (async () => {
-    try {
-      const response = await Api.get("/public/map/config", { auth: false });
-      if (!response.data?.configured || !response.data.javascriptKey) {
-        throw new Error("카카오 JavaScript 키가 설정되지 않았습니다.");
-      }
-      await loadKakaoSdk(response.data.javascriptKey);
-      placesService = new kakao.maps.services.Places();
-      sdkReady = true;
-      setStatus("검색 조건을 입력해 주세요.");
+  setStatus("검색 조건을 입력해 주세요.");
 
-      const query = new URLSearchParams(window.location.search).get("q");
-      if (query) {
-        keywordInput.value = query;
-        runSearch();
-      }
-    } catch (error) {
-      setStatus(error.message, true);
-      form.querySelector("button[type='submit']").disabled = true;
-    }
-  })();
+  const query = new URLSearchParams(window.location.search).get("q");
+  if (query) {
+    keywordInput.value = query;
+    runSearch(0);
+  }
 })();
