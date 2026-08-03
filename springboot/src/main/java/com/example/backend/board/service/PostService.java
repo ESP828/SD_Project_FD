@@ -115,9 +115,13 @@ public class PostService {
             Sort springSort = "LIKES".equals(sort)
                     ? Sort.by(
                             Sort.Order.desc("likeCount"),
-                            Sort.Order.desc("createdAt")
+                            Sort.Order.desc("createdAt"),
+                            Sort.Order.desc("postId")
                     )
-                    : Sort.by(Sort.Order.desc("createdAt"));
+                    : Sort.by(
+                            Sort.Order.desc("createdAt"),
+                            Sort.Order.desc("postId")
+                    );
             result = postRepository.search(
                     boardType,
                     category,

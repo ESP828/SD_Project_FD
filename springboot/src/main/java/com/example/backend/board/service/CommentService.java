@@ -77,7 +77,14 @@ public class CommentService {
         Page<Comment> result = commentRepository.findActiveCommentsByPostId(
                 post.getPostId(),
                 CommentStatus.ACTIVE,
-                PageRequest.of(page, size, Sort.by(Sort.Order.asc("createdAt")))
+                PageRequest.of(
+                        page,
+                        size,
+                        Sort.by(
+                                Sort.Order.asc("createdAt"),
+                                Sort.Order.asc("commentId")
+                        )
+                )
         );
         return new CommentPageResponse(
                 responseMapper.toComments(result.getContent(), currentAccount),

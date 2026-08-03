@@ -80,7 +80,7 @@ public interface PostRepository extends JpaRepository<Post, Long> {
                 from Comment c
                 where c.post = p
                   and c.status = :commentStatus
-            ) desc, p.createdAt desc
+            ) desc, p.createdAt desc, p.postId desc
             """,
             countQuery = """
             select count(p)
@@ -113,7 +113,7 @@ public interface PostRepository extends JpaRepository<Post, Long> {
               and p.createdAt >= :since
               and p.category <> :excludedCategory
               and (:boardType is null or p.boardType = :boardType)
-            order by p.likeCount desc, p.createdAt desc
+            order by p.likeCount desc, p.createdAt desc, p.postId desc
             """)
     List<Post> findBestPosts(
             @Param("boardType") BoardType boardType,
