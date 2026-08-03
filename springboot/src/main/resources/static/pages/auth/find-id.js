@@ -1,5 +1,7 @@
 const findIdForm = document.getElementById("find-id-form");
-const findIdMessage = document.getElementById("find-id-message");
+const findIdFormSection = document.getElementById("find-id-form-section");
+const findIdResult = document.getElementById("find-id-result");
+const findIdValue = document.getElementById("find-id-value");
 
 const emailInput = document.getElementById("find-id-email");
 const sendCodeBtn = document.getElementById("send-code-btn");
@@ -19,8 +21,6 @@ function resetVerificationState() {
 
 emailInput.addEventListener("input", () => {
   resetVerificationState();
-  findIdMessage.classList.remove("is-success");
-  findIdMessage.textContent = "";
 });
 
 sendCodeBtn.addEventListener("click", async () => {
@@ -56,16 +56,10 @@ verifyCodeBtn.addEventListener("click", async () => {
   setStatus(emailVerifyStatus, "인증번호를 다시 확인해주세요.", false);
   try {
     const response = await Api.post("/auth/find-id/verify", { email, code }, { auth: false });
-    setStatus(emailVerifyStatus, "이메일 인증이 완료되었습니다.", true);
-    findIdMessage.classList.add("is-success");
-    findIdMessage.textContent = `회원님의 아이디는 [${response.data.loginId}] 입니다.`;
-    emailInput.disabled = true;
-    sendCodeBtn.disabled = true;
-    verificationCodeInput.disabled = true;
-    verifyCodeBtn.disabled = true;
+    findIdValue.textContent = response.data.loginId;
+    findIdFormSection.hidden = true;
+    findIdResult.hidden = false;
   } catch (error) {
-    findIdMessage.classList.remove("is-success");
-    findIdMessage.textContent = "";
     setStatus(emailVerifyStatus, error.message, false);
   }
 });

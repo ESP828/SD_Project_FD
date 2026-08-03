@@ -23,28 +23,36 @@
       </aside>
 
       <section class="auth-card" aria-labelledby="find-id-title">
-        <p class="page-kicker">Find login ID</p>
-        <h1 id="find-id-title">아이디 찾기</h1>
-        <p></p>
+        <div id="find-id-form-section">
+          <p class="page-kicker">Find login ID</p>
+          <h1 id="find-id-title">아이디 찾기</h1>
+          <p></p>
 
-        <form id="find-id-form" class="auth-form">
-          <label class="field">
-            이메일
-            <div class="field-row">
-              <input type="email" name="email" id="find-id-email" placeholder="가입 시 등록한 이메일" autocomplete="email" maxlength="254" required>
-              <button type="button" class="button button-secondary button-sm field-action" id="send-code-btn">인증코드 발송</button>
-            </div>
-          </label>
-          <label class="field">
-            <span>인증번호 <span class="field-hint">숫자 6자리, 5분 이내 입력</span></span>
-            <div class="field-row">
-              <input type="text" name="verificationCode" id="find-id-code" placeholder="이메일로 받은 인증번호" inputmode="numeric" pattern="^[0-9]{6}$" maxlength="6" required>
-              <button type="button" class="button button-secondary button-sm field-action" id="verify-code-btn">인증확인</button>
-            </div>
-            <p class="field-status" id="email-verify-status"></p>
-          </label>
-        </form>
-        <p id="find-id-message" class="auth-message" role="alert"></p>
+          <form id="find-id-form" class="auth-form">
+            <label class="field">
+              이메일
+              <div class="field-row">
+                <input type="email" name="email" id="find-id-email" placeholder="가입 시 등록한 이메일" autocomplete="email" maxlength="254" required>
+                <button type="button" class="button button-secondary button-sm field-action" id="send-code-btn">인증코드 발송</button>
+              </div>
+            </label>
+            <label class="field">
+              <span>인증번호 <span class="field-hint">숫자 6자리, 5분 이내 입력</span></span>
+              <div class="field-row">
+                <input type="text" name="verificationCode" id="find-id-code" placeholder="이메일로 받은 인증번호" inputmode="numeric" pattern="^[0-9]{6}$" maxlength="6" required>
+                <button type="button" class="button button-secondary button-sm field-action" id="verify-code-btn">인증확인</button>
+              </div>
+              <p class="field-status" id="email-verify-status"></p>
+            </label>
+          </form>
+        </div>
+
+        <div id="find-id-result" class="find-result" hidden>
+          <span class="find-result-icon material-symbols-rounded" aria-hidden="true">check_circle</span>
+          <p class="find-result-label">회원님의 아이디는</p>
+          <p class="find-result-value" id="find-id-value"></p>
+          <p class="find-result-label">입니다</p>
+        </div>
 
         <p class="auth-switch">
           <a href="/pages/auth/find-password.html">비밀번호 찾기</a>
