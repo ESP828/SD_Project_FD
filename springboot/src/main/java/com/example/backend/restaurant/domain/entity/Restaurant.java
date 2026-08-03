@@ -49,11 +49,7 @@ public class Restaurant {
     @Column(name = "closed_days", length = 255)
     private String closedDays;
 
-<<<<<<< Updated upstream
     @Column(columnDefinition = "TEXT")
-=======
-    @Column(length = 65535)
->>>>>>> Stashed changes
     private String description;
 
     @Enumerated(EnumType.STRING)
