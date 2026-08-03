@@ -1,0 +1,33 @@
+package com.example.backend.business.dto.response;
+
+import com.example.backend.business.domain.entity.BusinessApplication;
+
+import java.time.LocalDateTime;
+
+public record BusinessApplicationResponse(
+        Long applicationId,
+        String businessName,
+        String businessNumber,
+        String representativeName,
+        String contact,
+        String reason,
+        String status,
+        String rejectReason,
+        LocalDateTime createdAt,
+        LocalDateTime updatedAt
+) {
+    public static BusinessApplicationResponse from(BusinessApplication application) {
+        return new BusinessApplicationResponse(
+                application.getApplicationId(),
+                application.getBusinessName(),
+                application.getBusinessNumber(),
+                application.getRepresentativeName(),
+                application.getContact(),
+                application.getReason(),
+                application.getStatus().name(),
+                application.getRejectReason(),
+                application.getCreatedAt(),
+                application.getUpdatedAt()
+        );
+    }
+}

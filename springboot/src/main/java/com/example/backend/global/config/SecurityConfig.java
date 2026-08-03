@@ -58,6 +58,8 @@ public class SecurityConfig {
                         ).permitAll()
                         .requestMatchers("/api/auth/**", "/api/public/**", "/api/hello").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/board/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/business/applications").authenticated()
+                        .requestMatchers(HttpMethod.POST, "/api/business/applications").authenticated()
                         .requestMatchers("/api/admin/**").hasAuthority("ROLE_ADMIN")
                         .requestMatchers("/api/business/**").hasAnyAuthority("ROLE_BUSINESS", "ROLE_ADMIN")
                         .anyRequest().authenticated()

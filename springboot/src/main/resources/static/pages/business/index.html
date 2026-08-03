@@ -38,15 +38,16 @@
         <div>
           <p class="eyebrow">Business application</p>
           <h2>사업자 권한 신청</h2>
-          <p>기획된 입력 구조를 유지한 화면입니다. 신청 저장·상태 조회 API가 구현되기 전에는 제출하지 않습니다.</p>
+          <p>사업자 권한 신청서를 제출하면 서버에 저장되고, 관리자 승인 결과를 확인할 수 있습니다.</p>
           <form class="application-form">
-            <label>사업자명<input type="text" disabled placeholder="사업자명"></label>
-            <label>사업자등록번호<input type="text" disabled placeholder="000-00-00000"></label>
-            <label>대표자명<input type="text" disabled placeholder="대표자명"></label>
-            <label>연락처<input type="tel" disabled placeholder="010-0000-0000"></label>
-            <label class="full">신청 사유<textarea rows="3" disabled placeholder="신청 사유"></textarea></label>
-            <button class="button button-primary full" type="button" disabled>신청 API 연결 전</button>
+            <label>사업자명<input name="businessName" type="text" disabled placeholder="사업자명"></label>
+            <label>사업자등록번호<input name="businessNumber" type="text" disabled placeholder="000-00-00000"></label>
+            <label>대표자명<input name="representativeName" type="text" disabled placeholder="대표자명"></label>
+            <label>연락처<input name="contact" type="tel" disabled placeholder="010-0000-0000"></label>
+            <label class="full">신청 사유<textarea name="reason" rows="3" disabled placeholder="신청 사유"></textarea></label>
+            <button class="button button-primary full" type="submit" disabled>신청 제출</button>
           </form>
+          <ul id="business-application-list" class="management-list"></ul>
         </div>
       </section>
 
