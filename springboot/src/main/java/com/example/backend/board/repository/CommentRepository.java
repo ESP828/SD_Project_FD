@@ -2,9 +2,11 @@ package com.example.backend.board.repository;
 
 import com.example.backend.board.domain.entity.Comment;
 import com.example.backend.board.domain.type.CommentStatus;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -55,16 +57,14 @@ public interface CommentRepository extends JpaRepository<Comment, Long> {
             @Param("status") CommentStatus status
     );
 
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("""
             select c
             from Comment c
-            join fetch c.author
-            join fetch c.post p
-            join fetch p.author
             where c.commentId = :commentId
               and c.status = :status
             """)
-    Optional<Comment> findActiveCommentWithRelations(
+    Optional<Comment> findActiveCommentForUpdate(
             @Param("commentId") Long commentId,
             @Param("status") CommentStatus status
     );

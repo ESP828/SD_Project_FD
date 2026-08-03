@@ -132,6 +132,69 @@ public class BoardReferenceQueryRepository {
         ));
     }
 
+    /**
+     * 목록 작성자들의 권한과 사업자 프로필 보유 여부를 한 번의 조회로 가져온다.
+     */
+    public Map<Long, AuthorRoleReference> findAuthorRoleReferences(
+            Collection<Long> accountIds
+    ) {
+        if (accountIds == null || accountIds.isEmpty()) {
+            return Map.of();
+        }
+
+        List<AuthorRoleRow> rows = jdbcTemplate.query(
+                """
+                select acc.account_id,
+                       upper(auth.authority_code) as authority_code,
+                       case when bp.account_id is null then false else true end
+                           as has_business_profile
+                  from account acc
+                  left join account_authority aa
+                    on aa.account_id = acc.account_id
+                  left join authority auth
+                    on auth.authority_id = aa.authority_id
+                  left join business_profile bp
+                    on bp.account_id = acc.account_id
+                 where acc.account_id in (:accountIds)
+                """,
+                new MapSqlParameterSource("accountIds", accountIds),
+                (resultSet, rowNumber) -> new AuthorRoleRow(
+                        resultSet.getLong("account_id"),
+                        resultSet.getString("authority_code"),
+                        resultSet.getBoolean("has_business_profile")
+                )
+        );
+
+        Map<Long, Set<String>> authorityCodes = new HashMap<>();
+        Map<Long, Boolean> businessProfiles = new HashMap<>();
+        rows.forEach(row -> {
+            Set<String> codes = authorityCodes.computeIfAbsent(
+                    row.accountId(),
+                    ignored -> new HashSet<>()
+            );
+            if (row.authorityCode() != null && !row.authorityCode().isBlank()) {
+                codes.add(row.authorityCode());
+            }
+            businessProfiles.put(
+                    row.accountId(),
+                    row.hasBusinessProfile()
+            );
+        });
+
+        return authorityCodes.entrySet().stream().collect(
+                Collectors.toUnmodifiableMap(
+                        Map.Entry::getKey,
+                        entry -> new AuthorRoleReference(
+                                entry.getValue(),
+                                businessProfiles.getOrDefault(
+                                        entry.getKey(),
+                                        false
+                                )
+                        )
+                )
+        );
+    }
+
     public Map<Long, Set<String>> findAuthorityCodes(Collection<Long> accountIds) {
         if (accountIds == null || accountIds.isEmpty()) {
             return Map.of();
@@ -182,5 +245,26 @@ public class BoardReferenceQueryRepository {
                 (resultSet, rowNumber) -> resultSet.getLong("account_id")
         );
         return Set.copyOf(rows);
+    }
+
+    /**
+     * 작성자 종류 표시에 필요한 권한과 사업자 프로필 조회 결과다.
+     */
+    public record AuthorRoleReference(
+            Set<String> authorityCodes,
+            boolean hasBusinessProfile
+    ) {
+        public AuthorRoleReference {
+            authorityCodes = authorityCodes == null
+                    ? Set.of()
+                    : Set.copyOf(authorityCodes);
+        }
+    }
+
+    private record AuthorRoleRow(
+            Long accountId,
+            String authorityCode,
+            boolean hasBusinessProfile
+    ) {
     }
 }

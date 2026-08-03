@@ -77,12 +77,17 @@ public class CommentService {
         Page<Comment> result = commentRepository.findActiveCommentsByPostId(
                 post.getPostId(),
                 CommentStatus.ACTIVE,
-                PageRequest.of(page, size, Sort.by(Sort.Order.asc("createdAt")))
+                PageRequest.of(
+                        page,
+                        size,
+                        Sort.by(
+                                Sort.Order.asc("createdAt"),
+                                Sort.Order.asc("commentId")
+                        )
+                )
         );
         return new CommentPageResponse(
-                result.getContent().stream()
-                        .map(comment -> responseMapper.toComment(comment, currentAccount))
-                        .toList(),
+                responseMapper.toComments(result.getContent(), currentAccount),
                 result.getNumber(),
                 result.getSize(),
                 result.getTotalElements(),
@@ -145,7 +150,7 @@ public class CommentService {
             Long currentAccountId
     ) {
         Account currentAccount = boardUserService.require(currentAccountId);
-        Comment comment = getExistingComment(commentId);
+        Comment comment = getExistingCommentForUpdate(commentId);
         assertParentPostReadable(comment, currentAccount);
         assertOwnerOrAdmin(comment, currentAccount);
         comment.update(request.content().strip());
@@ -155,10 +160,10 @@ public class CommentService {
     @Transactional
     public void deleteComment(Long commentId, Long currentAccountId) {
         Account currentAccount = boardUserService.require(currentAccountId);
-        Comment comment = getExistingComment(commentId);
+        Comment comment = getExistingCommentForUpdate(commentId);
         assertParentPostReadable(comment, currentAccount);
         assertOwnerOrAdmin(comment, currentAccount);
-        comment.softDelete(LocalDateTime.now());
+        commentRepository.delete(comment);
     }
 
     private Post getReadablePost(Long postId, Account currentAccount) {
@@ -190,9 +195,9 @@ public class CommentService {
         return post;
     }
 
-    private Comment getExistingComment(Long commentId) {
+    private Comment getExistingCommentForUpdate(Long commentId) {
         validateId(commentId, "댓글");
-        return commentRepository.findActiveCommentWithRelations(
+        return commentRepository.findActiveCommentForUpdate(
                         commentId,
                         CommentStatus.ACTIVE
                 )
