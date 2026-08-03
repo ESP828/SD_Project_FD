@@ -145,7 +145,7 @@ public class CommentService {
             Long currentAccountId
     ) {
         Account currentAccount = boardUserService.require(currentAccountId);
-        Comment comment = getExistingComment(commentId);
+        Comment comment = getExistingCommentForUpdate(commentId);
         assertParentPostReadable(comment, currentAccount);
         assertOwnerOrAdmin(comment, currentAccount);
         comment.update(request.content().strip());
@@ -155,7 +155,7 @@ public class CommentService {
     @Transactional
     public void deleteComment(Long commentId, Long currentAccountId) {
         Account currentAccount = boardUserService.require(currentAccountId);
-        Comment comment = getExistingComment(commentId);
+        Comment comment = getExistingCommentForUpdate(commentId);
         assertParentPostReadable(comment, currentAccount);
         assertOwnerOrAdmin(comment, currentAccount);
         commentRepository.delete(comment);
@@ -190,9 +190,9 @@ public class CommentService {
         return post;
     }
 
-    private Comment getExistingComment(Long commentId) {
+    private Comment getExistingCommentForUpdate(Long commentId) {
         validateId(commentId, "댓글");
-        return commentRepository.findActiveCommentWithRelations(
+        return commentRepository.findActiveCommentForUpdate(
                         commentId,
                         CommentStatus.ACTIVE
                 )
