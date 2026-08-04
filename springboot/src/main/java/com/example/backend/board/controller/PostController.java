@@ -24,6 +24,7 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/board/posts")
@@ -33,6 +34,15 @@ public class PostController {
 
     public PostController(PostService postService) {
         this.postService = postService;
+    }
+
+    @GetMapping("/editor-options")
+    public ApiResponse<Map<String, Object>> getEditorOptions(
+            Authentication authentication
+    ) {
+        return ApiResponse.success(postService.getEditorOptions(
+                BoardAuthentication.accountId(authentication)
+        ));
     }
 
     @GetMapping

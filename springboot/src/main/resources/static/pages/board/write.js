@@ -20,35 +20,58 @@
   const cancelLink = document.getElementById("editor-cancel-link");
   const listLink = document.querySelector("[data-list-link]");
   const postId = board.readPostId();
+  const boardTypeLabels = {
+    GENERAL: "일반 커뮤니티",
+    BUSINESS: "사업자 커뮤니티",
+  };
+  const categoryLabels = {
+    GENERAL: "자유 이야기",
+    NOTICE: "공지",
+    RECOMMENDATION: "맛집 추천",
+    REVIEW: "방문 후기",
+    QUESTION: "질문",
+    TRAVEL: "맛집 여행",
+  };
   let originalPost = null;
+  let editorOptions = null;
 
   if (!form) return;
+  submitButton.disabled = true;
 
-  function populateOptions() {
-    boardTypeSelect.replaceChildren();
-    const general = board.element("option", "", "일반 커뮤니티");
-    general.value = "GENERAL";
-    boardTypeSelect.append(general);
-    if (session.canManageBusiness) {
-      const business = board.element("option", "", "사업자 커뮤니티");
-      business.value = "BUSINESS";
-      boardTypeSelect.append(business);
+  function normalizeOptions(value) {
+    const uniqueKnownValues = (values, labels) => Array.from(new Set(
+      (Array.isArray(values) ? values : []).filter((item) =>
+        Object.prototype.hasOwnProperty.call(labels, item),
+      ),
+    ));
+    const boardTypes = uniqueKnownValues(value?.boardTypes, boardTypeLabels);
+    const categories = uniqueKnownValues(value?.categories, categoryLabels);
+    if (!boardTypes.length || !categories.length) {
+      throw new Error("작성 가능한 게시판 정보를 확인하지 못했습니다.");
     }
+    return {
+      boardTypes,
+      categories,
+      canManageAllPosts: value?.canManageAllPosts === true,
+    };
+  }
+
+  function appendOption(select, value, label) {
+    const option = board.element("option", "", label);
+    option.value = value;
+    select.append(option);
+  }
+
+  function populateOptions(options) {
+    boardTypeSelect.replaceChildren();
+    options.boardTypes.forEach((value) =>
+      appendOption(boardTypeSelect, value, boardTypeLabels[value]),
+    );
 
     categorySelect.replaceChildren();
-    const categories = [
-      ["GENERAL", "자유 이야기"],
-      ["RECOMMENDATION", "맛집 추천"],
-      ["REVIEW", "방문 후기"],
-      ["QUESTION", "질문"],
-      ["TRAVEL", "맛집 여행"],
-    ];
-    if (session.isAdmin) categories.unshift(["NOTICE", "공지"]);
-    categories.forEach(([value, label]) => {
-      const option = board.element("option", "", label);
-      option.value = value;
-      categorySelect.append(option);
-    });
+    options.categories.forEach((value) =>
+      appendOption(categorySelect, value, categoryLabels[value]),
+    );
   }
 
   function updateCounts() {
@@ -62,48 +85,65 @@
     if (!postId) cancelLink.href = href;
   }
 
-  async function loadForEdit() {
-    try {
-      const payload = await Api.get(`/board/posts/${postId}`);
-      originalPost = payload.data;
-      if (!originalPost?.ownedByCurrentUser && !session.isAdmin) {
-        throw new Error("본인이 작성한 게시글만 수정할 수 있습니다.");
-      }
-      if (
-        originalPost.boardType === "BUSINESS" &&
-        !session.canManageBusiness
-      ) {
-        throw new Error("사업자 커뮤니티 게시글을 수정할 권한이 없습니다.");
-      }
-
-      pageTitle.textContent = "이야기 수정";
-      document.title = "이야기 수정 · 푸드덕";
-      modeBadge.textContent = "수정";
-      submitButton.textContent = "수정 저장";
-      boardTypeSelect.value = originalPost.boardType;
-      categorySelect.value = originalPost.category;
-      titleInput.value = originalPost.title || "";
-      contentInput.value = originalPost.content || "";
-      boardTypeSelect.disabled = !session.isAdmin;
-      cancelLink.href = board.detailPath(postId);
-      setListLinks(originalPost.boardType);
-      updateCounts();
-    } catch (error) {
-      form.classList.add("is-unavailable");
-      errorMessage.textContent = error.message || "게시글을 불러오지 못했습니다.";
-      submitButton.disabled = true;
-    }
+  function setUnavailable(message) {
+    form.classList.add("is-unavailable");
+    errorMessage.textContent = message || "게시글 작성 권한을 확인하지 못했습니다.";
+    submitButton.disabled = true;
   }
 
-  populateOptions();
-  const requestedBoardType =
-    new URLSearchParams(window.location.search).get("boardType") === "BUSINESS" &&
-    session.canManageBusiness
-      ? "BUSINESS"
-      : "GENERAL";
-  boardTypeSelect.value = requestedBoardType;
-  setListLinks(requestedBoardType);
-  updateCounts();
+  async function loadForEdit() {
+    const payload = await Api.get(`/board/posts/${postId}`);
+    originalPost = payload.data;
+    if (!originalPost?.ownedByCurrentUser && !editorOptions.canManageAllPosts) {
+      throw new Error("본인이 작성한 게시글만 수정할 수 있습니다.");
+    }
+    if (!editorOptions.boardTypes.includes(originalPost.boardType)) {
+      throw new Error("이 게시 공간의 글을 수정할 권한이 없습니다.");
+    }
+    if (!editorOptions.categories.includes(originalPost.category)) {
+      throw new Error(
+        originalPost.category === "NOTICE"
+          ? "관리자만 공지 게시글을 수정할 수 있습니다."
+          : "이 카테고리의 글을 수정할 권한이 없습니다.",
+      );
+    }
+
+    pageTitle.textContent = "이야기 수정";
+    document.title = "이야기 수정 · 푸드덕";
+    modeBadge.textContent = "수정";
+    submitButton.textContent = "수정 저장";
+    boardTypeSelect.value = originalPost.boardType;
+    categorySelect.value = originalPost.category;
+    titleInput.value = originalPost.title || "";
+    contentInput.value = originalPost.content || "";
+    boardTypeSelect.disabled = !editorOptions.canManageAllPosts;
+    cancelLink.href = board.detailPath(postId);
+    setListLinks(originalPost.boardType);
+    updateCounts();
+  }
+
+  async function initialize() {
+    try {
+      const payload = await Api.get("/board/posts/editor-options");
+      editorOptions = normalizeOptions(payload.data);
+      populateOptions(editorOptions);
+
+      const requestedBoardType = new URLSearchParams(window.location.search)
+        .get("boardType");
+      boardTypeSelect.value = editorOptions.boardTypes.includes(requestedBoardType)
+        ? requestedBoardType
+        : editorOptions.boardTypes[0];
+      setListLinks(boardTypeSelect.value);
+      updateCounts();
+
+      if (postId) {
+        await loadForEdit();
+      }
+      submitButton.disabled = false;
+    } catch (error) {
+      setUnavailable(error.message);
+    }
+  }
 
   titleInput.addEventListener("input", updateCounts);
   contentInput.addEventListener("input", updateCounts);
@@ -121,6 +161,16 @@
       title: titleInput.value.trim(),
       content: contentInput.value.trim(),
     };
+    if (!editorOptions?.boardTypes.includes(body.boardType)) {
+      errorMessage.textContent = "사용할 수 없는 게시 공간입니다.";
+      return;
+    }
+    if (!editorOptions.categories.includes(body.category)) {
+      errorMessage.textContent = body.category === "NOTICE"
+        ? "관리자만 공지 카테고리를 사용할 수 있습니다."
+        : "사용할 수 없는 카테고리입니다.";
+      return;
+    }
     if (!body.title || !body.content) {
       errorMessage.textContent = "제목과 내용을 입력해 주세요.";
       return;
@@ -140,5 +190,5 @@
     }
   });
 
-  if (postId) loadForEdit();
+  initialize();
 })();

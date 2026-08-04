@@ -38,8 +38,15 @@
     return;
   }
 
-  const { authorIdentity, categoryLabel, detailPath, element, formatDate, icon } =
-    board;
+  const {
+    authorIdentity,
+    categoryBadge,
+    categoryLabel,
+    detailPath,
+    element,
+    formatDate,
+    icon,
+  } = board;
 
   function renderLoading() {
     boardList.replaceChildren();
@@ -71,7 +78,10 @@
     article.href = state.boardType === "BEST"
       ? `${detailPath(post.postId)}&from=BEST`
       : detailPath(post.postId);
-    article.setAttribute("aria-label", `${post.title} 상세 보기`);
+    article.setAttribute(
+      "aria-label",
+      `${categoryLabel(post.category)}: ${post.title} 상세 보기`,
+    );
 
     const main = element("div", "post-row-main");
     const badges = element("div", "post-badge-row");
@@ -79,7 +89,7 @@
       const rank = state.page * state.size + index + 1;
       badges.append(element("span", "post-badge", `베스트 ${rank}위`));
     }
-    badges.append(element("span", "post-badge", categoryLabel(post.category)));
+    badges.append(categoryBadge(post.category));
     if (state.boardType === "BEST" || post.boardType === "BUSINESS") {
       badges.append(
         element(
@@ -344,8 +354,9 @@
         ? "사업자 커뮤니티"
         : "일반 커뮤니티";
     searchForm.hidden = isBest;
+    const canShowWriteLinks = !isBest || session.isAdmin;
     writeLinks.forEach((link) => {
-      link.hidden = isBest;
+      link.hidden = !canShowWriteLinks;
       link.href = board.writePath(state.lastBoardType);
     });
     window.history.replaceState(
@@ -395,6 +406,10 @@
 
   writeLinks.forEach((link) => {
     link.addEventListener("click", (event) => {
+      if (state.boardType === "BEST" && !session.isAdmin) {
+        event.preventDefault();
+        return;
+      }
       if (session.authenticated) return;
       event.preventDefault();
       board.requireLogin(link.getAttribute("href"));

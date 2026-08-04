@@ -21,6 +21,7 @@
 
   const {
     authorIdentity,
+    categoryBadge,
     categoryLabel,
     detailPath,
     element,
@@ -111,7 +112,7 @@
     detailContent.replaceChildren();
 
     const badges = element("div", "detail-badges");
-    badges.append(detailBadge(categoryLabel(post.category)));
+    badges.append(categoryBadge(post.category));
     badges.append(
       detailBadge(
         post.boardType === "BUSINESS" ? "사업자 커뮤니티" : "일반 커뮤니티",
