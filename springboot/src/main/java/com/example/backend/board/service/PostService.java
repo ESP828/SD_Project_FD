@@ -45,6 +45,8 @@ public class PostService {
     private static final int MAX_PAGE_SIZE = 50;
     private static final int MAX_BEST_SIZE = 10;
     private static final int MAX_DISCOVERY_SIZE = 10;
+    private static final int BEST_COMMUNITY_MINIMUM_LIKE_COUNT = 1;
+    private static final Duration BEST_COMMUNITY_WINDOW = Duration.ofHours(24);
     private static final Duration RAPID_DUPLICATE_WINDOW =
             Duration.ofMillis(3_500);
     private static final long RAPID_DUPLICATE_WINDOW_NANOS =
@@ -168,6 +170,37 @@ public class PostService {
                 PageRequest.of(0, size)
         );
         return responseMapper.toListItems(posts, currentAccount);
+    }
+
+    @Transactional(readOnly = true)
+    public PostPageResponse getBestPostPage(
+            int page,
+            int size,
+            Long currentAccountId
+    ) {
+        validatePage(page, size);
+        Account currentAccount = boardUserService.findOptional(currentAccountId);
+        BoardType readableBoardType = accessPolicy.isApprovedBusiness(currentAccount)
+                ? null
+                : BoardType.GENERAL;
+        Page<Post> result = postRepository.findBestPostPage(
+                readableBoardType,
+                PostCategory.NOTICE,
+                LocalDateTime.now().minus(BEST_COMMUNITY_WINDOW),
+                BEST_COMMUNITY_MINIMUM_LIKE_COUNT,
+                PostStatus.ACTIVE,
+                PageRequest.of(page, size)
+        );
+
+        return new PostPageResponse(
+                responseMapper.toListItems(result.getContent(), currentAccount),
+                result.getNumber(),
+                result.getSize(),
+                result.getTotalElements(),
+                result.getTotalPages(),
+                result.isFirst(),
+                result.isLast()
+        );
     }
 
     @Transactional(readOnly = true)

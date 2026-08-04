@@ -2,6 +2,8 @@
   const session = window.FooduckSession;
   const board = window.FooduckBoard;
   const postId = board?.readPostId();
+  const fromBest =
+    new URLSearchParams(window.location.search).get("from") === "BEST";
   const state = { post: null };
 
   const detailContent = document.getElementById("post-detail-content");
@@ -103,7 +105,9 @@
   function renderPost(post) {
     state.post = post;
     document.title = `${post.title} · 푸드덕`;
-    listLink.href = board.listPath(post.boardType);
+    listLink.href = fromBest
+      ? "/pages/board/index.html?boardType=BEST"
+      : board.listPath(post.boardType);
     detailContent.replaceChildren();
 
     const badges = element("div", "detail-badges");
@@ -151,7 +155,7 @@
       toggleLike,
     );
     actions.append(likeButton);
-    if (post.ownedByCurrentUser || session.isAdmin) {
+    if ((!fromBest && post.ownedByCurrentUser) || session.isAdmin) {
       const editLink = element("a", "button button-sm button-secondary", "수정");
       editLink.href = board.writePath(post.boardType, post.postId);
       actions.append(

@@ -123,6 +123,35 @@ public interface PostRepository extends JpaRepository<Post, Long> {
             Pageable pageable
     );
 
+    @Query(value = """
+            select p
+            from Post p
+            join fetch p.author
+            where p.status = :status
+              and p.createdAt >= :since
+              and p.likeCount >= :minimumLikeCount
+              and p.category <> :excludedCategory
+              and (:readableBoardType is null or p.boardType = :readableBoardType)
+            order by p.likeCount desc, p.createdAt desc, p.postId desc
+            """,
+            countQuery = """
+            select count(p)
+            from Post p
+            where p.status = :status
+              and p.createdAt >= :since
+              and p.likeCount >= :minimumLikeCount
+              and p.category <> :excludedCategory
+              and (:readableBoardType is null or p.boardType = :readableBoardType)
+            """)
+    Page<Post> findBestPostPage(
+            @Param("readableBoardType") BoardType readableBoardType,
+            @Param("excludedCategory") PostCategory excludedCategory,
+            @Param("since") LocalDateTime since,
+            @Param("minimumLikeCount") int minimumLikeCount,
+            @Param("status") PostStatus status,
+            Pageable pageable
+    );
+
     @Query("""
             select p
             from Post p

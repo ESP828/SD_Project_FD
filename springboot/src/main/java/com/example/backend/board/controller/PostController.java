@@ -69,6 +69,19 @@ public class PostController {
         ));
     }
 
+    @GetMapping("/best/community")
+    public ApiResponse<PostPageResponse> getBestPostPage(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size,
+            Authentication authentication
+    ) {
+        return ApiResponse.success(postService.getBestPostPage(
+                page,
+                size,
+                BoardAuthentication.accountId(authentication)
+        ));
+    }
+
     @GetMapping("/unanswered")
     public ApiResponse<List<PostListItemResponse>> getUnansweredPosts(
             @RequestParam(required = false) String boardType,
