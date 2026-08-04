@@ -256,6 +256,7 @@
         protectedRecommendation: true,
       },
       { id: "board", label: "커뮤니티", href: "/pages/board/index.html" },
+       { id: "presset", label: "presset", href: "/pages/presset/index.html" },
     ];
     if (canManageBusiness) {
       items.push({
