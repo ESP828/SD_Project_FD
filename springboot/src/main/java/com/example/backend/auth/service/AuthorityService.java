@@ -47,6 +47,12 @@ public class AuthorityService {
         }
     }
 
+    @Transactional
+    public void setRole(Long accountId, AuthorityCode role) {
+        accountAuthorityRepository.deleteAllByIdAccountId(accountId);
+        grant(accountId, role);
+    }
+
     @Transactional(readOnly = true)
     public List<String> findCodes(Long accountId) {
         List<Short> authorityIds = accountAuthorityRepository.findAllByIdAccountId(accountId)

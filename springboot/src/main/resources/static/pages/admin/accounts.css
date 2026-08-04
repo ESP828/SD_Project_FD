@@ -1,0 +1,276 @@
+.accounts-back {
+  display: inline-flex;
+  margin-bottom: 20px;
+  color: var(--color-muted);
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.accounts-back:hover,
+.accounts-back:focus-visible {
+  color: var(--color-navy);
+}
+
+.accounts-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 18px;
+}
+
+.accounts-role-filter {
+  display: inline-flex;
+  gap: 8px;
+  padding: 5px;
+  border: 1px solid var(--color-line);
+  border-radius: 14px;
+  background: #fff;
+}
+
+.accounts-role-btn {
+  padding: 8px 16px;
+  border: 0;
+  border-radius: 10px;
+  color: var(--color-muted);
+  font-size: 0.82rem;
+  font-weight: 800;
+  background: transparent;
+  cursor: pointer;
+  transition: background 150ms ease, color 150ms ease;
+}
+
+.accounts-role-btn:hover {
+  color: var(--color-navy);
+}
+
+.accounts-role-btn.is-active {
+  color: #fff;
+  background: var(--color-navy);
+}
+
+.accounts-toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.accounts-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 280px;
+  padding: 6px 8px 6px 16px;
+  border: 1px solid var(--color-line);
+  border-radius: 14px;
+  background: #fff;
+}
+
+.accounts-mode-toggle.is-active {
+  border-color: var(--color-danger);
+  color: #fff;
+  background: var(--color-danger);
+}
+
+.accounts-search .material-symbols-rounded {
+  color: var(--color-subtle);
+}
+
+.accounts-search input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+}
+
+.accounts-table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-lg);
+  background: #fff;
+  box-shadow: var(--shadow-sm);
+}
+
+.accounts-table {
+  width: 100%;
+  min-width: 820px;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+.accounts-table th,
+.accounts-table td {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--color-line);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.accounts-table th {
+  color: var(--color-subtle);
+  font-size: 0.74rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.accounts-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.accounts-table tbody tr:hover {
+  background: var(--color-canvas);
+}
+
+.accounts-loading,
+.accounts-empty {
+  padding: 34px 16px;
+  color: var(--color-muted);
+  text-align: center;
+  white-space: normal;
+}
+
+.accounts-badge {
+  display: inline-flex;
+  padding: 4px 11px;
+  border-radius: 999px;
+  font-size: 0.74rem;
+  font-weight: 800;
+}
+
+.accounts-badge--role-ROLE_USER {
+  color: var(--color-navy);
+  background: var(--color-line);
+}
+
+.accounts-badge--role-ROLE_BUSINESS {
+  color: var(--color-orange-dark);
+  background: var(--color-orange-soft);
+}
+
+.accounts-badge--role-ROLE_ADMIN {
+  color: #fff;
+  background: var(--color-navy);
+}
+
+.accounts-badge--status-ACTIVE {
+  color: var(--color-green);
+  background: var(--color-green-soft);
+}
+
+.accounts-badge--status-SUSPENDED,
+.accounts-badge--status-WITHDRAWN {
+  color: var(--color-danger);
+  background: #fdeaea;
+}
+
+.accounts-badge--status-INACTIVE {
+  color: var(--color-muted);
+  background: var(--color-line);
+}
+
+.accounts-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.accounts-delete-btn {
+  border-color: #f6c9c9;
+  color: var(--color-danger);
+  background: #fff;
+}
+
+.accounts-delete-btn:hover {
+  border-color: var(--color-danger);
+  background: #fdeaea;
+}
+
+.accounts-count {
+  margin: 14px 4px 0;
+  color: var(--color-muted);
+  font-size: 0.78rem;
+}
+
+.account-edit-dialog {
+  width: min(420px, calc(100% - 32px));
+  padding: 0;
+  border: 0;
+  border-radius: 22px;
+  box-shadow: var(--shadow-float);
+}
+
+.account-edit-dialog::backdrop {
+  background: rgba(9, 23, 41, 0.55);
+  backdrop-filter: blur(4px);
+}
+
+.account-edit-dialog h2 {
+  margin: 0;
+  padding: 26px 28px 6px;
+  color: var(--color-navy);
+  font-size: 1.2rem;
+}
+
+.account-edit-target {
+  margin: 0;
+  padding: 0 28px 16px;
+  color: var(--color-muted);
+  font-size: 0.82rem;
+}
+
+#account-edit-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 0 28px 26px;
+}
+
+.account-edit-field {
+  display: grid;
+  gap: 7px;
+  color: var(--color-navy);
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.account-edit-field select {
+  min-height: 46px;
+  padding: 0 12px;
+  border: 1px solid var(--color-line);
+  border-radius: 12px;
+  background: #f9fbfd;
+  font-weight: 600;
+}
+
+.account-edit-status-msg {
+  min-height: 1.2em;
+  margin: 0;
+  color: var(--color-danger);
+  font-size: 0.78rem;
+  font-weight: 650;
+}
+
+.account-edit-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+@media (max-width: 680px) {
+  .accounts-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .accounts-toolbar-right {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .accounts-search {
+    min-width: 0;
+  }
+}

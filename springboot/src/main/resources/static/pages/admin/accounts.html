@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="푸드덕 관리자 계정 관리">
+  <title>계정 관리 · 푸드덕</title>
+  <link rel="icon" href="/images/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/css/common.css">
+  <link rel="stylesheet" href="/pages/management/management.css">
+  <link rel="stylesheet" href="/pages/admin/accounts.css">
+</head>
+<body>
+  <div data-site-header data-active-nav="admin"></div>
+
+  <main class="management-main">
+    <section class="management-hero management-hero--admin">
+      <div class="container management-hero-grid">
+        <div>
+          <p class="eyebrow">Admin console</p>
+          <h1>계정 관리</h1>
+        </div>
+        <img src="/images/characters/laptop.png" alt="" aria-hidden="true">
+      </div>
+    </section>
+
+    <section class="container management-content">
+      <section id="accounts-access-gate" class="access-card" hidden>
+        <img src="/images/characters/error.png" alt="" aria-hidden="true">
+        <div>
+          <h2>관리자 권한이 필요합니다</h2>
+          <p>이 페이지는 계정 권한 코드 ROLE_ADMIN이 확인된 사용자만 이용할 수 있습니다.</p>
+          <a class="button button-secondary" href="/">홈으로</a>
+        </div>
+      </section>
+
+      <section id="accounts-dashboard" hidden>
+        <a class="accounts-back" href="/pages/admin/index.html">← 관리자 페이지</a>
+
+        <div class="accounts-toolbar">
+          <div class="accounts-role-filter" role="group" aria-label="권한 필터">
+            <button type="button" class="accounts-role-btn is-active" data-role="">전체</button>
+            <button type="button" class="accounts-role-btn" data-role="ROLE_USER">일반</button>
+            <button type="button" class="accounts-role-btn" data-role="ROLE_BUSINESS">사업자</button>
+            <button type="button" class="accounts-role-btn" data-role="ROLE_ADMIN">관리자</button>
+          </div>
+          <div class="accounts-toolbar-right">
+            <form id="accounts-search-form" class="accounts-search">
+              <label class="sr-only" for="accounts-search-input">아이디·닉네임·이메일 검색</label>
+              <span class="material-symbols-rounded" aria-hidden="true">search</span>
+              <input id="accounts-search-input" type="search" placeholder="아이디, 닉네임, 이메일 검색">
+              <button type="submit" class="button button-primary button-sm">검색</button>
+            </form>
+            <button type="button" id="accounts-delete-mode-toggle" class="button button-secondary button-sm accounts-mode-toggle">삭제</button>
+          </div>
+        </div>
+
+        <div class="accounts-table-wrap">
+          <table class="accounts-table">
+            <thead>
+              <tr>
+                <th>아이디</th>
+                <th>닉네임</th>
+                <th>이메일</th>
+                <th>권한</th>
+                <th>상태</th>
+                <th>가입일</th>
+                <th>최근 로그인</th>
+                <th>관리</th>
+              </tr>
+            </thead>
+            <tbody id="accounts-table-body">
+              <tr><td colspan="8" class="accounts-loading">불러오는 중...</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p id="accounts-count" class="accounts-count"></p>
+      </section>
+    </section>
+  </main>
+
+  <div data-site-footer></div>
+
+  <dialog id="account-edit-dialog" class="account-edit-dialog">
+    <h2>계정 수정</h2>
+    <form id="account-edit-form">
+      <p class="account-edit-target"></p>
+      <label class="account-edit-field">
+        권한
+        <select name="role" id="account-edit-role">
+          <option value="ROLE_USER">일반 사용자</option>
+          <option value="ROLE_BUSINESS">사업자</option>
+          <option value="ROLE_ADMIN">관리자</option>
+        </select>
+      </label>
+      <label class="account-edit-field">
+        상태
+        <select name="status" id="account-edit-status">
+          <option value="ACTIVE">활성</option>
+          <option value="SUSPENDED">정지</option>
+        </select>
+      </label>
+      <p id="account-edit-status-msg" class="account-edit-status-msg"></p>
+      <div class="account-edit-actions">
+        <button type="button" class="button button-secondary" data-close>취소</button>
+        <button type="submit" class="button button-primary">저장</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="/js/api.js"></script>
+  <script src="/js/common.js"></script>
+  <script src="/pages/admin/accounts.js"></script>
+</body>
+</html>
