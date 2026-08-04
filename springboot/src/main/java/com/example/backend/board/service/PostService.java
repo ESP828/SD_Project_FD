@@ -44,6 +44,7 @@ public class PostService {
 
     private static final int MAX_PAGE_SIZE = 50;
     private static final int MAX_BEST_SIZE = 10;
+    private static final int MAX_DISCOVERY_SIZE = 10;
     private static final Duration RAPID_DUPLICATE_WINDOW =
             Duration.ofMillis(3_500);
     private static final long RAPID_DUPLICATE_WINDOW_NANOS =
@@ -164,6 +165,54 @@ public class PostService {
                 PostCategory.NOTICE,
                 LocalDateTime.now().minusDays(safeWindowDays),
                 PostStatus.ACTIVE,
+                PageRequest.of(0, size)
+        );
+        return responseMapper.toListItems(posts, currentAccount);
+    }
+
+    @Transactional(readOnly = true)
+    public List<PostListItemResponse> getRelatedPosts(
+            Long postId,
+            int size,
+            Long currentAccountId
+    ) {
+        validateDiscoverySize(size);
+        Account currentAccount = boardUserService.findOptional(currentAccountId);
+        Post currentPost = getExistingPost(postId);
+        accessPolicy.assertCanRead(currentPost.getBoardType(), currentAccount);
+
+        BoardType readableBoardType = accessPolicy.isApprovedBusiness(currentAccount)
+                ? null
+                : BoardType.GENERAL;
+        List<Post> posts = postRepository.findRelatedPosts(
+                currentPost.getPostId(),
+                currentPost.getRestaurantId(),
+                currentPost.getCategory(),
+                PostCategory.NOTICE,
+                readableBoardType,
+                PostStatus.ACTIVE,
+                PageRequest.of(0, size)
+        );
+        return responseMapper.toListItems(posts, currentAccount);
+    }
+
+    @Transactional(readOnly = true)
+    public List<PostListItemResponse> getUnansweredPosts(
+            String boardTypeValue,
+            int size,
+            Long currentAccountId
+    ) {
+        validateDiscoverySize(size);
+        Account currentAccount = boardUserService.findOptional(currentAccountId);
+        BoardType boardType = accessPolicy.resolveReadableBoardType(
+                parseBoardType(boardTypeValue),
+                currentAccount
+        );
+        List<Post> posts = postRepository.findUnansweredPosts(
+                boardType,
+                PostCategory.QUESTION,
+                PostStatus.ACTIVE,
+                CommentStatus.ACTIVE,
                 PageRequest.of(0, size)
         );
         return responseMapper.toListItems(posts, currentAccount);
@@ -327,6 +376,15 @@ public class PostService {
         if (size < 1 || size > MAX_PAGE_SIZE) {
             throw badRequest(
                     "페이지 크기는 1~" + MAX_PAGE_SIZE + " 사이여야 합니다."
+            );
+        }
+    }
+
+    private void validateDiscoverySize(int size) {
+        if (size < 1 || size > MAX_DISCOVERY_SIZE) {
+            throw badRequest(
+                    "탐색 게시글 개수는 1~" + MAX_DISCOVERY_SIZE
+                            + " 사이여야 합니다."
             );
         }
     }

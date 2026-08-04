@@ -6,6 +6,7 @@
 
   const detailContent = document.getElementById("post-detail-content");
   const listLink = document.getElementById("detail-list-link");
+  const relatedPostList = document.getElementById("related-post-list");
   const restaurantSide = document.getElementById("detail-restaurant-side");
   const commentCount = document.getElementById("detail-comment-count");
   const commentForm = document.getElementById("comment-form");
@@ -19,6 +20,7 @@
   const {
     authorIdentity,
     categoryLabel,
+    detailPath,
     element,
     formatDate,
     mapHref,
@@ -51,6 +53,51 @@
     const link = element("a", "button button-sm button-secondary", "지도에서 보기");
     link.href = mapHref(restaurant);
     restaurantSide.append(link);
+  }
+
+  function renderRelatedPosts(posts) {
+    if (!relatedPostList) return;
+    relatedPostList.replaceChildren();
+    if (!posts.length) {
+      relatedPostList.append(
+        element("li", "best-loading", "함께 볼 만한 글이 아직 없습니다."),
+      );
+      return;
+    }
+    posts.forEach((post) => {
+      const item = element("li");
+      const link = element("a");
+      link.href = detailPath(post.postId);
+      link.setAttribute("aria-label", `${post.title} 상세 보기`);
+      link.append(element("span", "best-rank", categoryLabel(post.category).slice(0, 1)));
+      const copy = element("span", "best-copy");
+      copy.append(
+        element("strong", "", post.title),
+        element(
+          "small",
+          "",
+          `${categoryLabel(post.category)} · 추천 ${post.likeCount || 0} · 댓글 ${post.commentCount || 0}`,
+        ),
+      );
+      link.append(copy);
+      item.append(link);
+      relatedPostList.append(item);
+    });
+  }
+
+  async function loadRelatedPosts() {
+    if (!relatedPostList) return;
+    relatedPostList.replaceChildren(
+      element("li", "best-loading", "불러오는 중"),
+    );
+    try {
+      const payload = await Api.get(`/board/posts/${postId}/related?size=5`);
+      renderRelatedPosts(payload.data || []);
+    } catch (error) {
+      relatedPostList.replaceChildren(
+        element("li", "best-loading", error.message || "불러오지 못했습니다."),
+      );
+    }
   }
 
   function renderPost(post) {
@@ -253,6 +300,7 @@
   async function loadPage() {
     if (!postId) {
       renderPostError("유효한 게시글 번호가 없습니다.");
+      renderRelatedPosts([]);
       commentForm.hidden = true;
       return;
     }
@@ -263,6 +311,7 @@
       ]);
       renderPost(postPayload.data);
       renderComments(commentPayload.data || {});
+      await loadRelatedPosts();
     } catch (error) {
       renderPostError(error.message);
       commentForm.hidden = true;
