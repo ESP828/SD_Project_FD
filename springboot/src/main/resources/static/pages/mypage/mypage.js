@@ -160,9 +160,16 @@
       session.canManageBusiness
         ? action("사업자 관리", "내 가게와 사업자 기능", "/pages/business/index.html")
         : action("사업자 권한 신청", "신청 API 연결 예정", "/pages/business/index.html#application"),
+    );
+    if (data.loginId) {
+      actionList.append(
+        action("비밀번호 변경", "현재 비밀번호를 확인하고 새로 설정", "/pages/mypage/change-password.html"),
+      );
+    }
+    actionList.append(
       session.isAdmin
         ? action("관리자 페이지", "계정·신청·가게 관리", "/pages/admin/index.html")
-        : action("계정 설정", "비밀번호 변경·탈퇴 API 연결 예정"),
+        : action("계정 설정", "회원 탈퇴 API 연결 예정"),
     );
     actionPanel.append(actionHeader, actionList);
 

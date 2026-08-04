@@ -1,0 +1,153 @@
+.apps-back {
+  display: inline-flex;
+  margin-bottom: 20px;
+  color: var(--color-muted);
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.apps-back:hover,
+.apps-back:focus-visible {
+  color: var(--color-navy);
+}
+
+.apps-status-filter {
+  display: inline-flex;
+  gap: 8px;
+  margin-bottom: 18px;
+  padding: 5px;
+  border: 1px solid var(--color-line);
+  border-radius: 14px;
+  background: #fff;
+}
+
+.apps-status-btn {
+  padding: 8px 16px;
+  border: 0;
+  border-radius: 10px;
+  color: var(--color-muted);
+  font-size: 0.82rem;
+  font-weight: 800;
+  background: transparent;
+  cursor: pointer;
+  transition: background 150ms ease, color 150ms ease;
+}
+
+.apps-status-btn:hover {
+  color: var(--color-navy);
+}
+
+.apps-status-btn.is-active {
+  color: #fff;
+  background: var(--color-navy);
+}
+
+.apps-table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-lg);
+  background: #fff;
+  box-shadow: var(--shadow-sm);
+}
+
+.apps-table {
+  width: 100%;
+  min-width: 920px;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+.apps-table th,
+.apps-table td {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--color-line);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.apps-table th {
+  color: var(--color-subtle);
+  font-size: 0.74rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.apps-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.apps-table tbody tr:hover {
+  background: var(--color-canvas);
+}
+
+.apps-applicant strong {
+  display: block;
+  color: var(--color-navy);
+}
+
+.apps-applicant span {
+  color: var(--color-muted);
+  font-size: 0.76rem;
+}
+
+.apps-loading,
+.apps-empty {
+  padding: 34px 16px;
+  color: var(--color-muted);
+  text-align: center;
+  white-space: normal;
+}
+
+.apps-badge {
+  display: inline-flex;
+  padding: 4px 11px;
+  border-radius: 999px;
+  font-size: 0.74rem;
+  font-weight: 800;
+}
+
+.apps-badge--PENDING {
+  color: var(--color-orange-dark);
+  background: var(--color-orange-soft);
+}
+
+.apps-badge--APPROVED {
+  color: var(--color-green);
+  background: var(--color-green-soft);
+}
+
+.apps-badge--REJECTED,
+.apps-badge--CANCELED {
+  color: var(--color-danger);
+  background: #fdeaea;
+}
+
+.apps-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.apps-reject-btn {
+  border-color: #f6c9c9;
+  color: var(--color-danger);
+  background: #fff;
+}
+
+.apps-reject-btn:hover {
+  border-color: var(--color-danger);
+  background: #fdeaea;
+}
+
+.apps-reject-reason {
+  margin-top: 4px;
+  color: var(--color-danger);
+  font-size: 0.76rem;
+  white-space: normal;
+}
+
+.apps-count {
+  margin: 14px 4px 0;
+  color: var(--color-muted);
+  font-size: 0.78rem;
+}

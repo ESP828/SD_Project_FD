@@ -13,6 +13,7 @@ const sidebarToggleIcon = sidebarToggleButton.querySelector(".material-symbols-r
 const searchAreaButton = document.getElementById("search-area-button");
 
 let lastSearchKeyword = "";
+const SEARCH_RADIUS_METERS = 500;
 
 const markerAssetRoot = "/images/markers";
 const markerImageCache = new Map();
@@ -78,7 +79,7 @@ function initializeMap() {
   const defaultCenter = new kakao.maps.LatLng(37.5665, 126.978);
   kakaoMap = new kakao.maps.Map(document.getElementById("map"), {
     center: defaultCenter,
-    level: 5,
+    level: 3,
   });
   kakaoMap.addControl(
     new kakao.maps.ZoomControl(),
@@ -338,9 +339,7 @@ async function searchPlaces(keyword, { nearby = false } = {}) {
   placeResults.innerHTML =
     '<div class="result-loading"><span class="material-symbols-rounded" aria-hidden="true">progress_activity</span><p>맛집을 찾고 있습니다.</p></div>';
 
-  const bounds = nearby
-    ? boundsAroundCenter(kakaoMap.getCenter(), 3000)
-    : kakaoMap.getBounds();
+  const bounds = boundsAroundCenter(kakaoMap.getCenter(), SEARCH_RADIUS_METERS);
 
   let items;
   try {
@@ -395,6 +394,7 @@ async function searchPlaces(keyword, { nearby = false } = {}) {
 
   if (!nearby) {
     kakaoMap.setBounds(resultBounds);
+    kakaoMap.setLevel(kakaoMap.getLevel() - 1);
   }
   renderPlaceResults(results);
   setResultsState(results.length);
@@ -492,10 +492,15 @@ if (localStorage.getItem("mapSidebarCollapsed") === "1") {
     await loadKakaoSdk(response.data.javascriptKey);
     initializeMap();
 
-    const queryKeyword = new URLSearchParams(window.location.search).get("q");
-    const initialKeyword = queryKeyword?.trim() || "서울 맛집";
-    keywordInput.value = initialKeyword;
-    searchPlaces(initialKeyword);
+    const queryKeyword = new URLSearchParams(window.location.search).get("q")?.trim();
+    if (queryKeyword) {
+      keywordInput.value = queryKeyword;
+      searchPlaces(queryKeyword);
+    } else {
+      setResultsState(0);
+      setMapStatus("검색어를 입력하거나 카테고리를 선택해 주세요.");
+      renderEmptyResults("검색어를 입력하거나 카테고리를 선택하면 맛집을 보여드려요.");
+    }
   } catch (error) {
     setMapStatus(error.message, true);
     renderEmptyResults(error.message);

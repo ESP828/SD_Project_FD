@@ -47,6 +47,10 @@
   padding-top: 34px;
 }
 
+.mypage-panel-form {
+  padding: 6px 24px 24px;
+}
+
 .mypage-detail-loading,
 .mypage-detail-error {
   display: grid;

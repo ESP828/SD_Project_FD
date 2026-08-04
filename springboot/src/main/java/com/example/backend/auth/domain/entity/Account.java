@@ -98,6 +98,19 @@ public class Account {
         return status == AccountStatus.ACTIVE;
     }
 
+    public void activate() {
+        this.status = AccountStatus.ACTIVE;
+    }
+
+    public void suspend() {
+        this.status = AccountStatus.SUSPENDED;
+    }
+
+    public void withdraw() {
+        this.status = AccountStatus.WITHDRAWN;
+        this.deletedAt = LocalDateTime.now();
+    }
+
     @PrePersist
     void onCreate() {
         LocalDateTime now = LocalDateTime.now();

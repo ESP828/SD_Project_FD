@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="푸드덕 관리자 음식점 관리">
+  <title>음식점 관리 · 푸드덕</title>
+  <link rel="icon" href="/images/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/css/common.css">
+  <link rel="stylesheet" href="/pages/management/management.css">
+  <link rel="stylesheet" href="/pages/admin/restaurants.css">
+</head>
+<body>
+  <div data-site-header data-active-nav="admin"></div>
+
+  <main class="management-main">
+    <section class="management-hero management-hero--admin">
+      <div class="container management-hero-grid">
+        <div>
+          <p class="eyebrow">Admin console</p>
+          <h1>음식점 관리</h1>
+        </div>
+        <img src="/images/characters/laptop.png" alt="" aria-hidden="true">
+      </div>
+    </section>
+
+    <section class="container management-content">
+      <section id="restaurants-access-gate" class="access-card" hidden>
+        <img src="/images/characters/error.png" alt="" aria-hidden="true">
+        <div>
+          <h2>관리자 권한이 필요합니다</h2>
+          <p>이 페이지는 계정 권한 코드 ROLE_ADMIN이 확인된 사용자만 이용할 수 있습니다.</p>
+          <a class="button button-secondary" href="/">홈으로</a>
+        </div>
+      </section>
+
+      <section id="restaurants-dashboard" hidden>
+        <a class="restaurants-back" href="/pages/admin/index.html">← 관리자 페이지</a>
+
+        <div class="restaurants-toolbar">
+          <div class="restaurants-status-filter" role="group" aria-label="상태 필터">
+            <button type="button" class="restaurants-status-btn is-active" data-status="">전체</button>
+            <button type="button" class="restaurants-status-btn" data-status="ACTIVE">활성</button>
+            <button type="button" class="restaurants-status-btn" data-status="INACTIVE">비활성</button>
+            <button type="button" class="restaurants-status-btn" data-status="DELETED">삭제</button>
+          </div>
+          <form id="restaurants-search-form" class="restaurants-search">
+            <label class="sr-only" for="restaurants-search-input">상호명·주소 검색</label>
+            <span class="material-symbols-rounded" aria-hidden="true">search</span>
+            <input id="restaurants-search-input" type="search" placeholder="상호명, 주소 검색">
+            <button type="submit" class="button button-primary button-sm">검색</button>
+          </form>
+        </div>
+
+        <div class="restaurants-table-wrap">
+          <table class="restaurants-table">
+            <thead>
+              <tr>
+                <th>상호명</th>
+                <th>카테고리</th>
+                <th>주소</th>
+                <th>전화번호</th>
+                <th>사장님</th>
+                <th>상태</th>
+                <th>등록일</th>
+                <th>관리</th>
+              </tr>
+            </thead>
+            <tbody id="restaurants-table-body">
+              <tr><td colspan="8" class="restaurants-loading">불러오는 중...</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p id="restaurants-count" class="restaurants-count"></p>
+      </section>
+    </section>
+  </main>
+
+  <div data-site-footer></div>
+
+  <dialog id="restaurant-edit-dialog" class="restaurant-edit-dialog">
+    <h2>음식점 상세·수정</h2>
+    <form id="restaurant-edit-form">
+      <dl class="restaurant-edit-meta">
+        <div><dt>카테고리</dt><dd id="restaurant-edit-category">-</dd></div>
+        <div><dt>사장님</dt><dd id="restaurant-edit-owner">-</dd></div>
+        <div><dt>등록일</dt><dd id="restaurant-edit-created">-</dd></div>
+      </dl>
+      <label class="restaurant-edit-field">
+        상호명
+        <input type="text" name="name" id="restaurant-edit-name" maxlength="100" required>
+      </label>
+      <label class="restaurant-edit-field">
+        주소
+        <input type="text" name="address" id="restaurant-edit-address" maxlength="255" required>
+      </label>
+      <label class="restaurant-edit-field">
+        상세주소
+        <input type="text" name="addressDetail" id="restaurant-edit-address-detail" maxlength="255">
+      </label>
+      <div class="restaurant-edit-row">
+        <label class="restaurant-edit-field">
+          전화번호
+          <input type="text" name="phone" id="restaurant-edit-phone" maxlength="30">
+        </label>
+        <label class="restaurant-edit-field">
+          상태
+          <select name="status" id="restaurant-edit-status">
+            <option value="ACTIVE">활성</option>
+            <option value="INACTIVE">비활성</option>
+            <option value="DELETED">삭제</option>
+          </select>
+        </label>
+      </div>
+      <label class="restaurant-edit-field">
+        영업시간
+        <input type="text" name="openingHours" id="restaurant-edit-hours" maxlength="500">
+      </label>
+      <label class="restaurant-edit-field">
+        휴무일
+        <input type="text" name="closedDays" id="restaurant-edit-closed-days" maxlength="255">
+      </label>
+      <label class="restaurant-edit-field">
+        소개
+        <textarea name="description" id="restaurant-edit-description" rows="3"></textarea>
+      </label>
+      <p id="restaurant-edit-status-msg" class="restaurant-edit-status-msg"></p>
+      <div class="restaurant-edit-actions">
+        <button type="button" class="button button-secondary" data-close>취소</button>
+        <button type="submit" class="button button-primary">저장</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="/js/api.js"></script>
+  <script src="/js/common.js"></script>
+  <script src="/pages/admin/restaurants.js"></script>
+</body>
+</html>

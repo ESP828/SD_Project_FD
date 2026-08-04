@@ -37,7 +37,7 @@ sendCodeBtn.addEventListener("click", async () => {
     await Api.post("/auth/find-id/verification-code", { email }, { auth: false });
     verificationCodeInput.value = "";
     verificationCodeInput.focus();
-    setStatus(emailVerifyStatus, "인증번호를 발송했습니다. 5분 이내에 입력해 주세요.", true);
+    setStatus(emailVerifyStatus, "인증번호를 발송했습니다. 5분 이내에 입력해 주세요.", false);
   } catch (error) {
     setStatus(emailVerifyStatus, error.message, false);
   } finally {
@@ -53,14 +53,17 @@ verifyCodeBtn.addEventListener("click", async () => {
     setStatus(emailVerifyStatus, "인증번호 6자리를 입력해 주세요.", false);
     return;
   }
-  setStatus(emailVerifyStatus, "인증번호를 다시 확인해주세요.", false);
+  setStatus(emailVerifyStatus, "인증번호를 확인하고 있습니다.", false);
   try {
     const response = await Api.post("/auth/find-id/verify", { email, code }, { auth: false });
+    setStatus(emailVerifyStatus, "인증번호가 확인되었습니다.", true);
     findIdValue.textContent = response.data.loginId;
-    findIdFormSection.hidden = true;
-    findIdResult.hidden = false;
-  } catch (error) {
-    setStatus(emailVerifyStatus, error.message, false);
+    setTimeout(() => {
+      findIdFormSection.hidden = true;
+      findIdResult.hidden = false;
+    }, 700);
+  } catch {
+    setStatus(emailVerifyStatus, "인증번호를 확인해주세요.", false);
   }
 });
 

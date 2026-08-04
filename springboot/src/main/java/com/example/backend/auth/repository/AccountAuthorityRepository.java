@@ -9,4 +9,6 @@ import java.util.List;
 public interface AccountAuthorityRepository extends JpaRepository<AccountAuthority, AccountAuthorityId> {
 
     List<AccountAuthority> findAllByIdAccountId(Long accountId);
+
+    void deleteAllByIdAccountId(Long accountId);
 }

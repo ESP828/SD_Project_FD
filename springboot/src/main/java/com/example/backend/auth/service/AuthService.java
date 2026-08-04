@@ -3,6 +3,7 @@ package com.example.backend.auth.service;
 import com.example.backend.auth.domain.entity.Account;
 import com.example.backend.auth.domain.entity.AccountCredential;
 import com.example.backend.auth.domain.type.AuthorityCode;
+import com.example.backend.auth.dto.request.ChangePasswordRequest;
 import com.example.backend.auth.dto.request.LoginRequest;
 import com.example.backend.auth.dto.request.SignupRequest;
 import com.example.backend.auth.dto.response.AuthTokenResponse;
@@ -135,6 +136,16 @@ public class AuthService {
         credential.changePassword(passwordEncoder.encode(tempPassword));
         refreshTokenService.revokeAllForAccount(account.getAccountId());
         temporaryPasswordMailSender.send(account.getEmail(), tempPassword);
+    }
+
+    @Transactional
+    public void changePassword(Long accountId, ChangePasswordRequest request) {
+        AccountCredential credential = credentialRepository.findById(accountId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.PASSWORD_CHANGE_NOT_SUPPORTED));
+        if (!passwordEncoder.matches(request.currentPassword(), credential.getPasswordHash())) {
+            throw new BusinessException(ErrorCode.CURRENT_PASSWORD_MISMATCH);
+        }
+        credential.changePassword(passwordEncoder.encode(request.newPassword()));
     }
 
     private Account matchAccount(String rawLoginId, String rawEmail) {

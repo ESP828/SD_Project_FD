@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="푸드덕 관리자 사업자 신청 관리">
+  <title>사업자 신청 관리 · 푸드덕</title>
+  <link rel="icon" href="/images/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/css/common.css">
+  <link rel="stylesheet" href="/pages/management/management.css">
+  <link rel="stylesheet" href="/pages/admin/business-applications.css">
+</head>
+<body>
+  <div data-site-header data-active-nav="admin"></div>
+
+  <main class="management-main">
+    <section class="management-hero management-hero--admin">
+      <div class="container management-hero-grid">
+        <div>
+          <p class="eyebrow">Admin console</p>
+          <h1>사업자 신청 관리</h1>
+        </div>
+        <img src="/images/characters/laptop.png" alt="" aria-hidden="true">
+      </div>
+    </section>
+
+    <section class="container management-content">
+      <section id="apps-access-gate" class="access-card" hidden>
+        <img src="/images/characters/error.png" alt="" aria-hidden="true">
+        <div>
+          <h2>관리자 권한이 필요합니다</h2>
+          <p>이 페이지는 계정 권한 코드 ROLE_ADMIN이 확인된 사용자만 이용할 수 있습니다.</p>
+          <a class="button button-secondary" href="/">홈으로</a>
+        </div>
+      </section>
+
+      <section id="apps-dashboard" hidden>
+        <a class="apps-back" href="/pages/admin/index.html">← 관리자 페이지</a>
+
+        <div class="apps-status-filter" role="group" aria-label="처리 상태 필터">
+          <button type="button" class="apps-status-btn is-active" data-status="">전체</button>
+          <button type="button" class="apps-status-btn" data-status="PENDING">대기</button>
+          <button type="button" class="apps-status-btn" data-status="APPROVED">승인</button>
+          <button type="button" class="apps-status-btn" data-status="REJECTED">거절</button>
+          <button type="button" class="apps-status-btn" data-status="CANCELED">취소</button>
+        </div>
+
+        <div class="apps-table-wrap">
+          <table class="apps-table">
+            <thead>
+              <tr>
+                <th>신청자</th>
+                <th>상호명</th>
+                <th>사업자번호</th>
+                <th>대표자</th>
+                <th>연락처</th>
+                <th>상태</th>
+                <th>신청일</th>
+                <th>처리</th>
+              </tr>
+            </thead>
+            <tbody id="apps-table-body">
+              <tr><td colspan="8" class="apps-loading">불러오는 중...</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p id="apps-count" class="apps-count"></p>
+      </section>
+    </section>
+  </main>
+
+  <div data-site-footer></div>
+  <script src="/js/api.js"></script>
+  <script src="/js/common.js"></script>
+  <script src="/pages/admin/business-applications.js"></script>
+</body>
+</html>

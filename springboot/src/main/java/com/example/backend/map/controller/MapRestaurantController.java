@@ -27,7 +27,7 @@ import java.util.Map;
 @RequestMapping("/api/public/map")
 public class MapRestaurantController {
 
-    private static final int MAX_RESULTS = 300;
+    private static final int MAX_RESULTS = 30;
     private static final int MAX_SEARCH_PAGE_SIZE = 50;
 
     /**
@@ -57,13 +57,12 @@ public class MapRestaurantController {
             @RequestParam BigDecimal neLng,
             @RequestParam(required = false) String keyword
     ) {
-        Pageable limit = PageRequest.of(0, MAX_RESULTS);
         List<PublicRestaurant> restaurants = StringUtils.hasText(keyword)
-                ? publicRestaurantRepository.findByLatitudeBetweenAndLongitudeBetweenAndNameContaining(
-                        swLat, neLat, swLng, neLng, keyword.trim(), limit
+                ? publicRestaurantRepository.searchInBoundsByRelevance(
+                        swLat, neLat, swLng, neLng, keyword.trim(), MAX_RESULTS
                 )
                 : publicRestaurantRepository.findByLatitudeBetweenAndLongitudeBetween(
-                        swLat, neLat, swLng, neLng, limit
+                        swLat, neLat, swLng, neLng, PageRequest.of(0, MAX_RESULTS)
                 );
         List<PublicRestaurantMarkerResponse> response = restaurants.stream()
                 .map(PublicRestaurantMarkerResponse::from)

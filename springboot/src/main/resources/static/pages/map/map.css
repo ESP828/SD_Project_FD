@@ -64,6 +64,12 @@
   font-size: 1.3rem;
 }
 
+.map-sidebar-toggle .material-symbols-rounded svg {
+  stroke-width: 2.6;
+  stroke-linecap: butt;
+  stroke-linejoin: miter;
+}
+
 .map-sidebar-heading {
   display: grid;
   grid-template-columns: 1fr 92px;
@@ -464,9 +470,10 @@
   display: none;
 }
 
-.map-search-area-button .material-symbols-rounded {
-  font-size: 1.05rem;
-  color: var(--color-orange-dark);
+.map-search-area-icon {
+  width: 28px;
+  height: 28px;
+  object-fit: contain;
 }
 
 .map-floating-guide {
