@@ -45,8 +45,8 @@ public class PostService {
     private static final int MAX_PAGE_SIZE = 50;
     private static final int MAX_BEST_SIZE = 10;
     private static final int MAX_DISCOVERY_SIZE = 10;
-    private static final int BEST_COMMUNITY_MINIMUM_LIKE_COUNT = 1;
-    private static final Duration BEST_COMMUNITY_WINDOW = Duration.ofHours(24);
+    private static final int BEST_COMMUNITY_MINIMUM_LIKE_COUNT = 3;
+    private static final Duration BEST_COMMUNITY_WINDOW = Duration.ofDays(7);
     private static final Duration RAPID_DUPLICATE_WINDOW =
             Duration.ofMillis(3_500);
     private static final long RAPID_DUPLICATE_WINDOW_NANOS =

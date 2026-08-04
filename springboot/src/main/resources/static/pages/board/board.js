@@ -345,7 +345,7 @@
         : "일반 커뮤니티";
     searchForm.hidden = isBest;
     writeLinks.forEach((link) => {
-      link.hidden = isBest && !session.isAdmin;
+      link.hidden = isBest;
       link.href = board.writePath(state.lastBoardType);
     });
     window.history.replaceState(
