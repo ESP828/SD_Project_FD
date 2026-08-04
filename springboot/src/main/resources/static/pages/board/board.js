@@ -67,15 +67,11 @@
   }
 
   function createPostRow(post, index = 0) {
-    const isNotice = post.category === "NOTICE";
-    const title = isNotice && !post.title.startsWith("[공지]")
-      ? `[공지] ${post.title}`
-      : post.title;
     const article = element("a", "post-row");
     article.href = state.boardType === "BEST"
       ? `${detailPath(post.postId)}&from=BEST`
       : detailPath(post.postId);
-    article.setAttribute("aria-label", `${title} 상세 보기`);
+    article.setAttribute("aria-label", `${post.title} 상세 보기`);
 
     const main = element("div", "post-row-main");
     const badges = element("div", "post-badge-row");
@@ -83,13 +79,7 @@
       const rank = state.page * state.size + index + 1;
       badges.append(element("span", "post-badge", `베스트 ${rank}위`));
     }
-    badges.append(
-      element(
-        "span",
-        isNotice ? "post-board-badge" : "post-badge",
-        isNotice ? "필독 공지" : categoryLabel(post.category),
-      ),
-    );
+    badges.append(element("span", "post-badge", categoryLabel(post.category)));
     if (state.boardType === "BEST" || post.boardType === "BUSINESS") {
       badges.append(
         element(
@@ -101,7 +91,7 @@
     }
     main.append(
       badges,
-      element("h3", "", title),
+      element("h3", "", post.title),
       element("p", "post-preview", post.contentPreview || "내용 미리보기 없음"),
     );
 
@@ -355,13 +345,8 @@
         : "일반 커뮤니티";
     searchForm.hidden = isBest;
     writeLinks.forEach((link) => {
-      link.href = board.writePath(state.lastBoardType);
       link.hidden = isBest;
-      if (isBest) {
-        link.style.setProperty("display", "none", "important");
-      } else {
-        link.style.removeProperty("display");
-      }
+      link.href = board.writePath(state.lastBoardType);
     });
     window.history.replaceState(
       null,
