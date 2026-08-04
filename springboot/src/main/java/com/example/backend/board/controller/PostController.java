@@ -69,6 +69,45 @@ public class PostController {
         ));
     }
 
+    @GetMapping("/best/community")
+    public ApiResponse<PostPageResponse> getBestPostPage(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size,
+            Authentication authentication
+    ) {
+        return ApiResponse.success(postService.getBestPostPage(
+                page,
+                size,
+                BoardAuthentication.accountId(authentication)
+        ));
+    }
+
+    @GetMapping("/unanswered")
+    public ApiResponse<List<PostListItemResponse>> getUnansweredPosts(
+            @RequestParam(required = false) String boardType,
+            @RequestParam(defaultValue = "3") int size,
+            Authentication authentication
+    ) {
+        return ApiResponse.success(postService.getUnansweredPosts(
+                boardType,
+                size,
+                BoardAuthentication.accountId(authentication)
+        ));
+    }
+
+    @GetMapping("/{postId}/related")
+    public ApiResponse<List<PostListItemResponse>> getRelatedPosts(
+            @PathVariable Long postId,
+            @RequestParam(defaultValue = "5") int size,
+            Authentication authentication
+    ) {
+        return ApiResponse.success(postService.getRelatedPosts(
+                postId,
+                size,
+                BoardAuthentication.accountId(authentication)
+        ));
+    }
+
     @GetMapping("/{postId}")
     public ApiResponse<PostDetailResponse> getPost(
             @PathVariable Long postId,

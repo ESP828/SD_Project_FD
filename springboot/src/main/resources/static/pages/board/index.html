@@ -38,6 +38,10 @@
                 aria-selected="false" data-board-type="BUSINESS" hidden>
           사업자 커뮤니티
         </button>
+        <button class="board-tab" type="button" role="tab"
+                aria-selected="false" data-board-type="BEST">
+          베스트 커뮤니티
+        </button>
       </div>
 
       <form id="board-search-form" class="board-toolbar" role="search">
@@ -95,7 +99,7 @@
         </section>
 
         <aside class="board-side-stack">
-          <section class="best-panel">
+          <section id="best-post-panel" class="best-panel">
             <div class="board-panel-header">
               <div>
                 <h3>인기 이야기</h3>
@@ -103,6 +107,17 @@
               </div>
             </div>
             <ol id="best-post-list" class="best-post-list">
+              <li class="best-loading">불러오는 중</li>
+            </ol>
+          </section>
+          <section class="best-panel" aria-labelledby="unanswered-post-heading">
+            <div class="board-panel-header">
+              <div>
+                <h3 id="unanswered-post-heading">답변을 기다려요</h3>
+                <p>아직 댓글이 없는 질문</p>
+              </div>
+            </div>
+            <ol id="unanswered-post-list" class="best-post-list">
               <li class="best-loading">불러오는 중</li>
             </ol>
           </section>

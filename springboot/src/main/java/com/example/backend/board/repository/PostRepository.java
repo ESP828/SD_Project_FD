@@ -123,6 +123,90 @@ public interface PostRepository extends JpaRepository<Post, Long> {
             Pageable pageable
     );
 
+    @Query(value = """
+            select p
+            from Post p
+            join fetch p.author
+            where p.status = :status
+              and p.createdAt >= :since
+              and p.likeCount >= :minimumLikeCount
+              and p.category <> :excludedCategory
+              and (:readableBoardType is null or p.boardType = :readableBoardType)
+            order by p.likeCount desc, p.createdAt desc, p.postId desc
+            """,
+            countQuery = """
+            select count(p)
+            from Post p
+            where p.status = :status
+              and p.createdAt >= :since
+              and p.likeCount >= :minimumLikeCount
+              and p.category <> :excludedCategory
+              and (:readableBoardType is null or p.boardType = :readableBoardType)
+            """)
+    Page<Post> findBestPostPage(
+            @Param("readableBoardType") BoardType readableBoardType,
+            @Param("excludedCategory") PostCategory excludedCategory,
+            @Param("since") LocalDateTime since,
+            @Param("minimumLikeCount") int minimumLikeCount,
+            @Param("status") PostStatus status,
+            Pageable pageable
+    );
+
+    @Query("""
+            select p
+            from Post p
+            join fetch p.author
+            where p.status = :postStatus
+              and p.postId <> :currentPostId
+              and p.category <> :excludedCategory
+              and (:readableBoardType is null or p.boardType = :readableBoardType)
+              and (
+                    (:restaurantId is not null and p.restaurantId = :restaurantId)
+                    or p.category = :category
+              )
+            order by
+              case
+                when :restaurantId is not null
+                     and p.restaurantId = :restaurantId then 0
+                else 1
+              end,
+              p.likeCount desc,
+              p.createdAt desc,
+              p.postId desc
+            """)
+    List<Post> findRelatedPosts(
+            @Param("currentPostId") Long currentPostId,
+            @Param("restaurantId") Long restaurantId,
+            @Param("category") PostCategory category,
+            @Param("excludedCategory") PostCategory excludedCategory,
+            @Param("readableBoardType") BoardType readableBoardType,
+            @Param("postStatus") PostStatus postStatus,
+            Pageable pageable
+    );
+
+    @Query("""
+            select p
+            from Post p
+            join fetch p.author
+            where p.status = :postStatus
+              and p.boardType = :boardType
+              and p.category = :questionCategory
+              and not exists (
+                    select c.commentId
+                    from Comment c
+                    where c.post = p
+                      and c.status = :commentStatus
+              )
+            order by p.createdAt desc, p.postId desc
+            """)
+    List<Post> findUnansweredPosts(
+            @Param("boardType") BoardType boardType,
+            @Param("questionCategory") PostCategory questionCategory,
+            @Param("postStatus") PostStatus postStatus,
+            @Param("commentStatus") CommentStatus commentStatus,
+            Pageable pageable
+    );
+
     @Query("""
             select p
             from Post p
