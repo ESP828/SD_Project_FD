@@ -1,5 +1,6 @@
 const findPasswordForm = document.getElementById("find-password-form");
 const findPasswordMessage = document.getElementById("find-password-message");
+const goChangePasswordWrap = document.getElementById("go-change-password-wrap");
 
 const loginIdInput = document.getElementById("find-password-login-id");
 const emailInput = document.getElementById("find-password-email");
@@ -22,12 +23,14 @@ loginIdInput.addEventListener("input", () => {
   resetVerificationState();
   findPasswordMessage.classList.remove("is-success");
   findPasswordMessage.textContent = "";
+  goChangePasswordWrap.hidden = true;
 });
 
 emailInput.addEventListener("input", () => {
   resetVerificationState();
   findPasswordMessage.classList.remove("is-success");
   findPasswordMessage.textContent = "";
+  goChangePasswordWrap.hidden = true;
 });
 
 sendCodeBtn.addEventListener("click", async () => {
@@ -74,6 +77,7 @@ verifyCodeBtn.addEventListener("click", async () => {
     findPasswordMessage.classList.add("is-success");
     findPasswordMessage.textContent = "임시 비밀번호를 이메일로 발송했습니다. 이메일을 확인한 뒤 로그인해 주세요.";
     setStatus(emailVerifyStatus, "", false);
+    goChangePasswordWrap.hidden = false;
     loginIdInput.disabled = true;
     emailInput.disabled = true;
     sendCodeBtn.disabled = true;
