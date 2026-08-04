@@ -65,7 +65,7 @@ class CommentServiceTest {
         Account author = account(1L);
         Post post = post(10L, author);
         when(boardUserService.require(1L)).thenReturn(author);
-        when(postRepository.findByPostIdAndStatus(10L, PostStatus.ACTIVE))
+        when(postRepository.findByPostIdAndStatusForUpdate(10L, PostStatus.ACTIVE))
                 .thenReturn(Optional.of(post));
 
         commentService.createComment(
@@ -90,7 +90,7 @@ class CommentServiceTest {
         ReflectionTestUtils.setField(comment, "createdAt", LocalDateTime.now());
         ReflectionTestUtils.setField(comment, "updatedAt", LocalDateTime.now());
         when(boardUserService.require(2L)).thenReturn(stranger);
-        when(commentRepository.findActiveCommentWithRelations(
+        when(commentRepository.findActiveCommentForUpdate(
                 100L,
                 CommentStatus.ACTIVE
         )).thenReturn(Optional.of(comment));
