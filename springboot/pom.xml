@@ -37,6 +37,11 @@
 		</dependency>
 
 		<!-- 버전이 관리되는 DB 스키마 마이그레이션 -->
+		<!-- Spring Boot 4는 Flyway 자동설정을 spring-boot-flyway 모듈로 분리했다. -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-flyway</artifactId>
+		</dependency>
 		<dependency>
 			<groupId>org.flywaydb</groupId>
 			<artifactId>flyway-core</artifactId>
