@@ -35,7 +35,6 @@ import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -54,21 +53,6 @@ public class PostService {
             RAPID_DUPLICATE_WINDOW.toNanos();
     private static final long SUBMISSION_IN_PROGRESS = Long.MAX_VALUE;
     private static final int SUBMISSION_CLEANUP_INTERVAL = 256;
-    private static final List<PostCategory> MEMBER_WRITE_CATEGORIES = List.of(
-            PostCategory.GENERAL,
-            PostCategory.RECOMMENDATION,
-            PostCategory.REVIEW,
-            PostCategory.QUESTION,
-            PostCategory.TRAVEL
-    );
-    private static final List<PostCategory> ADMIN_WRITE_CATEGORIES = List.of(
-            PostCategory.GENERAL,
-            PostCategory.NOTICE,
-            PostCategory.RECOMMENDATION,
-            PostCategory.REVIEW,
-            PostCategory.QUESTION,
-            PostCategory.TRAVEL
-    );
 
     private final ConcurrentMap<PostSubmissionKey, Long>
             recentPostSubmissions = new ConcurrentHashMap<>();
@@ -98,24 +82,6 @@ public class PostService {
         this.boardUserService = boardUserService;
         this.accessPolicy = accessPolicy;
         this.responseMapper = responseMapper;
-    }
-
-    @Transactional(readOnly = true)
-    public Map<String, Object> getEditorOptions(Long currentAccountId) {
-        Account currentAccount = boardUserService.require(currentAccountId);
-        boolean admin = accessPolicy.isAdmin(currentAccount);
-        boolean canUseBusinessBoard = admin
-                || accessPolicy.isApprovedBusiness(currentAccount);
-
-        return Map.of(
-                "boardTypes", canUseBusinessBoard
-                        ? List.of(BoardType.GENERAL, BoardType.BUSINESS)
-                        : List.of(BoardType.GENERAL),
-                "categories", admin
-                        ? ADMIN_WRITE_CATEGORIES
-                        : MEMBER_WRITE_CATEGORIES,
-                "canManageAllPosts", admin
-        );
     }
 
     @Transactional(readOnly = true)
@@ -355,7 +321,6 @@ public class PostService {
         Account currentAccount = boardUserService.require(currentAccountId);
         Post post = getExistingPostForUpdate(postId);
         assertOwnerOrAdmin(post, currentAccount);
-        accessPolicy.assertCanManageCategory(post.getCategory(), currentAccount);
         accessPolicy.assertBoardTypeChangeAllowed(
                 post.getBoardType(),
                 request.boardType(),
@@ -383,7 +348,6 @@ public class PostService {
         Account currentAccount = boardUserService.require(currentAccountId);
         Post post = getExistingPostForUpdate(postId);
         assertOwnerOrAdmin(post, currentAccount);
-        accessPolicy.assertCanManageCategory(post.getCategory(), currentAccount);
         postRepository.delete(post);
     }
 

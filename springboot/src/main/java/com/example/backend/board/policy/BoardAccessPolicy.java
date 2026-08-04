@@ -101,7 +101,13 @@ public class BoardAccessPolicy {
             throw badRequest("게시 공간과 카테고리를 선택해 주세요.");
         }
 
-        assertCanManageCategory(category, account);
+        if (category == PostCategory.NOTICE && !isAdmin(account)) {
+            throw new BoardException(
+                    HttpStatus.FORBIDDEN,
+                    "BOARD_NOTICE_WRITE_FORBIDDEN",
+                    "관리자만 공지를 작성할 수 있습니다."
+            );
+        }
 
         if (boardType == BoardType.BUSINESS && !isApprovedBusiness(account)) {
             throw new BoardException(
@@ -144,19 +150,6 @@ public class BoardAccessPolicy {
                     HttpStatus.FORBIDDEN,
                     "BOARD_TYPE_CHANGE_FORBIDDEN",
                     "게시 공간 변경은 관리자만 할 수 있습니다."
-            );
-        }
-    }
-
-    /**
-     * 공지 카테고리를 새로 선택하는 경우뿐 아니라 기존 공지의 수정·삭제도 관리자만 허용한다.
-     */
-    public void assertCanManageCategory(PostCategory category, Account account) {
-        if (category == PostCategory.NOTICE && !isAdmin(account)) {
-            throw new BoardException(
-                    HttpStatus.FORBIDDEN,
-                    "BOARD_NOTICE_WRITE_FORBIDDEN",
-                    "관리자만 공지 게시글을 작성·수정·삭제할 수 있습니다."
             );
         }
     }
