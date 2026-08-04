@@ -458,7 +458,7 @@ function setSidebarCollapsed(collapsed) {
   mapPage.classList.toggle("sidebar-collapsed", collapsed);
   sidebarToggleButton.setAttribute("aria-expanded", String(!collapsed));
   sidebarToggleButton.setAttribute("aria-label", collapsed ? "검색 패널 펼치기" : "검색 패널 접기");
-  sidebarToggleIcon.textContent = collapsed ? "chevron_right" : "chevron_left";
+  window.FooduckIcons.set(sidebarToggleIcon, collapsed ? "chevron_right" : "chevron_left");
   try {
     localStorage.setItem("mapSidebarCollapsed", collapsed ? "1" : "0");
   } catch {
