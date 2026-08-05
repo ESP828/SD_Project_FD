@@ -27,7 +27,9 @@
     formatDate,
     invalidateBoardCache,
     mapHref,
+    readBoardCache,
     showToast,
+    writeBoardCache,
   } = board;
 
   function actionButton(label, className, handler) {
@@ -90,16 +92,28 @@
 
   async function loadRelatedPosts() {
     if (!relatedPostList) return;
-    relatedPostList.replaceChildren(
-      element("li", "best-loading", "불러오는 중"),
-    );
-    try {
-      const payload = await Api.get(`/board/posts/${postId}/related?size=5`);
-      renderRelatedPosts(payload.data || []);
-    } catch (error) {
+    const path = `/board/posts/${postId}/related?size=5`;
+    const cached = readBoardCache(path);
+    if (cached) {
+      renderRelatedPosts(cached.data || []);
+      if (cached.fresh) return;
+    } else {
       relatedPostList.replaceChildren(
-        element("li", "best-loading", error.message || "불러오지 못했습니다."),
+        element("li", "best-loading", "불러오는 중"),
       );
+    }
+
+    try {
+      const payload = await Api.get(path);
+      const posts = payload.data || [];
+      writeBoardCache(path, posts);
+      renderRelatedPosts(posts);
+    } catch (error) {
+      if (!cached) {
+        relatedPostList.replaceChildren(
+          element("li", "best-loading", error.message || "불러오지 못했습니다."),
+        );
+      }
     }
   }
 
@@ -186,6 +200,23 @@
     detailContent.append(wrapper);
   }
 
+  async function loadPost() {
+    const path = `/board/posts/${postId}`;
+    const cached = readBoardCache(path);
+    if (cached?.data) {
+      renderPost(cached.data);
+      if (cached.fresh) return;
+    }
+
+    try {
+      const payload = await Api.get(path);
+      writeBoardCache(path, payload.data);
+      renderPost(payload.data);
+    } catch (error) {
+      if (!cached?.data) throw error;
+    }
+  }
+
   async function toggleLike() {
     if (!board.requireLogin(window.location.pathname + window.location.search)) return;
     try {
@@ -247,8 +278,21 @@
   }
 
   async function loadComments() {
-    const payload = await Api.get(`/board/posts/${postId}/comments?page=0&size=30`);
-    renderComments(payload.data || {});
+    const path = `/board/posts/${postId}/comments?page=0&size=30`;
+    const cached = readBoardCache(path);
+    if (cached) {
+      renderComments(cached.data || {});
+      if (cached.fresh) return;
+    }
+
+    try {
+      const payload = await Api.get(path);
+      const pageData = payload.data || {};
+      writeBoardCache(path, pageData);
+      renderComments(pageData);
+    } catch (error) {
+      if (!cached) throw error;
+    }
   }
 
   async function editComment(comment) {
@@ -315,13 +359,11 @@
       return;
     }
     try {
-      const [postPayload, commentPayload] = await Promise.all([
-        Api.get(`/board/posts/${postId}`),
-        Api.get(`/board/posts/${postId}/comments?page=0&size=30`),
+      await Promise.all([
+        loadPost(),
+        loadComments(),
+        loadRelatedPosts(),
       ]);
-      renderPost(postPayload.data);
-      renderComments(commentPayload.data || {});
-      await loadRelatedPosts();
     } catch (error) {
       renderPostError(error.message);
       commentForm.hidden = true;
