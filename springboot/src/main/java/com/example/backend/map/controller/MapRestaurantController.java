@@ -1,6 +1,9 @@
 package com.example.backend.map.controller;
 
+import com.example.backend.global.exception.BusinessException;
+import com.example.backend.global.exception.ErrorCode;
 import com.example.backend.global.response.ApiResponse;
+import com.example.backend.map.dto.response.PublicRestaurantDetailResponse;
 import com.example.backend.map.dto.response.PublicRestaurantMarkerResponse;
 import com.example.backend.map.dto.response.PublicRestaurantSearchResponse;
 import com.example.backend.restaurant.domain.entity.PublicRestaurant;
@@ -12,6 +15,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -68,6 +72,13 @@ public class MapRestaurantController {
                 .map(PublicRestaurantMarkerResponse::from)
                 .toList();
         return ApiResponse.success(response);
+    }
+
+    @GetMapping("/restaurants/{id}")
+    public ApiResponse<PublicRestaurantDetailResponse> getDetail(@PathVariable Long id) {
+        PublicRestaurant restaurant = publicRestaurantRepository.findById(id)
+                .orElseThrow(() -> new BusinessException(ErrorCode.RESTAURANT_NOT_FOUND));
+        return ApiResponse.success(PublicRestaurantDetailResponse.from(restaurant));
     }
 
     @GetMapping("/restaurants/search")
