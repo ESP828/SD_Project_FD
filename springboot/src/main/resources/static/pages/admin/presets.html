@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="푸드덕 관리자 Presset 관리">
+  <title>Presset 관리 · 푸드덕</title>
+  <link rel="icon" href="/images/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/css/common.css">
+  <link rel="stylesheet" href="/pages/management/management.css">
+  <link rel="stylesheet" href="/pages/admin/presets.css">
+</head>
+<body>
+  <div data-site-header data-active-nav="admin"></div>
+  <main class="management-main">
+    <section class="management-hero management-hero--admin">
+      <div class="container management-hero-grid">
+        <div><p class="eyebrow">Admin console</p><h1>Presset 관리</h1></div>
+        <img src="/images/characters/map.png" alt="" aria-hidden="true">
+      </div>
+    </section>
+    <section class="container management-content">
+      <section id="preset-admin-gate" class="access-card" hidden>
+        <img src="/images/characters/error.png" alt="" aria-hidden="true">
+        <div><h2>관리자 권한이 필요합니다</h2><a class="button button-secondary" href="/">홈으로</a></div>
+      </section>
+      <section id="preset-admin-dashboard" hidden>
+        <div class="preset-admin-toolbar">
+          <a href="/pages/admin/index.html">← 관리자 페이지</a>
+          <button id="preset-create" class="button button-primary" type="button">Presset 등록</button>
+        </div>
+        <div class="preset-admin-table-wrap">
+          <table class="preset-admin-table">
+            <thead><tr><th>제목</th><th>분류</th><th>상태</th><th>맛집</th><th>태그</th><th>저장</th><th>관리</th></tr></thead>
+            <tbody id="preset-admin-body"><tr><td colspan="7">불러오는 중...</td></tr></tbody>
+          </table>
+        </div>
+      </section>
+    </section>
+  </main>
+  <div data-site-footer></div>
+
+  <dialog id="preset-dialog" class="preset-admin-dialog">
+    <h2 id="preset-dialog-title">Presset 등록</h2>
+    <form id="preset-form">
+      <label>제목<input name="title" maxlength="100" required></label>
+      <label>요약<input name="summary" maxlength="255" required></label>
+      <label>설명<textarea name="description" rows="4"></textarea></label>
+      <label>대표 이미지 URL<input name="imageUrl" maxlength="500"></label>
+      <div class="preset-admin-row">
+        <label>분류<input name="category" maxlength="50" required></label>
+        <label>노출 순서<input name="displayOrder" type="number" min="0" value="0"></label>
+        <label>상태<select name="status"><option value="ACTIVE">활성</option><option value="INACTIVE">비활성</option><option value="DELETED">삭제</option></select></label>
+      </div>
+      <p id="preset-form-message"></p>
+      <div class="preset-admin-actions">
+        <button class="button button-secondary" type="button" data-close>취소</button>
+        <button class="button button-primary" type="submit">저장</button>
+      </div>
+    </form>
+  </dialog>
+  <script src="/js/api.js"></script>
+  <script src="/js/common.js"></script>
+  <script src="/pages/admin/presets.js"></script>
+</body>
+</html>

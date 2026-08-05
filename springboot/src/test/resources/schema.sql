@@ -74,3 +74,48 @@ CREATE TABLE IF NOT EXISTS notification (
     read_at TIMESTAMP,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE TABLE IF NOT EXISTS preset (
+    preset_id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    title VARCHAR(100) NOT NULL,
+    summary VARCHAR(255) NOT NULL,
+    description VARCHAR(2000),
+    image_url VARCHAR(500),
+    category VARCHAR(50) NOT NULL,
+    view_count INT NOT NULL DEFAULT 0,
+    display_order INT NOT NULL DEFAULT 0,
+    status VARCHAR(20) NOT NULL DEFAULT 'ACTIVE',
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    deleted_at TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS preset_restaurant (
+    preset_id BIGINT NOT NULL,
+    restaurant_id BIGINT NOT NULL,
+    display_order INT NOT NULL DEFAULT 0,
+    description VARCHAR(255),
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (preset_id, restaurant_id)
+);
+
+CREATE TABLE IF NOT EXISTS preset_favorite (
+    account_id BIGINT NOT NULL,
+    preset_id BIGINT NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (account_id, preset_id)
+);
+
+CREATE TABLE IF NOT EXISTS tag (
+    tag_id INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(50) NOT NULL UNIQUE,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS preset_tag (
+    preset_id BIGINT NOT NULL,
+    tag_id INT NOT NULL,
+    display_order INT NOT NULL DEFAULT 0,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (preset_id, tag_id)
+);

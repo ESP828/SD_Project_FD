@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="푸드덕 맛집 프리셋 상세">
+  <title>Presset 상세 · 푸드덕</title>
+  <link rel="icon" href="/images/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/css/common.css">
+  <link rel="stylesheet" href="/pages/presset/presset.css">
+</head>
+<body>
+  <div data-site-header data-active-nav="presset"></div>
+
+  <main id="preset-detail" class="preset-main preset-detail-main" aria-live="polite">
+    <div class="container">
+      <a class="preset-back-link" href="/pages/presset/index.html">
+        <span aria-hidden="true">←</span> 전체 Presset
+      </a>
+      <div id="preset-detail-content" aria-busy="true">
+        <div class="preset-state preset-state--surface">
+          <span class="preset-spinner" aria-hidden="true"></span>
+          <strong>프리셋 상세 정보를 불러오고 있습니다.</strong>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <div data-site-footer></div>
+
+  <script src="/js/api.js"></script>
+  <script src="/js/common.js"></script>
+  <script src="/pages/presset/detail.js"></script>
+</body>
+</html>
