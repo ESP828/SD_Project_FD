@@ -33,6 +33,24 @@ public interface PostRepository extends JpaRepository<Post, Long> {
             @Param("boardType") BoardType boardType
     );
 
+    @Query("""
+            select p
+            from Post p
+            join fetch p.author
+            where p.author.accountId = :accountId
+              and p.status = :status
+              and (:boardType is null or p.boardType = :boardType)
+              and (:excludedPostId is null or p.postId <> :excludedPostId)
+            order by p.createdAt desc, p.postId desc
+            """)
+    List<Post> findRecentActivePostsByAuthor(
+            @Param("accountId") Long accountId,
+            @Param("status") PostStatus status,
+            @Param("boardType") BoardType boardType,
+            @Param("excludedPostId") Long excludedPostId,
+            Pageable pageable
+    );
+
     boolean existsByAuthorAccountIdAndContentAndCreatedAtAfter(
             Long accountId,
             String content,

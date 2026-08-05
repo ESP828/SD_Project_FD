@@ -131,8 +131,17 @@
   function renderAuthorMenuSummary(summary) {
     const menu = ensureAuthorMenu();
     const header = element("header", "author-menu-header");
-    header.append(
+    const identity = element("div", "author-menu-identity");
+    identity.append(
       element("strong", "author-menu-nickname", summary.nickname || "작성자"),
+      element(
+        "span",
+        "author-menu-account-id",
+        `(${summary.accountLabel || "계정 정보 없음"})`,
+      ),
+    );
+    header.append(
+      identity,
       element("span", "author-menu-caption", "커뮤니티 활동"),
     );
 
@@ -141,6 +150,35 @@
       authorMenuStat("작성한 게시글", summary.postCount),
       authorMenuStat("작성한 댓글", summary.commentCount),
     );
+
+    const recentSection = element("section", "author-menu-recent");
+    recentSection.append(element("strong", "author-menu-recent-title", "이전 작성글"));
+    const recentPosts = Array.isArray(summary.recentPosts)
+      ? summary.recentPosts
+      : [];
+    if (recentPosts.length === 0) {
+      recentSection.append(
+        element("p", "author-menu-recent-empty", "표시할 이전 게시글이 없습니다."),
+      );
+    } else {
+      const list = element("ul", "author-menu-recent-list");
+      recentPosts.forEach((post) => {
+        const item = element("li", "author-menu-recent-item");
+        const link = element("a", "author-menu-recent-link");
+        link.href = detailPath(post.postId);
+        link.append(
+          element("span", "author-menu-recent-post-title", post.title || "제목 없음"),
+          element(
+            "small",
+            "author-menu-recent-meta",
+            `${categoryLabel(post.category)} · ${formatDate(post.createdAt)}`,
+          ),
+        );
+        item.append(link);
+        list.append(item);
+      });
+      recentSection.append(list);
+    }
 
     const footer = element("div", "author-menu-footer");
     const isCurrentUser = Number(window.FooduckSession?.accountId)
@@ -162,7 +200,7 @@
       );
     }
 
-    menu.replaceChildren(header, stats, footer);
+    menu.replaceChildren(header, stats, recentSection, footer);
   }
 
   function renderAuthorMenuError(message) {
@@ -195,8 +233,14 @@
 
     const accountId = Number(author.authorAccountId);
     try {
+      const params = new URLSearchParams();
+      const excludePostId = Number(author.postId);
+      if (Number.isSafeInteger(excludePostId) && excludePostId > 0) {
+        params.set("excludePostId", String(excludePostId));
+      }
+      const query = params.size > 0 ? `?${params.toString()}` : "";
       const payload = await Api.get(
-        `/board/posts/authors/${encodeURIComponent(accountId)}/summary`,
+        `/board/posts/authors/${encodeURIComponent(accountId)}/summary${query}`,
       );
       const summary = payload.data;
       if (activeAuthorTrigger !== trigger || menu.hidden) return;

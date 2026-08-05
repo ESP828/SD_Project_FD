@@ -45,6 +45,7 @@ public class PostService {
     private static final int MAX_PAGE_SIZE = 50;
     private static final int MAX_BEST_SIZE = 10;
     private static final int MAX_DISCOVERY_SIZE = 10;
+    private static final int MAX_AUTHOR_RECENT_POSTS = 5;
     private static final int BEST_COMMUNITY_MINIMUM_LIKE_COUNT = 3;
     private static final Duration BEST_COMMUNITY_WINDOW = Duration.ofDays(7);
     private static final Duration RAPID_DUPLICATE_WINDOW =
@@ -256,9 +257,13 @@ public class PostService {
     @Transactional(readOnly = true)
     public AuthorSummaryResponse getAuthorSummary(
             Long authorAccountId,
+            Long excludePostId,
             Long currentAccountId
     ) {
         validateId(authorAccountId, "작성자 계정");
+        if (excludePostId != null) {
+            validateId(excludePostId, "제외 게시글");
+        }
         Account author = boardUserService.findOptional(authorAccountId);
         if (author == null) {
             throw new BoardException(
@@ -271,10 +276,30 @@ public class PostService {
         BoardType readableBoardType = accessPolicy.isApprovedBusiness(currentAccount)
                 ? null
                 : BoardType.GENERAL;
+        List<AuthorRecentPostResponse> recentPosts = postRepository
+                .findRecentActivePostsByAuthor(
+                        authorAccountId,
+                        PostStatus.ACTIVE,
+                        readableBoardType,
+                        excludePostId,
+                        PageRequest.of(0, MAX_AUTHOR_RECENT_POSTS)
+                )
+                .stream()
+                .map(post -> new AuthorRecentPostResponse(
+                        post.getPostId(),
+                        post.getTitle(),
+                        post.getBoardType(),
+                        post.getCategory(),
+                        post.getCreatedAt()
+                ))
+                .toList();
 
         return new AuthorSummaryResponse(
                 author.getAccountId(),
                 author.getNickname(),
+                author.getLoginId() == null
+                        ? "소셜 계정"
+                        : "@" + author.getLoginId(),
                 postRepository.countActivePostsByAuthor(
                         authorAccountId,
                         PostStatus.ACTIVE,
@@ -285,7 +310,8 @@ public class PostService {
                         CommentStatus.ACTIVE,
                         PostStatus.ACTIVE,
                         readableBoardType
-                )
+                ),
+                recentPosts
         );
     }
 
@@ -634,8 +660,22 @@ public class PostService {
     public record AuthorSummaryResponse(
             Long accountId,
             String nickname,
+            String accountLabel,
             long postCount,
-            long commentCount
+            long commentCount,
+            List<AuthorRecentPostResponse> recentPosts
+    ) {
+        public AuthorSummaryResponse {
+            recentPosts = List.copyOf(recentPosts);
+        }
+    }
+
+    public record AuthorRecentPostResponse(
+            Long postId,
+            String title,
+            BoardType boardType,
+            PostCategory category,
+            LocalDateTime createdAt
     ) {
     }
 }

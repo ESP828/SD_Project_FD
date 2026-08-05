@@ -98,10 +98,12 @@ public class PostController {
     @GetMapping("/authors/{authorAccountId}/summary")
     public ApiResponse<PostService.AuthorSummaryResponse> getAuthorSummary(
             @PathVariable Long authorAccountId,
+            @RequestParam(required = false) Long excludePostId,
             Authentication authentication
     ) {
         return ApiResponse.success(postService.getAuthorSummary(
                 authorAccountId,
+                excludePostId,
                 BoardAuthentication.accountId(authentication)
         ));
     }
