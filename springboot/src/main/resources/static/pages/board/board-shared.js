@@ -55,10 +55,9 @@
 
   function authorIdentity(author, { showNickname = true } = {}) {
     const wrapper = element("span", "author-identity");
-    const loginLabel = author?.authorLoginId
-      ? `@${author.authorLoginId}`
-      : "소셜 계정";
-    wrapper.append(element("strong", "author-login-id", loginLabel));
+    if (!author?.authorLoginId) {
+      wrapper.append(element("strong", "author-login-id", "소셜 계정"));
+    }
     if (showNickname && author?.authorNickname) {
       wrapper.append(element("span", "author-nickname", author.authorNickname));
     }

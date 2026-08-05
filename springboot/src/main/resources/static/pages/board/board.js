@@ -304,7 +304,7 @@
       link.append(element("span", "best-rank", "Q"));
       const copy = element("span", "best-copy");
       const author = post.authorNickname
-        || (post.authorLoginId ? `@${post.authorLoginId}` : "작성자 정보 없음");
+        || (!post.authorLoginId ? "소셜 계정" : "작성자 정보 없음");
       copy.append(
         element("strong", "", post.title),
         element("small", "", `${author} · ${formatWaitingDate(post.createdAt)}`),
