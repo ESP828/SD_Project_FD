@@ -87,11 +87,15 @@
 
     const actions = document.createElement("div");
     actions.className = "search-result-actions";
+    const detailLink = document.createElement("a");
+    detailLink.className = "button button-primary";
+    detailLink.href = `/pages/restaurant/detail.html?source=public&id=${place.id}`;
+    detailLink.textContent = "상세보기";
     const mapLink = document.createElement("a");
-    mapLink.className = "button button-primary";
+    mapLink.className = "button button-secondary";
     mapLink.href = `/pages/map/index.html?q=${encodeURIComponent(place.name)}`;
     mapLink.textContent = "지도에서 찾기";
-    actions.append(mapLink);
+    actions.append(detailLink, mapLink);
     body.append(actions);
 
     article.append(visual, body);

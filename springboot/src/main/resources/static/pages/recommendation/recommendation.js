@@ -48,6 +48,9 @@
   }
 
   function mapHref(item) {
+    if (item.restaurantId) {
+      return `/pages/restaurant/detail.html?source=owned&id=${item.restaurantId}`;
+    }
     const params = new URLSearchParams({ q: item.restaurantName || "맛집" });
     return `/pages/map/index.html?${params.toString()}`;
   }
