@@ -16,6 +16,7 @@
 
   let authorMenu = null;
   let activeAuthorTrigger = null;
+  let businessAccessPromise = null;
 
   function element(tag, className, text) {
     const node = document.createElement(tag);
@@ -290,6 +291,19 @@
     return wrapper;
   }
 
+  async function canUseBusinessBoard() {
+    const session = window.FooduckSession;
+    if (!session?.authenticated) return false;
+    if (session.canManageBusiness || session.isAdmin) return true;
+
+    if (!businessAccessPromise) {
+      businessAccessPromise = Api.get("/board/posts/business-access")
+        .then((payload) => Boolean(payload?.data))
+        .catch(() => false);
+    }
+    return businessAccessPromise;
+  }
+
   function detailPath(postId) {
     return `/pages/board/detail.html?postId=${encodeURIComponent(postId)}`;
   }
@@ -345,6 +359,7 @@
 
   window.FooduckBoard = {
     authorIdentity,
+    canUseBusinessBoard,
     categoryLabel,
     detailPath,
     element,

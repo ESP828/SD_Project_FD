@@ -56,6 +56,13 @@ public class PostController {
         ));
     }
 
+    @GetMapping("/business-access")
+    public ApiResponse<Boolean> canUseBusinessBoard(Authentication authentication) {
+        return ApiResponse.success(postService.canUseBusinessBoard(
+                BoardAuthentication.accountId(authentication)
+        ));
+    }
+
     @GetMapping("/best")
     public ApiResponse<List<PostListItemResponse>> getBestPosts(
             @RequestParam(required = false) String boardType,

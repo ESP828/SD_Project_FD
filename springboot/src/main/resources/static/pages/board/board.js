@@ -6,9 +6,9 @@
     ? requestedValue
     : "GENERAL";
   const initialBoardType = requestedBoardType === "BUSINESS"
-    && !session?.canManageBusiness
     ? "GENERAL"
     : requestedBoardType;
+  let businessAccessAllowed = Boolean(session?.canManageBusiness);
   const state = {
     boardType: initialBoardType,
     lastBoardType: initialBoardType === "BUSINESS" ? "BUSINESS" : "GENERAL",
@@ -368,7 +368,7 @@
 
   function switchBoard(boardType) {
     if (!["GENERAL", "BUSINESS", "BEST"].includes(boardType)) return;
-    if (boardType === "BUSINESS" && !session.canManageBusiness) return;
+    if (boardType === "BUSINESS" && !businessAccessAllowed) return;
     state.boardType = boardType;
     if (boardType !== "BEST") state.lastBoardType = boardType;
     state.page = 0;
@@ -408,11 +408,20 @@
     });
   });
 
-  if (session.canManageBusiness) {
-    businessTab.hidden = false;
+  async function initializeBoard() {
+    businessAccessAllowed = await board.canUseBusinessBoard();
+    if (businessTab) businessTab.hidden = !businessAccessAllowed;
+
+    if (requestedBoardType === "BUSINESS" && businessAccessAllowed) {
+      state.boardType = "BUSINESS";
+      state.lastBoardType = "BUSINESS";
+    }
+
+    syncBoardNavigation();
+    loadPosts();
+    loadBestPosts();
+    loadUnansweredPosts();
   }
-  syncBoardNavigation();
-  loadPosts();
-  loadBestPosts();
-  loadUnansweredPosts();
+
+  initializeBoard();
 })();

@@ -35,7 +35,7 @@ public class BoardAccessPolicy {
             return true;
         }
         return referenceRepository.hasAuthority(account.getAccountId(), ROLE_BUSINESS)
-                && referenceRepository.hasBusinessProfile(account.getAccountId());
+                || referenceRepository.hasBusinessProfile(account.getAccountId());
     }
 
     public String displayRole(Account account) {
@@ -45,10 +45,9 @@ public class BoardAccessPolicy {
         Long accountId = account.getAccountId();
         Set<String> authorityCodes =
                 referenceRepository.findAuthorityCodes(accountId);
-        boolean hasBusinessProfile = authorityCodes.contains(ROLE_BUSINESS)
-                && referenceRepository.findBusinessProfileAccountIds(
-                        Set.of(accountId)
-                ).contains(accountId);
+        boolean hasBusinessProfile = referenceRepository.findBusinessProfileAccountIds(
+                Set.of(accountId)
+        ).contains(accountId);
         return displayRole(authorityCodes, hasBusinessProfile);
     }
 
@@ -56,7 +55,7 @@ public class BoardAccessPolicy {
         if (authorityCodes.contains(ROLE_ADMIN)) {
             return "ADMIN";
         }
-        if (authorityCodes.contains(ROLE_BUSINESS) && hasBusinessProfile) {
+        if (authorityCodes.contains(ROLE_BUSINESS) || hasBusinessProfile) {
             return "BUSINESS";
         }
         return "USER";

@@ -86,6 +86,12 @@ public class PostService {
     }
 
     @Transactional(readOnly = true)
+    public boolean canUseBusinessBoard(Long currentAccountId) {
+        Account currentAccount = boardUserService.findOptional(currentAccountId);
+        return accessPolicy.isApprovedBusiness(currentAccount);
+    }
+
+    @Transactional(readOnly = true)
     public PostPageResponse getPosts(
             String boardTypeValue,
             String categoryValue,

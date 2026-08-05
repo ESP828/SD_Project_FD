@@ -21,6 +21,7 @@
   const listLink = document.querySelector("[data-list-link]");
   const postId = board.readPostId();
   let originalPost = null;
+  let businessAccessAllowed = false;
 
   if (!form) return;
 
@@ -29,7 +30,7 @@
     const general = board.element("option", "", "일반 커뮤니티");
     general.value = "GENERAL";
     boardTypeSelect.append(general);
-    if (session.canManageBusiness) {
+    if (businessAccessAllowed) {
       const business = board.element("option", "", "사업자 커뮤니티");
       business.value = "BUSINESS";
       boardTypeSelect.append(business);
@@ -71,7 +72,7 @@
       }
       if (
         originalPost.boardType === "BUSINESS" &&
-        !session.canManageBusiness
+        !businessAccessAllowed
       ) {
         throw new Error("사업자 커뮤니티 게시글을 수정할 권한이 없습니다.");
       }
@@ -94,16 +95,6 @@
       submitButton.disabled = true;
     }
   }
-
-  populateOptions();
-  const requestedBoardType =
-    new URLSearchParams(window.location.search).get("boardType") === "BUSINESS" &&
-    session.canManageBusiness
-      ? "BUSINESS"
-      : "GENERAL";
-  boardTypeSelect.value = requestedBoardType;
-  setListLinks(requestedBoardType);
-  updateCounts();
 
   titleInput.addEventListener("input", updateCounts);
   contentInput.addEventListener("input", updateCounts);
@@ -140,5 +131,23 @@
     }
   });
 
-  if (postId) loadForEdit();
+  async function initializeEditor() {
+    submitButton.disabled = true;
+    businessAccessAllowed = await board.canUseBusinessBoard();
+    populateOptions();
+
+    const requestedBoardType =
+      new URLSearchParams(window.location.search).get("boardType") === "BUSINESS" &&
+      businessAccessAllowed
+        ? "BUSINESS"
+        : "GENERAL";
+    boardTypeSelect.value = requestedBoardType;
+    setListLinks(requestedBoardType);
+    updateCounts();
+    submitButton.disabled = false;
+
+    if (postId) await loadForEdit();
+  }
+
+  initializeEditor();
 })();
