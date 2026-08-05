@@ -38,8 +38,16 @@
     return;
   }
 
-  const { authorIdentity, categoryLabel, detailPath, element, formatDate, icon } =
-    board;
+  const {
+    authorIdentity,
+    categoryLabel,
+    detailPath,
+    element,
+    formatDate,
+    icon,
+    readBoardCache,
+    writeBoardCache,
+  } = board;
 
   function renderLoading() {
     boardList.replaceChildren();
@@ -205,7 +213,6 @@
   }
 
   async function loadPosts() {
-    renderLoading();
     const params = new URLSearchParams({
       page: String(state.page),
       size: String(state.size),
@@ -218,14 +225,24 @@
       if (state.keyword) params.set("keyword", state.keyword);
     }
 
+    const path = isBest
+      ? `/board/posts/best/community?${params.toString()}`
+      : `/board/posts?${params.toString()}`;
+    const cached = readBoardCache(path);
+    if (cached) {
+      renderPosts(cached.data || {});
+      if (cached.fresh) return;
+    } else {
+      renderLoading();
+    }
+
     try {
-      const path = isBest
-        ? `/board/posts/best/community?${params.toString()}`
-        : `/board/posts?${params.toString()}`;
       const payload = await Api.get(path);
-      renderPosts(payload.data || {});
+      const pageData = payload.data || {};
+      writeBoardCache(path, pageData);
+      renderPosts(pageData);
     } catch (error) {
-      renderListError(error);
+      if (!cached) renderListError(error);
     }
   }
 
@@ -259,18 +276,30 @@
     const isBest = state.boardType === "BEST";
     if (bestPostPanel) bestPostPanel.hidden = isBest;
     if (isBest) return;
-    bestPostList.replaceChildren(element("li", "best-loading", "불러오는 중"));
+    const params = new URLSearchParams({
+      boardType: state.boardType,
+      size: "3",
+    });
+    const path = `/board/posts/best?${params.toString()}`;
+    const cached = readBoardCache(path);
+    if (cached) {
+      renderBestPosts(cached.data || []);
+      if (cached.fresh) return;
+    } else {
+      bestPostList.replaceChildren(element("li", "best-loading", "불러오는 중"));
+    }
+
     try {
-      const params = new URLSearchParams({
-        boardType: state.boardType,
-        size: "3",
-      });
-      const payload = await Api.get(`/board/posts/best?${params.toString()}`);
-      renderBestPosts(payload.data || []);
+      const payload = await Api.get(path);
+      const posts = payload.data || [];
+      writeBoardCache(path, posts);
+      renderBestPosts(posts);
     } catch (error) {
-      bestPostList.replaceChildren(
-        element("li", "best-loading", error.message || "불러오지 못했습니다."),
-      );
+      if (!cached) {
+        bestPostList.replaceChildren(
+          element("li", "best-loading", error.message || "불러오지 못했습니다."),
+        );
+      }
     }
   }
 
@@ -317,30 +346,69 @@
 
   async function loadUnansweredPosts() {
     if (!unansweredPostList) return;
-    unansweredPostList.replaceChildren(
-      element("li", "best-loading", "불러오는 중"),
-    );
-    try {
-      const params = new URLSearchParams({
-        boardType: state.boardType === "BEST"
-          ? state.lastBoardType
-          : state.boardType,
-        size: "3",
-      });
-      const payload = await Api.get(
-        `/board/posts/unanswered?${params.toString()}`,
-      );
-      renderUnansweredPosts(payload.data || []);
-    } catch (error) {
+    const params = new URLSearchParams({
+      boardType: state.boardType === "BEST"
+        ? state.lastBoardType
+        : state.boardType,
+      size: "3",
+    });
+    const path = `/board/posts/unanswered?${params.toString()}`;
+    const cached = readBoardCache(path);
+    if (cached) {
+      renderUnansweredPosts(cached.data || []);
+      if (cached.fresh) return;
+    } else {
       unansweredPostList.replaceChildren(
-        element("li", "best-loading", error.message || "불러오지 못했습니다."),
+        element("li", "best-loading", "불러오는 중"),
       );
+    }
+
+    try {
+      const payload = await Api.get(path);
+      const posts = payload.data || [];
+      writeBoardCache(path, posts);
+      renderUnansweredPosts(posts);
+    } catch (error) {
+      if (!cached) {
+        unansweredPostList.replaceChildren(
+          element("li", "best-loading", error.message || "불러오지 못했습니다."),
+        );
+      }
     }
   }
 
-  async function loadBoardContent() {
-    await loadPosts();
-    await Promise.all([loadBestPosts(), loadUnansweredPosts()]);
+  function loadBoardContent() {
+    return Promise.all([loadPosts(), loadBestPosts(), loadUnansweredPosts()]);
+  }
+
+  async function prefetchBusinessFirstPage() {
+    const params = new URLSearchParams({
+      page: "0",
+      size: String(state.size),
+      boardType: "BUSINESS",
+      sort: "LATEST",
+    });
+    const path = `/board/posts?${params.toString()}`;
+    const cached = readBoardCache(path);
+    if (cached?.fresh) return;
+
+    try {
+      const payload = await Api.get(path);
+      writeBoardCache(path, payload.data || {});
+    } catch (_error) {
+      // 사전 조회 실패는 현재 화면 로딩에 영향을 주지 않는다.
+    }
+  }
+
+  function scheduleBusinessPrefetch() {
+    const prefetch = () => {
+      prefetchBusinessFirstPage();
+    };
+    if (typeof window.requestIdleCallback === "function") {
+      window.requestIdleCallback(prefetch, { timeout: 2_000 });
+      return;
+    }
+    window.setTimeout(prefetch, 250);
   }
 
   function syncBoardNavigation() {
@@ -425,6 +493,9 @@
 
     syncBoardNavigation();
     await loadBoardContent();
+    if (await businessAccessPromise && state.boardType !== "BUSINESS") {
+      scheduleBusinessPrefetch();
+    }
   }
 
   initializeBoard();

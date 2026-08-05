@@ -25,6 +25,7 @@
     detailPath,
     element,
     formatDate,
+    invalidateBoardCache,
     mapHref,
     showToast,
   } = board;
@@ -191,6 +192,7 @@
       const payload = state.post.likedByCurrentUser
         ? await Api.delete(`/board/posts/${postId}/like`)
         : await Api.post(`/board/posts/${postId}/like`, {});
+      invalidateBoardCache();
       renderPost({
         ...state.post,
         likedByCurrentUser: payload.data.liked,
@@ -206,6 +208,7 @@
     if (!window.confirm("게시글과 연결된 댓글·추천을 삭제하시겠습니까?")) return;
     try {
       const payload = await Api.delete(`/board/posts/${postId}`);
+      invalidateBoardCache();
       window.alert(payload.message);
       window.location.assign(board.listPath(state.post.boardType));
     } catch (error) {
@@ -259,6 +262,7 @@
       const payload = await Api.put(`/board/comments/${comment.commentId}`, {
         content: content.trim(),
       });
+      invalidateBoardCache();
       showToast(toast, payload.message);
       await loadComments();
     } catch (error) {
@@ -270,6 +274,7 @@
     if (!window.confirm("댓글을 삭제하시겠습니까?")) return;
     try {
       const payload = await Api.delete(`/board/comments/${comment.commentId}`);
+      invalidateBoardCache();
       showToast(toast, payload.message);
       await loadComments();
     } catch (error) {
@@ -287,6 +292,7 @@
     }
     try {
       const payload = await Api.post(`/board/posts/${postId}/comments`, { content });
+      invalidateBoardCache();
       commentContent.value = "";
       showToast(toast, payload.message);
       await loadComments();

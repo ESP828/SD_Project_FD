@@ -123,6 +123,7 @@
       const payload = postId
         ? await Api.put(`/board/posts/${postId}`, body)
         : await Api.post("/board/posts", body);
+      board.invalidateBoardCache();
       window.location.assign(board.detailPath(payload.data.postId));
     } catch (error) {
       errorMessage.textContent = error.message || "게시글을 저장하지 못했습니다.";

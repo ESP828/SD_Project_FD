@@ -1,4 +1,7 @@
 (() => {
+  const BOARD_CACHE_PREFIX = "fooduck:board:v1:";
+  const BOARD_CACHE_FRESH_MS = 60_000;
+  const BOARD_CACHE_MAX_AGE_MS = 5 * 60_000;
   const categoryLabels = {
     GENERAL: "자유 이야기",
     NOTICE: "공지",
@@ -17,6 +20,74 @@
   let authorMenu = null;
   let activeAuthorTrigger = null;
   let businessAccessPromise = null;
+
+  function cacheScope() {
+    const session = window.FooduckSession;
+    if (!session?.authenticated) return "guest";
+    const accountKey = session.accountId || session.loginId || "unknown";
+    return `account-${encodeURIComponent(String(accountKey))}`;
+  }
+
+  function cacheKey(resource) {
+    return `${BOARD_CACHE_PREFIX}${cacheScope()}:${resource}`;
+  }
+
+  function readCacheEntry(resource) {
+    const key = cacheKey(resource);
+    try {
+      const raw = window.sessionStorage.getItem(key);
+      if (!raw) return null;
+      const entry = JSON.parse(raw);
+      const hasData = entry
+        && Object.prototype.hasOwnProperty.call(entry, "data");
+      const age = Date.now() - Number(entry?.savedAt);
+      if (!hasData || !Number.isFinite(age) || age < 0 || age > BOARD_CACHE_MAX_AGE_MS) {
+        window.sessionStorage.removeItem(key);
+        return null;
+      }
+      return {
+        data: entry.data,
+        fresh: age <= BOARD_CACHE_FRESH_MS,
+      };
+    } catch (_error) {
+      return null;
+    }
+  }
+
+  function writeCacheEntry(resource, data) {
+    try {
+      window.sessionStorage.setItem(
+        cacheKey(resource),
+        JSON.stringify({ savedAt: Date.now(), data }),
+      );
+    } catch (_error) {
+      // 저장 공간을 사용할 수 없는 환경에서는 기존 API 호출 방식으로 동작한다.
+    }
+  }
+
+  function readBoardCache(path) {
+    return readCacheEntry(`content:${path}`);
+  }
+
+  function writeBoardCache(path, data) {
+    writeCacheEntry(`content:${path}`, data);
+  }
+
+  function invalidateBoardCache() {
+    try {
+      for (let index = window.sessionStorage.length - 1; index >= 0; index -= 1) {
+        const key = window.sessionStorage.key(index);
+        if (
+          key?.startsWith(BOARD_CACHE_PREFIX)
+          && key.includes(":content:")
+        ) {
+          window.sessionStorage.removeItem(key);
+        }
+      }
+    } catch (_error) {
+      // 캐시 제거 실패가 게시판 변경 작업을 막지 않도록 한다.
+    }
+  }
 
   function element(tag, className, text) {
     const node = document.createElement(tag);
@@ -296,9 +367,16 @@
     if (!session?.authenticated) return false;
     if (session.canManageBusiness || session.isAdmin) return true;
 
+    const cached = readCacheEntry("access:business");
+    if (cached?.fresh) return Boolean(cached.data);
+
     if (!businessAccessPromise) {
       businessAccessPromise = Api.get("/board/posts/business-access")
-        .then((payload) => Boolean(payload?.data))
+        .then((payload) => {
+          const allowed = Boolean(payload?.data);
+          writeCacheEntry("access:business", allowed);
+          return allowed;
+        })
         .catch(() => false);
     }
     return businessAccessPromise;
@@ -365,12 +443,15 @@
     element,
     formatDate,
     icon,
+    invalidateBoardCache,
     listPath,
     mapHref,
+    readBoardCache,
     readPostId,
     requireLogin,
     roleLabel,
     showToast,
+    writeBoardCache,
     writePath,
   };
 })();
