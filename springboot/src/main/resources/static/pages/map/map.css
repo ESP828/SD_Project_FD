@@ -620,3 +620,42 @@
     display: none;
   }
 }
+.preset-map-context {
+  margin: 0 0 16px;
+  padding: 14px 16px;
+  border: 1px solid #ffe0c2;
+  border-radius: 14px;
+  background: #fff8f1;
+}
+
+.preset-map-context a {
+  color: var(--color-orange-dark);
+  font-size: 0.78rem;
+  font-weight: 850;
+}
+
+.preset-map-context p {
+  margin: 7px 0 0;
+  color: var(--color-muted);
+  font-size: 0.78rem;
+}
+
+.place-result.has-no-coordinate {
+  opacity: 0.72;
+}
+
+.place-coordinate-missing {
+  display: inline-flex;
+  width: fit-content;
+  margin-top: 6px;
+  padding: 4px 7px;
+  border-radius: 7px;
+  color: #7b4b10;
+  background: var(--color-orange-soft);
+  font-size: 0.68rem;
+  font-weight: 800;
+}
+
+.place-result-favorite.is-active {
+  color: #f15a24;
+}

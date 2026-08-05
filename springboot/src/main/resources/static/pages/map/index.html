@@ -17,10 +17,15 @@
       <div class="map-sidebar-heading">
         <div>
           <p class="eyebrow">Kakao restaurant map</p>
-          <h1>맛집 찾기</h1>
+          <h1 id="map-page-title">맛집 찾기</h1>
         </div>
         <img src="/images/characters/map-256.png" alt="" aria-hidden="true">
       </div>
+
+      <section id="preset-map-context" class="preset-map-context" hidden>
+        <a id="preset-map-back" href="/pages/presset/index.html">← Presset 상세로</a>
+        <p id="preset-map-summary"></p>
+      </section>
 
       <form id="place-search-form" class="map-search" role="search">
         <label class="sr-only" for="place-keyword">장소 검색어</label>

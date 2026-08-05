@@ -40,6 +40,13 @@ public class MyPageController {
         return ApiResponse.success(myPageService.getFavorites(account.accountId()));
     }
 
+    @GetMapping("/restaurants")
+    public ApiResponse<List<FavoriteItem>> getSavedRestaurants(
+            @AuthenticationPrincipal AuthenticatedAccount account
+    ) {
+        return ApiResponse.success(myPageService.getFavorites(account.accountId()));
+    }
+
     @GetMapping("/reviews")
     public ApiResponse<List<ReviewItem>> getReviews(
             @AuthenticationPrincipal AuthenticatedAccount account

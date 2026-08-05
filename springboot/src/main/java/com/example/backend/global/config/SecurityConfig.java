@@ -57,6 +57,7 @@ public class SecurityConfig {
                                 "/favicon.ico", "/favicon.svg"
                         ).permitAll()
                         .requestMatchers("/api/auth/**", "/api/public/**", "/api/hello").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/presets", "/api/presets/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/board/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/business/applications").authenticated()
                         .requestMatchers(HttpMethod.POST, "/api/business/applications").authenticated()
