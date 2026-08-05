@@ -192,8 +192,21 @@
   transition: background 150ms ease;
 }
 
+.board-main [hidden] {
+  display: none !important;
+}
+
+.post-row--notice {
+  border-left: 4px solid var(--color-orange);
+  background: var(--color-orange-soft);
+}
+
 .post-row:hover {
   background: #fbfcfe;
+}
+
+.post-row.post-row--notice:hover {
+  background: #fff0d8;
 }
 
 .post-row:last-child {
@@ -220,6 +233,11 @@
   background: var(--color-orange-soft);
   font-size: 0.68rem;
   font-weight: 850;
+}
+
+.post-badge--notice {
+  color: #fff;
+  background: var(--color-navy);
 }
 
 .post-role {

@@ -112,6 +112,7 @@ public class PostService {
                     normalizedKeyword,
                     PostStatus.ACTIVE,
                     CommentStatus.ACTIVE,
+                    PostCategory.NOTICE,
                     PageRequest.of(page, size)
             );
         } else {
@@ -130,6 +131,7 @@ public class PostService {
                     category,
                     normalizedKeyword,
                     PostStatus.ACTIVE,
+                    PostCategory.NOTICE,
                     PageRequest.of(page, size, springSort)
             );
         }
