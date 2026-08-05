@@ -46,6 +46,7 @@ public class PostService {
     private static final int MAX_BEST_SIZE = 10;
     private static final int MAX_DISCOVERY_SIZE = 10;
     private static final int MAX_AUTHOR_RECENT_POSTS = 5;
+    private static final int MAX_AUTHOR_RECENT_COMMENTS = 5;
     private static final int BEST_COMMUNITY_MINIMUM_LIKE_COUNT = 3;
     private static final Duration BEST_COMMUNITY_WINDOW = Duration.ofDays(7);
     private static final Duration RAPID_DUPLICATE_WINDOW =
@@ -299,6 +300,24 @@ public class PostService {
                         post.getCreatedAt()
                 ))
                 .toList();
+        List<AuthorRecentCommentResponse> recentComments = commentRepository
+                .findRecentActiveCommentsByAuthor(
+                        authorAccountId,
+                        CommentStatus.ACTIVE,
+                        PostStatus.ACTIVE,
+                        readableBoardType,
+                        excludePostId,
+                        PageRequest.of(0, MAX_AUTHOR_RECENT_COMMENTS)
+                )
+                .stream()
+                .map(comment -> new AuthorRecentCommentResponse(
+                        comment.getCommentId(),
+                        comment.getPost().getPostId(),
+                        comment.getPost().getTitle(),
+                        comment.getContent(),
+                        comment.getCreatedAt()
+                ))
+                .toList();
 
         return new AuthorSummaryResponse(
                 author.getAccountId(),
@@ -317,7 +336,8 @@ public class PostService {
                         PostStatus.ACTIVE,
                         readableBoardType
                 ),
-                recentPosts
+                recentPosts,
+                recentComments
         );
     }
 
@@ -669,10 +689,12 @@ public class PostService {
             String accountLabel,
             long postCount,
             long commentCount,
-            List<AuthorRecentPostResponse> recentPosts
+            List<AuthorRecentPostResponse> recentPosts,
+            List<AuthorRecentCommentResponse> recentComments
     ) {
         public AuthorSummaryResponse {
             recentPosts = List.copyOf(recentPosts);
+            recentComments = List.copyOf(recentComments);
         }
     }
 
@@ -681,6 +703,15 @@ public class PostService {
             String title,
             BoardType boardType,
             PostCategory category,
+            LocalDateTime createdAt
+    ) {
+    }
+
+    public record AuthorRecentCommentResponse(
+            Long commentId,
+            Long postId,
+            String postTitle,
+            String content,
             LocalDateTime createdAt
     ) {
     }

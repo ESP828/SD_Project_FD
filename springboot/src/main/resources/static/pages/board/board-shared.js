@@ -252,6 +252,41 @@
       recentSection.append(list);
     }
 
+    const recentCommentSection = element("section", "author-menu-recent");
+    recentCommentSection.append(
+      element("strong", "author-menu-recent-title", "이전 댓글"),
+    );
+    const recentComments = Array.isArray(summary.recentComments)
+      ? summary.recentComments
+      : [];
+    if (recentComments.length === 0) {
+      recentCommentSection.append(
+        element("p", "author-menu-recent-empty", "표시할 이전 댓글이 없습니다."),
+      );
+    } else {
+      const list = element("ul", "author-menu-recent-list");
+      recentComments.forEach((comment) => {
+        const item = element("li", "author-menu-recent-item");
+        const link = element("a", "author-menu-recent-link");
+        link.href = detailPath(comment.postId);
+        link.append(
+          element(
+            "span",
+            "author-menu-recent-content",
+            comment.content || "댓글 내용 없음",
+          ),
+          element(
+            "small",
+            "author-menu-recent-meta",
+            `${comment.postTitle || "게시글"} · ${formatDate(comment.createdAt)}`,
+          ),
+        );
+        item.append(link);
+        list.append(item);
+      });
+      recentCommentSection.append(list);
+    }
+
     const footer = element("div", "author-menu-footer");
     const isCurrentUser = Number(window.FooduckSession?.accountId)
       === Number(summary.accountId);
@@ -272,7 +307,13 @@
       );
     }
 
-    menu.replaceChildren(header, stats, recentSection, footer);
+    menu.replaceChildren(
+      header,
+      stats,
+      recentSection,
+      recentCommentSection,
+      footer,
+    );
   }
 
   function renderAuthorMenuError(message) {

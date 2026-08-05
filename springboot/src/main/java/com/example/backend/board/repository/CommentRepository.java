@@ -34,6 +34,26 @@ public interface CommentRepository extends JpaRepository<Comment, Long> {
             @Param("boardType") BoardType boardType
     );
 
+    @Query("""
+            select c
+            from Comment c
+            join fetch c.post p
+            where c.author.accountId = :accountId
+              and c.status = :commentStatus
+              and p.status = :postStatus
+              and (:boardType is null or p.boardType = :boardType)
+              and (:excludedPostId is null or p.postId <> :excludedPostId)
+            order by c.createdAt desc, c.commentId desc
+            """)
+    List<Comment> findRecentActiveCommentsByAuthor(
+            @Param("accountId") Long accountId,
+            @Param("commentStatus") CommentStatus commentStatus,
+            @Param("postStatus") PostStatus postStatus,
+            @Param("boardType") BoardType boardType,
+            @Param("excludedPostId") Long excludedPostId,
+            Pageable pageable
+    );
+
     boolean existsByPostPostIdAndAuthorAccountIdAndContentAndCreatedAtAfter(
             Long postId,
             Long accountId,

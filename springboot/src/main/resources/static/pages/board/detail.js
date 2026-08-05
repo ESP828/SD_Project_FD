@@ -261,7 +261,7 @@
       const item = element("article", "comment-item");
       const top = element("div", "comment-top");
       top.append(
-        authorIdentity(comment),
+        authorIdentity(comment, { showAuthorMenu: true }),
         element("span", "comment-date", formatDate(comment.createdAt)),
       );
       item.append(top, element("div", "comment-content", comment.content));

@@ -903,7 +903,8 @@
   outline: none;
 }
 
-.author-menu-recent-post-title {
+.author-menu-recent-post-title,
+.author-menu-recent-content {
   overflow: hidden;
   color: var(--color-navy);
   font-size: 0.75rem;
