@@ -1,4 +1,7 @@
 (() => {
+  const BOARD_CACHE_PREFIX = "fooduck:board:v1:";
+  const BOARD_CACHE_FRESH_MS = 60_000;
+  const BOARD_CACHE_MAX_AGE_MS = 5 * 60_000;
   const categoryLabels = {
     GENERAL: "자유 이야기",
     NOTICE: "공지",
@@ -13,6 +16,78 @@
     BUSINESS: "사업자",
     ADMIN: "관리자",
   };
+
+  let authorMenu = null;
+  let activeAuthorTrigger = null;
+  let businessAccessPromise = null;
+
+  function cacheScope() {
+    const session = window.FooduckSession;
+    if (!session?.authenticated) return "guest";
+    const accountKey = session.accountId || session.loginId || "unknown";
+    return `account-${encodeURIComponent(String(accountKey))}`;
+  }
+
+  function cacheKey(resource) {
+    return `${BOARD_CACHE_PREFIX}${cacheScope()}:${resource}`;
+  }
+
+  function readCacheEntry(resource) {
+    const key = cacheKey(resource);
+    try {
+      const raw = window.sessionStorage.getItem(key);
+      if (!raw) return null;
+      const entry = JSON.parse(raw);
+      const hasData = entry
+        && Object.prototype.hasOwnProperty.call(entry, "data");
+      const age = Date.now() - Number(entry?.savedAt);
+      if (!hasData || !Number.isFinite(age) || age < 0 || age > BOARD_CACHE_MAX_AGE_MS) {
+        window.sessionStorage.removeItem(key);
+        return null;
+      }
+      return {
+        data: entry.data,
+        fresh: age <= BOARD_CACHE_FRESH_MS,
+      };
+    } catch (_error) {
+      return null;
+    }
+  }
+
+  function writeCacheEntry(resource, data) {
+    try {
+      window.sessionStorage.setItem(
+        cacheKey(resource),
+        JSON.stringify({ savedAt: Date.now(), data }),
+      );
+    } catch (_error) {
+      // 저장 공간을 사용할 수 없는 환경에서는 기존 API 호출 방식으로 동작한다.
+    }
+  }
+
+  function readBoardCache(path) {
+    return readCacheEntry(`content:${path}`);
+  }
+
+  function writeBoardCache(path, data) {
+    writeCacheEntry(`content:${path}`, data);
+  }
+
+  function invalidateBoardCache() {
+    try {
+      for (let index = window.sessionStorage.length - 1; index >= 0; index -= 1) {
+        const key = window.sessionStorage.key(index);
+        if (
+          key?.startsWith(BOARD_CACHE_PREFIX)
+          && key.includes(":content:")
+        ) {
+          window.sessionStorage.removeItem(key);
+        }
+      }
+    } catch (_error) {
+      // 캐시 제거 실패가 게시판 변경 작업을 막지 않도록 한다.
+    }
+  }
 
   function element(tag, className, text) {
     const node = document.createElement(tag);
@@ -53,19 +128,302 @@
     return `post-role post-role--${normalized}`;
   }
 
-  function authorIdentity(author, { showNickname = true } = {}) {
+  function closeAuthorMenu() {
+    if (!authorMenu || authorMenu.hidden) return;
+    authorMenu.hidden = true;
+    authorMenu.replaceChildren();
+    if (activeAuthorTrigger) {
+      activeAuthorTrigger.setAttribute("aria-expanded", "false");
+    }
+    activeAuthorTrigger = null;
+  }
+
+  function ensureAuthorMenu() {
+    if (authorMenu) return authorMenu;
+
+    authorMenu = element("section", "author-menu");
+    authorMenu.id = "board-author-menu";
+    authorMenu.hidden = true;
+    authorMenu.setAttribute("role", "dialog");
+    authorMenu.setAttribute("aria-label", "작성자 활동 메뉴");
+    document.body.append(authorMenu);
+
+    document.addEventListener("click", (event) => {
+      if (authorMenu.hidden) return;
+      if (authorMenu.contains(event.target)) return;
+      if (activeAuthorTrigger?.contains(event.target)) return;
+      closeAuthorMenu();
+    });
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") closeAuthorMenu();
+    });
+    window.addEventListener("resize", closeAuthorMenu);
+    window.addEventListener("scroll", (event) => {
+      if (event.target === authorMenu) return;
+      closeAuthorMenu();
+    }, true);
+    return authorMenu;
+  }
+
+  function positionAuthorMenu(trigger) {
+    if (!authorMenu || authorMenu.hidden) return;
+    const rect = trigger.getBoundingClientRect();
+    const gap = 8;
+    const viewportPadding = 12;
+    const menuWidth = authorMenu.offsetWidth;
+    const menuHeight = authorMenu.offsetHeight;
+    const viewportBottom = window.scrollY + window.innerHeight;
+    const preferredTop = window.scrollY + rect.bottom + gap;
+    const alternateTop = window.scrollY + rect.top - menuHeight - gap;
+    const top = preferredTop + menuHeight <= viewportBottom - viewportPadding
+      ? preferredTop
+      : Math.max(window.scrollY + viewportPadding, alternateTop);
+    const left = Math.min(
+      Math.max(window.scrollX + viewportPadding, window.scrollX + rect.left),
+      window.scrollX + window.innerWidth - menuWidth - viewportPadding,
+    );
+    authorMenu.style.top = `${top}px`;
+    authorMenu.style.left = `${left}px`;
+  }
+
+  function authorMenuStat(label, count) {
+    const item = element("div", "author-menu-stat");
+    item.append(
+      element("span", "", label),
+      element("strong", "", String(count || 0)),
+    );
+    return item;
+  }
+
+  function renderAuthorMenuLoading(author) {
+    const menu = ensureAuthorMenu();
+    menu.replaceChildren(
+      element("strong", "author-menu-nickname", author.authorNickname || "작성자"),
+      element("p", "author-menu-loading", "활동 정보를 불러오는 중입니다."),
+    );
+  }
+
+  function renderAuthorMenuSummary(summary) {
+    const menu = ensureAuthorMenu();
+    const header = element("header", "author-menu-header");
+    const identity = element("div", "author-menu-identity");
+    identity.append(
+      element("strong", "author-menu-nickname", summary.nickname || "작성자"),
+      element(
+        "span",
+        "author-menu-account-id",
+        `(${summary.accountLabel || "계정 정보 없음"})`,
+      ),
+    );
+    header.append(
+      identity,
+      element("span", "author-menu-caption", "커뮤니티 활동"),
+    );
+
+    const stats = element("div", "author-menu-stats");
+    stats.append(
+      authorMenuStat("작성한 게시글", summary.postCount),
+      authorMenuStat("작성한 댓글", summary.commentCount),
+    );
+
+    const recentSection = element("section", "author-menu-recent");
+    recentSection.append(element("strong", "author-menu-recent-title", "이전 작성글"));
+    const recentPosts = Array.isArray(summary.recentPosts)
+      ? summary.recentPosts
+      : [];
+    if (recentPosts.length === 0) {
+      recentSection.append(
+        element("p", "author-menu-recent-empty", "표시할 이전 게시글이 없습니다."),
+      );
+    } else {
+      const list = element("ul", "author-menu-recent-list");
+      recentPosts.forEach((post) => {
+        const item = element("li", "author-menu-recent-item");
+        const link = element("a", "author-menu-recent-link");
+        link.href = detailPath(post.postId);
+        link.append(
+          element("span", "author-menu-recent-post-title", post.title || "제목 없음"),
+          element(
+            "small",
+            "author-menu-recent-meta",
+            `${categoryLabel(post.category)} · ${formatDate(post.createdAt)}`,
+          ),
+        );
+        item.append(link);
+        list.append(item);
+      });
+      recentSection.append(list);
+    }
+
+    const recentCommentSection = element("section", "author-menu-recent");
+    recentCommentSection.append(
+      element("strong", "author-menu-recent-title", "이전 댓글"),
+    );
+    const recentComments = Array.isArray(summary.recentComments)
+      ? summary.recentComments
+      : [];
+    if (recentComments.length === 0) {
+      recentCommentSection.append(
+        element("p", "author-menu-recent-empty", "표시할 이전 댓글이 없습니다."),
+      );
+    } else {
+      const list = element("ul", "author-menu-recent-list");
+      recentComments.forEach((comment) => {
+        const item = element("li", "author-menu-recent-item");
+        const link = element("a", "author-menu-recent-link");
+        link.href = detailPath(comment.postId);
+        link.append(
+          element(
+            "span",
+            "author-menu-recent-content",
+            comment.content || "댓글 내용 없음",
+          ),
+          element(
+            "small",
+            "author-menu-recent-meta",
+            `${comment.postTitle || "게시글"} · ${formatDate(comment.createdAt)}`,
+          ),
+        );
+        item.append(link);
+        list.append(item);
+      });
+      recentCommentSection.append(list);
+    }
+
+    const footer = element("div", "author-menu-footer");
+    const isCurrentUser = Number(window.FooduckSession?.accountId)
+      === Number(summary.accountId);
+    if (isCurrentUser) {
+      const myPageLink = element("a", "author-menu-link", "마이페이지");
+      myPageLink.href = "/pages/mypage/index.html#notifications";
+      footer.append(myPageLink);
+    } else {
+      const disabledLink = element(
+        "span",
+        "author-menu-link author-menu-link--disabled",
+        "마이페이지",
+      );
+      disabledLink.setAttribute("aria-disabled", "true");
+      footer.append(
+        disabledLink,
+        element("small", "author-menu-note", "마이페이지는 본인만 열 수 있습니다."),
+      );
+    }
+
+    menu.replaceChildren(
+      header,
+      stats,
+      recentSection,
+      recentCommentSection,
+      footer,
+    );
+  }
+
+  function renderAuthorMenuError(message) {
+    const menu = ensureAuthorMenu();
+    menu.replaceChildren(
+      element("strong", "author-menu-nickname", "작성자 정보"),
+      element("p", "author-menu-error", message || "활동 정보를 불러오지 못했습니다."),
+    );
+  }
+
+  async function openAuthorMenu(author, trigger, event) {
+    event.preventDefault();
+    event.stopPropagation();
+    if (!author?.authorAccountId) return;
+
+    const menu = ensureAuthorMenu();
+    if (activeAuthorTrigger === trigger && !menu.hidden) {
+      closeAuthorMenu();
+      return;
+    }
+
+    if (activeAuthorTrigger) {
+      activeAuthorTrigger.setAttribute("aria-expanded", "false");
+    }
+    activeAuthorTrigger = trigger;
+    trigger.setAttribute("aria-expanded", "true");
+    renderAuthorMenuLoading(author);
+    menu.hidden = false;
+    positionAuthorMenu(trigger);
+
+    const accountId = Number(author.authorAccountId);
+    try {
+      const params = new URLSearchParams();
+      const excludePostId = Number(author.postId);
+      if (Number.isSafeInteger(excludePostId) && excludePostId > 0) {
+        params.set("excludePostId", String(excludePostId));
+      }
+      const query = params.size > 0 ? `?${params.toString()}` : "";
+      const payload = await Api.get(
+        `/board/posts/authors/${encodeURIComponent(accountId)}/summary${query}`,
+      );
+      const summary = payload.data;
+      if (activeAuthorTrigger !== trigger || menu.hidden) return;
+      renderAuthorMenuSummary(summary);
+      positionAuthorMenu(trigger);
+    } catch (error) {
+      if (activeAuthorTrigger !== trigger || menu.hidden) return;
+      renderAuthorMenuError(error.message);
+      positionAuthorMenu(trigger);
+    }
+  }
+
+  function enableAuthorMenu(trigger, author) {
+    trigger.classList.add("author-nickname--interactive");
+    trigger.tabIndex = 0;
+    trigger.setAttribute("role", "button");
+    trigger.setAttribute("aria-haspopup", "dialog");
+    trigger.setAttribute("aria-controls", "board-author-menu");
+    trigger.setAttribute("aria-expanded", "false");
+    trigger.addEventListener("click", (event) => {
+      openAuthorMenu(author, trigger, event);
+    });
+    trigger.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter" && event.key !== " ") return;
+      openAuthorMenu(author, trigger, event);
+    });
+  }
+
+  function authorIdentity(
+    author,
+    { showNickname = true, showAuthorMenu = false } = {},
+  ) {
     const wrapper = element("span", "author-identity");
-    const loginLabel = author?.authorLoginId
-      ? `@${author.authorLoginId}`
-      : "소셜 계정";
-    wrapper.append(element("strong", "author-login-id", loginLabel));
+    if (!author?.authorLoginId) {
+      wrapper.append(element("strong", "author-login-id", "소셜 계정"));
+    }
     if (showNickname && author?.authorNickname) {
-      wrapper.append(element("span", "author-nickname", author.authorNickname));
+      const nickname = element("span", "author-nickname", author.authorNickname);
+      if (showAuthorMenu && author.authorAccountId) {
+        enableAuthorMenu(nickname, author);
+      }
+      wrapper.append(nickname);
     }
     wrapper.append(
       element("span", roleClass(author?.authorRole), roleLabel(author?.authorRole)),
     );
     return wrapper;
+  }
+
+  async function canUseBusinessBoard() {
+    const session = window.FooduckSession;
+    if (!session?.authenticated) return false;
+    if (session.canManageBusiness || session.isAdmin) return true;
+
+    const cached = readCacheEntry("access:business");
+    if (cached?.fresh) return Boolean(cached.data);
+
+    if (!businessAccessPromise) {
+      businessAccessPromise = Api.get("/board/posts/business-access")
+        .then((payload) => {
+          const allowed = Boolean(payload?.data);
+          writeCacheEntry("access:business", allowed);
+          return allowed;
+        })
+        .catch(() => false);
+    }
+    return businessAccessPromise;
   }
 
   function detailPath(postId) {
@@ -123,17 +481,21 @@
 
   window.FooduckBoard = {
     authorIdentity,
+    canUseBusinessBoard,
     categoryLabel,
     detailPath,
     element,
     formatDate,
     icon,
+    invalidateBoardCache,
     listPath,
     mapHref,
+    readBoardCache,
     readPostId,
     requireLogin,
     roleLabel,
     showToast,
+    writeBoardCache,
     writePath,
   };
 })();

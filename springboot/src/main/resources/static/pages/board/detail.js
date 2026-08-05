@@ -25,8 +25,11 @@
     detailPath,
     element,
     formatDate,
+    invalidateBoardCache,
     mapHref,
+    readBoardCache,
     showToast,
+    writeBoardCache,
   } = board;
 
   function actionButton(label, className, handler) {
@@ -89,16 +92,28 @@
 
   async function loadRelatedPosts() {
     if (!relatedPostList) return;
-    relatedPostList.replaceChildren(
-      element("li", "best-loading", "불러오는 중"),
-    );
-    try {
-      const payload = await Api.get(`/board/posts/${postId}/related?size=5`);
-      renderRelatedPosts(payload.data || []);
-    } catch (error) {
+    const path = `/board/posts/${postId}/related?size=5`;
+    const cached = readBoardCache(path);
+    if (cached) {
+      renderRelatedPosts(cached.data || []);
+      if (cached.fresh) return;
+    } else {
       relatedPostList.replaceChildren(
-        element("li", "best-loading", error.message || "불러오지 못했습니다."),
+        element("li", "best-loading", "불러오는 중"),
       );
+    }
+
+    try {
+      const payload = await Api.get(path);
+      const posts = payload.data || [];
+      writeBoardCache(path, posts);
+      renderRelatedPosts(posts);
+    } catch (error) {
+      if (!cached) {
+        relatedPostList.replaceChildren(
+          element("li", "best-loading", error.message || "불러오지 못했습니다."),
+        );
+      }
     }
   }
 
@@ -124,7 +139,7 @@
 
     const meta = element("div", "detail-meta");
     meta.append(
-      authorIdentity(post),
+      authorIdentity(post, { showAuthorMenu: true }),
       element("span", "", formatDate(post.createdAt)),
       element("span", "", `조회 ${post.viewCount || 0}`),
       element("span", "", `추천 ${post.likeCount || 0}`),
@@ -185,12 +200,30 @@
     detailContent.append(wrapper);
   }
 
+  async function loadPost() {
+    const path = `/board/posts/${postId}`;
+    const cached = readBoardCache(path);
+    if (cached?.data) {
+      renderPost(cached.data);
+      if (cached.fresh) return;
+    }
+
+    try {
+      const payload = await Api.get(path);
+      writeBoardCache(path, payload.data);
+      renderPost(payload.data);
+    } catch (error) {
+      if (!cached?.data) throw error;
+    }
+  }
+
   async function toggleLike() {
     if (!board.requireLogin(window.location.pathname + window.location.search)) return;
     try {
       const payload = state.post.likedByCurrentUser
         ? await Api.delete(`/board/posts/${postId}/like`)
         : await Api.post(`/board/posts/${postId}/like`, {});
+      invalidateBoardCache();
       renderPost({
         ...state.post,
         likedByCurrentUser: payload.data.liked,
@@ -206,6 +239,7 @@
     if (!window.confirm("게시글과 연결된 댓글·추천을 삭제하시겠습니까?")) return;
     try {
       const payload = await Api.delete(`/board/posts/${postId}`);
+      invalidateBoardCache();
       window.alert(payload.message);
       window.location.assign(board.listPath(state.post.boardType));
     } catch (error) {
@@ -227,7 +261,7 @@
       const item = element("article", "comment-item");
       const top = element("div", "comment-top");
       top.append(
-        authorIdentity(comment),
+        authorIdentity(comment, { showAuthorMenu: true }),
         element("span", "comment-date", formatDate(comment.createdAt)),
       );
       item.append(top, element("div", "comment-content", comment.content));
@@ -244,8 +278,21 @@
   }
 
   async function loadComments() {
-    const payload = await Api.get(`/board/posts/${postId}/comments?page=0&size=30`);
-    renderComments(payload.data || {});
+    const path = `/board/posts/${postId}/comments?page=0&size=30`;
+    const cached = readBoardCache(path);
+    if (cached) {
+      renderComments(cached.data || {});
+      if (cached.fresh) return;
+    }
+
+    try {
+      const payload = await Api.get(path);
+      const pageData = payload.data || {};
+      writeBoardCache(path, pageData);
+      renderComments(pageData);
+    } catch (error) {
+      if (!cached) throw error;
+    }
   }
 
   async function editComment(comment) {
@@ -259,6 +306,7 @@
       const payload = await Api.put(`/board/comments/${comment.commentId}`, {
         content: content.trim(),
       });
+      invalidateBoardCache();
       showToast(toast, payload.message);
       await loadComments();
     } catch (error) {
@@ -270,6 +318,7 @@
     if (!window.confirm("댓글을 삭제하시겠습니까?")) return;
     try {
       const payload = await Api.delete(`/board/comments/${comment.commentId}`);
+      invalidateBoardCache();
       showToast(toast, payload.message);
       await loadComments();
     } catch (error) {
@@ -287,6 +336,7 @@
     }
     try {
       const payload = await Api.post(`/board/posts/${postId}/comments`, { content });
+      invalidateBoardCache();
       commentContent.value = "";
       showToast(toast, payload.message);
       await loadComments();
@@ -309,13 +359,11 @@
       return;
     }
     try {
-      const [postPayload, commentPayload] = await Promise.all([
-        Api.get(`/board/posts/${postId}`),
-        Api.get(`/board/posts/${postId}/comments?page=0&size=30`),
+      await Promise.all([
+        loadPost(),
+        loadComments(),
+        loadRelatedPosts(),
       ]);
-      renderPost(postPayload.data);
-      renderComments(commentPayload.data || {});
-      await loadRelatedPosts();
     } catch (error) {
       renderPostError(error.message);
       commentForm.hidden = true;

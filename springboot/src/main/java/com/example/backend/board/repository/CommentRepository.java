@@ -1,7 +1,9 @@
 package com.example.backend.board.repository;
 
 import com.example.backend.board.domain.entity.Comment;
+import com.example.backend.board.domain.type.BoardType;
 import com.example.backend.board.domain.type.CommentStatus;
+import com.example.backend.board.domain.type.PostStatus;
 import jakarta.persistence.LockModeType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -16,6 +18,41 @@ import java.util.List;
 import java.util.Optional;
 
 public interface CommentRepository extends JpaRepository<Comment, Long> {
+
+    @Query("""
+            select count(c)
+            from Comment c
+            where c.author.accountId = :accountId
+              and c.status = :commentStatus
+              and c.post.status = :postStatus
+              and (:boardType is null or c.post.boardType = :boardType)
+            """)
+    long countActiveCommentsByAuthor(
+            @Param("accountId") Long accountId,
+            @Param("commentStatus") CommentStatus commentStatus,
+            @Param("postStatus") PostStatus postStatus,
+            @Param("boardType") BoardType boardType
+    );
+
+    @Query("""
+            select c
+            from Comment c
+            join fetch c.post p
+            where c.author.accountId = :accountId
+              and c.status = :commentStatus
+              and p.status = :postStatus
+              and (:boardType is null or p.boardType = :boardType)
+              and (:excludedPostId is null or p.postId <> :excludedPostId)
+            order by c.createdAt desc, c.commentId desc
+            """)
+    List<Comment> findRecentActiveCommentsByAuthor(
+            @Param("accountId") Long accountId,
+            @Param("commentStatus") CommentStatus commentStatus,
+            @Param("postStatus") PostStatus postStatus,
+            @Param("boardType") BoardType boardType,
+            @Param("excludedPostId") Long excludedPostId,
+            Pageable pageable
+    );
 
     boolean existsByPostPostIdAndAuthorAccountIdAndContentAndCreatedAtAfter(
             Long postId,

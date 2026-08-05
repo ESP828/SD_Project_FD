@@ -6,9 +6,9 @@
     ? requestedValue
     : "GENERAL";
   const initialBoardType = requestedBoardType === "BUSINESS"
-    && !session?.canManageBusiness
     ? "GENERAL"
     : requestedBoardType;
+  let businessAccessAllowed = Boolean(session?.canManageBusiness);
   const state = {
     boardType: initialBoardType,
     lastBoardType: initialBoardType === "BUSINESS" ? "BUSINESS" : "GENERAL",
@@ -38,8 +38,16 @@
     return;
   }
 
-  const { authorIdentity, categoryLabel, detailPath, element, formatDate, icon } =
-    board;
+  const {
+    authorIdentity,
+    categoryLabel,
+    detailPath,
+    element,
+    formatDate,
+    icon,
+    readBoardCache,
+    writeBoardCache,
+  } = board;
 
   function renderLoading() {
     boardList.replaceChildren();
@@ -67,7 +75,8 @@
   }
 
   function createPostRow(post, index = 0) {
-    const article = element("a", "post-row");
+    const isNotice = post.category === "NOTICE";
+    const article = element("a", isNotice ? "post-row post-row--notice" : "post-row");
     article.href = state.boardType === "BEST"
       ? `${detailPath(post.postId)}&from=BEST`
       : detailPath(post.postId);
@@ -79,7 +88,13 @@
       const rank = state.page * state.size + index + 1;
       badges.append(element("span", "post-badge", `베스트 ${rank}위`));
     }
-    badges.append(element("span", "post-badge", categoryLabel(post.category)));
+    badges.append(
+      element(
+        "span",
+        isNotice ? "post-badge post-badge--notice" : "post-badge",
+        isNotice ? "공지 · 상단 고정" : categoryLabel(post.category),
+      ),
+    );
     if (state.boardType === "BEST" || post.boardType === "BUSINESS") {
       badges.append(
         element(
@@ -97,7 +112,7 @@
 
     const meta = element("div", "post-meta");
     meta.append(
-      authorIdentity(post),
+      authorIdentity(post, { showAuthorMenu: true }),
       element(
         "span",
         "",
@@ -198,7 +213,6 @@
   }
 
   async function loadPosts() {
-    renderLoading();
     const params = new URLSearchParams({
       page: String(state.page),
       size: String(state.size),
@@ -211,14 +225,24 @@
       if (state.keyword) params.set("keyword", state.keyword);
     }
 
+    const path = isBest
+      ? `/board/posts/best/community?${params.toString()}`
+      : `/board/posts?${params.toString()}`;
+    const cached = readBoardCache(path);
+    if (cached) {
+      renderPosts(cached.data || {});
+      if (cached.fresh) return;
+    } else {
+      renderLoading();
+    }
+
     try {
-      const path = isBest
-        ? `/board/posts/best/community?${params.toString()}`
-        : `/board/posts?${params.toString()}`;
       const payload = await Api.get(path);
-      renderPosts(payload.data || {});
+      const pageData = payload.data || {};
+      writeBoardCache(path, pageData);
+      renderPosts(pageData);
     } catch (error) {
-      renderListError(error);
+      if (!cached) renderListError(error);
     }
   }
 
@@ -252,18 +276,30 @@
     const isBest = state.boardType === "BEST";
     if (bestPostPanel) bestPostPanel.hidden = isBest;
     if (isBest) return;
-    bestPostList.replaceChildren(element("li", "best-loading", "불러오는 중"));
+    const params = new URLSearchParams({
+      boardType: state.boardType,
+      size: "3",
+    });
+    const path = `/board/posts/best?${params.toString()}`;
+    const cached = readBoardCache(path);
+    if (cached) {
+      renderBestPosts(cached.data || []);
+      if (cached.fresh) return;
+    } else {
+      bestPostList.replaceChildren(element("li", "best-loading", "불러오는 중"));
+    }
+
     try {
-      const params = new URLSearchParams({
-        boardType: state.boardType,
-        size: "3",
-      });
-      const payload = await Api.get(`/board/posts/best?${params.toString()}`);
-      renderBestPosts(payload.data || []);
+      const payload = await Api.get(path);
+      const posts = payload.data || [];
+      writeBoardCache(path, posts);
+      renderBestPosts(posts);
     } catch (error) {
-      bestPostList.replaceChildren(
-        element("li", "best-loading", error.message || "불러오지 못했습니다."),
-      );
+      if (!cached) {
+        bestPostList.replaceChildren(
+          element("li", "best-loading", error.message || "불러오지 못했습니다."),
+        );
+      }
     }
   }
 
@@ -297,7 +333,7 @@
       link.append(element("span", "best-rank", "Q"));
       const copy = element("span", "best-copy");
       const author = post.authorNickname
-        || (post.authorLoginId ? `@${post.authorLoginId}` : "작성자 정보 없음");
+        || (!post.authorLoginId ? "소셜 계정" : "작성자 정보 없음");
       copy.append(
         element("strong", "", post.title),
         element("small", "", `${author} · ${formatWaitingDate(post.createdAt)}`),
@@ -310,25 +346,69 @@
 
   async function loadUnansweredPosts() {
     if (!unansweredPostList) return;
-    unansweredPostList.replaceChildren(
-      element("li", "best-loading", "불러오는 중"),
-    );
-    try {
-      const params = new URLSearchParams({
-        boardType: state.boardType === "BEST"
-          ? state.lastBoardType
-          : state.boardType,
-        size: "3",
-      });
-      const payload = await Api.get(
-        `/board/posts/unanswered?${params.toString()}`,
-      );
-      renderUnansweredPosts(payload.data || []);
-    } catch (error) {
+    const params = new URLSearchParams({
+      boardType: state.boardType === "BEST"
+        ? state.lastBoardType
+        : state.boardType,
+      size: "3",
+    });
+    const path = `/board/posts/unanswered?${params.toString()}`;
+    const cached = readBoardCache(path);
+    if (cached) {
+      renderUnansweredPosts(cached.data || []);
+      if (cached.fresh) return;
+    } else {
       unansweredPostList.replaceChildren(
-        element("li", "best-loading", error.message || "불러오지 못했습니다."),
+        element("li", "best-loading", "불러오는 중"),
       );
     }
+
+    try {
+      const payload = await Api.get(path);
+      const posts = payload.data || [];
+      writeBoardCache(path, posts);
+      renderUnansweredPosts(posts);
+    } catch (error) {
+      if (!cached) {
+        unansweredPostList.replaceChildren(
+          element("li", "best-loading", error.message || "불러오지 못했습니다."),
+        );
+      }
+    }
+  }
+
+  function loadBoardContent() {
+    return Promise.all([loadPosts(), loadBestPosts(), loadUnansweredPosts()]);
+  }
+
+  async function prefetchBusinessFirstPage() {
+    const params = new URLSearchParams({
+      page: "0",
+      size: String(state.size),
+      boardType: "BUSINESS",
+      sort: "LATEST",
+    });
+    const path = `/board/posts?${params.toString()}`;
+    const cached = readBoardCache(path);
+    if (cached?.fresh) return;
+
+    try {
+      const payload = await Api.get(path);
+      writeBoardCache(path, payload.data || {});
+    } catch (_error) {
+      // 사전 조회 실패는 현재 화면 로딩에 영향을 주지 않는다.
+    }
+  }
+
+  function scheduleBusinessPrefetch() {
+    const prefetch = () => {
+      prefetchBusinessFirstPage();
+    };
+    if (typeof window.requestIdleCallback === "function") {
+      window.requestIdleCallback(prefetch, { timeout: 2_000 });
+      return;
+    }
+    window.setTimeout(prefetch, 250);
   }
 
   function syncBoardNavigation() {
@@ -345,7 +425,7 @@
         : "일반 커뮤니티";
     searchForm.hidden = isBest;
     writeLinks.forEach((link) => {
-      link.hidden = isBest;
+      link.hidden = isBest && !session.isAdmin;
       link.href = board.writePath(state.lastBoardType);
     });
     window.history.replaceState(
@@ -361,14 +441,12 @@
 
   function switchBoard(boardType) {
     if (!["GENERAL", "BUSINESS", "BEST"].includes(boardType)) return;
-    if (boardType === "BUSINESS" && !session.canManageBusiness) return;
+    if (boardType === "BUSINESS" && !businessAccessAllowed) return;
     state.boardType = boardType;
     if (boardType !== "BEST") state.lastBoardType = boardType;
     state.page = 0;
     syncBoardNavigation();
-    loadPosts();
-    loadBestPosts();
-    loadUnansweredPosts();
+    loadBoardContent();
   }
 
   document.querySelectorAll("[data-board-type]").forEach((tab) => {
@@ -401,11 +479,24 @@
     });
   });
 
-  if (session.canManageBusiness) {
-    businessTab.hidden = false;
+  async function initializeBoard() {
+    const businessAccessPromise = board.canUseBusinessBoard().then((allowed) => {
+      businessAccessAllowed = allowed;
+      if (businessTab) businessTab.hidden = !businessAccessAllowed;
+      return allowed;
+    });
+
+    if (requestedBoardType === "BUSINESS" && await businessAccessPromise) {
+      state.boardType = "BUSINESS";
+      state.lastBoardType = "BUSINESS";
+    }
+
+    syncBoardNavigation();
+    await loadBoardContent();
+    if (await businessAccessPromise && state.boardType !== "BUSINESS") {
+      scheduleBusinessPrefetch();
+    }
   }
-  syncBoardNavigation();
-  loadPosts();
-  loadBestPosts();
-  loadUnansweredPosts();
+
+  initializeBoard();
 })();

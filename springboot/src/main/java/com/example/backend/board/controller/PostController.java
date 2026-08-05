@@ -56,6 +56,13 @@ public class PostController {
         ));
     }
 
+    @GetMapping("/business-access")
+    public ApiResponse<Boolean> canUseBusinessBoard(Authentication authentication) {
+        return ApiResponse.success(postService.canUseBusinessBoard(
+                BoardAuthentication.accountId(authentication)
+        ));
+    }
+
     @GetMapping("/best")
     public ApiResponse<List<PostListItemResponse>> getBestPosts(
             @RequestParam(required = false) String boardType,
@@ -91,6 +98,19 @@ public class PostController {
         return ApiResponse.success(postService.getUnansweredPosts(
                 boardType,
                 size,
+                BoardAuthentication.accountId(authentication)
+        ));
+    }
+
+    @GetMapping("/authors/{authorAccountId}/summary")
+    public ApiResponse<PostService.AuthorSummaryResponse> getAuthorSummary(
+            @PathVariable Long authorAccountId,
+            @RequestParam(required = false) Long excludePostId,
+            Authentication authentication
+    ) {
+        return ApiResponse.success(postService.getAuthorSummary(
+                authorAccountId,
+                excludePostId,
                 BoardAuthentication.accountId(authentication)
         ));
     }

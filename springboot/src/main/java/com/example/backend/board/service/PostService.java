@@ -45,6 +45,8 @@ public class PostService {
     private static final int MAX_PAGE_SIZE = 50;
     private static final int MAX_BEST_SIZE = 10;
     private static final int MAX_DISCOVERY_SIZE = 10;
+    private static final int MAX_AUTHOR_RECENT_POSTS = 5;
+    private static final int MAX_AUTHOR_RECENT_COMMENTS = 5;
     private static final int BEST_COMMUNITY_MINIMUM_LIKE_COUNT = 3;
     private static final Duration BEST_COMMUNITY_WINDOW = Duration.ofDays(7);
     private static final Duration RAPID_DUPLICATE_WINDOW =
@@ -85,6 +87,12 @@ public class PostService {
     }
 
     @Transactional(readOnly = true)
+    public boolean canUseBusinessBoard(Long currentAccountId) {
+        Account currentAccount = boardUserService.findOptional(currentAccountId);
+        return accessPolicy.isApprovedBusiness(currentAccount);
+    }
+
+    @Transactional(readOnly = true)
     public PostPageResponse getPosts(
             String boardTypeValue,
             String categoryValue,
@@ -112,6 +120,7 @@ public class PostService {
                     normalizedKeyword,
                     PostStatus.ACTIVE,
                     CommentStatus.ACTIVE,
+                    PostCategory.NOTICE,
                     PageRequest.of(page, size)
             );
         } else {
@@ -130,6 +139,7 @@ public class PostService {
                     category,
                     normalizedKeyword,
                     PostStatus.ACTIVE,
+                    PostCategory.NOTICE,
                     PageRequest.of(page, size, springSort)
             );
         }
@@ -249,6 +259,86 @@ public class PostService {
                 PageRequest.of(0, size)
         );
         return responseMapper.toListItems(posts, currentAccount);
+    }
+
+    @Transactional(readOnly = true)
+    public AuthorSummaryResponse getAuthorSummary(
+            Long authorAccountId,
+            Long excludePostId,
+            Long currentAccountId
+    ) {
+        validateId(authorAccountId, "작성자 계정");
+        if (excludePostId != null) {
+            validateId(excludePostId, "제외 게시글");
+        }
+        Account author = boardUserService.findOptional(authorAccountId);
+        if (author == null) {
+            throw new BoardException(
+                    HttpStatus.NOT_FOUND,
+                    "BOARD_AUTHOR_NOT_FOUND",
+                    "작성자 정보를 찾을 수 없습니다."
+            );
+        }
+        Account currentAccount = boardUserService.findOptional(currentAccountId);
+        BoardType readableBoardType = accessPolicy.isApprovedBusiness(currentAccount)
+                ? null
+                : BoardType.GENERAL;
+        List<AuthorRecentPostResponse> recentPosts = postRepository
+                .findRecentActivePostsByAuthor(
+                        authorAccountId,
+                        PostStatus.ACTIVE,
+                        readableBoardType,
+                        excludePostId,
+                        PageRequest.of(0, MAX_AUTHOR_RECENT_POSTS)
+                )
+                .stream()
+                .map(post -> new AuthorRecentPostResponse(
+                        post.getPostId(),
+                        post.getTitle(),
+                        post.getBoardType(),
+                        post.getCategory(),
+                        post.getCreatedAt()
+                ))
+                .toList();
+        List<AuthorRecentCommentResponse> recentComments = commentRepository
+                .findRecentActiveCommentsByAuthor(
+                        authorAccountId,
+                        CommentStatus.ACTIVE,
+                        PostStatus.ACTIVE,
+                        readableBoardType,
+                        excludePostId,
+                        PageRequest.of(0, MAX_AUTHOR_RECENT_COMMENTS)
+                )
+                .stream()
+                .map(comment -> new AuthorRecentCommentResponse(
+                        comment.getCommentId(),
+                        comment.getPost().getPostId(),
+                        comment.getPost().getTitle(),
+                        comment.getContent(),
+                        comment.getCreatedAt()
+                ))
+                .toList();
+
+        return new AuthorSummaryResponse(
+                author.getAccountId(),
+                author.getNickname(),
+                author.getLoginId() == null
+                        ? "소셜 계정"
+                        : "@" + author.getLoginId(),
+                postRepository.countActivePostsByAuthor(
+                        authorAccountId,
+                        PostStatus.ACTIVE,
+                        readableBoardType
+                ),
+                commentRepository.countActiveCommentsByAuthor(
+                        authorAccountId,
+                        CommentStatus.ACTIVE,
+                        PostStatus.ACTIVE,
+                        readableBoardType
+                ),
+                recentPosts,
+                recentComments
+        );
     }
 
     @Transactional
@@ -590,6 +680,39 @@ public class PostService {
     private record PostSubmissionKey(
             Long accountId,
             String content
+    ) {
+    }
+
+    public record AuthorSummaryResponse(
+            Long accountId,
+            String nickname,
+            String accountLabel,
+            long postCount,
+            long commentCount,
+            List<AuthorRecentPostResponse> recentPosts,
+            List<AuthorRecentCommentResponse> recentComments
+    ) {
+        public AuthorSummaryResponse {
+            recentPosts = List.copyOf(recentPosts);
+            recentComments = List.copyOf(recentComments);
+        }
+    }
+
+    public record AuthorRecentPostResponse(
+            Long postId,
+            String title,
+            BoardType boardType,
+            PostCategory category,
+            LocalDateTime createdAt
+    ) {
+    }
+
+    public record AuthorRecentCommentResponse(
+            Long commentId,
+            Long postId,
+            String postTitle,
+            String content,
+            LocalDateTime createdAt
     ) {
     }
 }

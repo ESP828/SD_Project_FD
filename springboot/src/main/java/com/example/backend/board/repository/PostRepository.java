@@ -20,6 +20,37 @@ import java.util.Optional;
 
 public interface PostRepository extends JpaRepository<Post, Long> {
 
+    @Query("""
+            select count(p)
+            from Post p
+            where p.author.accountId = :accountId
+              and p.status = :status
+              and (:boardType is null or p.boardType = :boardType)
+            """)
+    long countActivePostsByAuthor(
+            @Param("accountId") Long accountId,
+            @Param("status") PostStatus status,
+            @Param("boardType") BoardType boardType
+    );
+
+    @Query("""
+            select p
+            from Post p
+            join fetch p.author
+            where p.author.accountId = :accountId
+              and p.status = :status
+              and (:boardType is null or p.boardType = :boardType)
+              and (:excludedPostId is null or p.postId <> :excludedPostId)
+            order by p.createdAt desc, p.postId desc
+            """)
+    List<Post> findRecentActivePostsByAuthor(
+            @Param("accountId") Long accountId,
+            @Param("status") PostStatus status,
+            @Param("boardType") BoardType boardType,
+            @Param("excludedPostId") Long excludedPostId,
+            Pageable pageable
+    );
+
     boolean existsByAuthorAccountIdAndContentAndCreatedAtAfter(
             Long accountId,
             String content,
@@ -39,6 +70,7 @@ public interface PostRepository extends JpaRepository<Post, Long> {
                     or lower(p.content) like lower(concat('%', :keyword, '%'))
                     or lower(a.nickname) like lower(concat('%', :keyword, '%'))
               )
+            order by case when p.category = :noticeCategory then 0 else 1 end
             """,
             countQuery = """
             select count(p)
@@ -59,6 +91,7 @@ public interface PostRepository extends JpaRepository<Post, Long> {
             @Param("category") PostCategory category,
             @Param("keyword") String keyword,
             @Param("status") PostStatus status,
+            @Param("noticeCategory") PostCategory noticeCategory,
             Pageable pageable
     );
 
@@ -75,7 +108,8 @@ public interface PostRepository extends JpaRepository<Post, Long> {
                     or lower(p.content) like lower(concat('%', :keyword, '%'))
                     or lower(a.nickname) like lower(concat('%', :keyword, '%'))
               )
-            order by (
+            order by case when p.category = :noticeCategory then 0 else 1 end,
+            (
                 select count(c)
                 from Comment c
                 where c.post = p
@@ -102,6 +136,7 @@ public interface PostRepository extends JpaRepository<Post, Long> {
             @Param("keyword") String keyword,
             @Param("postStatus") PostStatus postStatus,
             @Param("commentStatus") CommentStatus commentStatus,
+            @Param("noticeCategory") PostCategory noticeCategory,
             Pageable pageable
     );
 
