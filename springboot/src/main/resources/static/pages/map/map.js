@@ -197,18 +197,16 @@ function createResultRow(place, index, markerEntry) {
   });
   body.append(selectButton);
 
-  if (place.place_url?.startsWith("http")) {
+  if (place.place_url) {
     const detailLink = document.createElement("a");
     detailLink.className = "place-result-link";
     detailLink.href = place.place_url;
-    detailLink.target = "_blank";
-    detailLink.rel = "noopener noreferrer";
-    detailLink.textContent = "카카오 장소 상세";
+    detailLink.textContent = "상세보기";
 
     const linkIcon = document.createElement("span");
     linkIcon.className = "material-symbols-rounded";
     linkIcon.setAttribute("aria-hidden", "true");
-    linkIcon.textContent = "open_in_new";
+    linkIcon.textContent = "arrow_forward";
     detailLink.append(linkIcon);
     body.append(detailLink);
   }
@@ -297,7 +295,7 @@ function toPlaceLike(item) {
     road_address_name: item.roadAddress || "",
     address_name: item.lotAddress || "",
     phone: "",
-    place_url: "",
+    place_url: `/pages/restaurant/detail.html?source=public&id=${item.id}`,
     y: item.lat,
     x: item.lon,
   };

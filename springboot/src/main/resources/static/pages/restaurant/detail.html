@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="푸드덕 가게 상세 정보">
+  <title>가게 정보 · 푸드덕</title>
+  <link rel="icon" href="/images/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/css/common.css">
+  <link rel="stylesheet" href="/pages/restaurant/detail.css">
+</head>
+<body>
+  <div data-site-header></div>
+
+  <main class="store-main">
+    <div id="store-loading" class="store-loading">
+      <span class="material-symbols-rounded" aria-hidden="true">progress_activity</span>
+      <strong>가게 정보를 불러오고 있습니다.</strong>
+    </div>
+
+    <div id="store-error" class="store-error" hidden>
+      <img src="/images/characters/error.png" alt="" aria-hidden="true">
+      <h2>가게 정보를 찾을 수 없습니다.</h2>
+      <p id="store-error-message">잠시 후 다시 시도해 주세요.</p>
+      <a class="button button-secondary" href="/pages/map/index.html">지도로 돌아가기</a>
+    </div>
+
+    <div id="store-content" hidden>
+      <section class="store-hero">
+        <div class="container store-hero-inner">
+          <button type="button" class="store-back" id="store-back-button">
+            <span class="material-symbols-rounded" aria-hidden="true">arrow_back</span>
+            이전
+          </button>
+
+          <div class="store-hero-badges" id="store-badges"></div>
+
+          <div class="store-hero-row">
+            <div>
+              <h1 id="store-name">-</h1>
+              <p class="store-address" id="store-address">-</p>
+            </div>
+            <button type="button" class="store-favorite-btn" id="store-favorite-btn" hidden aria-pressed="false" aria-label="찜하기">
+              <span class="material-symbols-rounded" aria-hidden="true">favorite</span>
+            </button>
+          </div>
+
+          <dl class="store-stats-row" id="store-stats-row"></dl>
+        </div>
+      </section>
+
+      <nav class="store-tabs" role="tablist" aria-label="가게 정보 탭">
+        <div class="container store-tabs-inner" id="store-tabs"></div>
+      </nav>
+
+      <section class="container store-body">
+        <div class="store-main-column">
+          <section id="tab-home" class="store-panel" role="tabpanel"></section>
+          <section id="tab-news" class="store-panel" role="tabpanel" hidden></section>
+          <section id="tab-menu" class="store-panel" role="tabpanel" hidden></section>
+          <section id="tab-review" class="store-panel" role="tabpanel" hidden></section>
+          <section id="tab-info" class="store-panel" role="tabpanel" hidden></section>
+        </div>
+
+        <aside class="store-side-column">
+          <div class="store-info-card">
+            <h3>기본 정보</h3>
+            <dl id="store-basic-info" class="store-basic-info"></dl>
+          </div>
+          <p id="store-source-note" class="store-source-note"></p>
+        </aside>
+      </section>
+    </div>
+  </main>
+
+  <div data-site-footer></div>
+
+  <script src="/js/api.js"></script>
+  <script src="/js/common.js"></script>
+  <script src="/pages/restaurant/detail.js"></script>
+</body>
+</html>
