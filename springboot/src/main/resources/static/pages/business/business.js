@@ -51,6 +51,7 @@
       businessName: state.form.elements.businessName.value.trim(),
       businessNumber: state.form.elements.businessNumber.value.trim(),
       representativeName: state.form.elements.representativeName.value.trim(),
+      openedAt: state.form.elements.openedAt.value,
       contact: state.form.elements.contact.value.trim(),
       reason: state.form.elements.reason.value.trim(),
     };

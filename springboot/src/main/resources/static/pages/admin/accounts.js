@@ -46,15 +46,21 @@
 
   function renderRows() {
     if (currentAccounts.length === 0) {
-      tableBody.innerHTML = '<tr><td colspan="8" class="accounts-empty">조건에 맞는 계정이 없습니다.</td></tr>';
+      tableBody.innerHTML = '<tr><td colspan="7" class="accounts-empty">조건에 맞는 계정이 없습니다.</td></tr>';
       return;
     }
     tableBody.innerHTML = currentAccounts.map((account) => {
       const displayId = escapeHtml(account.loginId || "소셜 계정");
       const nickname = escapeHtml(account.nickname);
-      const actionButton = isDeleteMode
-        ? `<button type="button" class="button button-sm accounts-delete-btn" data-delete="${account.accountId}" data-display-id="${displayId}">삭제</button>`
-        : `<button type="button" class="button button-secondary button-sm" data-edit="${account.accountId}" data-role="${account.role}" data-status="${account.status}" data-display-id="${displayId}">수정</button>`;
+      const isAdminAccount = account.role === "ROLE_ADMIN";
+      let actionButton;
+      if (isAdminAccount) {
+        actionButton = '<span class="accounts-admin-locked">관리자 계정</span>';
+      } else if (isDeleteMode) {
+        actionButton = `<button type="button" class="button button-sm accounts-delete-btn" data-delete="${account.accountId}" data-display-id="${displayId}">삭제</button>`;
+      } else {
+        actionButton = `<button type="button" class="button button-secondary button-sm" data-edit="${account.accountId}" data-role="${account.role}" data-status="${account.status}" data-display-id="${displayId}">수정</button>`;
+      }
       return `
       <tr data-account-id="${account.accountId}">
         <td>${displayId}</td>
@@ -63,7 +69,6 @@
         <td><span class="accounts-badge accounts-badge--role-${account.role}">${escapeHtml(account.roleLabel)}</span></td>
         <td><span class="accounts-badge accounts-badge--status-${account.status}">${STATUS_LABELS[account.status] || account.status}</span></td>
         <td>${formatDate(account.createdAt)}</td>
-        <td>${formatDate(account.lastLoginAt)}</td>
         <td class="accounts-actions">${actionButton}</td>
       </tr>
       `;
@@ -71,7 +76,7 @@
   }
 
   async function loadAccounts() {
-    tableBody.innerHTML = '<tr><td colspan="8" class="accounts-loading">불러오는 중...</td></tr>';
+    tableBody.innerHTML = '<tr><td colspan="7" class="accounts-loading">불러오는 중...</td></tr>';
     try {
       const params = new URLSearchParams();
       if (searchInput.value.trim()) params.set("keyword", searchInput.value.trim());
@@ -81,7 +86,7 @@
       renderRows();
       countLabel.textContent = `총 ${currentAccounts.length}명`;
     } catch (error) {
-      tableBody.innerHTML = `<tr><td colspan="8" class="accounts-empty">${error.message || "계정 목록을 불러오지 못했습니다."}</td></tr>`;
+      tableBody.innerHTML = `<tr><td colspan="7" class="accounts-empty">${error.message || "계정 목록을 불러오지 못했습니다."}</td></tr>`;
       countLabel.textContent = "";
     }
   }

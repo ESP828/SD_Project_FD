@@ -7,29 +7,37 @@ import com.example.backend.auth.service.AuthorityService;
 import com.example.backend.business.domain.entity.BusinessApplication;
 import com.example.backend.business.dto.request.BusinessApplicationRequest;
 import com.example.backend.business.dto.response.BusinessApplicationResponse;
+import com.example.backend.business.integration.nts.NtsBusinessVerificationClient;
+import com.example.backend.business.policy.BusinessRegistrationNumberValidator;
 import com.example.backend.business.repository.BusinessApplicationRepository;
 import com.example.backend.global.exception.BusinessException;
 import com.example.backend.global.exception.ErrorCode;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 
 @Service
 public class BusinessApplicationService {
 
+    private static final DateTimeFormatter NTS_DATE_FORMAT = DateTimeFormatter.ofPattern("yyyyMMdd");
+
     private final BusinessApplicationRepository businessApplicationRepository;
     private final AccountRepository accountRepository;
     private final AuthorityService authorityService;
+    private final NtsBusinessVerificationClient ntsBusinessVerificationClient;
 
     public BusinessApplicationService(
             BusinessApplicationRepository businessApplicationRepository,
             AccountRepository accountRepository,
-            AuthorityService authorityService
+            AuthorityService authorityService,
+            NtsBusinessVerificationClient ntsBusinessVerificationClient
     ) {
         this.businessApplicationRepository = businessApplicationRepository;
         this.accountRepository = accountRepository;
         this.authorityService = authorityService;
+        this.ntsBusinessVerificationClient = ntsBusinessVerificationClient;
     }
 
     @Transactional
@@ -41,11 +49,28 @@ public class BusinessApplicationService {
             throw new BusinessException(ErrorCode.DATA_CONFLICT);
         }
 
+        String normalizedNumber = BusinessRegistrationNumberValidator.normalize(request.businessNumber());
+        if (!BusinessRegistrationNumberValidator.isValidChecksum(normalizedNumber)) {
+            throw new BusinessException(ErrorCode.INVALID_BUSINESS_NUMBER);
+        }
+
+        if (ntsBusinessVerificationClient.isConfigured()) {
+            boolean matched = ntsBusinessVerificationClient.verify(
+                    normalizedNumber,
+                    request.openedAt().format(NTS_DATE_FORMAT),
+                    request.representativeName()
+            );
+            if (!matched) {
+                throw new BusinessException(ErrorCode.BUSINESS_REGISTRATION_MISMATCH);
+            }
+        }
+
         BusinessApplication application = new BusinessApplication(
                 account,
                 request.businessName(),
-                request.businessNumber(),
+                normalizedNumber,
                 request.representativeName(),
+                request.openedAt(),
                 request.contact(),
                 request.reason()
         );

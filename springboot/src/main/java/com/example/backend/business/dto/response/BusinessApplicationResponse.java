@@ -3,6 +3,7 @@ package com.example.backend.business.dto.response;
 import com.example.backend.auth.domain.entity.Account;
 import com.example.backend.business.domain.entity.BusinessApplication;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 public record BusinessApplicationResponse(
@@ -12,6 +13,7 @@ public record BusinessApplicationResponse(
         String businessName,
         String businessNumber,
         String representativeName,
+        LocalDate openedAt,
         String contact,
         String reason,
         String status,
@@ -28,6 +30,7 @@ public record BusinessApplicationResponse(
                 application.getBusinessName(),
                 application.getBusinessNumber(),
                 application.getRepresentativeName(),
+                application.getOpenedAt(),
                 application.getContact(),
                 application.getReason(),
                 application.getStatus().name(),

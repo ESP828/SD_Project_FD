@@ -51,8 +51,15 @@ public class AdminAccountService {
         Account account = accountRepository.findById(targetAccountId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.ACCOUNT_NOT_FOUND));
 
+        if (authorityService.findCodes(targetAccountId).contains(AuthorityCode.ROLE_ADMIN.name())) {
+            throw new BusinessException(ErrorCode.ADMIN_ROLE_NOT_MANAGEABLE);
+        }
+
         AuthorityCode role = AuthorityCode.fromCode(request.role())
                 .orElseThrow(() -> new BusinessException(ErrorCode.INVALID_INPUT));
+        if (role == AuthorityCode.ROLE_ADMIN) {
+            throw new BusinessException(ErrorCode.ADMIN_ROLE_NOT_MANAGEABLE);
+        }
         authorityService.setRole(targetAccountId, role);
 
         AccountStatus status = parseStatus(request.status());
