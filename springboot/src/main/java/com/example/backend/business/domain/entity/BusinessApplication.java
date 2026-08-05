@@ -15,6 +15,7 @@ import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 @Entity
@@ -38,6 +39,9 @@ public class BusinessApplication {
 
     @Column(name = "representative_name", nullable = false, length = 50)
     private String representativeName;
+
+    @Column(name = "opened_at")
+    private LocalDate openedAt;
 
     @Column(nullable = false, length = 30)
     private String contact;
@@ -72,11 +76,12 @@ public class BusinessApplication {
     }
 
     public BusinessApplication(Account account, String businessName, String businessNumber,
-                              String representativeName, String contact, String reason) {
+                              String representativeName, LocalDate openedAt, String contact, String reason) {
         this.account = account;
         this.businessName = businessName;
         this.businessNumber = businessNumber;
         this.representativeName = representativeName;
+        this.openedAt = openedAt;
         this.contact = contact;
         this.reason = reason;
     }
@@ -136,6 +141,10 @@ public class BusinessApplication {
 
     public String getRepresentativeName() {
         return representativeName;
+    }
+
+    public LocalDate getOpenedAt() {
+        return openedAt;
     }
 
     public String getContact() {
