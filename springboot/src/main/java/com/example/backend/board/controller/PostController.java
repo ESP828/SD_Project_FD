@@ -95,6 +95,17 @@ public class PostController {
         ));
     }
 
+    @GetMapping("/authors/{authorAccountId}/summary")
+    public ApiResponse<PostService.AuthorSummaryResponse> getAuthorSummary(
+            @PathVariable Long authorAccountId,
+            Authentication authentication
+    ) {
+        return ApiResponse.success(postService.getAuthorSummary(
+                authorAccountId,
+                BoardAuthentication.accountId(authentication)
+        ));
+    }
+
     @GetMapping("/{postId}/related")
     public ApiResponse<List<PostListItemResponse>> getRelatedPosts(
             @PathVariable Long postId,

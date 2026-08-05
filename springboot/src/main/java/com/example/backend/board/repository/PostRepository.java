@@ -20,6 +20,19 @@ import java.util.Optional;
 
 public interface PostRepository extends JpaRepository<Post, Long> {
 
+    @Query("""
+            select count(p)
+            from Post p
+            where p.author.accountId = :accountId
+              and p.status = :status
+              and (:boardType is null or p.boardType = :boardType)
+            """)
+    long countActivePostsByAuthor(
+            @Param("accountId") Long accountId,
+            @Param("status") PostStatus status,
+            @Param("boardType") BoardType boardType
+    );
+
     boolean existsByAuthorAccountIdAndContentAndCreatedAtAfter(
             Long accountId,
             String content,

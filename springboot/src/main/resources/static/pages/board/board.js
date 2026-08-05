@@ -104,7 +104,7 @@
 
     const meta = element("div", "post-meta");
     meta.append(
-      authorIdentity(post),
+      authorIdentity(post, { showAuthorMenu: true }),
       element(
         "span",
         "",

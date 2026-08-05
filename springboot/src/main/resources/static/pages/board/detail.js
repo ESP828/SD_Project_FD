@@ -124,7 +124,7 @@
 
     const meta = element("div", "detail-meta");
     meta.append(
-      authorIdentity(post),
+      authorIdentity(post, { showAuthorMenu: true }),
       element("span", "", formatDate(post.createdAt)),
       element("span", "", `조회 ${post.viewCount || 0}`),
       element("span", "", `추천 ${post.likeCount || 0}`),

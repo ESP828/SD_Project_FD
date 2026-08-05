@@ -253,6 +253,42 @@ public class PostService {
         return responseMapper.toListItems(posts, currentAccount);
     }
 
+    @Transactional(readOnly = true)
+    public AuthorSummaryResponse getAuthorSummary(
+            Long authorAccountId,
+            Long currentAccountId
+    ) {
+        validateId(authorAccountId, "작성자 계정");
+        Account author = boardUserService.findOptional(authorAccountId);
+        if (author == null) {
+            throw new BoardException(
+                    HttpStatus.NOT_FOUND,
+                    "BOARD_AUTHOR_NOT_FOUND",
+                    "작성자 정보를 찾을 수 없습니다."
+            );
+        }
+        Account currentAccount = boardUserService.findOptional(currentAccountId);
+        BoardType readableBoardType = accessPolicy.isApprovedBusiness(currentAccount)
+                ? null
+                : BoardType.GENERAL;
+
+        return new AuthorSummaryResponse(
+                author.getAccountId(),
+                author.getNickname(),
+                postRepository.countActivePostsByAuthor(
+                        authorAccountId,
+                        PostStatus.ACTIVE,
+                        readableBoardType
+                ),
+                commentRepository.countActiveCommentsByAuthor(
+                        authorAccountId,
+                        CommentStatus.ACTIVE,
+                        PostStatus.ACTIVE,
+                        readableBoardType
+                )
+        );
+    }
+
     @Transactional
     public PostDetailResponse getPost(Long postId, Long currentAccountId) {
         Account currentAccount = boardUserService.findOptional(currentAccountId);
@@ -592,6 +628,14 @@ public class PostService {
     private record PostSubmissionKey(
             Long accountId,
             String content
+    ) {
+    }
+
+    public record AuthorSummaryResponse(
+            Long accountId,
+            String nickname,
+            long postCount,
+            long commentCount
     ) {
     }
 }
