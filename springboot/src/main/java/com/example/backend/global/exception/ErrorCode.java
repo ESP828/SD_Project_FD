@@ -17,6 +17,7 @@ public enum ErrorCode {
     ACCOUNT_UNAVAILABLE(HttpStatus.FORBIDDEN, "AUTH_ACCOUNT_UNAVAILABLE", "현재 로그인할 수 없는 계정입니다."),
     ACCOUNT_NOT_FOUND(HttpStatus.NOT_FOUND, "AUTH_ACCOUNT_NOT_FOUND", "일치하는 계정 정보를 찾을 수 없습니다."),
     ADMIN_SELF_ACTION_NOT_ALLOWED(HttpStatus.BAD_REQUEST, "ADMIN_SELF_ACTION_NOT_ALLOWED", "자기 자신의 계정은 변경할 수 없습니다."),
+    ADMIN_ROLE_NOT_MANAGEABLE(HttpStatus.BAD_REQUEST, "ADMIN_ROLE_NOT_MANAGEABLE", "관리자 권한은 이 화면에서 부여하거나 수정할 수 없습니다."),
     LOGIN_ID_NOT_AVAILABLE(HttpStatus.BAD_REQUEST, "AUTH_LOGIN_ID_NOT_AVAILABLE", "소셜 로그인으로 가입한 계정입니다. 소셜 로그인을 이용해 주세요."),
     INVALID_REFRESH_TOKEN(HttpStatus.UNAUTHORIZED, "AUTH_INVALID_REFRESH_TOKEN", "로그인이 만료되었습니다. 다시 로그인해 주세요."),
     SOCIAL_LINK_REQUIRED(HttpStatus.CONFLICT, "AUTH_SOCIAL_LINK_REQUIRED", "같은 이메일 계정이 있습니다. 기존 계정으로 로그인한 뒤 소셜 계정을 연결해 주세요."),
