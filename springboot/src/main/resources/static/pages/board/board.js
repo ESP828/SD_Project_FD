@@ -338,6 +338,11 @@
     }
   }
 
+  async function loadBoardContent() {
+    await loadPosts();
+    await Promise.all([loadBestPosts(), loadUnansweredPosts()]);
+  }
+
   function syncBoardNavigation() {
     const isBest = state.boardType === "BEST";
     document.querySelectorAll("[data-board-type]").forEach((tab) => {
@@ -373,9 +378,7 @@
     if (boardType !== "BEST") state.lastBoardType = boardType;
     state.page = 0;
     syncBoardNavigation();
-    loadPosts();
-    loadBestPosts();
-    loadUnansweredPosts();
+    loadBoardContent();
   }
 
   document.querySelectorAll("[data-board-type]").forEach((tab) => {
@@ -409,18 +412,19 @@
   });
 
   async function initializeBoard() {
-    businessAccessAllowed = await board.canUseBusinessBoard();
-    if (businessTab) businessTab.hidden = !businessAccessAllowed;
+    const businessAccessPromise = board.canUseBusinessBoard().then((allowed) => {
+      businessAccessAllowed = allowed;
+      if (businessTab) businessTab.hidden = !businessAccessAllowed;
+      return allowed;
+    });
 
-    if (requestedBoardType === "BUSINESS" && businessAccessAllowed) {
+    if (requestedBoardType === "BUSINESS" && await businessAccessPromise) {
       state.boardType = "BUSINESS";
       state.lastBoardType = "BUSINESS";
     }
 
     syncBoardNavigation();
-    loadPosts();
-    loadBestPosts();
-    loadUnansweredPosts();
+    await loadBoardContent();
   }
 
   initializeBoard();

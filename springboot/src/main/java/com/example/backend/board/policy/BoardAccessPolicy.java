@@ -5,6 +5,7 @@ import com.example.backend.board.domain.type.BoardType;
 import com.example.backend.board.domain.type.PostCategory;
 import com.example.backend.board.exception.BoardException;
 import com.example.backend.board.query.BoardReferenceQueryRepository;
+import com.example.backend.board.query.BoardReferenceQueryRepository.AuthorRoleReference;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 
@@ -15,6 +16,8 @@ public class BoardAccessPolicy {
 
     private static final String ROLE_BUSINESS = "ROLE_BUSINESS";
     private static final String ROLE_ADMIN = "ROLE_ADMIN";
+    private static final AuthorRoleReference DEFAULT_AUTHOR_ROLE =
+            new AuthorRoleReference(Set.of(), false);
 
     private final BoardReferenceQueryRepository referenceRepository;
 
@@ -31,24 +34,18 @@ public class BoardAccessPolicy {
         if (account == null) {
             return false;
         }
-        if (isAdmin(account)) {
-            return true;
-        }
-        return referenceRepository.hasAuthority(account.getAccountId(), ROLE_BUSINESS)
-                || referenceRepository.hasBusinessProfile(account.getAccountId());
+        AuthorRoleReference reference = findAuthorRoleReference(account.getAccountId());
+        return reference.authorityCodes().contains(ROLE_ADMIN)
+                || reference.authorityCodes().contains(ROLE_BUSINESS)
+                || reference.hasBusinessProfile();
     }
 
     public String displayRole(Account account) {
         if (account == null) {
             return "USER";
         }
-        Long accountId = account.getAccountId();
-        Set<String> authorityCodes =
-                referenceRepository.findAuthorityCodes(accountId);
-        boolean hasBusinessProfile = referenceRepository.findBusinessProfileAccountIds(
-                Set.of(accountId)
-        ).contains(accountId);
-        return displayRole(authorityCodes, hasBusinessProfile);
+        AuthorRoleReference reference = findAuthorRoleReference(account.getAccountId());
+        return displayRole(reference.authorityCodes(), reference.hasBusinessProfile());
     }
 
     public String displayRole(Set<String> authorityCodes, boolean hasBusinessProfile) {
@@ -151,6 +148,11 @@ public class BoardAccessPolicy {
                     "게시 공간 변경은 관리자만 할 수 있습니다."
             );
         }
+    }
+
+    private AuthorRoleReference findAuthorRoleReference(Long accountId) {
+        return referenceRepository.findAuthorRoleReferences(Set.of(accountId))
+                .getOrDefault(accountId, DEFAULT_AUTHOR_ROLE);
     }
 
     private BoardException badRequest(String message) {
