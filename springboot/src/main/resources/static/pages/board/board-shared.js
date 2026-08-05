@@ -158,7 +158,10 @@
       if (event.key === "Escape") closeAuthorMenu();
     });
     window.addEventListener("resize", closeAuthorMenu);
-    window.addEventListener("scroll", closeAuthorMenu, true);
+    window.addEventListener("scroll", (event) => {
+      if (event.target === authorMenu) return;
+      closeAuthorMenu();
+    }, true);
     return authorMenu;
   }
 
