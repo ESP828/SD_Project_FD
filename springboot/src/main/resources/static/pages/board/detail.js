@@ -2,8 +2,9 @@
   const session = window.FooduckSession;
   const board = window.FooduckBoard;
   const postId = board?.readPostId();
-  const fromBest =
-    new URLSearchParams(window.location.search).get("from") === "BEST";
+  const sourceView = new URLSearchParams(window.location.search).get("from");
+  const fromBest = sourceView === "BEST";
+  const fromPopular = sourceView === "POPULAR";
   const state = { post: null };
 
   const detailContent = document.getElementById("post-detail-content");
@@ -239,7 +240,9 @@
     document.title = `${post.title} · 푸드덕`;
     listLink.href = fromBest
       ? "/pages/board/index.html?boardType=BEST"
-      : board.listPath(post.boardType);
+      : fromPopular
+        ? "/pages/board/index.html?boardType=POPULAR"
+        : board.listPath(post.boardType);
     detailContent.replaceChildren();
 
     const badges = element("div", "detail-badges");

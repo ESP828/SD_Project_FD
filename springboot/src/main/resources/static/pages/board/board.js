@@ -2,7 +2,7 @@
   const session = window.FooduckSession;
   const board = window.FooduckBoard;
   const requestedValue = new URLSearchParams(window.location.search).get("boardType");
-  const requestedBoardType = ["BUSINESS", "BEST"].includes(requestedValue)
+  const requestedBoardType = ["BUSINESS", "BEST", "POPULAR"].includes(requestedValue)
     ? requestedValue
     : "GENERAL";
   const initialBoardType = requestedBoardType === "BUSINESS"
@@ -79,14 +79,19 @@
     const article = element("a", isNotice ? "post-row post-row--notice" : "post-row");
     article.href = state.boardType === "BEST"
       ? `${detailPath(post.postId)}&from=BEST`
-      : detailPath(post.postId);
+      : state.boardType === "POPULAR"
+        ? `${detailPath(post.postId)}&from=POPULAR`
+        : detailPath(post.postId);
     article.setAttribute("aria-label", `${post.title} 상세 보기`);
 
     const main = element("div", "post-row-main");
     const badges = element("div", "post-badge-row");
-    if (state.boardType === "BEST") {
-      const rank = state.page * state.size + index + 1;
-      badges.append(element("span", "post-badge", `베스트 ${rank}위`));
+    if (state.boardType === "BEST" || state.boardType === "POPULAR") {
+      const rank = state.boardType === "POPULAR"
+        ? index + 1
+        : state.page * state.size + index + 1;
+      const rankLabel = state.boardType === "POPULAR" ? "인기" : "베스트";
+      badges.append(element("span", "post-badge", `${rankLabel} ${rank}위`));
     }
     badges.append(
       element(
@@ -95,7 +100,7 @@
         isNotice ? "공지 · 상단 고정" : categoryLabel(post.category),
       ),
     );
-    if (state.boardType === "BEST" || post.boardType === "BUSINESS") {
+    if (["BEST", "POPULAR"].includes(state.boardType) || post.boardType === "BUSINESS") {
       badges.append(
         element(
           "span",
@@ -116,7 +121,7 @@
       element(
         "span",
         "",
-        state.boardType === "BEST"
+        ["BEST", "POPULAR"].includes(state.boardType)
           ? formatWaitingDate(post.createdAt)
           : formatDate(post.createdAt),
       ),
@@ -155,14 +160,18 @@
           "",
           state.boardType === "BEST"
             ? "아직 베스트 게시글이 없습니다."
-            : "아직 등록된 이야기가 없습니다.",
+            : state.boardType === "POPULAR"
+              ? "아직 인기 이야기가 없습니다."
+              : "아직 등록된 이야기가 없습니다.",
         ),
         element(
           "span",
           "",
           state.boardType === "BEST"
             ? "최근 7일 안에 추천을 3개 이상 받은 글이 여기에 표시됩니다."
-            : "첫 번째 맛집 이야기를 함께 나눠 보세요.",
+            : state.boardType === "POPULAR"
+              ? "추천이 쌓인 이야기가 순위에 따라 여기에 표시됩니다."
+              : "첫 번째 맛집 이야기를 함께 나눠 보세요.",
         ),
       );
       boardList.append(empty);
@@ -212,25 +221,48 @@
     document.querySelector(".board-content")?.scrollIntoView({ behavior: "smooth" });
   }
 
+  function normalizePostPage(data) {
+    if (state.boardType !== "POPULAR") {
+      return data || {};
+    }
+    const posts = Array.isArray(data) ? data : [];
+    return {
+      content: posts,
+      page: 0,
+      size: posts.length,
+      totalElements: posts.length,
+      totalPages: posts.length ? 1 : 0,
+      first: true,
+      last: true,
+    };
+  }
+
   async function loadPosts() {
-    const params = new URLSearchParams({
-      page: String(state.page),
-      size: String(state.size),
-    });
     const isBest = state.boardType === "BEST";
-    if (!isBest) {
-      params.set("boardType", state.boardType);
-      params.set("sort", state.sort);
-      if (state.category) params.set("category", state.category);
-      if (state.keyword) params.set("keyword", state.keyword);
+    const isPopular = state.boardType === "POPULAR";
+    const params = new URLSearchParams();
+
+    if (isPopular) {
+      params.set("size", "20");
+    } else {
+      params.set("page", String(state.page));
+      params.set("size", String(state.size));
+      if (!isBest) {
+        params.set("boardType", state.boardType);
+        params.set("sort", state.sort);
+        if (state.category) params.set("category", state.category);
+        if (state.keyword) params.set("keyword", state.keyword);
+      }
     }
 
-    const path = isBest
-      ? `/board/posts/best/community?${params.toString()}`
-      : `/board/posts?${params.toString()}`;
+    const path = isPopular
+      ? `/board/posts/popular?${params.toString()}`
+      : isBest
+        ? `/board/posts/best/community?${params.toString()}`
+        : `/board/posts?${params.toString()}`;
     const cached = readBoardCache(path);
     if (cached) {
-      renderPosts(cached.data || {});
+      renderPosts(normalizePostPage(cached.data));
       if (cached.fresh) return;
     } else {
       renderLoading();
@@ -238,9 +270,9 @@
 
     try {
       const payload = await Api.get(path);
-      const pageData = payload.data || {};
-      writeBoardCache(path, pageData);
-      renderPosts(pageData);
+      const data = payload.data || (isPopular ? [] : {});
+      writeBoardCache(path, data);
+      renderPosts(normalizePostPage(data));
     } catch (error) {
       if (!cached) renderListError(error);
     }
@@ -273,9 +305,9 @@
   }
 
   async function loadBestPosts() {
-    const isBest = state.boardType === "BEST";
-    if (bestPostPanel) bestPostPanel.hidden = isBest;
-    if (isBest) return;
+    const isRankedView = ["BEST", "POPULAR"].includes(state.boardType);
+    if (bestPostPanel) bestPostPanel.hidden = isRankedView;
+    if (isRankedView) return;
     const params = new URLSearchParams({
       boardType: state.boardType,
       size: "3",
@@ -347,7 +379,7 @@
   async function loadUnansweredPosts() {
     if (!unansweredPostList) return;
     const params = new URLSearchParams({
-      boardType: state.boardType === "BEST"
+      boardType: ["BEST", "POPULAR"].includes(state.boardType)
         ? state.lastBoardType
         : state.boardType,
       size: "3",
@@ -413,6 +445,8 @@
 
   function syncBoardNavigation() {
     const isBest = state.boardType === "BEST";
+    const isPopular = state.boardType === "POPULAR";
+    const isRankedView = isBest || isPopular;
     document.querySelectorAll("[data-board-type]").forEach((tab) => {
       const active = tab.dataset.boardType === state.boardType;
       tab.classList.toggle("is-active", active);
@@ -420,12 +454,14 @@
     });
     boardHeading.textContent = isBest
       ? "베스트 커뮤니티"
-      : state.boardType === "BUSINESS"
-        ? "사업자 커뮤니티"
-        : "일반 커뮤니티";
-    searchForm.hidden = isBest;
+      : isPopular
+        ? "인기 이야기"
+        : state.boardType === "BUSINESS"
+          ? "사업자 커뮤니티"
+          : "일반 커뮤니티";
+    searchForm.hidden = isRankedView;
     writeLinks.forEach((link) => {
-      link.hidden = isBest && !session.isAdmin;
+      link.hidden = isPopular || (isBest && !session.isAdmin);
       link.href = board.writePath(state.lastBoardType);
     });
     window.history.replaceState(
@@ -433,17 +469,21 @@
       "",
       isBest
         ? "/pages/board/index.html?boardType=BEST"
-        : state.boardType === "BUSINESS"
-          ? "/pages/board/index.html?boardType=BUSINESS"
-          : "/pages/board/index.html",
+        : isPopular
+          ? "/pages/board/index.html?boardType=POPULAR"
+          : state.boardType === "BUSINESS"
+            ? "/pages/board/index.html?boardType=BUSINESS"
+            : "/pages/board/index.html",
     );
   }
 
   function switchBoard(boardType) {
-    if (!["GENERAL", "BUSINESS", "BEST"].includes(boardType)) return;
+    if (!["GENERAL", "BUSINESS", "BEST", "POPULAR"].includes(boardType)) return;
     if (boardType === "BUSINESS" && !businessAccessAllowed) return;
     state.boardType = boardType;
-    if (boardType !== "BEST") state.lastBoardType = boardType;
+    if (["GENERAL", "BUSINESS"].includes(boardType)) {
+      state.lastBoardType = boardType;
+    }
     state.page = 0;
     syncBoardNavigation();
     loadBoardContent();

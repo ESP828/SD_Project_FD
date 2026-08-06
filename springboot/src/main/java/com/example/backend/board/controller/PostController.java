@@ -82,6 +82,17 @@ public class PostController {
         ));
     }
 
+    @GetMapping("/popular")
+    public ApiResponse<List<PostListItemResponse>> getPopularPosts(
+            @RequestParam(defaultValue = "20") int size,
+            Authentication authentication
+    ) {
+        return ApiResponse.success(postService.getPopularPosts(
+                size,
+                BoardAuthentication.accountId(authentication)
+        ));
+    }
+
     @GetMapping("/best/community")
     public ApiResponse<PostPageResponse> getBestPostPage(
             @RequestParam(defaultValue = "0") int page,

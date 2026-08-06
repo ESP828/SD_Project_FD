@@ -50,6 +50,8 @@ public class PostService {
 
     private static final int MAX_PAGE_SIZE = 50;
     private static final int MAX_BEST_SIZE = 10;
+    private static final int MIN_POPULAR_SIZE = 10;
+    private static final int MAX_POPULAR_SIZE = 20;
     private static final int MAX_DISCOVERY_SIZE = 10;
     private static final int MAX_AUTHOR_RECENT_POSTS = 5;
     private static final int MAX_AUTHOR_RECENT_COMMENTS = 5;
@@ -223,6 +225,32 @@ public class PostService {
         int safeWindowDays = Math.max(1, Math.min(bestWindowDays, 365));
         List<Post> posts = postRepository.findBestPosts(
                 boardType,
+                PostCategory.NOTICE,
+                LocalDateTime.now().minusDays(safeWindowDays),
+                PostStatus.ACTIVE,
+                PageRequest.of(0, size)
+        );
+        return responseMapper.toListItems(posts, currentAccount);
+    }
+
+    @Transactional(readOnly = true)
+    public List<PostListItemResponse> getPopularPosts(
+            int size,
+            Long currentAccountId
+    ) {
+        if (size < MIN_POPULAR_SIZE || size > MAX_POPULAR_SIZE) {
+            throw badRequest(
+                    "인기 이야기 개수는 " + MIN_POPULAR_SIZE + "~"
+                            + MAX_POPULAR_SIZE + " 사이여야 합니다."
+            );
+        }
+        Account currentAccount = boardUserService.findOptional(currentAccountId);
+        BoardType readableBoardType = accessPolicy.isApprovedBusiness(currentAccount)
+                ? null
+                : BoardType.GENERAL;
+        int safeWindowDays = Math.max(1, Math.min(bestWindowDays, 365));
+        List<Post> posts = postRepository.findBestPosts(
+                readableBoardType,
                 PostCategory.NOTICE,
                 LocalDateTime.now().minusDays(safeWindowDays),
                 PostStatus.ACTIVE,
