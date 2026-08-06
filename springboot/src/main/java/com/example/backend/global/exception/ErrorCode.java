@@ -52,6 +52,8 @@ OWNER_NOT_FOUND(
 ),
     INVALID_BUSINESS_NUMBER(HttpStatus.BAD_REQUEST, "BUSINESS_INVALID_NUMBER", "사업자등록번호 형식이 올바르지 않습니다."),
     BUSINESS_REGISTRATION_MISMATCH(HttpStatus.BAD_REQUEST, "BUSINESS_REGISTRATION_MISMATCH", "국세청에 등록된 사업자 정보와 일치하지 않습니다. 사업자등록번호·대표자명·개업일자를 확인해 주세요."),
+    REVIEW_ALREADY_EXISTS(HttpStatus.CONFLICT, "REVIEW_ALREADY_EXISTS", "이미 이 가게에 리뷰를 작성했습니다."),
+    RESTAURANT_NEWS_FORBIDDEN(HttpStatus.FORBIDDEN, "RESTAURANT_NEWS_FORBIDDEN", "가게 사장님만 소식을 등록할 수 있습니다."),
     RATE_LIMIT_EXCEEDED(HttpStatus.TOO_MANY_REQUESTS, "COMMON_RATE_LIMIT_EXCEEDED", "요청이 너무 많습니다. 잠시 후 다시 시도해 주세요."),
     INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "COMMON_INTERNAL_ERROR", "서버 처리 중 오류가 발생했습니다.");
 

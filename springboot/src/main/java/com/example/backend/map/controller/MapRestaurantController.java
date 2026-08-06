@@ -9,6 +9,8 @@ import com.example.backend.map.dto.response.PublicRestaurantSearchResponse;
 import com.example.backend.restaurant.domain.entity.PublicRestaurant;
 import com.example.backend.restaurant.repository.PublicRestaurantRepository;
 import com.example.backend.restaurant.repository.PublicRestaurantSpecifications;
+import com.example.backend.review.dto.response.ReviewResponse;
+import com.example.backend.review.service.ReviewService;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -48,9 +50,14 @@ public class MapRestaurantController {
     );
 
     private final PublicRestaurantRepository publicRestaurantRepository;
+    private final ReviewService reviewService;
 
-    public MapRestaurantController(PublicRestaurantRepository publicRestaurantRepository) {
+    public MapRestaurantController(
+            PublicRestaurantRepository publicRestaurantRepository,
+            ReviewService reviewService
+    ) {
         this.publicRestaurantRepository = publicRestaurantRepository;
+        this.reviewService = reviewService;
     }
 
     @GetMapping("/restaurants")
@@ -79,6 +86,11 @@ public class MapRestaurantController {
         PublicRestaurant restaurant = publicRestaurantRepository.findById(id)
                 .orElseThrow(() -> new BusinessException(ErrorCode.RESTAURANT_NOT_FOUND));
         return ApiResponse.success(PublicRestaurantDetailResponse.from(restaurant));
+    }
+
+    @GetMapping("/restaurants/{id}/reviews")
+    public ApiResponse<List<ReviewResponse>> getReviews(@PathVariable Long id) {
+        return ApiResponse.success(reviewService.getReviewsForPublicRestaurant(id));
     }
 
     @GetMapping("/restaurants/search")

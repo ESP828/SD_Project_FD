@@ -27,6 +27,7 @@ public record RestaurantDetailResponse(
         long favoriteCount,
         long menuCount,
         boolean favoritedByMe,
+        boolean isOwner,
         LocalDateTime createdAt
 ) {
     public static RestaurantDetailResponse of(
@@ -35,7 +36,8 @@ public record RestaurantDetailResponse(
             long reviewCount,
             long favoriteCount,
             long menuCount,
-            boolean favoritedByMe
+            boolean favoritedByMe,
+            boolean isOwner
     ) {
         return new RestaurantDetailResponse(
                 restaurant.getRestaurantId(),
@@ -55,6 +57,7 @@ public record RestaurantDetailResponse(
                 favoriteCount,
                 menuCount,
                 favoritedByMe,
+                isOwner,
                 restaurant.getCreatedAt()
         );
     }

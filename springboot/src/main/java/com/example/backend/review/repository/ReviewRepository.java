@@ -19,4 +19,22 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
 
     @Query("SELECT AVG(r.rating) FROM Review r WHERE r.restaurant.restaurantId = :restaurantId AND r.status = 'ACTIVE'")
     Double averageRatingByRestaurantId(@Param("restaurantId") Long restaurantId);
+
+    @Query("SELECT COUNT(r) > 0 FROM Review r WHERE r.restaurant.restaurantId = :restaurantId "
+            + "AND r.account.accountId = :accountId AND r.status = 'ACTIVE'")
+    boolean existsActiveByRestaurantIdAndAccountId(
+            @Param("restaurantId") Long restaurantId,
+            @Param("accountId") Long accountId
+    );
+
+    @Query("SELECT r FROM Review r WHERE r.publicRestaurant.publicRestaurantId = :publicRestaurantId AND r.status = 'ACTIVE' "
+            + "ORDER BY r.createdAt DESC")
+    List<Review> findActiveByPublicRestaurantId(@Param("publicRestaurantId") Long publicRestaurantId, Pageable pageable);
+
+    @Query("SELECT COUNT(r) > 0 FROM Review r WHERE r.publicRestaurant.publicRestaurantId = :publicRestaurantId "
+            + "AND r.account.accountId = :accountId AND r.status = 'ACTIVE'")
+    boolean existsActiveByPublicRestaurantIdAndAccountId(
+            @Param("publicRestaurantId") Long publicRestaurantId,
+            @Param("accountId") Long accountId
+    );
 }
