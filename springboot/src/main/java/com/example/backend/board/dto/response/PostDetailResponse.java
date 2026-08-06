@@ -4,6 +4,7 @@ import com.example.backend.board.domain.type.BoardType;
 import com.example.backend.board.domain.type.PostCategory;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 public record PostDetailResponse(
         Long postId,
@@ -23,6 +24,21 @@ public record PostDetailResponse(
         boolean likedByCurrentUser,
         boolean ownedByCurrentUser,
         LocalDateTime createdAt,
-        LocalDateTime updatedAt
+        LocalDateTime updatedAt,
+        List<MediaResponse> media
 ) {
+    public PostDetailResponse {
+        media = media == null ? List.of() : List.copyOf(media);
+    }
+
+    public record MediaResponse(
+            Long postMediaId,
+            String mediaType,
+            String mediaUrl,
+            String mimeType,
+            String originalName,
+            long fileSize,
+            int displayOrder
+    ) {
+    }
 }

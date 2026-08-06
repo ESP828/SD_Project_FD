@@ -9,7 +9,11 @@ import com.example.backend.board.dto.response.PostPageResponse;
 import com.example.backend.board.service.PostService;
 import com.example.backend.global.response.ApiResponse;
 import jakarta.validation.Valid;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -18,11 +22,13 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 @RestController
@@ -71,6 +77,17 @@ public class PostController {
     ) {
         return ApiResponse.success(postService.getBestPosts(
                 boardType,
+                size,
+                BoardAuthentication.accountId(authentication)
+        ));
+    }
+
+    @GetMapping("/popular")
+    public ApiResponse<List<PostListItemResponse>> getPopularPosts(
+            @RequestParam(defaultValue = "20") int size,
+            Authentication authentication
+    ) {
+        return ApiResponse.success(postService.getPopularPosts(
                 size,
                 BoardAuthentication.accountId(authentication)
         ));
@@ -126,6 +143,93 @@ public class PostController {
                 size,
                 BoardAuthentication.accountId(authentication)
         ));
+    }
+
+    @PostMapping(value = "/{postId}/media", consumes = MediaType.ALL_VALUE)
+    @ResponseStatus(HttpStatus.CREATED)
+    public ApiResponse<PostDetailResponse.MediaResponse> uploadMedia(
+            @PathVariable Long postId,
+            @RequestHeader("X-File-Name") String encodedFileName,
+            @RequestHeader(
+                    value = HttpHeaders.CONTENT_TYPE,
+                    required = false
+            ) String contentType,
+            @RequestBody byte[] mediaData,
+            Authentication authentication
+    ) {
+        return ApiResponse.success(
+                "첨부파일이 등록되었습니다.",
+                postService.uploadMedia(
+                        postId,
+                        encodedFileName,
+                        contentType,
+                        mediaData,
+                        BoardAuthentication.accountId(authentication)
+                )
+        );
+    }
+
+    @GetMapping("/media/{postMediaId}")
+    public ResponseEntity<byte[]> getMedia(
+            @PathVariable Long postMediaId,
+            @RequestHeader(
+                    value = HttpHeaders.RANGE,
+                    required = false
+            ) String range,
+            @RequestParam(defaultValue = "false") boolean download,
+            Authentication authentication
+    ) {
+        PostService.MediaDownload media = postService.getMedia(
+                postMediaId,
+                range,
+                download,
+                BoardAuthentication.accountId(authentication)
+        );
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(resolveMediaType(media.mimeType()));
+        headers.setContentLength(media.data().length);
+        headers.set(HttpHeaders.ACCEPT_RANGES, "bytes");
+        headers.setCacheControl("private, max-age=300");
+        headers.setContentDisposition(
+                (media.download()
+                        ? ContentDisposition.attachment()
+                        : ContentDisposition.inline())
+                        .filename(
+                                media.originalName(),
+                                StandardCharsets.UTF_8
+                        )
+                        .build()
+        );
+        if (media.partial()) {
+            headers.set(
+                    HttpHeaders.CONTENT_RANGE,
+                    "bytes " + media.start() + "-" + media.end()
+                            + "/" + media.totalSize()
+            );
+        }
+
+        return new ResponseEntity<>(
+                media.data(),
+                headers,
+                media.partial()
+                        ? HttpStatus.PARTIAL_CONTENT
+                        : HttpStatus.OK
+        );
+    }
+
+    @DeleteMapping("/{postId}/media/{postMediaId}")
+    public ApiResponse<Void> deleteMedia(
+            @PathVariable Long postId,
+            @PathVariable Long postMediaId,
+            Authentication authentication
+    ) {
+        postService.deleteMedia(
+                postId,
+                postMediaId,
+                BoardAuthentication.accountId(authentication)
+        );
+        return ApiResponse.success("첨부파일이 삭제되었습니다.", null);
     }
 
     @GetMapping("/{postId}")
@@ -216,6 +320,17 @@ public class PostController {
                         BoardAuthentication.accountId(authentication)
                 )
         );
+    }
+
+    private MediaType resolveMediaType(String mimeType) {
+        if (mimeType == null || mimeType.isBlank()) {
+            return MediaType.APPLICATION_OCTET_STREAM;
+        }
+        try {
+            return MediaType.parseMediaType(mimeType);
+        } catch (IllegalArgumentException exception) {
+            return MediaType.APPLICATION_OCTET_STREAM;
+        }
     }
 
     private ApiResponse<PostDetailResponse> update(

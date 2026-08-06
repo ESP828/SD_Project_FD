@@ -117,6 +117,18 @@ public class BoardResponseMapper {
         RestaurantSummaryResponse restaurant = post.getRestaurantId() == null
                 ? null
                 : referenceRepository.findRestaurant(post.getRestaurantId()).orElse(null);
+        List<PostDetailResponse.MediaResponse> media =
+                referenceRepository.findPostMedia(post.getPostId()).stream()
+                        .map(row -> new PostDetailResponse.MediaResponse(
+                                row.postMediaId(),
+                                row.mediaType(),
+                                row.mediaUrl(),
+                                row.mimeType(),
+                                row.originalName(),
+                                row.fileSize(),
+                                row.displayOrder()
+                        ))
+                        .toList();
         return new PostDetailResponse(
                 post.getPostId(),
                 post.getTitle(),
@@ -138,7 +150,8 @@ public class BoardResponseMapper {
                 isLiked(post, currentAccount),
                 isOwned(post.getAuthor(), currentAccount),
                 post.getCreatedAt(),
-                post.getUpdatedAt()
+                post.getUpdatedAt(),
+                media
         );
     }
 
