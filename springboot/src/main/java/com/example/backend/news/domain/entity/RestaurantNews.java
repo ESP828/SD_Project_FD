@@ -58,6 +58,18 @@ public class RestaurantNews {
     protected RestaurantNews() {
     }
 
+    private RestaurantNews(Restaurant restaurant, String title, String content, String imageUrl) {
+        this.restaurant = restaurant;
+        this.title = title;
+        this.content = content;
+        this.imageUrl = imageUrl;
+        this.status = Status.ACTIVE;
+    }
+
+    public static RestaurantNews create(Restaurant restaurant, String title, String content, String imageUrl) {
+        return new RestaurantNews(restaurant, title, content, imageUrl);
+    }
+
     @PrePersist
     void onCreate() {
         LocalDateTime now = LocalDateTime.now();
