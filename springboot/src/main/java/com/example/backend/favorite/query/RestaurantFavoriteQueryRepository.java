@@ -23,7 +23,10 @@ public class RestaurantFavoriteQueryRepository {
     }
 
     public void add(Long accountId, Long restaurantId) {
-        String sql = "insert into favorite (account_id, restaurant_id) values (:accountId, :restaurantId)";
+        String sql = """
+                insert into favorite (account_id, restaurant_id, created_at)
+                values (:accountId, :restaurantId, current_timestamp)
+                """;
         jdbcTemplate.update(sql, parameters(accountId, restaurantId));
     }
 

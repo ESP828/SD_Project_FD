@@ -83,6 +83,7 @@ class PostServiceTest {
                 eq(null),
                 eq(null),
                 eq(PostStatus.ACTIVE),
+                eq(PostCategory.NOTICE),
                 any(Pageable.class)
         )).thenReturn(new PageImpl<>(List.of()));
         when(responseMapper.toListItems(List.of(), null)).thenReturn(List.of());
@@ -103,6 +104,7 @@ class PostServiceTest {
                 eq(null),
                 eq(null),
                 eq(PostStatus.ACTIVE),
+                eq(PostCategory.NOTICE),
                 any(Pageable.class)
         );
     }
@@ -138,11 +140,10 @@ class PostServiceTest {
     }
 
     @Test
-    @DisplayName("게시글 삭제 시 댓글과 추천을 함께 정리한다")
-    void deletesConnectedBoardData() {
+    @DisplayName("게시글 삭제 시 연결 데이터와 함께 영구 삭제한다")
+    void deletesPostPermanently() {
         Account author = account(1L);
         Post post = post(10L, author);
-        ReflectionTestUtils.setField(post, "likeCount", 3);
         when(boardUserService.require(1L)).thenReturn(author);
         when(postRepository.findByPostIdAndStatusForUpdate(
                 10L,
@@ -151,15 +152,7 @@ class PostServiceTest {
 
         postService.deletePost(10L, 1L);
 
-        assertTrue(post.isDeleted());
-        assertEquals(0, post.getLikeCount());
-        verify(commentRepository).softDeleteAllByPostId(
-                eq(10L),
-                eq(CommentStatus.ACTIVE),
-                eq(CommentStatus.DELETED),
-                any(LocalDateTime.class)
-        );
-        verify(postLikeRepository).deleteAllByPostId(10L);
+        verify(postRepository).delete(post);
     }
 
     @Test

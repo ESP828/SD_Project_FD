@@ -19,7 +19,7 @@ public class FavoriteController {
         this.favoriteService = favoriteService;
     }
 
-    @PostMapping("/{restaurantId}/favorite")
+    @PostMapping("/{restaurantId}/favorite/toggle")
     public ApiResponse<Boolean> toggleFavorite(
             @PathVariable Long restaurantId,
             @AuthenticationPrincipal AuthenticatedAccount account

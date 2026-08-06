@@ -243,8 +243,11 @@
     favoriteBtn.addEventListener("click", async () => {
       favoriteBtn.disabled = true;
       try {
-        const response = await Api.post(`/restaurants/${storeId}/favorite`);
-        const favorited = Boolean(response.data);
+        const response = store.favoritedByMe
+          ? await Api.delete(`/restaurants/${storeId}/favorite`)
+          : await Api.post(`/restaurants/${storeId}/favorite`);
+        const favorited = Boolean(response.data?.favoriteByCurrentUser);
+        store.favoritedByMe = favorited;
         favoriteBtn.classList.toggle("is-favorited", favorited);
         favoriteBtn.setAttribute("aria-pressed", String(favorited));
       } catch (error) {

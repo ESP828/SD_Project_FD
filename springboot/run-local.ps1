@@ -26,6 +26,14 @@ Get-Content $envFile | ForEach-Object {
     [Environment]::SetEnvironmentVariable($key, $value, "Process")
 }
 
+# Maven이 기존 생성 산출물을 갱신할 수 있도록 target의 읽기 전용 속성만 해제한다.
+$targetDirectory = Join-Path $PSScriptRoot "target"
+if (Test-Path -LiteralPath $targetDirectory) {
+    Get-ChildItem -LiteralPath $targetDirectory -Recurse -Force -File |
+        Where-Object { $_.IsReadOnly } |
+        ForEach-Object { $_.IsReadOnly = $false }
+}
+
 Push-Location $PSScriptRoot
 & ".\mvnw.cmd" spring-boot:run
 $exitCode = $LASTEXITCODE
