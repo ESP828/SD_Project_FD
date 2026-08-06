@@ -4,7 +4,7 @@ import com.example.backend.restaurant.domain.entity.PublicRestaurant;
 import com.example.backend.restaurant.repository.PublicRestaurantRepository;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.stereotype.Component;
-
+import java.util.List;
 
 @Component
 public class DocumentTestRunner implements CommandLineRunner {
@@ -30,58 +30,21 @@ public class DocumentTestRunner implements CommandLineRunner {
 @Override
 public void run(String... args) {
 
-    System.out.println(
-            "PublicRestaurant 조회 시작"
-    );
+    List<PublicRestaurant> restaurants =
+            publicRestaurantRepository.findTop10By();
 
 
-    var restaurants =
-            publicRestaurantRepository.findAll();
-
-
-    System.out.println(
-            "조회 데이터 개수 : "
-            + restaurants.size()
-    );
-
-
-    PublicRestaurant restaurant =
-            restaurants.stream()
-                    .findFirst()
-                    .orElse(null);
-        if (restaurant == null) {
-
-            System.out.println(
-                    "테스트할 음식점 데이터가 없습니다."
-            );
-
-            return;
-        }
-
+    for(PublicRestaurant restaurant : restaurants){
 
         String document =
                 documentBuilder.build(restaurant);
 
 
-        System.out.println(
-                "============================"
-        );
-
-        System.out.println(
-                "AI DOCUMENT TEST"
-        );
-
-        System.out.println(
-                "============================"
-        );
-
-
+        System.out.println("=================");
         System.out.println(document);
+        System.out.println("=================");
 
-
-        System.out.println(
-                "============================"
-        );
+    }
 
     }
 
