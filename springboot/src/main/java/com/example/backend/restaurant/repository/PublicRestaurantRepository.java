@@ -14,7 +14,7 @@ import java.util.Optional;
 public interface PublicRestaurantRepository extends JpaRepository<PublicRestaurant, Long>, JpaSpecificationExecutor<PublicRestaurant> {
 
     Optional<PublicRestaurant> findByExternalStoreId(String externalStoreId);
-
+    List<PublicRestaurant> findTop10By();
     List<PublicRestaurant> findByLatitudeBetweenAndLongitudeBetween(
             BigDecimal minLatitude,
             BigDecimal maxLatitude,
