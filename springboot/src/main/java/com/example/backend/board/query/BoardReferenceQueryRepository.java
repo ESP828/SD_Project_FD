@@ -3,8 +3,11 @@ package com.example.backend.board.query;
 import com.example.backend.board.dto.response.RestaurantSummaryResponse;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
+import org.springframework.jdbc.support.GeneratedKeyHolder;
+import org.springframework.jdbc.support.KeyHolder;
 import org.springframework.stereotype.Repository;
 
+import java.sql.Types;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -17,7 +20,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
- * 게시판이 참조하는 계정 권한·사업자 프로필·음식점 데이터를 읽기 전용으로 조회한다.
+ * 게시판이 참조하는 데이터 조회와 기존 post_media 테이블의 첨부파일 저장을 담당한다.
  */
 @Repository
 public class BoardReferenceQueryRepository {
@@ -247,6 +250,187 @@ public class BoardReferenceQueryRepository {
         return Set.copyOf(rows);
     }
 
+
+    public List<PostMediaReference> findPostMedia(Long postId) {
+        return jdbcTemplate.query(
+                """
+                select post_media_id,
+                       media_type,
+                       media_url,
+                       mime_type,
+                       original_name,
+                       file_size,
+                       display_order
+                  from post_media
+                 where post_id = :postId
+                 order by display_order, post_media_id
+                """,
+                Map.of("postId", postId),
+                (resultSet, rowNumber) -> new PostMediaReference(
+                        resultSet.getLong("post_media_id"),
+                        resultSet.getString("media_type"),
+                        resultSet.getString("media_url"),
+                        resultSet.getString("mime_type"),
+                        resultSet.getString("original_name"),
+                        resultSet.getLong("file_size"),
+                        resultSet.getInt("display_order")
+                )
+        );
+    }
+
+    public int countPostMedia(Long postId) {
+        Integer count = jdbcTemplate.queryForObject(
+                "select count(*) from post_media where post_id = :postId",
+                Map.of("postId", postId),
+                Integer.class
+        );
+        return count == null ? 0 : count;
+    }
+
+    public int nextPostMediaDisplayOrder(Long postId) {
+        Integer displayOrder = jdbcTemplate.queryForObject(
+                """
+                select coalesce(max(display_order), -1) + 1
+                  from post_media
+                 where post_id = :postId
+                """,
+                Map.of("postId", postId),
+                Integer.class
+        );
+        return displayOrder == null ? 0 : displayOrder;
+    }
+
+    public Long savePostMedia(
+            Long postId,
+            String mediaType,
+            String mimeType,
+            String originalName,
+            long fileSize,
+            int displayOrder,
+            byte[] mediaData
+    ) {
+        MapSqlParameterSource parameters = new MapSqlParameterSource()
+                .addValue("postId", postId)
+                .addValue("mediaType", mediaType)
+                .addValue("mediaUrl", "db:pending")
+                .addValue("mimeType", mimeType)
+                .addValue("originalName", originalName)
+                .addValue("fileSize", fileSize)
+                .addValue("displayOrder", displayOrder)
+                .addValue("mediaData", mediaData, Types.LONGVARBINARY);
+
+        KeyHolder keyHolder = new GeneratedKeyHolder();
+        jdbcTemplate.update(
+                """
+                insert into post_media (
+                    post_id,
+                    media_type,
+                    media_url,
+                    media_data,
+                    mime_type,
+                    original_name,
+                    file_size,
+                    display_order
+                ) values (
+                    :postId,
+                    :mediaType,
+                    :mediaUrl,
+                    :mediaData,
+                    :mimeType,
+                    :originalName,
+                    :fileSize,
+                    :displayOrder
+                )
+                """,
+                parameters,
+                keyHolder,
+                new String[]{"post_media_id"}
+        );
+
+        Number generatedKey = keyHolder.getKey();
+        if (generatedKey == null) {
+            throw new IllegalStateException("게시판 미디어 번호를 생성하지 못했습니다.");
+        }
+
+        Long postMediaId = generatedKey.longValue();
+        jdbcTemplate.update(
+                """
+                update post_media
+                   set media_url = :mediaUrl
+                 where post_media_id = :postMediaId
+                """,
+                Map.of(
+                        "mediaUrl", "/api/board/posts/media/" + postMediaId,
+                        "postMediaId", postMediaId
+                )
+        );
+        return postMediaId;
+    }
+
+    public Optional<PostMediaFileReference> findPostMediaFile(Long postMediaId) {
+        List<PostMediaFileReference> rows = jdbcTemplate.query(
+                """
+                select post_media_id,
+                       post_id,
+                       media_type,
+                       media_url,
+                       mime_type,
+                       original_name,
+                       file_size,
+                       display_order
+                  from post_media
+                 where post_media_id = :postMediaId
+                """,
+                Map.of("postMediaId", postMediaId),
+                (resultSet, rowNumber) -> new PostMediaFileReference(
+                        resultSet.getLong("post_media_id"),
+                        resultSet.getLong("post_id"),
+                        resultSet.getString("media_type"),
+                        resultSet.getString("media_url"),
+                        resultSet.getString("mime_type"),
+                        resultSet.getString("original_name"),
+                        resultSet.getLong("file_size"),
+                        resultSet.getInt("display_order")
+                )
+        );
+        return rows.stream().findFirst();
+    }
+
+    public byte[] readPostMediaBytes(
+            Long postMediaId,
+            long zeroBasedStart,
+            int length
+    ) {
+        List<byte[]> rows = jdbcTemplate.query(
+                """
+                select substring(media_data, :oneBasedStart, :length)
+                  from post_media
+                 where post_media_id = :postMediaId
+                   and media_data is not null
+                """,
+                new MapSqlParameterSource()
+                        .addValue("postMediaId", postMediaId)
+                        .addValue("oneBasedStart", zeroBasedStart + 1)
+                        .addValue("length", length),
+                (resultSet, rowNumber) -> resultSet.getBytes(1)
+        );
+        return rows.stream().findFirst().orElse(null);
+    }
+
+    public int deletePostMedia(Long postId, Long postMediaId) {
+        return jdbcTemplate.update(
+                """
+                delete from post_media
+                 where post_id = :postId
+                   and post_media_id = :postMediaId
+                """,
+                Map.of(
+                        "postId", postId,
+                        "postMediaId", postMediaId
+                )
+        );
+    }
+
     /**
      * 작성자 종류 표시에 필요한 권한과 사업자 프로필 조회 결과다.
      */
@@ -259,6 +443,30 @@ public class BoardReferenceQueryRepository {
                     ? Set.of()
                     : Set.copyOf(authorityCodes);
         }
+    }
+
+
+    public record PostMediaReference(
+            Long postMediaId,
+            String mediaType,
+            String mediaUrl,
+            String mimeType,
+            String originalName,
+            long fileSize,
+            int displayOrder
+    ) {
+    }
+
+    public record PostMediaFileReference(
+            Long postMediaId,
+            Long postId,
+            String mediaType,
+            String mediaUrl,
+            String mimeType,
+            String originalName,
+            long fileSize,
+            int displayOrder
+    ) {
     }
 
     private record AuthorRoleRow(

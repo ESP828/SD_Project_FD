@@ -117,6 +117,123 @@
     }
   }
 
+  function formatBytes(bytes) {
+    const value = Number(bytes) || 0;
+    if (value < 1024) return `${value}B`;
+    if (value < 1024 * 1024) return `${(value / 1024).toFixed(1)}KB`;
+    return `${(value / 1024 / 1024).toFixed(1)}MB`;
+  }
+
+  function mediaDownloadHref(media) {
+    const url = String(media.mediaUrl || "");
+    if (!url.startsWith("/api/board/posts/media/")) return url;
+    const separator = url.includes("?") ? "&" : "?";
+    return `${url}${separator}download=true`;
+  }
+
+  function renderMediaFallback(
+    item,
+    media,
+    message,
+    actionLabel = "파일 다운로드",
+  ) {
+    item.replaceChildren();
+    const fallback = element("div", "detail-media-fallback");
+    const icon = element(
+      "span",
+      "material-symbols-rounded",
+      media.mediaType === "IMAGE" ? "image" : "movie",
+    );
+    icon.setAttribute("aria-hidden", "true");
+    fallback.append(
+      icon,
+      element("span", "", message || "브라우저에서 바로 표시할 수 없습니다."),
+    );
+    const download = element(
+      "a",
+      "button button-sm button-secondary",
+      actionLabel,
+    );
+    download.href = mediaDownloadHref(media);
+    fallback.append(download);
+    item.append(fallback);
+  }
+
+  function renderPostMedia(mediaItems) {
+    if (!Array.isArray(mediaItems) || !mediaItems.length) return null;
+
+    const section = element("section", "detail-media-list");
+    section.setAttribute("aria-label", "게시글 첨부 미디어");
+
+    mediaItems.forEach((media) => {
+      if (!media?.mediaUrl) return;
+      const item = element("article", "detail-media-item");
+      const name = media.originalName || "첨부파일";
+
+      if (media.mediaType === "IMAGE") {
+        const image = new Image();
+        image.src = media.mediaUrl;
+        image.alt = name;
+        image.loading = "lazy";
+        image.addEventListener("error", () => {
+          renderMediaFallback(
+            item,
+            media,
+            "이 브라우저에서는 해당 사진 형식을 표시할 수 없습니다.",
+          );
+        }, { once: true });
+        item.append(image);
+      } else {
+        const databaseMedia = String(media.mediaUrl).startsWith(
+          "/api/board/posts/media/",
+        );
+        const video = document.createElement("video");
+        const canPlay =
+          !media.mimeType || video.canPlayType(media.mimeType) !== "";
+        if (!databaseMedia && !media.mimeType) {
+          renderMediaFallback(
+            item,
+            media,
+            "외부 동영상 링크입니다.",
+            "영상 링크 열기",
+          );
+        } else if (!canPlay) {
+          renderMediaFallback(
+            item,
+            media,
+            "이 브라우저에서는 해당 동영상 형식을 재생할 수 없습니다.",
+          );
+        } else {
+          video.src = media.mediaUrl;
+          video.controls = true;
+          video.preload = "metadata";
+          video.addEventListener("error", () => {
+            renderMediaFallback(
+              item,
+              media,
+              "동영상을 재생할 수 없습니다. 원본 파일을 내려받아 확인해 주세요.",
+            );
+          }, { once: true });
+          item.append(video);
+        }
+      }
+
+      if (!item.querySelector(".detail-media-fallback")) {
+        const meta = element("div", "detail-media-meta");
+        meta.append(
+          element("span", "", `${name} · ${formatBytes(media.fileSize)}`),
+        );
+        const download = element("a", "", "원본 다운로드");
+        download.href = mediaDownloadHref(media);
+        meta.append(download);
+        item.append(meta);
+      }
+      section.append(item);
+    });
+
+    return section.childElementCount ? section : null;
+  }
+
   function renderPost(post) {
     state.post = post;
     document.title = `${post.title} · 푸드덕`;
@@ -161,6 +278,9 @@
     }
 
     detailContent.append(element("div", "detail-body", post.content));
+    const mediaSection = renderPostMedia(post.media);
+    if (mediaSection) detailContent.append(mediaSection);
+
     const actions = element("div", "detail-actions");
     const likeButton = actionButton(
       `${post.likedByCurrentUser ? "추천 취소" : "추천"} · ${post.likeCount || 0}`,
