@@ -3,13 +3,20 @@ package com.example.backend.board.controller;
 import com.example.backend.board.dto.request.PostCreateRequest;
 import com.example.backend.board.dto.request.PostUpdateRequest;
 import com.example.backend.board.dto.response.PostDetailResponse;
+import com.example.backend.board.dto.response.PostDetailResponse.MediaResponse;
 import com.example.backend.board.dto.response.PostLikeResponse;
 import com.example.backend.board.dto.response.PostListItemResponse;
 import com.example.backend.board.dto.response.PostPageResponse;
+import com.example.backend.board.exception.BoardException;
 import com.example.backend.board.service.PostService;
+import com.example.backend.board.service.PostService.MediaResource;
 import com.example.backend.global.response.ApiResponse;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
+import org.springframework.core.io.Resource;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -23,6 +30,8 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.io.IOException;
+import java.io.InputStream;
 import java.util.List;
 
 @RestController
@@ -128,6 +137,18 @@ public class PostController {
         ));
     }
 
+    @GetMapping("/media/{fileName:.+}")
+    public ResponseEntity<Resource> getMedia(@PathVariable String fileName) {
+        MediaResource media = postService.getMedia(fileName);
+        return ResponseEntity.ok()
+                .contentType(media.contentType())
+                .header(HttpHeaders.CACHE_CONTROL, "public, max-age=86400")
+                .header(HttpHeaders.CONTENT_DISPOSITION, "inline")
+                .header(HttpHeaders.ACCEPT_RANGES, "bytes")
+                .header("X-Content-Type-Options", "nosniff")
+                .body(media.resource());
+    }
+
     @GetMapping("/{postId}")
     public ApiResponse<PostDetailResponse> getPost(
             @PathVariable Long postId,
@@ -151,6 +172,65 @@ public class PostController {
                         request,
                         BoardAuthentication.accountId(authentication)
                 )
+        );
+    }
+
+    @PostMapping("/{postId}/media")
+    @ResponseStatus(HttpStatus.CREATED)
+    public ApiResponse<MediaResponse> uploadMedia(
+            @PathVariable Long postId,
+            HttpServletRequest request,
+            Authentication authentication
+    ) {
+        try (InputStream inputStream = request.getInputStream()) {
+            MediaResponse media = postService.uploadMedia(
+                    postId,
+                    request.getContentType(),
+                    request.getHeader("X-File-Name"),
+                    request.getContentLengthLong(),
+                    inputStream,
+                    BoardAuthentication.accountId(authentication)
+            );
+            String message = "PROCESSING".equals(media.processingStatus())
+                    ? "동영상 업로드가 완료되어 WebM 변환을 시작했습니다."
+                    : "사진이 WebP로 변환되어 등록되었습니다.";
+            return ApiResponse.success(message, media);
+        } catch (IOException exception) {
+            throw new BoardException(
+                    HttpStatus.INTERNAL_SERVER_ERROR,
+                    "BOARD_MEDIA_READ_FAILED",
+                    "업로드 파일을 읽지 못했습니다."
+            );
+        }
+    }
+
+    @GetMapping("/{postId}/media/{postMediaId}/status")
+    public ApiResponse<MediaResponse> getMediaStatus(
+            @PathVariable Long postId,
+            @PathVariable Long postMediaId,
+            Authentication authentication
+    ) {
+        return ApiResponse.success(postService.getMediaStatus(
+                postId,
+                postMediaId,
+                BoardAuthentication.accountId(authentication)
+        ));
+    }
+
+    @DeleteMapping("/{postId}/media/{postMediaId}")
+    public ApiResponse<Void> deleteMedia(
+            @PathVariable Long postId,
+            @PathVariable Long postMediaId,
+            Authentication authentication
+    ) {
+        postService.deleteMedia(
+                postId,
+                postMediaId,
+                BoardAuthentication.accountId(authentication)
+        );
+        return ApiResponse.success(
+                "사진 또는 동영상이 삭제되었습니다.",
+                null
         );
     }
 
@@ -185,7 +265,7 @@ public class PostController {
                 BoardAuthentication.accountId(authentication)
         );
         return ApiResponse.success(
-                "게시글과 연결된 댓글·추천이 정리되었습니다.",
+                "게시글과 연결된 댓글·추천·첨부 미디어가 정리되었습니다.",
                 null
         );
     }

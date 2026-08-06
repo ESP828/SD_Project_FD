@@ -1,5 +1,6 @@
 package com.example.backend.board.query;
 
+import com.example.backend.board.dto.response.PostDetailResponse;
 import com.example.backend.board.dto.response.RestaurantSummaryResponse;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
@@ -82,6 +83,54 @@ public class BoardReferenceQueryRepository {
                 Integer.class
         );
         return count != null && count > 0;
+    }
+
+    public List<PostDetailResponse.MediaResponse> findPostMedia(Long postId) {
+        if (postId == null) {
+            return List.of();
+        }
+        return jdbcTemplate.query(
+                """
+                select post_media_id, media_type, media_url, display_order, created_at
+                  from post_media
+                 where post_id = :postId
+                 order by display_order asc, post_media_id asc
+                """,
+                Map.of("postId", postId),
+                (resultSet, rowNumber) -> {
+                    String storedUrl = resultSet.getString("media_url");
+                    String status;
+                    String exposedUrl;
+                    int progress;
+                    String message;
+                    if (storedUrl != null && storedUrl.startsWith("processing:")) {
+                        status = "PROCESSING";
+                        exposedUrl = null;
+                        progress = 0;
+                        message = "WebM으로 변환 중입니다.";
+                    } else if (storedUrl != null && storedUrl.startsWith("failed:")) {
+                        status = "FAILED";
+                        exposedUrl = null;
+                        progress = 0;
+                        message = "동영상 변환에 실패했습니다.";
+                    } else {
+                        status = "READY";
+                        exposedUrl = storedUrl;
+                        progress = 100;
+                        message = null;
+                    }
+                    return new PostDetailResponse.MediaResponse(
+                            resultSet.getLong("post_media_id"),
+                            resultSet.getString("media_type"),
+                            exposedUrl,
+                            resultSet.getInt("display_order"),
+                            resultSet.getTimestamp("created_at").toLocalDateTime(),
+                            status,
+                            progress,
+                            message
+                    );
+                }
+        );
     }
 
     public Optional<RestaurantSummaryResponse> findRestaurant(Long restaurantId) {
