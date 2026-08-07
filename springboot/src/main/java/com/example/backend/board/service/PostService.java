@@ -65,7 +65,6 @@ public class PostService {
     private static final int SUBMISSION_CLEANUP_INTERVAL = 256;
     private static final int MAX_MEDIA_COUNT = 10;
     private static final int MAX_IMAGE_BYTES = 20 * 1024 * 1024;
-    private static final int MAX_VIDEO_BYTES = 50 * 1024 * 1024;
     private static final int INITIAL_MEDIA_RANGE_BYTES = 1024 * 1024;
     private static final int STREAM_MEDIA_RANGE_BYTES = 1024 * 1024;
     private static final int SUFFIX_MEDIA_RANGE_BYTES = 1024 * 1024;
@@ -548,15 +547,8 @@ public class PostService {
                 declaredContentType,
                 mediaData
         );
-        int maximumBytes = mediaType.image()
-                ? MAX_IMAGE_BYTES
-                : MAX_VIDEO_BYTES;
-        if (mediaData.length > maximumBytes) {
-            throw badRequest(
-                    mediaType.image()
-                            ? "사진은 한 파일당 20MB 이하만 첨부할 수 있습니다."
-                            : "동영상은 한 파일당 50MB 이하만 첨부할 수 있습니다."
-            );
+        if (mediaType.image() && mediaData.length > MAX_IMAGE_BYTES) {
+            throw badRequest("사진은 한 파일당 20MB 이하만 첨부할 수 있습니다.");
         }
 
         int displayOrder = referenceRepository.nextPostMediaDisplayOrder(postId);

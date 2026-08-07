@@ -8,7 +8,6 @@
 
   const MAX_MEDIA_COUNT = 10;
   const MAX_IMAGE_BYTES = 20 * 1024 * 1024;
-  const MAX_VIDEO_BYTES = 50 * 1024 * 1024;
   const IMAGE_EXTENSIONS = new Set([
     "jpg", "jpeg", "png", "gif", "webp", "bmp",
     "tif", "tiff", "avif", "heic", "heif",
@@ -261,12 +260,11 @@
     if (!kind) {
       return `${file.name}: 지원하지 않는 사진·동영상 형식입니다.`;
     }
-    const maximum = kind === "IMAGE" ? MAX_IMAGE_BYTES : MAX_VIDEO_BYTES;
     if (file.size < 1) {
       return `${file.name}: 비어 있는 파일입니다.`;
     }
-    if (file.size > maximum) {
-      return `${file.name}: ${kind === "IMAGE" ? "사진 20MB" : "동영상 50MB"} 제한을 초과했습니다.`;
+    if (kind === "IMAGE" && file.size > MAX_IMAGE_BYTES) {
+      return `${file.name}: 사진 20MB 제한을 초과했습니다.`;
     }
     const duplicated = selectedMedia.some(
       (entry) =>
