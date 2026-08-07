@@ -59,7 +59,12 @@ const Api = {
         typeof payload === "object" && payload
           ? payload.message
           : `요청에 실패했습니다. (${response.status})`;
-      throw new Error(message || `요청에 실패했습니다. (${response.status})`);
+      const error = new Error(message || `요청에 실패했습니다. (${response.status})`);
+      error.name = "ApiError";
+      error.status = response.status;
+      error.code = typeof payload === "object" && payload ? payload.code : null;
+      error.data = typeof payload === "object" && payload ? payload.data : null;
+      throw error;
     }
 
     return payload;

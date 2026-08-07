@@ -30,8 +30,8 @@ public class AdminPresetService {
     }
 
     @Transactional
-    public Long create(AdminPresetUpsertRequest request) {
-        Long presetId = queryRepository.create(request);
+    public Long create(Long accountId, AdminPresetUpsertRequest request) {
+        Long presetId = queryRepository.create(accountId, request);
         if (presetId == null) {
             throw new BusinessException(ErrorCode.INTERNAL_ERROR);
         }

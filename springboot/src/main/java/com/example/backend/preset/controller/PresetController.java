@@ -2,12 +2,15 @@ package com.example.backend.preset.controller;
 
 import com.example.backend.global.response.ApiResponse;
 import com.example.backend.global.security.principal.AuthenticatedAccount;
+import com.example.backend.preset.dto.request.PresetCreateRequest;
 import com.example.backend.preset.dto.response.FavoriteStateResponse;
 import com.example.backend.preset.dto.response.PresetDetailResponse;
 import com.example.backend.preset.dto.response.PresetMapResponse;
 import com.example.backend.preset.dto.response.PresetPageResponse;
 import com.example.backend.preset.dto.response.PresetTagResponse;
 import com.example.backend.preset.service.PresetService;
+import jakarta.validation.Valid;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -15,6 +18,8 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
@@ -41,6 +46,18 @@ public class PresetController {
         return ApiResponse.success(presetService.getPresets(
                 accountId(account), page, size, sort, tagId, keyword
         ));
+    }
+
+    @PostMapping
+    @ResponseStatus(HttpStatus.CREATED)
+    public ApiResponse<Long> createPreset(
+            @AuthenticationPrincipal AuthenticatedAccount account,
+            @Valid @RequestBody PresetCreateRequest request
+    ) {
+        return ApiResponse.success(
+                "프리셋을 등록했습니다.",
+                presetService.createPreset(account.accountId(), request)
+        );
     }
 
     @GetMapping("/tags")

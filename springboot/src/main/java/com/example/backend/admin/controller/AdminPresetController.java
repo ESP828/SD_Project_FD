@@ -7,8 +7,10 @@ import com.example.backend.admin.dto.request.AdminPresetUpsertRequest;
 import com.example.backend.admin.dto.response.AdminPresetResponse;
 import com.example.backend.admin.service.AdminPresetService;
 import com.example.backend.global.response.ApiResponse;
+import com.example.backend.global.security.principal.AuthenticatedAccount;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Positive;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -38,8 +40,14 @@ public class AdminPresetController {
     }
 
     @PostMapping
-    public ApiResponse<Long> create(@Valid @RequestBody AdminPresetUpsertRequest request) {
-        return ApiResponse.success("Presset을 등록했습니다.", adminPresetService.create(request));
+    public ApiResponse<Long> create(
+            @AuthenticationPrincipal AuthenticatedAccount account,
+            @Valid @RequestBody AdminPresetUpsertRequest request
+    ) {
+        return ApiResponse.success(
+                "Presset을 등록했습니다.",
+                adminPresetService.create(account.accountId(), request)
+        );
     }
 
     @PutMapping("/{presetId}")

@@ -53,19 +53,25 @@ public class AdminPresetQueryRepository {
         ));
     }
 
-    public Long create(AdminPresetUpsertRequest request) {
+    public Long create(Long accountId, AdminPresetUpsertRequest request) {
         String sql = """
                 insert into preset (
                     title, summary, description, image_url, category,
-                    display_order, status, deleted_at
+                    display_order, status, deleted_at, account_id, is_public
                 ) values (
                     :title, :summary, :description, :imageUrl, :category,
                     :displayOrder, :status,
-                    case when :status = 'DELETED' then current_timestamp else null end
+                    case when :status = 'DELETED' then current_timestamp else null end,
+                    :accountId, true
                 )
                 """;
         GeneratedKeyHolder keyHolder = new GeneratedKeyHolder();
-        jdbcTemplate.update(sql, presetParameters(request), keyHolder, new String[]{"preset_id"});
+        jdbcTemplate.update(
+                sql,
+                presetParameters(request).addValue("accountId", accountId),
+                keyHolder,
+                new String[]{"preset_id"}
+        );
         Number key = keyHolder.getKey();
         return key == null ? null : key.longValue();
     }
