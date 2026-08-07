@@ -190,7 +190,12 @@ public class PostController {
         headers.setContentType(resolveMediaType(media.mimeType()));
         headers.setContentLength(media.data().length);
         headers.set(HttpHeaders.ACCEPT_RANGES, "bytes");
-        headers.setCacheControl("private, max-age=300");
+        headers.setCacheControl("private, max-age=3600, no-transform");
+        headers.setETag(
+                "\"board-media-" + media.postMediaId()
+                        + "-" + media.totalSize() + "\""
+        );
+        headers.set(HttpHeaders.VARY, HttpHeaders.RANGE);
         headers.setContentDisposition(
                 (media.download()
                         ? ContentDisposition.attachment()

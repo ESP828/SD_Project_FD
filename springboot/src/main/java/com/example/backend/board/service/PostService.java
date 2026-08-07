@@ -66,7 +66,9 @@ public class PostService {
     private static final int MAX_MEDIA_COUNT = 10;
     private static final int MAX_IMAGE_BYTES = 20 * 1024 * 1024;
     private static final int MAX_VIDEO_BYTES = 50 * 1024 * 1024;
-    private static final int MAX_MEDIA_RANGE_BYTES = 4 * 1024 * 1024;
+    private static final int INITIAL_MEDIA_RANGE_BYTES = 1024 * 1024;
+    private static final int STREAM_MEDIA_RANGE_BYTES = 8 * 1024 * 1024;
+    private static final int SUFFIX_MEDIA_RANGE_BYTES = 1024 * 1024;
     private static final int MAX_ORIGINAL_NAME_LENGTH = 255;
 
     private static final Set<String> IMAGE_EXTENSIONS = Set.of(
@@ -919,7 +921,10 @@ public class PostService {
                 if (suffixLength < 1) {
                     throw rangeNotSatisfiable();
                 }
-                suffixLength = Math.min(suffixLength, MAX_MEDIA_RANGE_BYTES);
+                suffixLength = Math.min(
+                        suffixLength,
+                        SUFFIX_MEDIA_RANGE_BYTES
+                );
                 start = Math.max(0, totalSize - suffixLength);
                 end = totalSize - 1;
             } else {
@@ -927,9 +932,12 @@ public class PostService {
                 if (start < 0 || start >= totalSize) {
                     throw rangeNotSatisfiable();
                 }
+                int maximumRangeBytes = start == 0
+                        ? INITIAL_MEDIA_RANGE_BYTES
+                        : STREAM_MEDIA_RANGE_BYTES;
                 long maximumEnd = Math.min(
                         totalSize - 1,
-                        start + MAX_MEDIA_RANGE_BYTES - 1L
+                        start + maximumRangeBytes - 1L
                 );
                 end = endValue.isEmpty()
                         ? maximumEnd

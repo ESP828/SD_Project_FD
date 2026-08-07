@@ -360,38 +360,69 @@
     }
   }
 
-  async function uploadMediaFile(targetPostId, entry) {
-    const headers = {
-      Accept: "application/json",
-      "Content-Type": entry.file.type || "application/octet-stream",
-      "X-File-Name": encodeURIComponent(entry.file.name),
-    };
-    const token = Api.getToken();
-    if (token) headers.Authorization = `Bearer ${token}`;
+  function uploadMediaFile(targetPostId, entry, onProgress) {
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      const url =
+        `/api/board/posts/${encodeURIComponent(targetPostId)}/media`;
 
-    const response = await fetch(
-      `/api/board/posts/${encodeURIComponent(targetPostId)}/media`,
-      {
-        method: "POST",
-        headers,
-        body: entry.file,
-        credentials: "same-origin",
-      },
-    );
+      xhr.open("POST", url, true);
+      xhr.withCredentials = true;
+      xhr.setRequestHeader("Accept", "application/json");
+      xhr.setRequestHeader(
+        "Content-Type",
+        entry.file.type || "application/octet-stream",
+      );
+      xhr.setRequestHeader(
+        "X-File-Name",
+        encodeURIComponent(entry.file.name),
+      );
 
-    const responseType = response.headers.get("content-type") || "";
-    const payload = responseType.includes("application/json")
-      ? await response.json()
-      : await response.text();
-    if (!response.ok) {
-      if (response.status === 401) Api.clearToken();
-      const message =
-        typeof payload === "object" && payload
-          ? payload.message
-          : `첨부파일 업로드에 실패했습니다. (${response.status})`;
-      throw new Error(message || "첨부파일 업로드에 실패했습니다.");
-    }
-    return payload;
+      const token = Api.getToken();
+      if (token) xhr.setRequestHeader("Authorization", `Bearer ${token}`);
+
+      xhr.upload.addEventListener("progress", (event) => {
+        if (typeof onProgress !== "function") return;
+        onProgress(
+          Number(event.loaded) || 0,
+          event.lengthComputable ? Number(event.total) || 0 : 0,
+        );
+      });
+
+      xhr.addEventListener("load", () => {
+        const responseType = xhr.getResponseHeader("content-type") || "";
+        let payload = xhr.responseText;
+        if (responseType.includes("application/json")) {
+          try {
+            payload = JSON.parse(xhr.responseText || "null");
+          } catch (_error) {
+            payload = null;
+          }
+        }
+
+        if (xhr.status < 200 || xhr.status >= 300) {
+          if (xhr.status === 401) Api.clearToken();
+          const message =
+            typeof payload === "object" && payload
+              ? payload.message
+              : `첨부파일 업로드에 실패했습니다. (${xhr.status})`;
+          reject(
+            new Error(message || "첨부파일 업로드에 실패했습니다."),
+          );
+          return;
+        }
+        resolve(payload);
+      });
+
+      xhr.addEventListener("error", () => {
+        reject(new Error("첨부파일을 서버로 전송하지 못했습니다."));
+      });
+      xhr.addEventListener("abort", () => {
+        reject(new Error("첨부파일 업로드가 취소되었습니다."));
+      });
+
+      xhr.send(entry.file);
+    });
   }
 
   async function saveMediaChanges(targetPostId) {
@@ -423,7 +454,26 @@
         `${entry.file.name} 업로드 중 (${index + 1}/${filesToUpload.length})`,
       );
       try {
-        const payload = await uploadMediaFile(targetPostId, entry);
+        const payload = await uploadMediaFile(
+          targetPostId,
+          entry,
+          (loaded, total) => {
+            if (total > 0 && loaded >= total) {
+              setMediaStatus(
+                `${entry.file.name} 전송 완료 · 서버 저장 중 ` +
+                  `(${index + 1}/${filesToUpload.length})`,
+              );
+              return;
+            }
+            const progress = total > 0
+              ? `${Math.min(99, Math.round((loaded / total) * 100))}%`
+              : formatBytes(loaded);
+            setMediaStatus(
+              `${entry.file.name} 업로드 중 ${progress} ` +
+                `(${index + 1}/${filesToUpload.length})`,
+            );
+          },
+        );
         existingMedia.push(payload.data);
         URL.revokeObjectURL(entry.previewUrl);
         selectedMedia = selectedMedia.filter(
