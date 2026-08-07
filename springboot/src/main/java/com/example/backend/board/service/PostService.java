@@ -67,7 +67,7 @@ public class PostService {
     private static final int MAX_IMAGE_BYTES = 20 * 1024 * 1024;
     private static final int MAX_VIDEO_BYTES = 50 * 1024 * 1024;
     private static final int INITIAL_MEDIA_RANGE_BYTES = 1024 * 1024;
-    private static final int STREAM_MEDIA_RANGE_BYTES = 8 * 1024 * 1024;
+    private static final int STREAM_MEDIA_RANGE_BYTES = 1024 * 1024;
     private static final int SUFFIX_MEDIA_RANGE_BYTES = 1024 * 1024;
     private static final int MAX_ORIGINAL_NAME_LENGTH = 255;
 

@@ -25,6 +25,8 @@ import java.util.stream.Collectors;
 @Repository
 public class BoardReferenceQueryRepository {
 
+    private static final int MEDIA_BLOB_CHUNK_BYTES = 1024 * 1024;
+
     private final NamedParameterJdbcTemplate jdbcTemplate;
 
     public BoardReferenceQueryRepository(NamedParameterJdbcTemplate jdbcTemplate) {
@@ -317,7 +319,7 @@ public class BoardReferenceQueryRepository {
                 .addValue("originalName", originalName)
                 .addValue("fileSize", fileSize)
                 .addValue("displayOrder", displayOrder)
-                .addValue("mediaData", mediaData, Types.LONGVARBINARY);
+                .addValue("mediaData", new byte[0], Types.LONGVARBINARY);
 
         KeyHolder keyHolder = new GeneratedKeyHolder();
         jdbcTemplate.update(
@@ -353,6 +355,53 @@ public class BoardReferenceQueryRepository {
         }
 
         Long postMediaId = generatedKey.longValue();
+        for (int offset = 0; offset < mediaData.length; offset += MEDIA_BLOB_CHUNK_BYTES) {
+            int chunkLength = Math.min(
+                    MEDIA_BLOB_CHUNK_BYTES,
+                    mediaData.length - offset
+            );
+            byte[] chunk = new byte[chunkLength];
+            System.arraycopy(mediaData, offset, chunk, 0, chunkLength);
+
+            int updated = jdbcTemplate.update(
+                    """
+                    update post_media
+                       set media_data = concat(
+                               coalesce(media_data, x''),
+                               :mediaChunk
+                           )
+                     where post_media_id = :postMediaId
+                    """,
+                    new MapSqlParameterSource()
+                            .addValue("postMediaId", postMediaId)
+                            .addValue(
+                                    "mediaChunk",
+                                    chunk,
+                                    Types.LONGVARBINARY
+                            )
+            );
+            if (updated != 1) {
+                throw new IllegalStateException(
+                        "게시판 미디어 데이터를 저장하지 못했습니다."
+                );
+            }
+        }
+
+        Long storedSize = jdbcTemplate.queryForObject(
+                """
+                select octet_length(media_data)
+                  from post_media
+                 where post_media_id = :postMediaId
+                """,
+                Map.of("postMediaId", postMediaId),
+                Long.class
+        );
+        if (storedSize == null || storedSize != fileSize) {
+            throw new IllegalStateException(
+                    "게시판 미디어 데이터 크기가 일치하지 않습니다."
+            );
+        }
+
         jdbcTemplate.update(
                 """
                 update post_media
