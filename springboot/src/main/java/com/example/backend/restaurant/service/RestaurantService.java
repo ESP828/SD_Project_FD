@@ -100,8 +100,12 @@ public class RestaurantService {
         long menuCount = menuRepository.countVisibleByRestaurantId(restaurantId);
         boolean favoritedByMe = viewerAccountId != null
                 && favoriteRepository.existsById(new FavoriteId(viewerAccountId, restaurantId));
+        boolean isOwner = viewerAccountId != null
+                && restaurant.getOwner().getAccountId().equals(viewerAccountId);
 
-        return RestaurantDetailResponse.of(restaurant, averageRating, reviewCount, favoriteCount, menuCount, favoritedByMe);
+        return RestaurantDetailResponse.of(
+                restaurant, averageRating, reviewCount, favoriteCount, menuCount, favoritedByMe, isOwner
+        );
     }
 
     public List<MenuResponse> getMenu(Long restaurantId) {

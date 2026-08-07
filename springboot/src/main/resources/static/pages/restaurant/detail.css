@@ -53,25 +53,6 @@
   gap: 18px;
 }
 
-.store-back {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  align-self: flex-start;
-  padding: 8px 14px 8px 10px;
-  border: 0;
-  border-radius: 999px;
-  color: #fff;
-  font-size: 0.8rem;
-  font-weight: 800;
-  background: rgba(255, 255, 255, 0.12);
-  cursor: pointer;
-}
-
-.store-back:hover {
-  background: rgba(255, 255, 255, 0.2);
-}
-
 .store-hero-badges {
   display: flex;
   flex-wrap: wrap;
@@ -504,6 +485,77 @@
   text-align: center;
   color: var(--color-muted);
   font-size: 0.85rem;
+}
+
+/* Write forms (review / news) */
+
+.store-write-form {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  margin-bottom: 18px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-md);
+  background: var(--color-canvas);
+}
+
+.store-write-form h3 {
+  margin: 0;
+  font-size: 0.92rem;
+}
+
+.store-write-form input[type="text"],
+.store-write-form textarea {
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid #d8e0e9;
+  border-radius: 12px;
+  outline: none;
+  background: #fff;
+  resize: vertical;
+  transition: border-color 160ms ease, box-shadow 160ms ease;
+}
+
+.store-write-form textarea {
+  min-height: 90px;
+}
+
+.store-write-form input[type="text"]:focus,
+.store-write-form textarea:focus {
+  border-color: var(--color-orange);
+  box-shadow: 0 0 0 4px rgba(255, 152, 0, 0.12);
+}
+
+.store-rating-input {
+  display: flex;
+  gap: 4px;
+}
+
+.store-rating-input button {
+  border: 0;
+  background: none;
+  padding: 2px;
+  font-size: 1.4rem;
+  line-height: 1;
+  color: #d8e0e9;
+}
+
+.store-rating-input button.is-selected {
+  color: var(--color-orange);
+}
+
+.store-write-form .button {
+  justify-self: start;
+}
+
+.store-write-signin {
+  padding: 14px 16px;
+  margin-bottom: 18px;
+  border: 1px dashed var(--color-line);
+  border-radius: var(--radius-md);
+  color: var(--color-muted);
+  font-size: 0.82rem;
+  text-align: center;
 }
 
 .store-limited-notice strong {
