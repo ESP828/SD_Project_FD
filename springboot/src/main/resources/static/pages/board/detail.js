@@ -207,7 +207,7 @@
         } else {
           video.src = media.mediaUrl;
           video.controls = true;
-          video.preload = "metadata";
+          video.preload = "auto";
           video.addEventListener("error", () => {
             renderMediaFallback(
               item,

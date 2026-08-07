@@ -65,9 +65,9 @@ public class PostService {
     private static final int SUBMISSION_CLEANUP_INTERVAL = 256;
     private static final int MAX_MEDIA_COUNT = 10;
     private static final int MAX_IMAGE_BYTES = 20 * 1024 * 1024;
-    private static final int INITIAL_MEDIA_RANGE_BYTES = 1024 * 1024;
-    private static final int STREAM_MEDIA_RANGE_BYTES = 1024 * 1024;
-    private static final int SUFFIX_MEDIA_RANGE_BYTES = 1024 * 1024;
+    private static final int INITIAL_MEDIA_RANGE_BYTES = 8 * 1024 * 1024;
+    private static final int STREAM_MEDIA_RANGE_BYTES = 8 * 1024 * 1024;
+    private static final int SUFFIX_MEDIA_RANGE_BYTES = 4 * 1024 * 1024;
     private static final int MAX_ORIGINAL_NAME_LENGTH = 255;
 
     private static final Set<String> IMAGE_EXTENSIONS = Set.of(
