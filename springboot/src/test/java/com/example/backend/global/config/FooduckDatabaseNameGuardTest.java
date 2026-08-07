@@ -9,20 +9,20 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 class FooduckDatabaseNameGuardTest {
 
     @Test
-    @DisplayName("MySQL의 fooduck 스키마만 허용한다")
-    void acceptsCanonicalFooduckDatabase() {
+    @DisplayName("MySQL의 foodduck 스키마만 허용한다")
+    void acceptsCanonicalFoodduckDatabase() {
         assertDoesNotThrow(() -> FooduckDatabaseNameGuard.validate(
-                "jdbc:mysql://localhost:3306/fooduck"
+                "jdbc:mysql://localhost:3306/foodduck"
                         + "?serverTimezone=Asia/Seoul&characterEncoding=UTF-8"
         ));
     }
 
     @Test
-    @DisplayName("과거 오타 foodduck과 빈 MySQL 스키마를 거부한다")
+    @DisplayName("이전 fooduck 스키마와 빈 MySQL 스키마를 거부한다")
     void rejectsWrongOrMissingMysqlDatabase() {
         assertThrows(IllegalStateException.class, () ->
                 FooduckDatabaseNameGuard.validate(
-                        "jdbc:mysql://localhost:3306/foodduck"
+                        "jdbc:mysql://localhost:3306/fooduck"
                 )
         );
         assertThrows(IllegalStateException.class, () ->

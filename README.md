@@ -101,7 +101,7 @@ GitHub Desktop을 사용한다면 저장소를 Clone한 뒤 `springboot` 폴더�
 다음 값은 저장소에 직접 기록하지 않습니다.
 
 ```powershell
-$env:DB_URL = "jdbc:mysql://<호스트>:<포트>/fooduck?serverTimezone=Asia/Seoul&characterEncoding=UTF-8"
+$env:DB_URL = "jdbc:mysql://<호스트>:<포트>/foodduck?serverTimezone=Asia/Seoul&characterEncoding=UTF-8"
 $env:DB_USERNAME = "<DB 사용자>"
 $env:DB_PASSWORD = "<DB 비밀번호>"
 $env:JWT_SECRET = "<UTF-8 기준 32바이트 이상의 임의 문자열>"
@@ -109,7 +109,7 @@ $env:JWT_SECRET = "<UTF-8 기준 32바이트 이상의 임의 문자열>"
 
 주의:
 
-- MySQL 스키마 이름은 반드시 `fooduck`이어야 합니다.
+- MySQL 스키마 이름은 반드시 `foodduck`이어야 합니다.
 - `JWT_SECRET`은 UTF-8 기준 32바이트 이상이어야 합니다.
 - 실제 비밀번호, JWT 키, OAuth 키는 GitHub에 올리지 않습니다.
 - OAuth와 Kakao Map을 사용할 때만 관련 환경변수를 추가합니다. 전체 키 목록은
@@ -160,7 +160,7 @@ springboot/src/main/resources/db/
    └─ upgrade_sb_legacy_to_v2.sql
 ```
 
-- 비어 있는 새 `fooduck` DB: 검토 후 `FLYWAY_ENABLED=true`로 최초 마이그레이션
+- 비어 있는 새 `foodduck` DB: 검토 후 `FLYWAY_ENABLED=true`로 최초 마이그레이션
 - 기존 DB: Flyway를 기본값인 `false`로 유지
 - 기존 DB 전환: 반드시 백업본에서 `legacy/upgrade_sb_legacy_to_v2.sql`을 먼저 검증
 - JPA 기본 설정: `ddl-auto=validate`
