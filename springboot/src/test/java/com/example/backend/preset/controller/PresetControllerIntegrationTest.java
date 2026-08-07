@@ -7,6 +7,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
@@ -15,6 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -40,17 +42,6 @@ class PresetControllerIntegrationTest {
     @BeforeEach
     void setUp() {
         jdbcTemplate.update("""
-                insert into preset (
-                    title, summary, description, image_url, category,
-                    view_count, display_order, status
-                ) values (?, ?, ?, ?, ?, ?, ?, ?)
-                """,
-                "성수 데이트 맛집", "분위기 좋은 성수 맛집을 한 번에 확인하세요.",
-                "데이트하기 좋은 음식점을 모은 프리셋입니다.",
-                "/images/characters/cooking.png", "데이트", 12, 1, "ACTIVE");
-        presetId = jdbcTemplate.queryForObject("select max(preset_id) from preset", Long.class);
-
-        jdbcTemplate.update("""
                 insert into account (
                     login_id, email, nickname, gender, email_verified,
                     profile_completed, status, created_at, updated_at
@@ -59,6 +50,17 @@ class PresetControllerIntegrationTest {
                 "preset-owner", "preset-owner@example.com", "프리셋점주",
                 "UNSPECIFIED", true, true, "ACTIVE");
         accountId = jdbcTemplate.queryForObject("select max(account_id) from account", Long.class);
+
+        jdbcTemplate.update("""
+                insert into preset (
+                    title, summary, description, image_url, category,
+                    view_count, display_order, status, account_id, is_public
+                ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                "성수 데이트 맛집", "분위기 좋은 성수 맛집을 한 번에 확인하세요.",
+                "데이트하기 좋은 음식점을 모은 프리셋입니다.",
+                "/images/characters/cooking.png", "데이트", 12, 1, "ACTIVE", accountId, true);
+        presetId = jdbcTemplate.queryForObject("select max(preset_id) from preset", Long.class);
 
         jdbcTemplate.update("""
                 insert into restaurant (
@@ -83,6 +85,59 @@ class PresetControllerIntegrationTest {
                 "insert into preset_tag (preset_id, tag_id, display_order) values (?, ?, ?)",
                 presetId, tagId, 1);
         accessToken = jwtProvider.createAccessToken(accountId, "preset-owner", List.of("ROLE_USER"));
+    }
+
+    @Test
+    @DisplayName("로그인 사용자는 계정 소유권과 공개 여부를 포함해 Presset을 등록한다")
+    void createsPresetForAuthenticatedAccount() throws Exception {
+        mockMvc.perform(post("/api/presets")
+                        .header("Authorization", "Bearer " + accessToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "title": "비공개 회식 후보",
+                                  "summary": "팀원들과 검토할 회식 장소입니다.",
+                                  "description": "예약 전에 내부에서 먼저 확인합니다.",
+                                  "imageUrl": "https://example.com/dinner.jpg",
+                                  "category": "회식",
+                                  "isPublic": false
+                                }
+                                """))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.message").value("프리셋을 등록했습니다."))
+                .andExpect(jsonPath("$.data").isNumber());
+
+        Long createdId = jdbcTemplate.queryForObject(
+                "select preset_id from preset where title = ?",
+                Long.class,
+                "비공개 회식 후보"
+        );
+        assertEquals(accountId, jdbcTemplate.queryForObject(
+                "select account_id from preset where preset_id = ?", Long.class, createdId));
+        assertEquals(Boolean.FALSE, jdbcTemplate.queryForObject(
+                "select is_public from preset where preset_id = ?", Boolean.class, createdId));
+
+        mockMvc.perform(get("/api/presets/{presetId}", createdId))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(get("/api/presets/{presetId}", createdId)
+                        .header("Authorization", "Bearer " + accessToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.presetId").value(createdId));
+    }
+
+    @Test
+    @DisplayName("Presset 등록 요청의 필수값을 서버에서도 검증한다")
+    void validatesPresetCreateRequest() throws Exception {
+        mockMvc.perform(post("/api/presets")
+                        .header("Authorization", "Bearer " + accessToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"title":" ","summary":"","category":" "}
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.data.title").exists())
+                .andExpect(jsonPath("$.data.summary").exists())
+                .andExpect(jsonPath("$.data.category").exists());
     }
 
     @Test
@@ -141,6 +196,12 @@ class PresetControllerIntegrationTest {
     void protectsFavoriteAndAdminApis() throws Exception {
         mockMvc.perform(post("/api/presets/{presetId}/favorite", presetId))
                 .andExpect(status().isUnauthorized());
+        mockMvc.perform(post("/api/presets")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"title":"테스트","summary":"요약","category":"기타"}
+                                """))
+                .andExpect(status().isUnauthorized());
         mockMvc.perform(get("/api/admin/presets")
                         .header("Authorization", "Bearer " + accessToken))
                 .andExpect(status().isForbidden());
@@ -158,7 +219,10 @@ class PresetControllerIntegrationTest {
     @DisplayName("Presset 목록·상세·관리 정적 페이지를 제공한다")
     void servesPressetPages() throws Exception {
         mockMvc.perform(get("/pages/presset/index.html"))
-                .andExpect(status().isOk()).andExpect(content().string(containsString("preset-list")));
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("preset-create-form")))
+                .andExpect(content().string(containsString("result-message")))
+                .andExpect(content().string(containsString("preset-list")));
         mockMvc.perform(get("/pages/presset/detail.html"))
                 .andExpect(status().isOk()).andExpect(content().string(containsString("preset-detail")));
         mockMvc.perform(get("/pages/admin/presets.html"))

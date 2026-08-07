@@ -1,5 +1,8 @@
 package com.example.backend.preset.service;
 
+import com.example.backend.global.exception.BusinessException;
+import com.example.backend.global.exception.ErrorCode;
+import com.example.backend.preset.dto.request.PresetCreateRequest;
 import com.example.backend.preset.dto.response.FavoriteStateResponse;
 import com.example.backend.preset.dto.response.PresetDetailResponse;
 import com.example.backend.preset.dto.response.PresetMapResponse;
@@ -44,7 +47,7 @@ public class PresetService {
         String normalizedSort = sort == null || sort.isBlank() ? "popular" : sort.trim().toLowerCase();
         validateListRequest(normalizedPage, normalizedSize, normalizedSort, tagId, keyword);
 
-        long totalElements = queryRepository.countActive(tagId, keyword);
+        long totalElements = queryRepository.countActive(accountId, tagId, keyword);
         int totalPages = totalElements == 0
                 ? 0
                 : (int) Math.ceil((double) totalElements / normalizedSize);
@@ -70,6 +73,16 @@ public class PresetService {
         );
     }
 
+    @Transactional
+    public Long createPreset(Long accountId, PresetCreateRequest request) {
+        validateId(accountId, "계정");
+        Long presetId = queryRepository.create(accountId, request);
+        if (presetId == null) {
+            throw new BusinessException(ErrorCode.INTERNAL_ERROR);
+        }
+        return presetId;
+    }
+
     @Transactional(readOnly = true)
     public List<PresetTagResponse> getFilterTags() {
         return queryRepository.findActiveFilterTags();
@@ -78,7 +91,7 @@ public class PresetService {
     @Transactional
     public PresetDetailResponse getPreset(Long presetId, Long accountId) {
         validateId(presetId, "프리셋");
-        if (queryRepository.incrementViewCount(presetId) == 0) {
+        if (queryRepository.incrementViewCount(presetId, accountId) == 0) {
             throw new PresetNotFoundException(presetId);
         }
         return toDetail(loadPreset(presetId, accountId), accountId);
@@ -152,7 +165,7 @@ public class PresetService {
     private void validateFavoriteRequest(Long presetId, Long accountId) {
         validateId(presetId, "프리셋");
         validateId(accountId, "계정");
-        if (!queryRepository.activePresetExists(presetId)) {
+        if (!queryRepository.activePresetExists(presetId, accountId)) {
             throw new PresetNotFoundException(presetId);
         }
     }

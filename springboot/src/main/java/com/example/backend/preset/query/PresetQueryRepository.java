@@ -1,10 +1,12 @@
 package com.example.backend.preset.query;
 
+import com.example.backend.preset.dto.request.PresetCreateRequest;
 import com.example.backend.preset.dto.response.PresetRestaurantResponse;
 import com.example.backend.preset.dto.response.PresetSummaryResponse;
 import com.example.backend.preset.dto.response.PresetTagResponse;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
+import org.springframework.jdbc.support.GeneratedKeyHolder;
 import org.springframework.stereotype.Repository;
 
 import java.sql.ResultSet;
@@ -44,6 +46,7 @@ public class PresetQueryRepository {
 
     private static final String ACTIVE_FILTER = """
              where p.status = 'ACTIVE'
+               and (coalesce(p.is_public, true) = true or p.account_id = :accountId)
                and (:tagId is null or exists (
                    select 1 from preset_tag pt_filter
                     where pt_filter.preset_id = p.preset_id
@@ -70,6 +73,7 @@ public class PresetQueryRepository {
             select count(*)
               from preset p
              where p.status = 'ACTIVE'
+               and (coalesce(p.is_public, true) = true or p.account_id = :accountId)
                and (:tagId is null or exists (
                    select 1 from preset_tag pt_filter
                     where pt_filter.preset_id = p.preset_id
@@ -103,9 +107,10 @@ public class PresetQueryRepository {
                         where pf_me.preset_id = p.preset_id
                           and pf_me.account_id = :accountId
                    ) then true else false end as favorite_by_current_user
-              from preset p
+             from preset p
              where p.preset_id = :presetId
                and p.status = 'ACTIVE'
+               and (coalesce(p.is_public, true) = true or p.account_id = :accountId)
             """;
 
     private static final String RESTAURANTS_SQL = """
@@ -162,8 +167,32 @@ public class PresetQueryRepository {
         this.jdbcTemplate = jdbcTemplate;
     }
 
-    public long countActive(Integer tagId, String keyword) {
-        MapSqlParameterSource parameters = filterParameters(null, tagId, keyword);
+    public Long create(Long accountId, PresetCreateRequest request) {
+        String sql = """
+                insert into preset (
+                    title, summary, description, image_url, category,
+                    account_id, is_public
+                ) values (
+                    :title, :summary, :description, :imageUrl, :category,
+                    :accountId, :isPublic
+                )
+                """;
+        MapSqlParameterSource parameters = new MapSqlParameterSource()
+                .addValue("title", request.title().trim())
+                .addValue("summary", request.summary().trim())
+                .addValue("description", blankToNull(request.description()))
+                .addValue("imageUrl", blankToNull(request.imageUrl()))
+                .addValue("category", request.category().trim())
+                .addValue("accountId", accountId)
+                .addValue("isPublic", request.publicOrDefault());
+        GeneratedKeyHolder keyHolder = new GeneratedKeyHolder();
+        jdbcTemplate.update(sql, parameters, keyHolder, new String[]{"preset_id"});
+        Number key = keyHolder.getKey();
+        return key == null ? null : key.longValue();
+    }
+
+    public long countActive(Long accountId, Integer tagId, String keyword) {
+        MapSqlParameterSource parameters = filterParameters(accountId, tagId, keyword);
         Long count = jdbcTemplate.queryForObject(COUNT_SQL, parameters, Long.class);
         return count == null ? 0 : count;
     }
@@ -192,6 +221,7 @@ public class PresetQueryRepository {
                    on pf_saved.preset_id = p.preset_id
                   and pf_saved.account_id = :accountId
                  where p.status = 'ACTIVE'
+                   and (coalesce(p.is_public, true) = true or p.account_id = :accountId)
                  group by p.preset_id, p.title, p.summary, p.image_url, p.category,
                           p.view_count, p.display_order, p.created_at, pf_saved.created_at
                  order by pf_saved.created_at desc, p.preset_id desc
@@ -204,7 +234,9 @@ public class PresetQueryRepository {
                 select t.tag_id, t.name, min(pt.display_order) as display_order
                   from tag t
                   join preset_tag pt on pt.tag_id = t.tag_id
-                  join preset p on p.preset_id = pt.preset_id and p.status = 'ACTIVE'
+                  join preset p on p.preset_id = pt.preset_id
+                   and p.status = 'ACTIVE'
+                   and coalesce(p.is_public, true) = true
                  group by t.tag_id, t.name
                  order by display_order asc, t.name asc
                 """;
@@ -275,25 +307,32 @@ public class PresetQueryRepository {
         });
     }
 
-    public int incrementViewCount(Long presetId) {
+    public int incrementViewCount(Long presetId, Long accountId) {
         String sql = """
                 update preset
                    set view_count = view_count + 1,
                        updated_at = current_timestamp
                  where preset_id = :presetId
                    and status = 'ACTIVE'
+                   and (coalesce(is_public, true) = true or account_id = :accountId)
                 """;
-        return jdbcTemplate.update(sql, new MapSqlParameterSource("presetId", presetId));
+        return jdbcTemplate.update(sql, new MapSqlParameterSource()
+                .addValue("presetId", presetId)
+                .addValue("accountId", accountId));
     }
 
-    public boolean activePresetExists(Long presetId) {
+    public boolean activePresetExists(Long presetId, Long accountId) {
         String sql = """
                 select count(*) from preset
-                 where preset_id = :presetId and status = 'ACTIVE'
+                 where preset_id = :presetId
+                   and status = 'ACTIVE'
+                   and (coalesce(is_public, true) = true or account_id = :accountId)
                 """;
         Integer count = jdbcTemplate.queryForObject(
                 sql,
-                new MapSqlParameterSource("presetId", presetId),
+                new MapSqlParameterSource()
+                        .addValue("presetId", presetId)
+                        .addValue("accountId", accountId),
                 Integer.class
         );
         return count != null && count > 0;
@@ -458,6 +497,10 @@ public class PresetQueryRepository {
     private static Double nullableDouble(ResultSet resultSet, String column) throws SQLException {
         double value = resultSet.getDouble(column);
         return resultSet.wasNull() ? null : value;
+    }
+
+    private static String blankToNull(String value) {
+        return value == null || value.isBlank() ? null : value.trim();
     }
 
     private static boolean isValidCoordinate(Double latitude, Double longitude) {
