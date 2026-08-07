@@ -14,6 +14,7 @@ import com.example.backend.board.dto.response.PostPageResponse;
 import com.example.backend.board.exception.BoardException;
 import com.example.backend.board.mapper.BoardResponseMapper;
 import com.example.backend.board.policy.BoardAccessPolicy;
+import com.example.backend.board.query.BoardReferenceQueryRepository;
 import com.example.backend.board.repository.CommentRepository;
 import com.example.backend.board.repository.PostLikeRepository;
 import com.example.backend.board.repository.PostRepository;
@@ -58,6 +59,8 @@ class PostServiceTest {
     private BoardAccessPolicy accessPolicy;
     @Mock
     private BoardResponseMapper responseMapper;
+    @Mock
+    private BoardReferenceQueryRepository referenceRepository;
 
     private PostService postService;
 
@@ -69,7 +72,8 @@ class PostServiceTest {
                 postLikeRepository,
                 boardUserService,
                 accessPolicy,
-                responseMapper
+                responseMapper,
+                referenceRepository
         );
     }
 
