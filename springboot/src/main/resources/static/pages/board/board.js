@@ -461,7 +461,7 @@
           : "일반 커뮤니티";
     searchForm.hidden = isRankedView;
     writeLinks.forEach((link) => {
-      link.hidden = isPopular || (isBest && !session.isAdmin);
+      link.hidden = isRankedView;
       link.href = board.writePath(state.lastBoardType);
     });
     window.history.replaceState(
