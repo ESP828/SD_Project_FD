@@ -8,6 +8,7 @@
   <link rel="icon" href="/images/favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/css/common.css">
   <link rel="stylesheet" href="/pages/management/management.css">
+  <link rel="stylesheet" href="/pages/mypage/detail.css">
   <link rel="stylesheet" href="/pages/admin/presets.css">
 </head>
 <body>
@@ -25,15 +26,25 @@
         <div><h2>관리자 권한이 필요합니다</h2><a class="button button-secondary" href="/">홈으로</a></div>
       </section>
       <section id="preset-admin-dashboard" hidden>
-        <div class="preset-admin-toolbar">
-          <a href="/pages/admin/index.html">← 관리자 페이지</a>
-          <button id="preset-create" class="button button-primary" type="button">Presset 등록</button>
-        </div>
-        <div class="preset-admin-table-wrap">
-          <table class="preset-admin-table">
-            <thead><tr><th>제목</th><th>분류</th><th>상태</th><th>맛집</th><th>태그</th><th>저장</th><th>관리</th></tr></thead>
-            <tbody id="preset-admin-body"><tr><td colspan="7">불러오는 중...</td></tr></tbody>
-          </table>
+        <div class="mypage-detail-layout">
+          <aside class="mypage-detail-sidebar" data-management-sidebar data-management-section="admin" data-active-item="presets"></aside>
+          <section class="mypage-detail-main">
+            <header class="mypage-detail-heading">
+              <div>
+                <h2>Preset 관리</h2>
+                <p>추천 Preset과 연결 음식점, 태그, 노출 상태를 관리합니다.</p>
+              </div>
+            </header>
+            <div class="preset-admin-toolbar">
+              <button id="preset-create" class="button button-primary" type="button">Presset 등록</button>
+            </div>
+            <div class="preset-admin-table-wrap">
+              <table class="preset-admin-table">
+                <thead><tr><th>제목</th><th>분류</th><th>상태</th><th>맛집</th><th>태그</th><th>저장</th><th>관리</th></tr></thead>
+                <tbody id="preset-admin-body"><tr><td colspan="7">불러오는 중...</td></tr></tbody>
+              </table>
+            </div>
+          </section>
         </div>
       </section>
     </section>
@@ -61,6 +72,7 @@
   </dialog>
   <script src="/js/api.js"></script>
   <script src="/js/common.js"></script>
+  <script src="/pages/management/detail-layout.js"></script>
   <script src="/pages/admin/presets.js"></script>
 </body>
 </html>

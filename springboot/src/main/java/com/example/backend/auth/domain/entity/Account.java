@@ -94,6 +94,12 @@ public class Account {
         this.lastLoginAt = LocalDateTime.now();
     }
 
+    public void updateProfile(String nickname, Gender gender, LocalDate birthDate) {
+        this.nickname = Objects.requireNonNull(nickname);
+        this.gender = Objects.requireNonNull(gender);
+        this.birthDate = birthDate;
+    }
+
     public boolean isActive() {
         return status == AccountStatus.ACTIVE;
     }

@@ -8,6 +8,7 @@
   <link rel="icon" href="/images/favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/css/common.css">
   <link rel="stylesheet" href="/pages/management/management.css">
+  <link rel="stylesheet" href="/pages/mypage/detail.css">
   <link rel="stylesheet" href="/pages/admin/accounts.css">
 </head>
 <body>
@@ -35,45 +36,55 @@
       </section>
 
       <section id="accounts-dashboard" hidden>
-        <a class="accounts-back" href="/pages/admin/index.html">← 관리자 페이지</a>
+        <div class="mypage-detail-layout">
+          <aside class="mypage-detail-sidebar" data-management-sidebar data-management-section="admin" data-active-item="accounts"></aside>
+          <section class="mypage-detail-main">
+            <header class="mypage-detail-heading">
+              <div>
+                <h2>계정 관리</h2>
+                <p>회원의 권한과 계정 상태를 검색하고 관리합니다.</p>
+              </div>
+            </header>
 
-        <div class="accounts-toolbar">
-          <div class="accounts-role-filter" role="group" aria-label="권한 필터">
-            <button type="button" class="accounts-role-btn is-active" data-role="">전체</button>
-            <button type="button" class="accounts-role-btn" data-role="ROLE_USER">일반</button>
-            <button type="button" class="accounts-role-btn" data-role="ROLE_BUSINESS">사업자</button>
-            <button type="button" class="accounts-role-btn" data-role="ROLE_ADMIN">관리자</button>
-          </div>
-          <div class="accounts-toolbar-right">
-            <form id="accounts-search-form" class="accounts-search">
-              <label class="sr-only" for="accounts-search-input">아이디·닉네임·이메일 검색</label>
-              <span class="material-symbols-rounded" aria-hidden="true">search</span>
-              <input id="accounts-search-input" type="search" placeholder="아이디, 닉네임, 이메일 검색">
-              <button type="submit" class="button button-primary button-sm">검색</button>
-            </form>
-            <button type="button" id="accounts-delete-mode-toggle" class="button button-secondary button-sm accounts-mode-toggle">삭제</button>
-          </div>
-        </div>
+            <div class="accounts-toolbar">
+              <div class="accounts-role-filter" role="group" aria-label="권한 필터">
+                <button type="button" class="accounts-role-btn is-active" data-role="">전체</button>
+                <button type="button" class="accounts-role-btn" data-role="ROLE_USER">일반</button>
+                <button type="button" class="accounts-role-btn" data-role="ROLE_BUSINESS">사업자</button>
+                <button type="button" class="accounts-role-btn" data-role="ROLE_ADMIN">관리자</button>
+              </div>
+              <div class="accounts-toolbar-right">
+                <form id="accounts-search-form" class="accounts-search">
+                  <label class="sr-only" for="accounts-search-input">아이디·닉네임·이메일 검색</label>
+                  <span class="material-symbols-rounded" aria-hidden="true">search</span>
+                  <input id="accounts-search-input" type="search" placeholder="아이디, 닉네임, 이메일 검색">
+                  <button type="submit" class="button button-primary button-sm">검색</button>
+                </form>
+                <button type="button" id="accounts-delete-mode-toggle" class="button button-secondary button-sm accounts-mode-toggle">삭제</button>
+              </div>
+            </div>
 
-        <div class="accounts-table-wrap">
-          <table class="accounts-table">
-            <thead>
-              <tr>
-                <th>아이디</th>
-                <th>닉네임</th>
-                <th>이메일</th>
-                <th>권한</th>
-                <th>상태</th>
-                <th>가입일</th>
-                <th>관리</th>
-              </tr>
-            </thead>
-            <tbody id="accounts-table-body">
-              <tr><td colspan="7" class="accounts-loading">불러오는 중...</td></tr>
-            </tbody>
-          </table>
+            <div class="accounts-table-wrap">
+              <table class="accounts-table">
+                <thead>
+                  <tr>
+                    <th>아이디</th>
+                    <th>닉네임</th>
+                    <th>이메일</th>
+                    <th>권한</th>
+                    <th>상태</th>
+                    <th>가입일</th>
+                    <th>관리</th>
+                  </tr>
+                </thead>
+                <tbody id="accounts-table-body">
+                  <tr><td colspan="7" class="accounts-loading">불러오는 중...</td></tr>
+                </tbody>
+              </table>
+            </div>
+            <p id="accounts-count" class="accounts-count"></p>
+          </section>
         </div>
-        <p id="accounts-count" class="accounts-count"></p>
       </section>
     </section>
   </main>
@@ -108,6 +119,7 @@
 
   <script src="/js/api.js"></script>
   <script src="/js/common.js"></script>
+  <script src="/pages/management/detail-layout.js"></script>
   <script src="/pages/admin/accounts.js"></script>
 </body>
 </html>

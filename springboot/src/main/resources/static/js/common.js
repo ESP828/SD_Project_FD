@@ -4,6 +4,16 @@
   const RECOMMENDATION_LOGIN_PATH =
     "/pages/auth/login.html?next=" +
     encodeURIComponent(RECOMMENDATION_PATH);
+  const AUTHORITY_LABELS = Object.freeze({
+    ROLE_USER: "일반 사용자",
+    ROLE_BUSINESS: "사업자",
+    ROLE_ADMIN: "관리자",
+  });
+  const AUTHORITY_PRIORITY = Object.freeze([
+    "ROLE_ADMIN",
+    "ROLE_BUSINESS",
+    "ROLE_USER",
+  ]);
 
   const ICON_PATHS = {
     notifications: [
@@ -178,6 +188,95 @@
     });
   }
 
+  function createElement(tag, className, text) {
+    const element = document.createElement(tag);
+    if (className) {
+      element.className = className;
+    }
+    if (text !== undefined && text !== null) {
+      element.textContent = text;
+    }
+    return element;
+  }
+
+  function primaryAuthorityCode(authorities) {
+    const authorityCodes = Array.isArray(authorities) ? authorities : [];
+    return AUTHORITY_PRIORITY.find((code) => authorityCodes.includes(code)) || "ROLE_USER";
+  }
+
+  function authorityLabel(code) {
+    return AUTHORITY_LABELS[code] || code || AUTHORITY_LABELS.ROLE_USER;
+  }
+
+  function formatProfileDate(value) {
+    if (!value) {
+      return "정보 없음";
+    }
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) {
+      return String(value);
+    }
+    return new Intl.DateTimeFormat("ko-KR", {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    }).format(date);
+  }
+
+  function createProfileSummary(data = {}, actions = []) {
+    const summary = createElement("section", "profile-summary");
+    const profileImage = createElement("div", "profile-image");
+    const showFallbackImage = () => {
+      const fallback = createElement("span", "material-symbols-rounded", "person");
+      fallback.setAttribute("aria-hidden", "true");
+      profileImage.replaceChildren(fallback);
+      enhanceIcons(profileImage);
+    };
+
+    if (data.profileImageUrl) {
+      const image = new Image();
+      image.src = data.profileImageUrl;
+      image.alt = `${data.nickname || "회원"} 프로필`;
+      image.addEventListener("error", showFallbackImage, { once: true });
+      profileImage.append(image);
+    } else {
+      showFallbackImage();
+    }
+
+    const profileCopy = createElement("div", "profile-copy");
+    profileCopy.append(
+      createElement("h2", "", `${data.nickname || "회원"}님, 반가워요`),
+      createElement(
+        "p",
+        "",
+        `${data.loginId || "소셜 계정"} · 가입 ${formatProfileDate(data.createdAt)}`,
+      ),
+    );
+    const authorityList = createElement("div", "authority-list");
+    const primaryAuthority = primaryAuthorityCode(data.authorities);
+    authorityList.append(
+      createElement("span", "authority-badge", authorityLabel(primaryAuthority)),
+    );
+    profileCopy.append(authorityList);
+    summary.append(profileImage, profileCopy);
+
+    const validActions = Array.isArray(actions)
+      ? actions.filter((action) => action?.label && action?.href)
+      : [];
+    if (validActions.length > 0) {
+      const actionList = createElement("div", "profile-summary-actions");
+      validActions.forEach((action) => {
+        const link = createElement("a", "button button-secondary", action.label);
+        link.href = action.href;
+        actionList.append(link);
+      });
+      summary.append(actionList);
+    }
+
+    enhanceIcons(summary);
+    return summary;
+  }
+
   function decodeToken(token) {
     try {
       const segment = token.split(".")[1];
@@ -256,22 +355,8 @@
         protectedRecommendation: true,
       },
       { id: "board", label: "커뮤니티", href: "/pages/board/index.html" },
-       { id: "presset", label: "presset", href: "/pages/presset/index.html" },
+      { id: "presset", label: "preset", href: "/pages/presset/index.html" },
     ];
-    if (canManageBusiness) {
-      items.push({
-        id: "business",
-        label: "사업자 관리",
-        href: "/pages/business/index.html",
-      });
-    }
-    if (isAdmin) {
-      items.push({
-        id: "admin",
-        label: "관리자 페이지",
-        href: "/pages/admin/index.html",
-      });
-    }
 
     const nav = items.map((item) => {
       const current = item.id === active ? ' aria-current="page"' : "";
@@ -456,5 +541,12 @@
     isAdmin,
     hasAuthority,
     recommendationHref,
+  };
+  window.FooduckProfile = {
+    AUTHORITY_LABELS,
+    authorityLabel,
+    createSummary: createProfileSummary,
+    formatDate: formatProfileDate,
+    primaryAuthorityCode,
   };
 })();

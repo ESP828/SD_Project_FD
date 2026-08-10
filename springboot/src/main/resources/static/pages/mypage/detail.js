@@ -1,10 +1,11 @@
 (() => {
   const session = window.FooduckSession;
+  const detailLayout = window.FooduckDetailLayout;
   const gate = document.getElementById("mypage-detail-gate");
   const loginLink = document.getElementById("mypage-detail-login");
   const content = document.getElementById("mypage-detail-content");
 
-  if (!session || !gate || !loginLink || !content) {
+  if (!session || !detailLayout || !gate || !loginLink || !content) {
     return;
   }
 
@@ -110,58 +111,6 @@
     } catch {
       return null;
     }
-  }
-
-  function createProfile(overview) {
-    const profile = element("div", "mypage-detail-profile");
-    const avatar = element("div", "mypage-detail-avatar");
-    const initial = (overview.nickname || "회원").trim().charAt(0) || "회";
-
-    if (overview.profileImageUrl) {
-      const image = new Image();
-      image.src = overview.profileImageUrl;
-      image.alt = `${overview.nickname || "회원"} 프로필`;
-      image.addEventListener("error", () => {
-        avatar.replaceChildren(element("span", "", initial));
-      }, { once: true });
-      avatar.append(image);
-    } else {
-      avatar.append(element("span", "", initial));
-    }
-
-    const copy = element("div");
-    copy.append(
-      element("strong", "", overview.nickname || "회원"),
-      element("span", "", overview.email || "등록된 이메일 없음"),
-    );
-    profile.append(avatar, copy);
-    return profile;
-  }
-
-  function createSidebar(overview) {
-    const sidebar = element("aside", "mypage-detail-sidebar");
-    sidebar.append(createProfile(overview));
-
-    const home = element("a", "mypage-detail-home-link", "← 마이페이지 홈");
-    home.href = "/pages/mypage/index.html";
-    sidebar.append(home);
-
-    const nav = element("nav", "mypage-detail-nav");
-    nav.setAttribute("aria-label", "마이페이지 상세 메뉴");
-    Object.entries(tabs).forEach(([tab, config]) => {
-      const link = element("a");
-      link.href = detailPath(tab);
-      link.append(
-        document.createTextNode(config.label),
-        element("span", "", new Intl.NumberFormat("ko-KR").format(countFor(overview, tab))),
-      );
-      if (tab === activeTab) {
-        link.setAttribute("aria-current", "page");
-      }
-      nav.append(link);
-    });
-    sidebar.append(nav);
-    return sidebar;
   }
 
   function createCardTop(title, badgeText, href) {
@@ -301,7 +250,19 @@
       element("span", "mypage-detail-count", `${countFor(overview, activeTab)}개`),
     );
     main.append(heading, renderItems(items));
-    layout.append(createSidebar(overview), main);
+    const sidebarItems = Object.entries(tabs).map(([tab, config]) => ({
+      label: config.label,
+      href: detailPath(tab),
+      count: countFor(overview, tab),
+      current: tab === activeTab,
+    }));
+    layout.append(detailLayout.createSidebar({
+      profile: overview,
+      homeHref: "/pages/mypage/index.html",
+      homeLabel: "← 마이페이지 홈",
+      ariaLabel: "마이페이지 상세 메뉴",
+      items: sidebarItems,
+    }), main);
     content.append(layout);
     window.FooduckIcons?.enhance(content);
   }

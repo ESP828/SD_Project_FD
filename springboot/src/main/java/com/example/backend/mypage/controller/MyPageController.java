@@ -4,6 +4,7 @@ import com.example.backend.auth.dto.request.ChangePasswordRequest;
 import com.example.backend.auth.service.AuthService;
 import com.example.backend.global.response.ApiResponse;
 import com.example.backend.global.security.principal.AuthenticatedAccount;
+import com.example.backend.mypage.dto.request.MyPageProfileUpdateRequest;
 import com.example.backend.mypage.dto.response.MyPageActivityResponse.CommentItem;
 import com.example.backend.mypage.dto.response.MyPageActivityResponse.FavoriteItem;
 import com.example.backend.mypage.dto.response.MyPageActivityResponse.NotificationItem;
@@ -38,6 +39,17 @@ public class MyPageController {
             @AuthenticationPrincipal AuthenticatedAccount account
     ) {
         return ApiResponse.success(myPageService.getOverview(account.accountId()));
+    }
+
+    @PatchMapping("/profile")
+    public ApiResponse<MyPageOverviewResponse> updateProfile(
+            @AuthenticationPrincipal AuthenticatedAccount account,
+            @Valid @RequestBody MyPageProfileUpdateRequest request
+    ) {
+        return ApiResponse.success(
+                "내 정보가 수정되었습니다.",
+                myPageService.updateProfile(account.accountId(), request)
+        );
     }
 
     @GetMapping("/favorites")

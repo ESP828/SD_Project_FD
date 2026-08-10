@@ -185,6 +185,122 @@
   grid-column: 1 / -1;
 }
 
+.management-panel-body {
+  padding: 24px;
+}
+
+.management-panel-body .application-form {
+  margin-top: 0;
+}
+
+.management-preview-list {
+  display: grid;
+}
+
+.management-preview-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 19px 24px;
+  border-bottom: 1px solid var(--color-line);
+}
+
+.management-preview-row:last-child {
+  border-bottom: 0;
+}
+
+.management-preview-list--compact .management-preview-row {
+  padding: 16px 20px;
+}
+
+.management-preview-copy {
+  min-width: 0;
+}
+
+.management-preview-heading {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.management-preview-heading strong {
+  color: var(--color-navy);
+  font-size: 0.95rem;
+}
+
+.management-preview-copy p,
+.management-preview-copy small {
+  display: block;
+  margin-bottom: 0;
+  color: var(--color-muted);
+  font-size: 0.75rem;
+}
+
+.management-preview-copy small {
+  margin-top: 5px;
+  font-size: 0.7rem;
+}
+
+.management-preview-row .button {
+  flex: 0 0 auto;
+}
+
+.management-status-badge {
+  padding: 4px 8px;
+  border-radius: 999px;
+  color: var(--color-muted);
+  background: #edf1f5;
+  font-size: 0.65rem;
+  font-weight: 850;
+}
+
+.management-status-badge--active,
+.management-status-badge--approved {
+  color: #086b37;
+  background: #def7e8;
+}
+
+.management-status-badge--pending {
+  color: #8a5100;
+  background: #fff0cf;
+}
+
+.management-status-badge--rejected {
+  color: #a12c25;
+  background: #ffe2df;
+}
+
+.management-status-badge--inactive,
+.management-status-badge--canceled {
+  color: #5e6975;
+  background: #e9edf2;
+}
+
+.management-empty {
+  margin-bottom: 0;
+  padding: 28px 24px;
+  color: var(--color-muted);
+  text-align: center;
+  font-size: 0.78rem;
+}
+
+.management-section-error {
+  min-height: 220px;
+  margin-bottom: 20px;
+}
+
+.management-section-error img {
+  width: 105px;
+}
+
+.activity-grid > .management-section-error {
+  grid-column: 1 / -1;
+  margin-bottom: 0;
+}
+
 @media (max-width: 860px) {
   .management-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -223,5 +339,14 @@
   .management-summary {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .management-preview-row {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .management-preview-row .button {
+    width: 100%;
   }
 }
