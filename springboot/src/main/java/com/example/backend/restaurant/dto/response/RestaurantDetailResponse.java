@@ -28,6 +28,8 @@ public record RestaurantDetailResponse(
         long menuCount,
         boolean favoritedByMe,
         boolean isOwner,
+        String ownerNickname,
+        String ownerProfileImageUrl,
         LocalDateTime createdAt
 ) {
     public static RestaurantDetailResponse of(
@@ -58,6 +60,8 @@ public record RestaurantDetailResponse(
                 menuCount,
                 favoritedByMe,
                 isOwner,
+                restaurant.getOwner().getNickname(),
+                restaurant.getOwner().getProfileImageUrl(),
                 restaurant.getCreatedAt()
         );
     }

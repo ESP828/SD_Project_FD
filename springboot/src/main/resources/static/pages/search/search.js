@@ -8,6 +8,7 @@
   const filterToggle = document.getElementById("search-filter-toggle");
   const filterPanel = document.getElementById("search-filter-panel");
   const results = document.getElementById("search-results");
+  const resultHeading = document.getElementById("result-heading");
   const count = document.getElementById("search-result-count");
   const status = document.getElementById("search-status");
   const previousButton = document.getElementById("search-prev");
@@ -128,6 +129,7 @@
   }
 
   async function runSearch(page = 0) {
+    resultHeading.hidden = false;
     const params = new URLSearchParams({
       page: String(page),
       size: String(PAGE_SIZE),

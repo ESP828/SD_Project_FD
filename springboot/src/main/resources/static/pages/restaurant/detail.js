@@ -16,6 +16,7 @@
 
   const badgesEl = document.getElementById("store-badges");
   const nameEl = document.getElementById("store-name");
+  const ownedBadge = document.getElementById("store-owned-badge");
   const addressEl = document.getElementById("store-address");
   const favoriteBtn = document.getElementById("store-favorite-btn");
   const statsRow = document.getElementById("store-stats-row");
@@ -24,7 +25,6 @@
   const sourceNote = document.getElementById("store-source-note");
 
   const panels = {
-    home: document.getElementById("tab-home"),
     news: document.getElementById("tab-news"),
     menu: document.getElementById("tab-menu"),
     review: document.getElementById("tab-review"),
@@ -55,9 +55,9 @@
     return `${dataYm.slice(0, 4)}.${dataYm.slice(4, 6)}`;
   }
 
-  const TAB_LABELS = { home: "홈", news: "소식", menu: "메뉴", review: "리뷰", info: "정보" };
+  const TAB_LABELS = { menu: "메뉴", news: "소식", review: "리뷰", info: "정보" };
   const loadedTabs = new Set();
-  let activeTab = "home";
+  let activeTab = "menu";
   let tabOrder = [];
   let storeId = null;
   let isOwner = false;
@@ -108,7 +108,6 @@
       const response = await Api.get(`/public/restaurants/${storeId}/menu`, { auth: false });
       const items = response.data || [];
       renderMenuPanel(items);
-      renderHomeMenuPreview(items);
     } catch (error) {
       panels.menu.innerHTML = `<div class="store-empty">${error.message || "메뉴를 불러오지 못했습니다."}</div>`;
     }
@@ -295,17 +294,6 @@
     }
   }
 
-  function renderHomeMenuPreview(items) {
-    const homeMenuSlot = document.getElementById("store-home-menu-preview");
-    if (!homeMenuSlot) return;
-    const preview = items.slice(0, 4);
-    if (preview.length === 0) {
-      homeMenuSlot.innerHTML = '<div class="store-empty">등록된 메뉴가 없습니다.</div>';
-      return;
-    }
-    homeMenuSlot.innerHTML = `<div class="store-menu-list">${preview.map(menuItemHtml).join("")}</div>`;
-  }
-
   function renderStat(label, value) {
     const wrapper = document.createElement("div");
     wrapper.innerHTML = `<span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong>`;
@@ -352,20 +340,7 @@
       }
     });
 
-    panels.home.innerHTML = `
-      <div class="store-section-card">
-        <h2>가게 소개</h2>
-        <p>${store.description ? escapeHtml(store.description) : "등록된 소개글이 없습니다."}</p>
-      </div>
-      <div class="store-section-card">
-        <div class="store-section-head">
-          <h2>대표 메뉴</h2>
-          <button type="button" class="store-section-link" data-tab-link="menu">전체 메뉴 →</button>
-        </div>
-        <div id="store-home-menu-preview"><div class="store-empty">메뉴를 불러오는 중입니다.</div></div>
-      </div>
-    `;
-    panels.home.querySelector("[data-tab-link='menu']").addEventListener("click", () => activateTab("menu"));
+    ownedBadge.hidden = false;
 
     panels.info.innerHTML = `
       <div class="store-section-card">
@@ -381,17 +356,18 @@
     `;
 
     basicInfo.innerHTML = `
-      <div><dt>영업시간</dt><dd>${escapeHtml(store.openingHours || "정보 없음")}</dd></div>
-      <div><dt>휴무일</dt><dd>${escapeHtml(store.closedDays || "정보 없음")}</dd></div>
-      <div><dt>전화번호</dt><dd>${escapeHtml(store.phone || "정보 없음")}</dd></div>
-      <div><dt>평점</dt><dd>${store.averageRating != null ? `★ ${store.averageRating.toFixed(1)} (${store.reviewCount})` : "아직 리뷰가 없습니다"}</dd></div>
+      <div class="store-owner-profile">
+        <img class="store-owner-avatar" src="${escapeHtml(store.ownerProfileImageUrl || "/images/characters/waving.png")}" alt="">
+        <div>
+          <strong>${escapeHtml(store.ownerNickname || "사장님")}</strong>
+          <span>${escapeHtml(store.phone || "전화번호 미등록")}</span>
+        </div>
+      </div>
     `;
     sourceNote.textContent = "가게 기본정보 출처: 사업자 직접 등록";
 
-    renderTabs(["home", "news", "menu", "review", "info"]);
-    activateTab("home");
-    loadedTabs.add("menu");
-    loadMenu();
+    renderTabs(["menu", "news", "review", "info"]);
+    activateTab("menu");
   }
 
   function renderPublicDetail(store) {
@@ -429,13 +405,6 @@
       }
     });
 
-    panels.home.innerHTML = `
-      <div class="store-section-card">
-        <h2>가게 정보</h2>
-        <p>공공데이터포털에 등록된 사업체 정보를 기반으로 제공하는 기본 정보입니다. 영업시간·전화번호·메뉴 등 상세 정보는 사업자가 푸드덕에 직접 가게를 등록하면 표시됩니다.</p>
-      </div>
-    `;
-
     panels.info.innerHTML = `
       <div class="store-section-card">
         <h2>가게 정보</h2>
@@ -449,14 +418,11 @@
       </div>
     `;
 
-    basicInfo.innerHTML = `
-      <div><dt>업종</dt><dd>${escapeHtml(categoryName || "정보 없음")}</dd></div>
-      <div><dt>주소</dt><dd>${escapeHtml(address)}</dd></div>
-    `;
+    basicInfo.innerHTML = '<div class="store-empty">사업자가 푸드덕에 가게를 직접 등록하면 사업자 정보가 표시됩니다.</div>';
     sourceNote.textContent = `가게 기본정보 출처: 공공데이터 · ${formatDataYm(store.dataYm)} 기준`;
 
-    renderTabs(["home", "news", "menu", "review", "info"]);
-    activateTab("home");
+    renderTabs(["menu", "news", "review", "info"]);
+    activateTab("menu");
   }
 
   async function init() {

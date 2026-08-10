@@ -94,10 +94,30 @@
   gap: 16px;
 }
 
-.store-hero-row h1 {
+.store-name-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
   margin-bottom: 6px;
+}
+
+.store-hero-row h1 {
+  margin-bottom: 0;
   font-size: clamp(1.7rem, 4vw, 2.4rem);
   color: #fff;
+}
+
+.store-owned-badge {
+  width: 28px;
+  height: 28px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: #fff;
+  padding: 3px;
+}
+
+.store-owned-badge[hidden] {
+  display: none;
 }
 
 .store-address {
@@ -258,21 +278,6 @@
   font-size: 0.78rem;
   font-weight: 700;
   background: var(--color-canvas);
-}
-
-.store-section-link {
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-  color: var(--color-orange-dark);
-  font-size: 0.8rem;
-  font-weight: 800;
-}
-
-.store-section-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
 }
 
 .store-empty {
@@ -460,6 +465,33 @@
   color: var(--color-navy);
   font-size: 0.86rem;
   font-weight: 700;
+}
+
+.store-owner-profile {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.store-owner-avatar {
+  width: 52px;
+  height: 52px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  object-fit: cover;
+  background: #f4f6f9;
+}
+
+.store-owner-profile strong {
+  display: block;
+  margin-bottom: 3px;
+  color: var(--color-navy);
+  font-size: 0.92rem;
+}
+
+.store-owner-profile span {
+  color: var(--color-muted);
+  font-size: 0.8rem;
 }
 
 .store-source-note {

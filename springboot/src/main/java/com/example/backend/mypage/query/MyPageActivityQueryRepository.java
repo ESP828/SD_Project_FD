@@ -52,27 +52,47 @@ public class MyPageActivityQueryRepository {
         );
     }
 
+    /**
+     * favorite/review는 사업자 등록 가게(restaurant)뿐 아니라 공공데이터 가게(public_restaurant)도
+     * 대상이 될 수 있어(restaurant_id, public_restaurant_id 중 하나만 채워짐) 두 출처를 UNION ALL로 합친다.
+     * 단일 JOIN restaurant만 쓰면 공공데이터 가게 대상 활동이 통계 카운트에는 잡히지만 목록에서는
+     * 조용히 빠지는 불일치가 생긴다.
+     */
     public List<FavoriteItem> findFavorites(Long accountId) {
         return jdbcTemplate.query("""
-                        select r.restaurant_id,
-                               r.name as restaurant_name,
-                               rc.name as category_name,
-                               r.address,
-                               r.description,
-                               f.created_at
-                          from favorite f
-                          join restaurant r
-                            on r.restaurant_id = f.restaurant_id
-                          left join restaurant_category rc
-                            on rc.category_id = r.category_id
-                         where f.account_id = :accountId
-                           and r.status = 'ACTIVE'
-                         order by f.created_at desc
+                        select restaurant_id, restaurant_name, category_name, address, description, created_at
+                          from (
+                                select r.restaurant_id as restaurant_id,
+                                       r.name as restaurant_name,
+                                       rc.name as category_name,
+                                       r.address as address,
+                                       r.description as description,
+                                       f.created_at as created_at
+                                  from favorite f
+                                  join restaurant r
+                                    on r.restaurant_id = f.restaurant_id
+                                  left join restaurant_category rc
+                                    on rc.category_id = r.category_id
+                                 where f.account_id = :accountId
+                                   and r.status = 'ACTIVE'
+                                union all
+                                select null as restaurant_id,
+                                       p.name as restaurant_name,
+                                       coalesce(p.category_small_name, p.category_medium_name, p.category_large_name) as category_name,
+                                       coalesce(p.road_address, p.lot_address) as address,
+                                       null as description,
+                                       f.created_at as created_at
+                                  from favorite f
+                                  join public_restaurant p
+                                    on p.public_restaurant_id = f.public_restaurant_id
+                                 where f.account_id = :accountId
+                               ) combined
+                         order by created_at desc
                          limit 100
                         """,
                 parameters(accountId),
                 (resultSet, rowNumber) -> new FavoriteItem(
-                        resultSet.getLong("restaurant_id"),
+                        (Long) resultSet.getObject("restaurant_id"),
                         resultSet.getString("restaurant_name"),
                         resultSet.getString("category_name"),
                         resultSet.getString("address"),
@@ -83,25 +103,41 @@ public class MyPageActivityQueryRepository {
 
     public List<ReviewItem> findReviews(Long accountId) {
         return jdbcTemplate.query("""
-                        select rv.review_id,
-                               rv.restaurant_id,
-                               r.name as restaurant_name,
-                               rv.rating,
-                               rv.content,
-                               rv.created_at,
-                               rv.updated_at
-                          from review rv
-                          join restaurant r
-                            on r.restaurant_id = rv.restaurant_id
-                         where rv.account_id = :accountId
-                           and rv.status = 'ACTIVE'
-                         order by rv.created_at desc
+                        select review_id, restaurant_id, restaurant_name, rating, content, created_at, updated_at
+                          from (
+                                select rv.review_id as review_id,
+                                       rv.restaurant_id as restaurant_id,
+                                       r.name as restaurant_name,
+                                       rv.rating as rating,
+                                       rv.content as content,
+                                       rv.created_at as created_at,
+                                       rv.updated_at as updated_at
+                                  from review rv
+                                  join restaurant r
+                                    on r.restaurant_id = rv.restaurant_id
+                                 where rv.account_id = :accountId
+                                   and rv.status = 'ACTIVE'
+                                union all
+                                select rv.review_id as review_id,
+                                       null as restaurant_id,
+                                       p.name as restaurant_name,
+                                       rv.rating as rating,
+                                       rv.content as content,
+                                       rv.created_at as created_at,
+                                       rv.updated_at as updated_at
+                                  from review rv
+                                  join public_restaurant p
+                                    on p.public_restaurant_id = rv.public_restaurant_id
+                                 where rv.account_id = :accountId
+                                   and rv.status = 'ACTIVE'
+                               ) combined
+                         order by created_at desc
                          limit 100
                         """,
                 parameters(accountId),
                 (resultSet, rowNumber) -> new ReviewItem(
                         resultSet.getLong("review_id"),
-                        resultSet.getLong("restaurant_id"),
+                        (Long) resultSet.getObject("restaurant_id"),
                         resultSet.getString("restaurant_name"),
                         resultSet.getInt("rating"),
                         resultSet.getString("content"),

@@ -153,6 +153,19 @@
       "M12 11a2 2 0 1 0 0-4 2 2 0 0 0 0 4z",
       "M8.5 17a3.5 3.5 0 0 1 7 0",
     ],
+    rate_review: [
+      "M4 4h16v13H9l-5 4V4z",
+      "M12 8l1.2 2.4L16 11l-2.8.6L12 14l-1.2-2.4L8 11l2.8-.6L12 8z",
+    ],
+    article: [
+      "M6 3h9l5 5v13H6z",
+      "M15 3v5h5",
+      "M9 12h6",
+      "M9 16h6",
+    ],
+    chat_bubble: [
+      "M4 5h16v11H9l-5 4V5z",
+    ],
   };
 
   function setIcon(element, iconName) {

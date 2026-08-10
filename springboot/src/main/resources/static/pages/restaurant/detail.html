@@ -32,7 +32,10 @@
 
           <div class="store-hero-row">
             <div>
-              <h1 id="store-name">-</h1>
+              <div class="store-name-row">
+                <h1 id="store-name">-</h1>
+                <img id="store-owned-badge" class="store-owned-badge" src="/images/logos/symbol-48.png" alt="푸드덕 등록 가게" hidden>
+              </div>
               <p class="store-address" id="store-address">-</p>
             </div>
             <button type="button" class="store-favorite-btn" id="store-favorite-btn" hidden aria-pressed="false" aria-label="찜하기">
@@ -50,9 +53,8 @@
 
       <section class="container store-body">
         <div class="store-main-column">
-          <section id="tab-home" class="store-panel" role="tabpanel"></section>
+          <section id="tab-menu" class="store-panel" role="tabpanel"></section>
           <section id="tab-news" class="store-panel" role="tabpanel" hidden></section>
-          <section id="tab-menu" class="store-panel" role="tabpanel" hidden></section>
           <section id="tab-review" class="store-panel" role="tabpanel" hidden></section>
           <section id="tab-info" class="store-panel" role="tabpanel" hidden></section>
         </div>
@@ -60,7 +62,7 @@
         <aside class="store-side-column">
           <div class="store-info-card">
             <h3>기본 정보</h3>
-            <dl id="store-basic-info" class="store-basic-info"></dl>
+            <div id="store-basic-info" class="store-basic-info"></div>
           </div>
           <p id="store-source-note" class="store-source-note"></p>
         </aside>
