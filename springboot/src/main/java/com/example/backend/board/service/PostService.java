@@ -22,6 +22,9 @@ import com.example.backend.board.query.BoardReferenceQueryRepository.PostMediaFi
 import com.example.backend.board.repository.CommentRepository;
 import com.example.backend.board.repository.PostLikeRepository;
 import com.example.backend.board.repository.PostRepository;
+import jakarta.annotation.PreDestroy;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -33,21 +36,32 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
+import java.io.IOException;
+import java.io.InputStream;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Semaphore;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 @Service
 public class PostService {
 
+    private static final Logger LOGGER =
+            LoggerFactory.getLogger(PostService.class);
     private static final int MAX_PAGE_SIZE = 50;
     private static final int MAX_BEST_SIZE = 10;
     private static final int MIN_POPULAR_SIZE = 10;
@@ -56,7 +70,6 @@ public class PostService {
     private static final int MAX_AUTHOR_RECENT_POSTS = 5;
     private static final int MAX_AUTHOR_RECENT_COMMENTS = 5;
     private static final int BEST_COMMUNITY_MINIMUM_LIKE_COUNT = 3;
-    private static final Duration BEST_COMMUNITY_WINDOW = Duration.ofDays(7);
     private static final Duration RAPID_DUPLICATE_WINDOW =
             Duration.ofMillis(3_500);
     private static final long RAPID_DUPLICATE_WINDOW_NANOS =
@@ -65,6 +78,10 @@ public class PostService {
     private static final int SUBMISSION_CLEANUP_INTERVAL = 256;
     private static final int MAX_MEDIA_COUNT = 10;
     private static final int MAX_IMAGE_BYTES = 20 * 1024 * 1024;
+    private static final int MAX_VIDEO_BYTES = 100 * 1024 * 1024;
+    private static final int VIDEO_PROCESSING_QUEUE_CAPACITY = 16;
+    private static final int VIDEO_PROCESSING_SLOT_CAPACITY =
+            VIDEO_PROCESSING_QUEUE_CAPACITY + 1;
     private static final int INITIAL_MEDIA_RANGE_BYTES = 8 * 1024 * 1024;
     private static final int STREAM_MEDIA_RANGE_BYTES = 8 * 1024 * 1024;
     private static final int SUFFIX_MEDIA_RANGE_BYTES = 4 * 1024 * 1024;
@@ -108,6 +125,29 @@ public class PostService {
     private final ConcurrentMap<PostSubmissionKey, Long>
             recentPostSubmissions = new ConcurrentHashMap<>();
     private final AtomicInteger postSubmissionChecks = new AtomicInteger();
+    private final ConcurrentMap<Long, Path> activeVideoProcessingSources =
+            new ConcurrentHashMap<>();
+    private final Semaphore videoProcessingSlots =
+            new Semaphore(VIDEO_PROCESSING_SLOT_CAPACITY);
+    private final ExecutorService videoProcessingExecutor =
+            new ThreadPoolExecutor(
+                    1,
+                    1,
+                    0L,
+                    TimeUnit.MILLISECONDS,
+                    new ArrayBlockingQueue<>(
+                            VIDEO_PROCESSING_QUEUE_CAPACITY
+                    ),
+                    runnable -> {
+                        Thread thread = new Thread(
+                                runnable,
+                                "board-video-processor"
+                        );
+                        thread.setDaemon(true);
+                        return thread;
+                    },
+                    new ThreadPoolExecutor.AbortPolicy()
+            );
 
     private final PostRepository postRepository;
     private final CommentRepository commentRepository;
@@ -136,6 +176,27 @@ public class PostService {
         this.accessPolicy = accessPolicy;
         this.responseMapper = responseMapper;
         this.referenceRepository = referenceRepository;
+    }
+
+    @PreDestroy
+    public void stopVideoProcessor() {
+        videoProcessingExecutor.shutdownNow();
+        try {
+            if (!videoProcessingExecutor.awaitTermination(
+                    5,
+                    TimeUnit.SECONDS
+            )) {
+                LOGGER.warn("게시판 동영상 처리 작업이 종료되지 않았습니다.");
+            }
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+        }
+        Map<Long, Path> interruptedMedia = Map.copyOf(
+                activeVideoProcessingSources
+        );
+        interruptedMedia.keySet().forEach(this::markStoppedVideoAsFailed);
+        interruptedMedia.values().forEach(this::deleteStagedVideoQuietly);
+        activeVideoProcessingSources.clear();
     }
 
     @Transactional(readOnly = true)
@@ -274,7 +335,6 @@ public class PostService {
         Page<Post> result = postRepository.findBestPostPage(
                 readableBoardType,
                 PostCategory.NOTICE,
-                LocalDateTime.now().minus(BEST_COMMUNITY_WINDOW),
                 BEST_COMMUNITY_MINIMUM_LIKE_COUNT,
                 PostStatus.ACTIVE,
                 PageRequest.of(page, size)
@@ -419,16 +479,17 @@ public class PostService {
         );
     }
 
-    @Transactional
+    @Transactional(readOnly = true)
     public PostDetailResponse getPost(Long postId, Long currentAccountId) {
         Account currentAccount = boardUserService.findOptional(currentAccountId);
         Post post = getExistingPost(postId);
         accessPolicy.assertCanRead(post.getBoardType(), currentAccount);
 
-        if (postRepository.increaseViewCount(postId, PostStatus.ACTIVE) != 1) {
+        long viewCount = referenceRepository.increasePostViewCountImmediately(postId);
+        if (viewCount < 0) {
             throw notFound("게시글을 찾을 수 없습니다.");
         }
-        return responseMapper.toDetail(getExistingPost(postId), currentAccount);
+        return responseMapper.toDetail(post, currentAccount, viewCount);
     }
 
     @Transactional
@@ -550,27 +611,236 @@ public class PostService {
         if (mediaType.image() && mediaData.length > MAX_IMAGE_BYTES) {
             throw badRequest("사진은 한 파일당 20MB 이하만 첨부할 수 있습니다.");
         }
+        if (!mediaType.image() && mediaData.length > MAX_VIDEO_BYTES) {
+            throw badRequest("동영상은 한 파일당 100MB 이하만 첨부할 수 있습니다.");
+        }
 
         int displayOrder = referenceRepository.nextPostMediaDisplayOrder(postId);
-        Long postMediaId = referenceRepository.savePostMedia(
-                postId,
-                mediaType.databaseType(),
-                mediaType.mimeType(),
-                originalName,
-                mediaData.length,
-                displayOrder,
-                mediaData
-        );
+        Long postMediaId;
+        if (mediaType.image()) {
+            postMediaId = referenceRepository.savePostMedia(
+                    postId,
+                    mediaType.databaseType(),
+                    mediaType.mimeType(),
+                    originalName,
+                    mediaData.length,
+                    displayOrder,
+                    mediaData
+            );
+        } else {
+            if (!videoProcessingSlots.tryAcquire()) {
+                throw new BoardException(
+                        HttpStatus.SERVICE_UNAVAILABLE,
+                        "BOARD_VIDEO_PROCESSING_BUSY",
+                        "동영상 처리 요청이 많습니다. 잠시 후 다시 시도해 주세요."
+                );
+            }
+            Path stagedVideo = null;
+            Long processingMediaId = null;
+            try {
+                stagedVideo = stageVideoMedia(mediaData);
+                processingMediaId =
+                        referenceRepository.createProcessingPostMedia(
+                                postId,
+                                mediaType.databaseType(),
+                                mediaType.mimeType(),
+                                originalName,
+                                mediaData.length,
+                                displayOrder
+                        );
+                postMediaId = processingMediaId;
+                scheduleVideoProcessingAfterTransaction(
+                        postMediaId,
+                        mediaData.length,
+                        stagedVideo
+                );
+            } catch (RuntimeException exception) {
+                if (processingMediaId != null) {
+                    activeVideoProcessingSources.remove(
+                            processingMediaId,
+                            stagedVideo
+                    );
+                }
+                deleteStagedVideoQuietly(stagedVideo);
+                videoProcessingSlots.release();
+                throw exception;
+            }
+        }
 
         return new PostDetailResponse.MediaResponse(
                 postMediaId,
                 mediaType.databaseType(),
-                "/api/board/posts/media/" + postMediaId,
+                mediaType.image()
+                        ? "/api/board/posts/media/" + postMediaId
+                        : null,
                 mediaType.mimeType(),
                 originalName,
                 mediaData.length,
-                displayOrder
+                displayOrder,
+                mediaType.image() ? "READY" : "PROCESSING",
+                mediaType.image() ? 100 : 0,
+                mediaType.image()
+                        ? null
+                        : "동영상 원본을 서버에서 처리하고 있습니다."
         );
+    }
+
+    @Transactional(readOnly = true)
+    public List<PostDetailResponse.MediaResponse> getMediaStatus(
+            Long postId,
+            Long currentAccountId
+    ) {
+        Account currentAccount = boardUserService.findOptional(currentAccountId);
+        Post post = getExistingPost(postId);
+        accessPolicy.assertCanRead(post.getBoardType(), currentAccount);
+
+        return responseMapper.toMediaResponses(
+                referenceRepository.findPostMedia(postId)
+        );
+    }
+
+    private Path stageVideoMedia(byte[] mediaData) {
+        Path stagedVideo = null;
+        try {
+            stagedVideo = Files.createTempFile(
+                    "fooduck-board-video-",
+                    ".upload"
+            );
+            Files.write(stagedVideo, mediaData);
+            if (Files.size(stagedVideo) != mediaData.length) {
+                throw new IOException("임시 동영상 크기가 일치하지 않습니다.");
+            }
+            return stagedVideo;
+        } catch (IOException exception) {
+            deleteStagedVideoQuietly(stagedVideo);
+            throw new BoardException(
+                    HttpStatus.INTERNAL_SERVER_ERROR,
+                    "BOARD_MEDIA_STAGING_FAILED",
+                    "동영상을 서버 처리용 파일로 준비하지 못했습니다."
+            );
+        }
+    }
+
+    private void scheduleVideoProcessingAfterTransaction(
+            Long postMediaId,
+            long fileSize,
+            Path stagedVideo
+    ) {
+        activeVideoProcessingSources.put(postMediaId, stagedVideo);
+        Runnable submitProcessing = () -> {
+            try {
+                videoProcessingExecutor.execute(() ->
+                        processVideoMedia(
+                                postMediaId,
+                                fileSize,
+                                stagedVideo
+                        )
+                );
+            } catch (RuntimeException exception) {
+                activeVideoProcessingSources.remove(
+                        postMediaId,
+                        stagedVideo
+                );
+                deleteStagedVideoQuietly(stagedVideo);
+                markVideoProcessingFailed(postMediaId, exception);
+                videoProcessingSlots.release();
+            }
+        };
+
+        if (!TransactionSynchronizationManager.isSynchronizationActive()
+                || !TransactionSynchronizationManager
+                .isActualTransactionActive()) {
+            submitProcessing.run();
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(
+                new TransactionSynchronization() {
+                    @Override
+                    public void afterCommit() {
+                        submitProcessing.run();
+                    }
+
+                    @Override
+                    public void afterCompletion(int status) {
+                        if (status != STATUS_COMMITTED) {
+                            activeVideoProcessingSources.remove(
+                                    postMediaId,
+                                    stagedVideo
+                            );
+                            deleteStagedVideoQuietly(stagedVideo);
+                            videoProcessingSlots.release();
+                        }
+                    }
+                }
+        );
+    }
+
+    private void processVideoMedia(
+            Long postMediaId,
+            long fileSize,
+            Path stagedVideo
+    ) {
+        try (InputStream inputStream = Files.newInputStream(stagedVideo)) {
+            referenceRepository.storePostMediaData(
+                    postMediaId,
+                    fileSize,
+                    inputStream
+            );
+        } catch (IOException | RuntimeException exception) {
+            markVideoProcessingFailed(postMediaId, exception);
+        } finally {
+            activeVideoProcessingSources.remove(postMediaId, stagedVideo);
+            deleteStagedVideoQuietly(stagedVideo);
+            videoProcessingSlots.release();
+        }
+    }
+
+    private void markVideoProcessingFailed(
+            Long postMediaId,
+            Throwable cause
+    ) {
+        LOGGER.error(
+                "게시판 동영상 처리에 실패했습니다. postMediaId={}",
+                postMediaId,
+                cause
+        );
+        try {
+            referenceRepository.markPostMediaFailed(postMediaId);
+        } catch (RuntimeException updateException) {
+            LOGGER.error(
+                    "게시판 동영상 실패 상태를 저장하지 못했습니다. postMediaId={}",
+                    postMediaId,
+                    updateException
+            );
+        }
+    }
+
+    private void markStoppedVideoAsFailed(Long postMediaId) {
+        try {
+            referenceRepository.markPostMediaFailed(postMediaId);
+        } catch (RuntimeException exception) {
+            LOGGER.error(
+                    "종료 중인 동영상의 실패 상태를 저장하지 못했습니다. "
+                            + "postMediaId={}",
+                    postMediaId,
+                    exception
+            );
+        }
+    }
+
+    private void deleteStagedVideoQuietly(Path stagedVideo) {
+        if (stagedVideo == null) {
+            return;
+        }
+        try {
+            Files.deleteIfExists(stagedVideo);
+        } catch (IOException exception) {
+            LOGGER.warn(
+                    "게시판 동영상 임시 파일을 삭제하지 못했습니다. path={}",
+                    stagedVideo,
+                    exception
+            );
+        }
     }
 
     @Transactional
@@ -610,6 +880,25 @@ public class PostService {
         Account currentAccount = boardUserService.findOptional(currentAccountId);
         Post post = getExistingPost(media.postId());
         accessPolicy.assertCanRead(post.getBoardType(), currentAccount);
+
+        if (BoardReferenceQueryRepository.MEDIA_URL_PROCESSING.equals(
+                media.mediaUrl()
+        )) {
+            throw new BoardException(
+                    HttpStatus.CONFLICT,
+                    "BOARD_MEDIA_PROCESSING",
+                    "동영상이 아직 서버에서 처리 중입니다."
+            );
+        }
+        if (BoardReferenceQueryRepository.MEDIA_URL_FAILED.equals(
+                media.mediaUrl()
+        )) {
+            throw new BoardException(
+                    HttpStatus.CONFLICT,
+                    "BOARD_MEDIA_PROCESSING_FAILED",
+                    "동영상 처리에 실패했습니다."
+            );
+        }
 
         if (media.fileSize() < 1) {
             throw notFound("첨부파일 데이터가 없습니다.");

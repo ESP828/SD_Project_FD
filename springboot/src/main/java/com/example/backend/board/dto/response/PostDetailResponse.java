@@ -25,6 +25,7 @@ public record PostDetailResponse(
         boolean ownedByCurrentUser,
         LocalDateTime createdAt,
         LocalDateTime updatedAt,
+        boolean edited,
         List<MediaResponse> media
 ) {
     public PostDetailResponse {
@@ -38,7 +39,42 @@ public record PostDetailResponse(
             String mimeType,
             String originalName,
             long fileSize,
-            int displayOrder
+            int displayOrder,
+            String processingStatus,
+            int processingProgress,
+            String processingMessage
     ) {
+        public MediaResponse {
+            processingStatus = processingStatus == null
+                    ? "READY"
+                    : processingStatus;
+            processingProgress = Math.max(
+                    0,
+                    Math.min(100, processingProgress)
+            );
+        }
+
+        public MediaResponse(
+                Long postMediaId,
+                String mediaType,
+                String mediaUrl,
+                String mimeType,
+                String originalName,
+                long fileSize,
+                int displayOrder
+        ) {
+            this(
+                    postMediaId,
+                    mediaType,
+                    mediaUrl,
+                    mimeType,
+                    originalName,
+                    fileSize,
+                    displayOrder,
+                    "READY",
+                    100,
+                    null
+            );
+        }
     }
 }

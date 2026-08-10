@@ -9,9 +9,31 @@ public record CommentPageResponse(
         long totalElements,
         int totalPages,
         boolean first,
-        boolean last
+        boolean last,
+        long totalCommentCount
 ) {
     public CommentPageResponse {
         content = List.copyOf(content);
+    }
+
+    public CommentPageResponse(
+            List<CommentResponse> content,
+            int page,
+            int size,
+            long totalElements,
+            int totalPages,
+            boolean first,
+            boolean last
+    ) {
+        this(
+                content,
+                page,
+                size,
+                totalElements,
+                totalPages,
+                first,
+                last,
+                totalElements
+        );
     }
 }

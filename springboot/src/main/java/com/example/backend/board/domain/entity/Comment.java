@@ -38,8 +38,20 @@ public class Comment {
     @JoinColumn(name = "account_id", nullable = false)
     private Account author;
 
+    @Column(name = "parent_comment_id")
+    private Long parentCommentId;
+
     @Column(nullable = false, length = 1000)
     private String content;
+
+    @Column(name = "image_mime_type", length = 100)
+    private String imageMimeType;
+
+    @Column(name = "image_original_name", length = 255)
+    private String imageOriginalName;
+
+    @Column(name = "image_file_size")
+    private Long imageFileSize;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
@@ -51,26 +63,52 @@ public class Comment {
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
 
+    @Column(name = "is_edited", nullable = false)
+    private boolean edited;
+
     @Column(name = "deleted_at")
     private LocalDateTime deletedAt;
 
     protected Comment() {
     }
 
-    private Comment(Post post, Account author, String content) {
+    private Comment(
+            Post post,
+            Account author,
+            String content,
+            Long parentCommentId
+    ) {
         this.post = Objects.requireNonNull(post);
         this.author = Objects.requireNonNull(author);
         this.content = Objects.requireNonNull(content);
+        this.parentCommentId = parentCommentId;
         this.status = CommentStatus.ACTIVE;
     }
 
     public static Comment create(Post post, Account author, String content) {
-        return new Comment(post, author, content);
+        return new Comment(post, author, content, null);
+    }
+
+    public static Comment createReply(
+            Post post,
+            Account author,
+            String content,
+            Long parentCommentId
+    ) {
+        if (parentCommentId == null || parentCommentId < 1) {
+            throw new IllegalArgumentException("부모 댓글 번호가 필요합니다.");
+        }
+        return new Comment(post, author, content, parentCommentId);
     }
 
     public void update(String content) {
-        this.content = Objects.requireNonNull(content);
+        String nextContent = Objects.requireNonNull(content);
+        boolean changed = !Objects.equals(this.content, nextContent);
+        this.content = nextContent;
         this.updatedAt = LocalDateTime.now();
+        if (changed) {
+            this.edited = true;
+        }
     }
 
     public void softDelete(LocalDateTime deletedAt) {
@@ -109,6 +147,33 @@ public class Comment {
         return content;
     }
 
+    public Long getParentCommentId() {
+        return parentCommentId;
+    }
+
+    public boolean isReply() {
+        return parentCommentId != null;
+    }
+
+    public boolean hasImage() {
+        return imageFileSize != null
+                && imageFileSize > 0
+                && imageMimeType != null
+                && !imageMimeType.isBlank();
+    }
+
+    public String getImageMimeType() {
+        return imageMimeType;
+    }
+
+    public String getImageOriginalName() {
+        return imageOriginalName;
+    }
+
+    public Long getImageFileSize() {
+        return imageFileSize;
+    }
+
     public CommentStatus getStatus() {
         return status;
     }
@@ -119,6 +184,10 @@ public class Comment {
 
     public LocalDateTime getUpdatedAt() {
         return updatedAt;
+    }
+
+    public boolean isEdited() {
+        return edited;
     }
 
     public LocalDateTime getDeletedAt() {

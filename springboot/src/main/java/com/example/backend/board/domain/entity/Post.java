@@ -72,6 +72,9 @@ public class Post {
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
 
+    @Column(name = "is_edited", nullable = false)
+    private boolean edited;
+
     @Column(name = "deleted_at")
     private LocalDateTime deletedAt;
 
@@ -113,12 +116,25 @@ public class Post {
             String title,
             String content
     ) {
+        BoardType nextBoardType = Objects.requireNonNull(boardType);
+        PostCategory nextCategory = Objects.requireNonNull(category);
+        String nextTitle = Objects.requireNonNull(title);
+        String nextContent = Objects.requireNonNull(content);
+        boolean changed = !Objects.equals(this.restaurantId, restaurantId)
+                || this.boardType != nextBoardType
+                || this.category != nextCategory
+                || !Objects.equals(this.title, nextTitle)
+                || !Objects.equals(this.content, nextContent);
+
         this.restaurantId = restaurantId;
-        this.boardType = Objects.requireNonNull(boardType);
-        this.category = Objects.requireNonNull(category);
-        this.title = Objects.requireNonNull(title);
-        this.content = Objects.requireNonNull(content);
+        this.boardType = nextBoardType;
+        this.category = nextCategory;
+        this.title = nextTitle;
+        this.content = nextContent;
         this.updatedAt = LocalDateTime.now();
+        if (changed) {
+            this.edited = true;
+        }
     }
 
     public void increaseLikeCount() {
@@ -201,6 +217,10 @@ public class Post {
 
     public LocalDateTime getUpdatedAt() {
         return updatedAt;
+    }
+
+    public boolean isEdited() {
+        return edited;
     }
 
     public LocalDateTime getDeletedAt() {

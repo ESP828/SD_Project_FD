@@ -163,7 +163,6 @@ public interface PostRepository extends JpaRepository<Post, Long> {
             from Post p
             join fetch p.author
             where p.status = :status
-              and p.createdAt >= :since
               and p.likeCount >= :minimumLikeCount
               and p.category <> :excludedCategory
               and (:readableBoardType is null or p.boardType = :readableBoardType)
@@ -173,7 +172,6 @@ public interface PostRepository extends JpaRepository<Post, Long> {
             select count(p)
             from Post p
             where p.status = :status
-              and p.createdAt >= :since
               and p.likeCount >= :minimumLikeCount
               and p.category <> :excludedCategory
               and (:readableBoardType is null or p.boardType = :readableBoardType)
@@ -181,7 +179,6 @@ public interface PostRepository extends JpaRepository<Post, Long> {
     Page<Post> findBestPostPage(
             @Param("readableBoardType") BoardType readableBoardType,
             @Param("excludedCategory") PostCategory excludedCategory,
-            @Param("since") LocalDateTime since,
             @Param("minimumLikeCount") int minimumLikeCount,
             @Param("status") PostStatus status,
             Pageable pageable

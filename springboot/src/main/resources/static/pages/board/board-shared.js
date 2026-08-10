@@ -73,6 +73,50 @@
     writeCacheEntry(`content:${path}`, data);
   }
 
+  function updateCachedPostViewCount(postId, viewCount) {
+    const targetPostId = Number(postId);
+    const targetViewCount = Number(viewCount);
+    if (!Number.isSafeInteger(targetPostId) || targetPostId <= 0) return;
+    if (!Number.isFinite(targetViewCount) || targetViewCount < 0) return;
+
+    const prefix = `${BOARD_CACHE_PREFIX}${cacheScope()}:content:`;
+
+    function updateValue(value) {
+      if (!value || typeof value !== "object") return false;
+
+      let changed = false;
+      if (
+        Number(value.postId) === targetPostId
+        && Object.prototype.hasOwnProperty.call(value, "viewCount")
+      ) {
+        value.viewCount = targetViewCount;
+        changed = true;
+      }
+
+      Object.values(value).forEach((nestedValue) => {
+        if (updateValue(nestedValue)) changed = true;
+      });
+      return changed;
+    }
+
+    try {
+      for (let index = window.sessionStorage.length - 1; index >= 0; index -= 1) {
+        const key = window.sessionStorage.key(index);
+        if (!key?.startsWith(prefix)) continue;
+
+        const raw = window.sessionStorage.getItem(key);
+        if (!raw) continue;
+        const entry = JSON.parse(raw);
+        if (!entry || !Object.prototype.hasOwnProperty.call(entry, "data")) continue;
+        if (!updateValue(entry.data)) continue;
+
+        window.sessionStorage.setItem(key, JSON.stringify(entry));
+      }
+    } catch (_error) {
+      // 조회수 캐시 동기화 실패가 게시글 조회를 막지 않도록 한다.
+    }
+  }
+
   function invalidateBoardCache() {
     try {
       for (let index = window.sessionStorage.length - 1; index >= 0; index -= 1) {
@@ -495,6 +539,7 @@
     requireLogin,
     roleLabel,
     showToast,
+    updateCachedPostViewCount,
     writeBoardCache,
     writePath,
   };

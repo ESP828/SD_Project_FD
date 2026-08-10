@@ -11,6 +11,7 @@ import com.example.backend.board.dto.response.RestaurantSummaryResponse;
 import com.example.backend.board.policy.BoardAccessPolicy;
 import com.example.backend.board.query.BoardReferenceQueryRepository;
 import com.example.backend.board.query.BoardReferenceQueryRepository.AuthorRoleReference;
+import com.example.backend.board.query.BoardReferenceQueryRepository.PostMediaReference;
 import com.example.backend.board.repository.CommentRepository;
 import com.example.backend.board.repository.PostLikeRepository;
 import org.springframework.stereotype.Component;
@@ -96,7 +97,8 @@ public class BoardResponseMapper {
                     likedPostIds.contains(post.getPostId()),
                     isOwned(post.getAuthor(), currentAccount),
                     post.getCreatedAt(),
-                    post.getUpdatedAt()
+                    post.getUpdatedAt(),
+                    post.isEdited()
             );
         }).toList();
     }
@@ -105,7 +107,21 @@ public class BoardResponseMapper {
         return toDetail(
                 post,
                 currentAccount,
-                accessPolicy.displayRole(post.getAuthor())
+                accessPolicy.displayRole(post.getAuthor()),
+                post.getViewCount()
+        );
+    }
+
+    public PostDetailResponse toDetail(
+            Post post,
+            Account currentAccount,
+            long viewCount
+    ) {
+        return toDetail(
+                post,
+                currentAccount,
+                accessPolicy.displayRole(post.getAuthor()),
+                viewCount
         );
     }
 
@@ -114,21 +130,21 @@ public class BoardResponseMapper {
             Account currentAccount,
             String authorRole
     ) {
+        return toDetail(post, currentAccount, authorRole, post.getViewCount());
+    }
+
+    private PostDetailResponse toDetail(
+            Post post,
+            Account currentAccount,
+            String authorRole,
+            long viewCount
+    ) {
         RestaurantSummaryResponse restaurant = post.getRestaurantId() == null
                 ? null
                 : referenceRepository.findRestaurant(post.getRestaurantId()).orElse(null);
-        List<PostDetailResponse.MediaResponse> media =
-                referenceRepository.findPostMedia(post.getPostId()).stream()
-                        .map(row -> new PostDetailResponse.MediaResponse(
-                                row.postMediaId(),
-                                row.mediaType(),
-                                row.mediaUrl(),
-                                row.mimeType(),
-                                row.originalName(),
-                                row.fileSize(),
-                                row.displayOrder()
-                        ))
-                        .toList();
+        List<PostDetailResponse.MediaResponse> media = toMediaResponses(
+                referenceRepository.findPostMedia(post.getPostId())
+        );
         return new PostDetailResponse(
                 post.getPostId(),
                 post.getTitle(),
@@ -141,7 +157,7 @@ public class BoardResponseMapper {
                 post.getCategory(),
                 post.getRestaurantId(),
                 restaurant,
-                post.getViewCount(),
+                viewCount,
                 commentRepository.countByPostPostIdAndStatus(
                         post.getPostId(),
                         CommentStatus.ACTIVE
@@ -151,7 +167,61 @@ public class BoardResponseMapper {
                 isOwned(post.getAuthor(), currentAccount),
                 post.getCreatedAt(),
                 post.getUpdatedAt(),
+                post.isEdited(),
                 media
+        );
+    }
+
+    public List<PostDetailResponse.MediaResponse> toMediaResponses(
+            List<PostMediaReference> mediaRows
+    ) {
+        return mediaRows.stream().map(row -> {
+            String status;
+            String exposedUrl;
+            String message;
+            int progress;
+            if (BoardReferenceQueryRepository.MEDIA_URL_PROCESSING.equals(
+                    row.mediaUrl()
+            )) {
+                status = "PROCESSING";
+                exposedUrl = null;
+                progress = calculateProcessingProgress(row);
+                message = "동영상 원본을 서버에서 처리하고 있습니다.";
+            } else if (BoardReferenceQueryRepository.MEDIA_URL_FAILED.equals(
+                    row.mediaUrl()
+            )) {
+                status = "FAILED";
+                exposedUrl = null;
+                progress = calculateProcessingProgress(row);
+                message = "동영상 처리에 실패했습니다. 다시 첨부해 주세요.";
+            } else {
+                status = "READY";
+                exposedUrl = row.mediaUrl();
+                progress = 100;
+                message = null;
+            }
+            return new PostDetailResponse.MediaResponse(
+                    row.postMediaId(),
+                    row.mediaType(),
+                    exposedUrl,
+                    row.mimeType(),
+                    row.originalName(),
+                    row.fileSize(),
+                    row.displayOrder(),
+                    status,
+                    progress,
+                    message
+            );
+        }).toList();
+    }
+
+    private int calculateProcessingProgress(PostMediaReference media) {
+        if (media.fileSize() < 1 || media.storedSize() < 1) {
+            return 0;
+        }
+        return (int) Math.min(
+                99,
+                media.storedSize() * 100L / media.fileSize()
         );
     }
 
@@ -189,17 +259,26 @@ public class BoardResponseMapper {
             Account currentAccount,
             String authorRole
     ) {
+        boolean hasImage = comment.hasImage();
         return new CommentResponse(
                 comment.getCommentId(),
                 comment.getPost().getPostId(),
+                comment.getParentCommentId(),
                 comment.getAuthor().getAccountId(),
                 comment.getAuthor().getLoginId(),
                 comment.getAuthor().getNickname(),
                 authorRole,
                 comment.getContent(),
+                hasImage,
+                hasImage
+                        ? "/api/board/comments/" + comment.getCommentId() + "/image"
+                        : null,
+                hasImage ? comment.getImageOriginalName() : null,
+                hasImage ? comment.getImageFileSize() : null,
                 isOwned(comment.getAuthor(), currentAccount),
                 comment.getCreatedAt(),
-                comment.getUpdatedAt()
+                comment.getUpdatedAt(),
+                comment.isEdited()
         );
     }
 

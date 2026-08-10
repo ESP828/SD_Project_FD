@@ -16,7 +16,7 @@
     keyword: "",
     sort: "LATEST",
     page: 0,
-    size: 10,
+    size: 7,
   };
 
   const boardList = document.getElementById("board-list");
@@ -48,6 +48,10 @@
     readBoardCache,
     writeBoardCache,
   } = board;
+
+  function isEdited(item) {
+    return item?.edited === true;
+  }
 
   function renderLoading() {
     boardList.replaceChildren();
@@ -121,9 +125,11 @@
       element(
         "span",
         "",
-        ["BEST", "POPULAR"].includes(state.boardType)
-          ? formatWaitingDate(post.createdAt)
-          : formatDate(post.createdAt),
+        `${
+          ["BEST", "POPULAR"].includes(state.boardType)
+            ? formatWaitingDate(post.createdAt)
+            : formatDate(post.createdAt)
+        }${isEdited(post) ? " · 수정됨" : ""}`,
       ),
     );
     if (post.restaurant?.name) {
@@ -519,6 +525,39 @@
     });
   });
 
+  function initializeScrollTopButton() {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "board-scroll-top";
+    button.textContent = "↑";
+    button.title = "맨 위로 이동";
+    button.setAttribute("aria-label", "맨 위로 이동");
+    button.hidden = true;
+    document.body.append(button);
+
+    let ticking = false;
+    const updateVisibility = () => {
+      button.hidden = window.scrollY <= 450;
+      ticking = false;
+    };
+
+    window.addEventListener("scroll", () => {
+      if (ticking) return;
+      ticking = true;
+      window.requestAnimationFrame(updateVisibility);
+    }, { passive: true });
+
+    button.addEventListener("click", () => {
+      const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      window.scrollTo({
+        top: 0,
+        behavior: reduceMotion ? "auto" : "smooth",
+      });
+    });
+
+    updateVisibility();
+  }
+
   async function initializeBoard() {
     const businessAccessPromise = board.canUseBusinessBoard().then((allowed) => {
       businessAccessAllowed = allowed;
@@ -538,5 +577,10 @@
     }
   }
 
+  window.addEventListener("pageshow", (event) => {
+    if (event.persisted) loadBoardContent();
+  });
+
+  initializeScrollTopButton();
   initializeBoard();
 })();

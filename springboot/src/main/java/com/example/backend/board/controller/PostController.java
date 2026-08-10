@@ -157,16 +157,33 @@ public class PostController {
             @RequestBody byte[] mediaData,
             Authentication authentication
     ) {
-        return ApiResponse.success(
-                "첨부파일이 등록되었습니다.",
-                postService.uploadMedia(
-                        postId,
-                        encodedFileName,
-                        contentType,
-                        mediaData,
-                        BoardAuthentication.accountId(authentication)
-                )
+        PostDetailResponse.MediaResponse media = postService.uploadMedia(
+                postId,
+                encodedFileName,
+                contentType,
+                mediaData,
+                BoardAuthentication.accountId(authentication)
         );
+        return ApiResponse.success(
+                "PROCESSING".equals(media.processingStatus())
+                        ? "동영상 전송이 완료되어 서버 처리를 시작했습니다."
+                        : "첨부파일이 등록되었습니다.",
+                media
+        );
+    }
+
+    @GetMapping("/{postId}/media")
+    public ResponseEntity<ApiResponse<List<PostDetailResponse.MediaResponse>>>
+    getMediaStatus(
+            @PathVariable Long postId,
+            Authentication authentication
+    ) {
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CACHE_CONTROL, "no-store")
+                .body(ApiResponse.success(postService.getMediaStatus(
+                        postId,
+                        BoardAuthentication.accountId(authentication)
+                )));
     }
 
     @GetMapping("/media/{postMediaId}")
