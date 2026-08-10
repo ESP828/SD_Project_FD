@@ -332,11 +332,9 @@ public class PostService {
         BoardType readableBoardType = accessPolicy.isApprovedBusiness(currentAccount)
                 ? null
                 : BoardType.GENERAL;
-        int safeWindowDays = Math.max(1, Math.min(bestWindowDays, 365));
         Page<Post> result = postRepository.findBestPostPage(
                 readableBoardType,
                 PostCategory.NOTICE,
-                LocalDateTime.now().minusDays(safeWindowDays),
                 BEST_COMMUNITY_MINIMUM_LIKE_COUNT,
                 PostStatus.ACTIVE,
                 PageRequest.of(page, size)
