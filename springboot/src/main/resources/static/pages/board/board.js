@@ -575,5 +575,6 @@
     if (event.persisted) loadBoardContent();
   });
 
+  initializeScrollTopButton();
   initializeBoard();
 })();

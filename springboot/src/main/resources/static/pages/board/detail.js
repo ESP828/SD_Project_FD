@@ -1433,5 +1433,6 @@
     }
   });
 
+  initializeScrollTopButton();
   loadPage();
 })();
