@@ -16,7 +16,7 @@
     keyword: "",
     sort: "LATEST",
     page: 0,
-    size: 10,
+    size: 7,
   };
 
   const boardList = document.getElementById("board-list");
