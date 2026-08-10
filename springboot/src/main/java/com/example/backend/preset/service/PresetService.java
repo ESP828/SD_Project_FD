@@ -15,13 +15,16 @@ import com.example.backend.preset.query.PresetImageQueryRepository;
 import com.example.backend.preset.query.PresetQueryRepository;
 import com.example.backend.preset.query.PresetQueryRepository.PresetDetailRow;
 import com.example.backend.preset.storage.PresetImageStorage;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.dao.DuplicateKeyException;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 @Service
@@ -123,15 +126,48 @@ public class PresetService {
 
     private void saveImage(Long presetId, MultipartFile image) {
         String extension = validateImage(image);
-        imageQueryRepository.findStoredFilename(presetId).ifPresent(imageStorage::delete);
+        Optional<String> previousStoredFilename = imageQueryRepository.findStoredFilename(presetId);
         String storedFilename = imageStorage.save(image, extension);
-        imageQueryRepository.replace(
-                presetId,
-                storedFilename,
-                sanitizeOriginalFilename(image.getOriginalFilename()),
-                image.getContentType(),
-                image.getSize()
+        try {
+            imageQueryRepository.replace(
+                    presetId,
+                    storedFilename,
+                    sanitizeOriginalFilename(image.getOriginalFilename()),
+                    image.getContentType(),
+                    image.getSize()
+            );
+            synchronizeImageFiles(previousStoredFilename.orElse(null), storedFilename);
+        } catch (RuntimeException | Error exception) {
+            imageStorage.delete(storedFilename);
+            throw exception;
+        }
+    }
+
+    private void synchronizeImageFiles(String previousStoredFilename, String storedFilename) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()
+                || !TransactionSynchronizationManager.isActualTransactionActive()) {
+            deletePreviousImage(previousStoredFilename, storedFilename);
+            return;
+        }
+
+        TransactionSynchronizationManager.registerSynchronization(
+                new TransactionSynchronization() {
+                    @Override
+                    public void afterCompletion(int status) {
+                        if (status == STATUS_COMMITTED) {
+                            deletePreviousImage(previousStoredFilename, storedFilename);
+                        } else {
+                            imageStorage.delete(storedFilename);
+                        }
+                    }
+                }
         );
+    }
+
+    private void deletePreviousImage(String previousStoredFilename, String storedFilename) {
+        if (previousStoredFilename != null && !previousStoredFilename.equals(storedFilename)) {
+            imageStorage.delete(previousStoredFilename);
+        }
     }
 
     private static String validateImage(MultipartFile image) {
