@@ -553,6 +553,11 @@
   border-top: 1px solid var(--color-line);
 }
 
+.comment-item--replyable > .comment-top,
+.comment-item--replyable > .comment-content {
+  cursor: pointer;
+}
+
 .comment-top {
   display: flex;
   justify-content: space-between;

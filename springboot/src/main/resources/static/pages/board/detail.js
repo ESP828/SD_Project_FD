@@ -1156,6 +1156,29 @@
     textarea.setSelectionRange(textarea.value.length, textarea.value.length);
   }
 
+  function shouldIgnoreCommentAreaReplyClick(event, item) {
+    const target = event.target;
+    if (!(target instanceof Element)) return true;
+
+    if (target.closest(
+      "button, a, input, textarea, select, label, [role='button'], .comment-actions, .comment-reply-form",
+    )) {
+      return true;
+    }
+
+    const selection = window.getSelection();
+    if (
+      selection &&
+      !selection.isCollapsed &&
+      selection.toString().trim() &&
+      selection.containsNode(item, true)
+    ) {
+      return true;
+    }
+
+    return false;
+  }
+
   function renderCommentItem(comment, options = {}) {
     const { isReply = false, hasReplies = false } = options;
     const item = element(
@@ -1189,6 +1212,12 @@
       );
     }
     item.append(actions);
+    item.classList.add("comment-item--replyable");
+    item.addEventListener("click", (event) => {
+      if (activeReplyForm && item.contains(activeReplyForm)) return;
+      if (shouldIgnoreCommentAreaReplyClick(event, item)) return;
+      openReplyComposer(comment, item);
+    });
     return item;
   }
 
