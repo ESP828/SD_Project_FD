@@ -407,13 +407,27 @@
       ? `<span class="store-badge store-badge--category">${escapeHtml(categoryName)}</span>`
       : "";
 
-    statsRow.innerHTML = [
-      renderStat("업종", categoryName || "-"),
-      renderStat("정보 출처", "공공데이터"),
-      renderStat("기준 시점", formatDataYm(store.dataYm)),
-    ].join("");
+    statsRow.hidden = true;
 
-    favoriteBtn.hidden = true;
+    favoriteBtn.hidden = !window.FooduckSession || !window.FooduckSession.authenticated;
+    favoriteBtn.classList.toggle("is-favorited", store.favoritedByMe);
+    favoriteBtn.setAttribute("aria-pressed", String(store.favoritedByMe));
+    favoriteBtn.addEventListener("click", async () => {
+      favoriteBtn.disabled = true;
+      try {
+        const response = store.favoritedByMe
+          ? await Api.delete(`/map/restaurants/${storeId}/favorite`)
+          : await Api.post(`/map/restaurants/${storeId}/favorite`);
+        const favorited = Boolean(response.data?.favoriteByCurrentUser);
+        store.favoritedByMe = favorited;
+        favoriteBtn.classList.toggle("is-favorited", favorited);
+        favoriteBtn.setAttribute("aria-pressed", String(favorited));
+      } catch (error) {
+        window.alert(error.message || "찜 처리 중 오류가 발생했습니다.");
+      } finally {
+        favoriteBtn.disabled = false;
+      }
+    });
 
     panels.home.innerHTML = `
       <div class="store-section-card">
@@ -453,7 +467,7 @@
         content.hidden = false;
         renderOwnedDetail(response.data);
       } else {
-        const response = await Api.get(`/public/map/restaurants/${id}`, { auth: false });
+        const response = await Api.get(`/public/map/restaurants/${id}`);
         loading.hidden = true;
         content.hidden = false;
         renderPublicDetail(response.data);

@@ -77,8 +77,7 @@
 
 .recommendation-primary,
 .ranking-panel,
-.signal-panel,
-.best-menu-panel {
+.preset-ranking-panel {
   border: 1px solid var(--color-line);
   border-radius: var(--radius-lg);
   background: #fff;
@@ -237,6 +236,33 @@
   overflow: hidden;
 }
 
+.ranking-sort-label {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 7px;
+  color: var(--color-muted);
+  font-size: 0.8rem;
+  font-weight: 800;
+}
+
+.ranking-sort-label select {
+  min-height: 38px;
+  padding: 0 30px 0 12px;
+  border: 1px solid var(--color-line);
+  border-radius: 10px;
+  color: var(--color-navy);
+  background: #fff;
+  font-size: 0.8rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.ranking-sort-label select:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
 .ranking-list {
   display: grid;
   gap: 0;
@@ -305,82 +331,92 @@
 }
 
 .recommendation-lower {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 370px;
-  gap: 22px;
   margin-top: 22px;
 }
 
-.signal-list {
+.preset-ranking-list {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 14px;
   padding: 0 27px 27px;
 }
 
-.signal-item {
-  padding: 18px;
+.preset-ranking-card {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--color-line);
   border-radius: 16px;
-  background: #f7f9fc;
+  background: #fff;
+  transition: transform 180ms ease, box-shadow 180ms ease;
 }
 
-.signal-item span,
-.signal-item strong {
-  display: block;
+.preset-ranking-card:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-card);
 }
 
-.signal-item span {
-  margin-bottom: 5px;
-  color: var(--color-muted);
-  font-size: 0.74rem;
+.preset-ranking-card-image {
+  position: relative;
+  height: 92px;
+  overflow: hidden;
+  background:
+    linear-gradient(145deg, rgba(255, 152, 0, 0.14), rgba(15, 43, 77, 0.08)),
+    #f4f6f9;
 }
 
-.signal-item strong {
-  font-size: 0.88rem;
+.preset-ranking-card-image img {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
-.best-menu-list {
-  display: grid;
-  margin: 0;
-  padding: 0 23px 23px;
-  list-style: none;
-}
-
-.best-menu-list a,
-.best-menu-empty {
-  display: grid;
-  grid-template-columns: 30px minmax(0, 1fr);
-  align-items: center;
-  gap: 10px;
-  padding: 12px 0;
-  border-top: 1px solid var(--color-line);
-}
-
-.best-menu-list li:first-child a,
-.best-menu-list li:first-child .best-menu-empty {
-  border-top: 0;
-}
-
-.best-menu-rank {
-  color: var(--color-orange-dark);
+.preset-ranking-rank {
+  position: absolute;
+  z-index: 2;
+  top: 8px;
+  left: 8px;
+  padding: 2px 9px;
+  border-radius: 999px;
+  color: #fff;
+  background: rgba(15, 43, 77, 0.78);
+  font-size: 0.72rem;
   font-weight: 950;
-  text-align: center;
 }
 
-.best-menu-copy strong,
-.best-menu-copy small {
+.preset-ranking-card-body {
+  padding: 12px 13px 14px;
+}
+
+.preset-ranking-card-body strong,
+.preset-ranking-card-body span {
   display: block;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.best-menu-copy strong {
-  font-size: 0.84rem;
+.preset-ranking-card-body strong {
+  margin-bottom: 3px;
+  font-size: 0.86rem;
 }
 
-.best-menu-copy small {
+.preset-ranking-card-body span {
   color: var(--color-muted);
+  font-size: 0.72rem;
+}
+
+.preset-ranking-card-link {
+  position: absolute;
+  inset: 0;
+}
+
+.preset-ranking-empty {
+  grid-column: 1 / -1;
+  padding: 30px;
+  color: var(--color-muted);
+  text-align: center;
 }
 
 .recommendation-empty {
@@ -409,13 +445,16 @@
 }
 
 @media (max-width: 980px) {
-  .recommendation-grid,
-  .recommendation-lower {
+  .recommendation-grid {
     grid-template-columns: 1fr;
   }
 
   .personal-track {
     grid-auto-columns: minmax(245px, 42%);
+  }
+
+  .preset-ranking-list {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 
@@ -438,8 +477,8 @@
     grid-auto-columns: minmax(245px, 80%);
   }
 
-  .signal-list {
-    grid-template-columns: 1fr;
+  .preset-ranking-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
@@ -472,5 +511,10 @@
     justify-self: start;
     margin-top: -8px;
     margin-bottom: 10px;
+  }
+
+  .preset-ranking-list {
+    grid-template-columns: 1fr;
+    padding-inline: 18px;
   }
 }

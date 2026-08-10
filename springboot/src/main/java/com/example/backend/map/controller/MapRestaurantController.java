@@ -1,8 +1,10 @@
 package com.example.backend.map.controller;
 
+import com.example.backend.favorite.service.PublicRestaurantFavoriteService;
 import com.example.backend.global.exception.BusinessException;
 import com.example.backend.global.exception.ErrorCode;
 import com.example.backend.global.response.ApiResponse;
+import com.example.backend.global.security.principal.AuthenticatedAccount;
 import com.example.backend.map.dto.response.PublicRestaurantDetailResponse;
 import com.example.backend.map.dto.response.PublicRestaurantMarkerResponse;
 import com.example.backend.map.dto.response.PublicRestaurantSearchResponse;
@@ -15,6 +17,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -51,13 +54,16 @@ public class MapRestaurantController {
 
     private final PublicRestaurantRepository publicRestaurantRepository;
     private final ReviewService reviewService;
+    private final PublicRestaurantFavoriteService favoriteService;
 
     public MapRestaurantController(
             PublicRestaurantRepository publicRestaurantRepository,
-            ReviewService reviewService
+            ReviewService reviewService,
+            PublicRestaurantFavoriteService favoriteService
     ) {
         this.publicRestaurantRepository = publicRestaurantRepository;
         this.reviewService = reviewService;
+        this.favoriteService = favoriteService;
     }
 
     @GetMapping("/restaurants")
@@ -82,10 +88,15 @@ public class MapRestaurantController {
     }
 
     @GetMapping("/restaurants/{id}")
-    public ApiResponse<PublicRestaurantDetailResponse> getDetail(@PathVariable Long id) {
+    public ApiResponse<PublicRestaurantDetailResponse> getDetail(
+            @PathVariable Long id,
+            @AuthenticationPrincipal AuthenticatedAccount account
+    ) {
         PublicRestaurant restaurant = publicRestaurantRepository.findById(id)
                 .orElseThrow(() -> new BusinessException(ErrorCode.RESTAURANT_NOT_FOUND));
-        return ApiResponse.success(PublicRestaurantDetailResponse.from(restaurant));
+        long favoriteCount = favoriteService.count(id);
+        boolean favoritedByMe = account != null && favoriteService.isFavorited(id, account.accountId());
+        return ApiResponse.success(PublicRestaurantDetailResponse.from(restaurant, favoriteCount, favoritedByMe));
     }
 
     @GetMapping("/restaurants/{id}/reviews")

@@ -1,9 +1,7 @@
 package com.example.backend.recommendation.service;
 
-import com.example.backend.recommendation.dto.response.BestMenuResponse;
 import com.example.backend.recommendation.dto.response.RankedRestaurantResponse;
 import com.example.backend.recommendation.dto.response.RecommendationPageResponse;
-import com.example.backend.recommendation.dto.response.RecommendationSignalResponse;
 import com.example.backend.recommendation.dto.response.RecommendedRestaurantResponse;
 import com.example.backend.recommendation.query.RecommendationQueryRepository;
 import com.example.backend.recommendation.query.RecommendationQueryRepository.RestaurantCandidate;
@@ -14,6 +12,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * Python 추천기 연동 전에도 화면을 실제 DB 데이터로 검증할 수 있게 하는 1차 추천 조회다.
@@ -24,6 +23,7 @@ import java.util.Objects;
 public class RecommendationPreviewService {
 
     private static final int DISPLAY_LIMIT = 5;
+    private static final Set<String> RANKING_SORT_OPTIONS = Set.of("rating", "review", "favorite");
 
     private final RecommendationQueryRepository queryRepository;
 
@@ -32,8 +32,9 @@ public class RecommendationPreviewService {
     }
 
     @Transactional(readOnly = true)
-    public RecommendationPageResponse getPage(Long accountId) {
+    public RecommendationPageResponse getPage(Long accountId, String rankingSort) {
         Objects.requireNonNull(accountId, "로그인 계정 번호가 필요합니다.");
+        String normalizedSort = normalizeRankingSort(rankingSort);
 
         List<RestaurantCandidate> candidates = queryRepository.findCandidates(accountId);
         List<RestaurantCandidate> personalized = candidates.stream()
@@ -44,17 +45,7 @@ public class RecommendationPreviewService {
                 .toList();
 
         List<RestaurantCandidate> ranked = candidates.stream()
-                .sorted(Comparator
-                        .comparingDouble(RestaurantCandidate::averageRating).reversed()
-                        .thenComparing(
-                                RestaurantCandidate::reviewCount,
-                                Comparator.reverseOrder()
-                        )
-                        .thenComparing(
-                                RestaurantCandidate::favoriteCount,
-                                Comparator.reverseOrder()
-                        )
-                        .thenComparing(RestaurantCandidate::restaurantId))
+                .sorted(rankingComparator(normalizedSort))
                 .limit(DISPLAY_LIMIT)
                 .toList();
 
@@ -91,31 +82,34 @@ public class RecommendationPreviewService {
             ));
         }
 
-        List<BestMenuResponse> bestMenus = new ArrayList<>();
-        for (RestaurantCandidate candidate : personalized) {
-            if (candidate.menuName() == null || candidate.menuName().isBlank()) {
-                continue;
-            }
-            bestMenus.add(new BestMenuResponse(
-                    bestMenus.size() + 1,
-                    candidate.restaurantId(),
-                    candidate.restaurantName(),
-                    candidate.menuName(),
-                    candidate.latitude(),
-                    candidate.longitude()
-            ));
-            if (bestMenus.size() == DISPLAY_LIMIT) {
-                break;
-            }
-        }
-
         return new RecommendationPageResponse(
                 recommendations,
                 ranking,
-                bestMenus,
-                buildSignals(candidates),
                 "DB_ACTIVITY_PREVIEW"
         );
+    }
+
+    private static String normalizeRankingSort(String rankingSort) {
+        String normalized = rankingSort == null || rankingSort.isBlank()
+                ? "rating"
+                : rankingSort.trim().toLowerCase();
+        return RANKING_SORT_OPTIONS.contains(normalized) ? normalized : "rating";
+    }
+
+    /**
+     * "맛집 랭킹" 정렬 기준. 선택한 지표를 1순위로 두고, 나머지 두 지표를 동점자 처리에 순서대로 사용한다.
+     */
+    private static Comparator<RestaurantCandidate> rankingComparator(String rankingSort) {
+        Comparator<RestaurantCandidate> byRating = Comparator.comparingDouble(RestaurantCandidate::averageRating).reversed();
+        Comparator<RestaurantCandidate> byReview = Comparator.comparing(RestaurantCandidate::reviewCount, Comparator.reverseOrder());
+        Comparator<RestaurantCandidate> byFavorite = Comparator.comparing(RestaurantCandidate::favoriteCount, Comparator.reverseOrder());
+
+        Comparator<RestaurantCandidate> comparator = switch (rankingSort) {
+            case "review" -> byReview.thenComparing(byRating).thenComparing(byFavorite);
+            case "favorite" -> byFavorite.thenComparing(byRating).thenComparing(byReview);
+            default -> byRating.thenComparing(byReview).thenComparing(byFavorite);
+        };
+        return comparator.thenComparing(RestaurantCandidate::restaurantId);
     }
 
     private double personalScore(RestaurantCandidate candidate) {
@@ -138,40 +132,6 @@ public class RecommendationPreviewService {
             return "평점·리뷰 활동 반영";
         }
         return "현재 등록된 음식점 정보 기준";
-    }
-
-    private static List<RecommendationSignalResponse> buildSignals(
-            List<RestaurantCandidate> candidates
-    ) {
-        long favoriteMatches = candidates.stream()
-                .filter(RestaurantCandidate::favoriteByUser)
-                .count();
-        String preferredCategory = candidates.stream()
-                .filter(candidate -> candidate.categoryPreference() > 0)
-                .max(Comparator.comparingDouble(RestaurantCandidate::categoryPreference))
-                .map(RestaurantCandidate::categoryName)
-                .filter(Objects::nonNull)
-                .orElse("설정된 선호 카테고리 없음");
-        long reviewedRestaurants = candidates.stream()
-                .filter(candidate -> candidate.reviewCount() > 0)
-                .count();
-
-        return List.of(
-                new RecommendationSignalResponse(
-                        "선호 카테고리",
-                        preferredCategory
-                ),
-                new RecommendationSignalResponse(
-                        "찜 활동",
-                        favoriteMatches == 0 ? "연결된 찜 없음" : favoriteMatches + "곳 반영"
-                ),
-                new RecommendationSignalResponse(
-                        "리뷰 데이터",
-                        reviewedRestaurants == 0
-                                ? "등록된 리뷰 없음"
-                                : reviewedRestaurants + "곳 집계"
-                )
-        );
     }
 
     private static double roundOneDecimal(double value) {
