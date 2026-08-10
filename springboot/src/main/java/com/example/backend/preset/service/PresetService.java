@@ -11,13 +11,17 @@ import com.example.backend.preset.dto.response.PresetRestaurantResponse;
 import com.example.backend.preset.dto.response.PresetSummaryResponse;
 import com.example.backend.preset.dto.response.PresetTagResponse;
 import com.example.backend.preset.exception.PresetNotFoundException;
+import com.example.backend.preset.query.PresetImageQueryRepository;
 import com.example.backend.preset.query.PresetQueryRepository;
 import com.example.backend.preset.query.PresetQueryRepository.PresetDetailRow;
+import com.example.backend.preset.storage.PresetImageStorage;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.dao.DuplicateKeyException;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 @Service
@@ -26,11 +30,25 @@ public class PresetService {
     private static final int DEFAULT_PAGE_SIZE = 12;
     private static final int MAX_PAGE_SIZE = 24;
     private static final Set<String> SORT_OPTIONS = Set.of("popular", "latest", "favorite");
+    private static final long MAX_IMAGE_BYTES = 5L * 1024 * 1024;
+    private static final Map<String, String> ALLOWED_IMAGE_TYPES = Map.of(
+            "image/jpeg", "jpg",
+            "image/png", "png",
+            "image/webp", "webp"
+    );
 
     private final PresetQueryRepository queryRepository;
+    private final PresetImageQueryRepository imageQueryRepository;
+    private final PresetImageStorage imageStorage;
 
-    public PresetService(PresetQueryRepository queryRepository) {
+    public PresetService(
+            PresetQueryRepository queryRepository,
+            PresetImageQueryRepository imageQueryRepository,
+            PresetImageStorage imageStorage
+    ) {
         this.queryRepository = queryRepository;
+        this.imageQueryRepository = imageQueryRepository;
+        this.imageStorage = imageStorage;
     }
 
     @Transactional(readOnly = true)
@@ -74,13 +92,72 @@ public class PresetService {
     }
 
     @Transactional
-    public Long createPreset(Long accountId, PresetCreateRequest request) {
+    public Long createPreset(Long accountId, PresetCreateRequest request, MultipartFile image) {
         validateId(accountId, "계정");
         Long presetId = queryRepository.create(accountId, request);
         if (presetId == null) {
             throw new BusinessException(ErrorCode.INTERNAL_ERROR);
         }
+        if (image != null && !image.isEmpty()) {
+            saveImage(presetId, image);
+        }
         return presetId;
+    }
+
+    @Transactional
+    public void updatePreset(Long presetId, Long accountId, PresetCreateRequest request, MultipartFile image) {
+        validateId(presetId, "프리셋");
+        validateId(accountId, "계정");
+        Long ownerAccountId = queryRepository.findOwnerAccountId(presetId);
+        if (ownerAccountId == null) {
+            throw new PresetNotFoundException(presetId);
+        }
+        if (!ownerAccountId.equals(accountId)) {
+            throw new BusinessException(ErrorCode.PRESET_OWNER_REQUIRED);
+        }
+        queryRepository.update(presetId, request);
+        if (image != null && !image.isEmpty()) {
+            saveImage(presetId, image);
+        }
+    }
+
+    private void saveImage(Long presetId, MultipartFile image) {
+        String extension = validateImage(image);
+        imageQueryRepository.findStoredFilename(presetId).ifPresent(imageStorage::delete);
+        String storedFilename = imageStorage.save(image, extension);
+        imageQueryRepository.replace(
+                presetId,
+                storedFilename,
+                sanitizeOriginalFilename(image.getOriginalFilename()),
+                image.getContentType(),
+                image.getSize()
+        );
+    }
+
+    private static String validateImage(MultipartFile image) {
+        if (image.getSize() <= 0) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "빈 파일은 업로드할 수 없습니다.");
+        }
+        if (image.getSize() > MAX_IMAGE_BYTES) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "이미지 파일은 5MB 이하만 업로드할 수 있습니다.");
+        }
+        String contentType = image.getContentType();
+        String extension = contentType == null ? null : ALLOWED_IMAGE_TYPES.get(contentType.toLowerCase());
+        if (extension == null) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "이미지 파일(jpg, png, webp)만 업로드할 수 있습니다.");
+        }
+        return extension;
+    }
+
+    private static String sanitizeOriginalFilename(String name) {
+        if (name == null) {
+            return null;
+        }
+        String cleaned = name.replaceAll("[\\p{Cntrl}/\\\\]", "").trim();
+        if (cleaned.isEmpty()) {
+            return null;
+        }
+        return cleaned.length() > 255 ? cleaned.substring(0, 255) : cleaned;
     }
 
     @Transactional(readOnly = true)
@@ -104,8 +181,6 @@ public class PresetService {
         return new PresetMapResponse(
                 preset.presetId(),
                 preset.title(),
-                preset.summary(),
-                preset.imageUrl(),
                 preset.favoriteCount(),
                 preset.favoriteByCurrentUser(),
                 queryRepository.findActiveRestaurants(presetId, accountId)
@@ -144,13 +219,12 @@ public class PresetService {
         return new PresetDetailResponse(
                 preset.presetId(),
                 preset.title(),
-                preset.summary(),
-                preset.description(),
-                preset.imageUrl(),
                 preset.category(),
                 preset.viewCount(),
                 preset.favoriteCount(),
                 preset.favoriteByCurrentUser(),
+                preset.isOwner(),
+                preset.imageUrl(),
                 preset.createdAt(),
                 queryRepository.findTagsByPresetId(preset.presetId()),
                 restaurants

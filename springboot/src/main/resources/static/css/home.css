@@ -230,17 +230,6 @@
   box-shadow: var(--shadow-card);
 }
 
-.home-preset-visual {
-  height: 180px;
-  background: var(--color-cream);
-}
-
-.home-preset-visual img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
 .home-preset-body {
   padding: 18px;
 }
@@ -248,17 +237,6 @@
 .home-preset-body h3 {
   margin-bottom: 8px;
   font-size: 1.08rem;
-}
-
-.home-preset-body p {
-  display: -webkit-box;
-  min-height: 42px;
-  overflow: hidden;
-  margin-bottom: 14px;
-  color: var(--color-muted);
-  font-size: 0.82rem;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
 }
 
 .home-preset-body span {

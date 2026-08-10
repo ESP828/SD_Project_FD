@@ -53,9 +53,10 @@ public class AdminPresetController {
     @PutMapping("/{presetId}")
     public ApiResponse<Void> update(
             @PathVariable @Positive Long presetId,
+            @AuthenticationPrincipal AuthenticatedAccount account,
             @Valid @RequestBody AdminPresetUpsertRequest request
     ) {
-        adminPresetService.update(presetId, request);
+        adminPresetService.update(presetId, account.accountId(), request);
         return ApiResponse.success("Presset을 수정했습니다.", null);
     }
 

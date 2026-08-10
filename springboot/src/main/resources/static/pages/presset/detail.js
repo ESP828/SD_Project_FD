@@ -22,6 +22,26 @@
     return image;
   }
 
+  function parseCategoryTokens(category) {
+    const tokens = [];
+    (category || "").split(",").forEach((part) => {
+      const value = part.trim();
+      if (value && !tokens.includes(value)) tokens.push(value);
+    });
+    return tokens;
+  }
+
+  function createCategoryBadges(category) {
+    const group = element("div", "preset-category-group");
+    const tokens = parseCategoryTokens(category);
+    if (!tokens.length) {
+      group.append(element("span", "preset-category", "테마"));
+      return group;
+    }
+    tokens.forEach((token) => group.append(element("span", "preset-category", token)));
+    return group;
+  }
+
   function mapPath(restaurantId) {
     const query = new URLSearchParams({ presetId: requestedId });
     if (restaurantId) query.set("restaurantId", restaurantId);
@@ -134,6 +154,117 @@
     visible.forEach((restaurant) => host.append(createRestaurantCard(restaurant, all.indexOf(restaurant))));
   }
 
+  function toggleEditForm(hero) {
+    const form = hero.querySelector("#preset-edit-form");
+    if (!form) return;
+    form.hidden = !form.hidden;
+    if (!form.hidden) form.querySelector('[name="title"]').focus();
+  }
+
+  function createEditForm(data) {
+    const form = element("form", "preset-create-form preset-edit-form surface-card");
+    form.id = "preset-edit-form";
+    form.hidden = true;
+    form.noValidate = true;
+
+    const field = (labelText, name, value, type = "text") => {
+      const wrapper = element("div", "preset-form-field");
+      const label = element("label", "", labelText);
+      label.htmlFor = `preset-edit-${name}`;
+      const input = type === "textarea" ? element("textarea") : element("input");
+      input.id = `preset-edit-${name}`;
+      input.name = name;
+      if (type !== "textarea") input.type = type;
+      if (type === "textarea") input.value = value || "";
+      else input.value = value || "";
+      wrapper.append(label, input);
+      return wrapper;
+    };
+
+    const grid = element("div", "preset-form-grid");
+    grid.append(
+      field("제목", "title", data.title),
+      field("카테고리", "category", data.category),
+    );
+
+    const imageField = element("div", "preset-form-field");
+    const imageLabel = element("label", "", "이미지 첨부");
+    imageLabel.htmlFor = "preset-edit-image";
+    const imageInput = element("input");
+    imageInput.type = "file";
+    imageInput.id = "preset-edit-image";
+    imageInput.name = "image";
+    imageInput.accept = "image/jpeg,image/png,image/webp";
+    const imageHint = element("p", "preset-field-hint", "jpg, png, webp / 5MB 이하. 새로 첨부하면 기존 이미지를 대체합니다.");
+    const imagePreview = element("img", "preset-image-preview");
+    imagePreview.alt = "첨부한 이미지 미리보기";
+    if (data.imageUrl) {
+      imagePreview.src = data.imageUrl;
+    } else {
+      imagePreview.hidden = true;
+    }
+    imageInput.addEventListener("change", () => {
+      const file = imageInput.files?.[0];
+      if (file) {
+        imagePreview.src = URL.createObjectURL(file);
+        imagePreview.hidden = false;
+      } else if (data.imageUrl) {
+        imagePreview.src = data.imageUrl;
+        imagePreview.hidden = false;
+      } else {
+        imagePreview.hidden = true;
+      }
+    });
+    imageField.append(imageLabel, imageInput, imageHint, imagePreview);
+    grid.append(imageField);
+
+    const publicField = element("fieldset", "preset-form-field preset-public-field");
+    const publicLabel = element("label", "preset-public-toggle");
+    const publicInput = element("input");
+    publicInput.type = "checkbox";
+    publicInput.name = "isPublic";
+    publicInput.checked = data.isPublic !== false;
+    publicLabel.append(publicInput, element("span"), document.createTextNode("다른 사용자에게 이 프리셋 공개"));
+    publicField.append(publicLabel);
+    grid.append(publicField);
+
+    form.append(grid);
+
+    const footer = element("div", "preset-form-footer");
+    const submit = element("button", "button button-primary", "저장");
+    submit.type = "submit";
+    const cancel = element("button", "button button-secondary", "취소");
+    cancel.type = "button";
+    cancel.addEventListener("click", () => { form.hidden = true; });
+    const result = element("div", "preset-form-result");
+    footer.append(submit, cancel, result);
+    form.append(footer);
+
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      submit.disabled = true;
+      result.textContent = "";
+      try {
+        const body = new FormData();
+        body.append("data", new Blob([JSON.stringify({
+          title: form.elements.title.value.trim(),
+          category: form.elements.category.value.trim(),
+          isPublic: form.elements.isPublic.checked,
+        })], { type: "application/json" }));
+        const file = form.elements.image.files?.[0];
+        if (file) body.append("image", file);
+        await Api.put(`/presets/${requestedId}`, body);
+        const payload = await Api.get(`/presets/${requestedId}`);
+        render(payload.data || {});
+      } catch (error) {
+        result.textContent = error.message || "수정 중 오류가 발생했습니다.";
+        submit.disabled = false;
+      }
+    });
+
+    return form;
+  }
+
   function render(data) {
     preset = data;
     content.replaceChildren();
@@ -141,15 +272,17 @@
     document.title = `${data.title || "Presset"} · 푸드덕`;
 
     const hero = element("section", "preset-detail-hero surface-card");
-    const visual = element("div", "preset-detail-visual");
-    visual.append(safeImage(data.imageUrl, `${data.title || "Presset"} 대표 이미지`, "preset-detail-image"));
+    let visual = null;
+    if (data.imageUrl) {
+      visual = element("div", "preset-detail-visual");
+      visual.append(safeImage(data.imageUrl, `${data.title || "Presset"} 대표 이미지`, "preset-detail-image"));
+      hero.classList.add("preset-detail-hero--with-image");
+    }
     const copy = element("div", "preset-detail-copy");
-    copy.append(element("span", "preset-category", data.category || "테마"), element("h1", "", data.title || "맛집 Presset"));
+    copy.append(createCategoryBadges(data.category), element("h1", "", data.title || "맛집 Presset"));
     const tags = element("div", "preset-tag-list");
     (data.tags || []).forEach((tag) => tags.append(element("span", "preset-tag", `#${tag.tagName}`)));
     if (tags.childElementCount) copy.append(tags);
-    copy.append(element("p", "preset-detail-summary", data.summary || ""));
-    if (data.description) copy.append(element("p", "preset-detail-description", data.description));
 
     const stats = element("div", "preset-detail-stats");
     stats.append(
@@ -170,13 +303,16 @@
     const map = element("a", "button button-primary", "전체 맛집 지도 보기");
     map.href = mapPath();
     actions.append(favorite, map);
-    if (window.FooduckSession?.isAdmin) {
-      const edit = element("a", "button button-secondary", "Presset 수정하기");
-      edit.href = `/pages/admin/presets.html?presetId=${encodeURIComponent(requestedId)}`;
+    if (data.isOwner) {
+      const edit = element("button", "button button-secondary", "Presset 수정하기");
+      edit.type = "button";
+      edit.addEventListener("click", () => toggleEditForm(hero));
       actions.append(edit);
     }
     copy.append(actions);
-    hero.append(visual, copy);
+    if (visual) hero.append(visual);
+    hero.append(copy);
+    hero.append(createEditForm(data));
 
     const section = element("section", "preset-restaurants");
     const heading = element("div", "section-header");
