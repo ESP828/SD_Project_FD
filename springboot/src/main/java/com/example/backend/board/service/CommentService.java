@@ -27,7 +27,9 @@ import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
@@ -93,7 +95,7 @@ public class CommentService {
         validatePage(page, size);
         Account currentAccount = boardUserService.findOptional(currentAccountId);
         Post post = getReadablePost(postId, currentAccount);
-        Page<Comment> result = commentRepository.findActiveCommentsByPostId(
+        Page<Comment> result = commentRepository.findRootActiveCommentsByPostId(
                 post.getPostId(),
                 CommentStatus.ACTIVE,
                 PageRequest.of(
@@ -105,14 +107,32 @@ public class CommentService {
                         )
                 )
         );
+
+        List<Comment> pageComments = new ArrayList<>(result.getContent());
+        List<Long> parentCommentIds = result.getContent().stream()
+                .map(Comment::getCommentId)
+                .toList();
+        if (!parentCommentIds.isEmpty()) {
+            pageComments.addAll(commentRepository.findActiveRepliesByParentIds(
+                    post.getPostId(),
+                    parentCommentIds,
+                    CommentStatus.ACTIVE
+            ));
+        }
+
+        long totalCommentCount = commentRepository.countByPostPostIdAndStatus(
+                post.getPostId(),
+                CommentStatus.ACTIVE
+        );
         return new CommentPageResponse(
-                responseMapper.toComments(result.getContent(), currentAccount),
+                responseMapper.toComments(pageComments, currentAccount),
                 result.getNumber(),
                 result.getSize(),
                 result.getTotalElements(),
                 result.getTotalPages(),
                 result.isFirst(),
-                result.isLast()
+                result.isLast(),
+                totalCommentCount
         );
     }
 
@@ -128,6 +148,7 @@ public class CommentService {
         CommentSubmissionKey submissionKey = new CommentSubmissionKey(
                 currentAccount.getAccountId(),
                 postId,
+                request.parentCommentId(),
                 content
         );
         long checkedAt = System.nanoTime();
@@ -137,17 +158,26 @@ public class CommentService {
 
         try {
             Post post = getReadablePostForCommentCreate(postId, currentAccount);
+            Long parentCommentId = resolveRootParentCommentId(
+                    request.parentCommentId(),
+                    post.getPostId(),
+                    currentAccount
+            );
             assertNotRapidDuplicate(
                     postId,
                     currentAccount.getAccountId(),
+                    parentCommentId,
                     content
             );
             String authorRole = accessPolicy.displayRole(currentAccount);
-            Comment comment = Comment.create(
-                    post,
-                    currentAccount,
-                    content
-            );
+            Comment comment = parentCommentId == null
+                    ? Comment.create(post, currentAccount, content)
+                    : Comment.createReply(
+                            post,
+                            currentAccount,
+                            content,
+                            parentCommentId
+                    );
             commentRepository.save(comment);
             CommentResponse response = responseMapper.toComment(
                     comment,
@@ -420,6 +450,33 @@ public class CommentService {
         return post;
     }
 
+    private Long resolveRootParentCommentId(
+            Long requestedParentCommentId,
+            Long postId,
+            Account currentAccount
+    ) {
+        if (requestedParentCommentId == null) {
+            return null;
+        }
+        validateId(requestedParentCommentId, "부모 댓글");
+        Comment target = commentRepository.findActiveCommentForUpdate(
+                        requestedParentCommentId,
+                        CommentStatus.ACTIVE
+                )
+                .orElseThrow(() -> new BoardException(
+                        HttpStatus.NOT_FOUND,
+                        "BOARD_PARENT_COMMENT_NOT_FOUND",
+                        "답글을 남길 댓글을 찾을 수 없습니다."
+                ));
+        assertParentPostReadable(target, currentAccount);
+        if (!target.getPost().getPostId().equals(postId)) {
+            throw badRequest("같은 게시글의 댓글에만 답글을 남길 수 있습니다.");
+        }
+        return target.getParentCommentId() == null
+                ? target.getCommentId()
+                : target.getParentCommentId();
+    }
+
     private Comment getExistingCommentForUpdate(Long commentId) {
         validateId(commentId, "댓글");
         return commentRepository.findActiveCommentForUpdate(
@@ -484,17 +541,18 @@ public class CommentService {
     private void assertNotRapidDuplicate(
             Long postId,
             Long accountId,
+            Long parentCommentId,
             String content
     ) {
         LocalDateTime createdAfter = LocalDateTime.now()
                 .minus(RAPID_DUPLICATE_WINDOW);
-        if (commentRepository
-                .existsByPostPostIdAndAuthorAccountIdAndContentAndCreatedAtAfter(
-                        postId,
-                        accountId,
-                        content,
-                        createdAfter
-                )) {
+        if (commentRepository.existsRapidDuplicate(
+                postId,
+                accountId,
+                parentCommentId,
+                content,
+                createdAfter
+        )) {
             throw rapidDuplicateComment();
         }
     }
@@ -603,6 +661,7 @@ public class CommentService {
     private record CommentSubmissionKey(
             Long accountId,
             Long postId,
+            Long parentCommentId,
             String content
     ) {
     }

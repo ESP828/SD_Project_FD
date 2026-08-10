@@ -38,6 +38,9 @@ public class Comment {
     @JoinColumn(name = "account_id", nullable = false)
     private Account author;
 
+    @Column(name = "parent_comment_id")
+    private Long parentCommentId;
+
     @Column(nullable = false, length = 1000)
     private String content;
 
@@ -66,15 +69,33 @@ public class Comment {
     protected Comment() {
     }
 
-    private Comment(Post post, Account author, String content) {
+    private Comment(
+            Post post,
+            Account author,
+            String content,
+            Long parentCommentId
+    ) {
         this.post = Objects.requireNonNull(post);
         this.author = Objects.requireNonNull(author);
         this.content = Objects.requireNonNull(content);
+        this.parentCommentId = parentCommentId;
         this.status = CommentStatus.ACTIVE;
     }
 
     public static Comment create(Post post, Account author, String content) {
-        return new Comment(post, author, content);
+        return new Comment(post, author, content, null);
+    }
+
+    public static Comment createReply(
+            Post post,
+            Account author,
+            String content,
+            Long parentCommentId
+    ) {
+        if (parentCommentId == null || parentCommentId < 1) {
+            throw new IllegalArgumentException("부모 댓글 번호가 필요합니다.");
+        }
+        return new Comment(post, author, content, parentCommentId);
     }
 
     public void update(String content) {
@@ -116,6 +137,14 @@ public class Comment {
 
     public String getContent() {
         return content;
+    }
+
+    public Long getParentCommentId() {
+        return parentCommentId;
+    }
+
+    public boolean isReply() {
+        return parentCommentId != null;
     }
 
     public boolean hasImage() {

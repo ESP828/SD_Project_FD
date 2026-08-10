@@ -261,6 +261,7 @@ public class BoardResponseMapper {
         return new CommentResponse(
                 comment.getCommentId(),
                 comment.getPost().getPostId(),
+                comment.getParentCommentId(),
                 comment.getAuthor().getAccountId(),
                 comment.getAuthor().getLoginId(),
                 comment.getAuthor().getNickname(),

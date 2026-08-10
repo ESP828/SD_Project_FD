@@ -66,6 +66,8 @@
 
   let selectedCommentImage = null;
   let commentImagePreviewUrl = null;
+  let activeReplyForm = null;
+  let activeReplyPreviewUrl = null;
 
   function clearCommentImageSelection() {
     selectedCommentImage = null;
@@ -934,9 +936,255 @@
     }
   }
 
+  function closeReplyComposer() {
+    if (activeReplyPreviewUrl) {
+      URL.revokeObjectURL(activeReplyPreviewUrl);
+      activeReplyPreviewUrl = null;
+    }
+    activeReplyForm?.remove();
+    activeReplyForm = null;
+  }
+
+  function commentImageNode(comment) {
+    if (!comment.hasImage || !comment.imageUrl) return null;
+
+    const imageWrap = element("div", "comment-image-wrap");
+    const image = new Image();
+    image.className = "comment-image";
+    image.src = comment.imageUrl;
+    image.alt = comment.imageOriginalName || "댓글 첨부 사진";
+    image.loading = "lazy";
+    image.tabIndex = 0;
+    image.setAttribute("role", "button");
+    image.setAttribute(
+      "aria-label",
+      `${comment.imageOriginalName || "댓글 첨부 사진"} 크게 보기`,
+    );
+    image.addEventListener("click", () => {
+      openImageViewer(
+        image,
+        comment.imageOriginalName || "댓글 첨부 사진",
+      );
+    });
+    image.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter" && event.key !== " ") return;
+      event.preventDefault();
+      openImageViewer(
+        image,
+        comment.imageOriginalName || "댓글 첨부 사진",
+      );
+    });
+    image.addEventListener("error", () => {
+      imageWrap.replaceChildren(
+        element("span", "comment-image-error", "사진을 불러오지 못했습니다."),
+      );
+    }, { once: true });
+    imageWrap.append(image);
+    return imageWrap;
+  }
+
+  function replyTargetName(comment) {
+    const raw = comment.authorNickname || comment.authorLoginId || "작성자";
+    return String(raw).replace(/^@+/, "").trim() || "작성자";
+  }
+
+  function validateReplyImage(file) {
+    if (!file) return null;
+    if (file.size < 1) return "비어 있는 사진은 첨부할 수 없습니다.";
+    if (file.size > COMMENT_IMAGE_MAX_BYTES) {
+      return "댓글 사진은 5MB 이하만 첨부할 수 있습니다.";
+    }
+    if (!COMMENT_IMAGE_NAME_PATTERN.test(file.name || "") ||
+        (file.type && !COMMENT_IMAGE_TYPES.has(file.type))) {
+      return "댓글에는 JPG, PNG, WEBP, GIF 사진만 첨부할 수 있습니다.";
+    }
+    return null;
+  }
+
+  function openReplyComposer(comment, mountTarget) {
+    if (!board.requireLogin(window.location.pathname + window.location.search)) return;
+    closeReplyComposer();
+
+    const rootParentId = comment.parentCommentId || comment.commentId;
+    const targetName = replyTargetName(comment);
+    let selectedReplyImage = null;
+
+    const form = element("form", "comment-reply-form");
+    const label = element(
+      "div",
+      "comment-reply-target",
+      `@${targetName}님에게 답글 남기기`,
+    );
+    const textarea = document.createElement("textarea");
+    textarea.className = "comment-reply-textarea";
+    textarea.maxLength = 1000;
+    textarea.rows = 3;
+    textarea.setAttribute("aria-label", `${targetName}님에게 답글`);
+    textarea.value = `@${targetName} `;
+
+    const tools = element("div", "comment-image-tools");
+    const fileInput = document.createElement("input");
+    fileInput.type = "file";
+    fileInput.className = "sr-only";
+    fileInput.accept = ".jpg,.jpeg,.png,.gif,.webp,image/jpeg,image/png,image/gif,image/webp";
+    const imageButton = element("button", "comment-image-select", "사진 첨부");
+    imageButton.type = "button";
+    const imageNote = element("span", "", "사진 1장 · 최대 5MB");
+    tools.append(fileInput, imageButton, imageNote);
+
+    const preview = element("div", "comment-image-preview");
+    preview.hidden = true;
+    const previewImage = new Image();
+    previewImage.alt = "답글 첨부 사진 미리보기";
+    const previewCopy = element("div", "comment-image-preview-copy");
+    const previewName = element("strong");
+    const previewSize = element("span");
+    previewCopy.append(previewName, previewSize);
+    const removeImage = element("button", "comment-image-remove", "선택 취소");
+    removeImage.type = "button";
+    preview.append(previewImage, previewCopy, removeImage);
+
+    const submitRow = element("div", "comment-reply-submit-row");
+    const cancel = element("button", "comment-action", "취소");
+    cancel.type = "button";
+    const submit = element("button", "button button-sm button-primary", "답글 등록");
+    submit.type = "submit";
+    submitRow.append(cancel, submit);
+
+    function clearReplyImage() {
+      selectedReplyImage = null;
+      fileInput.value = "";
+      if (activeReplyPreviewUrl) {
+        URL.revokeObjectURL(activeReplyPreviewUrl);
+        activeReplyPreviewUrl = null;
+      }
+      previewImage.removeAttribute("src");
+      previewName.textContent = "";
+      previewSize.textContent = "";
+      preview.hidden = true;
+    }
+
+    imageButton.addEventListener("click", () => fileInput.click());
+    fileInput.addEventListener("change", () => {
+      const file = fileInput.files?.[0] || null;
+      const error = validateReplyImage(file);
+      if (error) {
+        showToast(toast, error, true);
+        clearReplyImage();
+        return;
+      }
+      clearReplyImage();
+      if (!file) return;
+      selectedReplyImage = file;
+      activeReplyPreviewUrl = URL.createObjectURL(file);
+      previewImage.src = activeReplyPreviewUrl;
+      previewImage.alt = `${file.name || "답글 첨부 사진"} 미리보기`;
+      previewName.textContent = file.name || "첨부 사진";
+      previewSize.textContent = formatBytes(file.size);
+      preview.hidden = false;
+    });
+    removeImage.addEventListener("click", clearReplyImage);
+    cancel.addEventListener("click", closeReplyComposer);
+
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const content = textarea.value.trim();
+      if (!content) {
+        showToast(toast, "답글 내용을 입력해 주세요.", true);
+        return;
+      }
+
+      const imageFile = selectedReplyImage;
+      submit.disabled = true;
+      imageButton.disabled = true;
+      try {
+        const payload = await Api.post(`/board/posts/${postId}/comments`, {
+          content,
+          parentCommentId: rootParentId,
+        });
+        const createdCommentId = payload.data?.commentId;
+        let imageUploadError = null;
+        if (imageFile && createdCommentId) {
+          try {
+            await uploadCommentImage(createdCommentId, imageFile);
+          } catch (error) {
+            imageUploadError = error;
+          }
+        }
+
+        invalidateBoardCache();
+        clearReplyImage();
+        closeReplyComposer();
+        if (imageUploadError) {
+          showToast(
+            toast,
+            `답글은 등록됐지만 사진 업로드에 실패했습니다. ${imageUploadError.message}`,
+            true,
+          );
+        } else {
+          showToast(
+            toast,
+            imageFile ? "답글과 사진이 등록되었습니다." : "답글이 등록되었습니다.",
+          );
+        }
+        await loadComments();
+      } catch (error) {
+        showToast(toast, error.message, true);
+      } finally {
+        submit.disabled = false;
+        imageButton.disabled = false;
+      }
+    });
+
+    form.append(label, textarea, tools, preview, submitRow);
+    mountTarget.append(form);
+    activeReplyForm = form;
+    textarea.focus();
+    textarea.setSelectionRange(textarea.value.length, textarea.value.length);
+  }
+
+  function renderCommentItem(comment, options = {}) {
+    const { isReply = false, hasReplies = false } = options;
+    const item = element(
+      "article",
+      isReply ? "comment-item comment-reply" : "comment-item",
+    );
+    item.id = `comment-${comment.commentId}`;
+
+    const top = element("div", "comment-top");
+    top.append(
+      authorIdentity(comment, { showAuthorMenu: true }),
+      element("span", "comment-date", formatDate(comment.createdAt)),
+    );
+    item.append(top, element("div", "comment-content", comment.content));
+
+    const image = commentImageNode(comment);
+    if (image) item.append(image);
+
+    const actions = element("div", "comment-actions");
+    actions.append(
+      actionButton("답글", "comment-action", () => openReplyComposer(comment, item)),
+    );
+    if (comment.ownedByCurrentUser || session.isAdmin) {
+      actions.append(
+        actionButton("수정", "comment-action", () => editComment(comment)),
+        actionButton(
+          "삭제",
+          "comment-action",
+          () => deleteComment(comment, hasReplies),
+        ),
+      );
+    }
+    item.append(actions);
+    return item;
+  }
+
   function renderComments(pageData) {
+    closeReplyComposer();
     const comments = pageData.content || [];
-    commentCount.textContent = String(pageData.totalElements || 0);
+    commentCount.textContent = String(
+      pageData.totalCommentCount ?? pageData.totalElements ?? 0,
+    );
     commentList.replaceChildren();
     if (!comments.length) {
       commentList.append(
@@ -944,59 +1192,31 @@
       );
       return;
     }
+
+    const repliesByParent = new Map();
     comments.forEach((comment) => {
-      const item = element("article", "comment-item");
-      const top = element("div", "comment-top");
-      top.append(
-        authorIdentity(comment, { showAuthorMenu: true }),
-        element("span", "comment-date", formatDate(comment.createdAt)),
-      );
-      item.append(top, element("div", "comment-content", comment.content));
-      if (comment.hasImage && comment.imageUrl) {
-        const imageWrap = element("div", "comment-image-wrap");
-        const image = new Image();
-        image.className = "comment-image";
-        image.src = comment.imageUrl;
-        image.alt = comment.imageOriginalName || "댓글 첨부 사진";
-        image.loading = "lazy";
-        image.tabIndex = 0;
-        image.setAttribute("role", "button");
-        image.setAttribute(
-          "aria-label",
-          `${comment.imageOriginalName || "댓글 첨부 사진"} 크게 보기`,
-        );
-        image.addEventListener("click", () => {
-          openImageViewer(
-            image,
-            comment.imageOriginalName || "댓글 첨부 사진",
-          );
-        });
-        image.addEventListener("keydown", (event) => {
-          if (event.key !== "Enter" && event.key !== " ") return;
-          event.preventDefault();
-          openImageViewer(
-            image,
-            comment.imageOriginalName || "댓글 첨부 사진",
-          );
-        });
-        image.addEventListener("error", () => {
-          imageWrap.replaceChildren(
-            element("span", "comment-image-error", "사진을 불러오지 못했습니다."),
-          );
-        }, { once: true });
-        imageWrap.append(image);
-        item.append(imageWrap);
-      }
-      if (comment.ownedByCurrentUser || session.isAdmin) {
-        const actions = element("div", "comment-actions");
-        actions.append(
-          actionButton("수정", "comment-action", () => editComment(comment)),
-          actionButton("삭제", "comment-action", () => deleteComment(comment)),
-        );
-        item.append(actions);
-      }
-      commentList.append(item);
+      if (!comment.parentCommentId) return;
+      const replies = repliesByParent.get(comment.parentCommentId) || [];
+      replies.push(comment);
+      repliesByParent.set(comment.parentCommentId, replies);
     });
+
+    comments
+      .filter((comment) => !comment.parentCommentId)
+      .forEach((comment) => {
+        const replies = repliesByParent.get(comment.commentId) || [];
+        const thread = element("section", "comment-thread");
+        thread.append(renderCommentItem(comment, { hasReplies: replies.length > 0 }));
+
+        if (replies.length) {
+          const replyList = element("div", "comment-replies");
+          replies.forEach((reply) => {
+            replyList.append(renderCommentItem(reply, { isReply: true }));
+          });
+          thread.append(replyList);
+        }
+        commentList.append(thread);
+      });
   }
 
   async function loadComments() {
@@ -1036,8 +1256,11 @@
     }
   }
 
-  async function deleteComment(comment) {
-    if (!window.confirm("댓글을 삭제하시겠습니까?")) return;
+  async function deleteComment(comment, hasReplies = false) {
+    const message = hasReplies
+      ? "댓글을 삭제하면 연결된 답글도 함께 삭제됩니다. 삭제하시겠습니까?"
+      : "댓글을 삭제하시겠습니까?";
+    if (!window.confirm(message)) return;
     try {
       const payload = await Api.delete(`/board/comments/${comment.commentId}`);
       invalidateBoardCache();
@@ -1151,6 +1374,7 @@
     mediaPollingDisposed = true;
     clearMediaPoll();
     clearCommentImageSelection();
+    closeReplyComposer();
     document.querySelector(".detail-image-viewer")?.remove();
     document.body.classList.remove("is-image-viewer-open");
   });

@@ -5,6 +5,7 @@ import java.time.LocalDateTime;
 public record CommentResponse(
         Long commentId,
         Long postId,
+        Long parentCommentId,
         Long authorAccountId,
         String authorLoginId,
         String authorNickname,
@@ -33,6 +34,7 @@ public record CommentResponse(
         this(
                 commentId,
                 postId,
+                null,
                 authorAccountId,
                 authorLoginId,
                 authorNickname,
