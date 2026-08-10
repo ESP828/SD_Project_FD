@@ -25,6 +25,7 @@ public record PostDetailResponse(
         boolean ownedByCurrentUser,
         LocalDateTime createdAt,
         LocalDateTime updatedAt,
+        boolean edited,
         List<MediaResponse> media
 ) {
     public PostDetailResponse {

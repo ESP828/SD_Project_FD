@@ -63,6 +63,9 @@ public class Comment {
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
 
+    @Column(name = "is_edited", nullable = false)
+    private boolean edited;
+
     @Column(name = "deleted_at")
     private LocalDateTime deletedAt;
 
@@ -99,8 +102,13 @@ public class Comment {
     }
 
     public void update(String content) {
-        this.content = Objects.requireNonNull(content);
+        String nextContent = Objects.requireNonNull(content);
+        boolean changed = !Objects.equals(this.content, nextContent);
+        this.content = nextContent;
         this.updatedAt = LocalDateTime.now();
+        if (changed) {
+            this.edited = true;
+        }
     }
 
     public void softDelete(LocalDateTime deletedAt) {
@@ -176,6 +184,10 @@ public class Comment {
 
     public LocalDateTime getUpdatedAt() {
         return updatedAt;
+    }
+
+    public boolean isEdited() {
+        return edited;
     }
 
     public LocalDateTime getDeletedAt() {

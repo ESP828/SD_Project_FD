@@ -97,7 +97,8 @@ public class BoardResponseMapper {
                     likedPostIds.contains(post.getPostId()),
                     isOwned(post.getAuthor(), currentAccount),
                     post.getCreatedAt(),
-                    post.getUpdatedAt()
+                    post.getUpdatedAt(),
+                    post.isEdited()
             );
         }).toList();
     }
@@ -166,6 +167,7 @@ public class BoardResponseMapper {
                 isOwned(post.getAuthor(), currentAccount),
                 post.getCreatedAt(),
                 post.getUpdatedAt(),
+                post.isEdited(),
                 media
         );
     }
@@ -275,7 +277,8 @@ public class BoardResponseMapper {
                 hasImage ? comment.getImageFileSize() : null,
                 isOwned(comment.getAuthor(), currentAccount),
                 comment.getCreatedAt(),
-                comment.getUpdatedAt()
+                comment.getUpdatedAt(),
+                comment.isEdited()
         );
     }
 

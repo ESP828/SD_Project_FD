@@ -17,7 +17,8 @@ public record CommentResponse(
         Long imageFileSize,
         boolean ownedByCurrentUser,
         LocalDateTime createdAt,
-        LocalDateTime updatedAt
+        LocalDateTime updatedAt,
+        boolean edited
 ) {
     public CommentResponse(
             Long commentId,
@@ -46,7 +47,8 @@ public record CommentResponse(
                 null,
                 ownedByCurrentUser,
                 createdAt,
-                updatedAt
+                updatedAt,
+                false
         );
     }
 }

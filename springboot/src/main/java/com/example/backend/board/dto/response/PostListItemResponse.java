@@ -23,6 +23,7 @@ public record PostListItemResponse(
         boolean likedByCurrentUser,
         boolean ownedByCurrentUser,
         LocalDateTime createdAt,
-        LocalDateTime updatedAt
+        LocalDateTime updatedAt,
+        boolean edited
 ) {
 }

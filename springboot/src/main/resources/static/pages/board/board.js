@@ -50,11 +50,7 @@
   } = board;
 
   function isEdited(item) {
-    const createdAt = new Date(item?.createdAt).getTime();
-    const updatedAt = new Date(item?.updatedAt).getTime();
-    return Number.isFinite(createdAt)
-      && Number.isFinite(updatedAt)
-      && updatedAt > createdAt;
+    return item?.edited === true;
   }
 
   function renderLoading() {
