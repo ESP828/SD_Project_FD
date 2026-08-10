@@ -988,6 +988,12 @@
     return String(raw).replace(/^@+/, "").trim() || "작성자";
   }
 
+  function hasReplyBody(value, targetName) {
+    const content = String(value || "").trim();
+    if (!content) return false;
+    return content !== `@${targetName}`;
+  }
+
   function validateReplyImage(file) {
     if (!file) return null;
     if (file.size < 1) return "비어 있는 사진은 첨부할 수 없습니다.";
@@ -1049,7 +1055,12 @@
     cancel.type = "button";
     const submit = element("button", "button button-sm button-primary", "답글 등록");
     submit.type = "submit";
+    submit.disabled = true;
     submitRow.append(cancel, submit);
+
+    function syncReplySubmitState() {
+      submit.disabled = !hasReplyBody(textarea.value, targetName);
+    }
 
     function clearReplyImage() {
       selectedReplyImage = null;
@@ -1085,11 +1096,13 @@
     });
     removeImage.addEventListener("click", clearReplyImage);
     cancel.addEventListener("click", closeReplyComposer);
+    textarea.addEventListener("input", syncReplySubmitState);
 
     form.addEventListener("submit", async (event) => {
       event.preventDefault();
       const content = textarea.value.trim();
-      if (!content) {
+      if (!hasReplyBody(content, targetName)) {
+        syncReplySubmitState();
         showToast(toast, "답글 내용을 입력해 주세요.", true);
         return;
       }
@@ -1131,7 +1144,7 @@
       } catch (error) {
         showToast(toast, error.message, true);
       } finally {
-        submit.disabled = false;
+        syncReplySubmitState();
         imageButton.disabled = false;
       }
     });

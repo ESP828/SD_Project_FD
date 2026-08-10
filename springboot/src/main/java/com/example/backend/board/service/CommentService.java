@@ -158,11 +158,17 @@ public class CommentService {
 
         try {
             Post post = getReadablePostForCommentCreate(postId, currentAccount);
-            Long parentCommentId = resolveRootParentCommentId(
+            ReplyTarget replyTarget = resolveReplyTarget(
                     request.parentCommentId(),
                     post.getPostId(),
                     currentAccount
             );
+            Long parentCommentId = replyTarget == null
+                    ? null
+                    : replyTarget.rootParentCommentId();
+            if (replyTarget != null) {
+                assertReplyHasBody(content, replyTarget.targetName());
+            }
             assertNotRapidDuplicate(
                     postId,
                     currentAccount.getAccountId(),
@@ -450,7 +456,7 @@ public class CommentService {
         return post;
     }
 
-    private Long resolveRootParentCommentId(
+    private ReplyTarget resolveReplyTarget(
             Long requestedParentCommentId,
             Long postId,
             Account currentAccount
@@ -472,9 +478,32 @@ public class CommentService {
         if (!target.getPost().getPostId().equals(postId)) {
             throw badRequest("같은 게시글의 댓글에만 답글을 남길 수 있습니다.");
         }
-        return target.getParentCommentId() == null
+        Long rootParentCommentId = target.getParentCommentId() == null
                 ? target.getCommentId()
                 : target.getParentCommentId();
+        return new ReplyTarget(rootParentCommentId, replyTargetName(target));
+    }
+
+    private void assertReplyHasBody(String content, String targetName) {
+        String normalized = content == null ? "" : content.strip();
+        if (normalized.isBlank() || normalized.equals("@" + targetName)) {
+            throw badRequest("답글 내용을 입력해 주세요.");
+        }
+    }
+
+    private String replyTargetName(Comment target) {
+        String nickname = target.getAuthor().getNickname();
+        String rawName = nickname != null && !nickname.isBlank()
+                ? nickname
+                : target.getAuthor().getLoginId();
+        if (rawName == null || rawName.isBlank()) {
+            return "작성자";
+        }
+        String normalized = rawName.strip();
+        while (normalized.startsWith("@")) {
+            normalized = normalized.substring(1).stripLeading();
+        }
+        return normalized.isBlank() ? "작성자" : normalized;
     }
 
     private Comment getExistingCommentForUpdate(Long commentId) {
@@ -655,6 +684,12 @@ public class CommentService {
             String originalName,
             long fileSize,
             byte[] data
+    ) {
+    }
+
+    private record ReplyTarget(
+            Long rootParentCommentId,
+            String targetName
     ) {
     }
 
