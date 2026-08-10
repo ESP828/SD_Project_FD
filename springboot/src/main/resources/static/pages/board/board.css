@@ -1328,10 +1328,6 @@
   font-size: 0.76rem;
 }
 
-.comment-image-select .material-symbols-rounded {
-  font-size: 1.15rem;
-}
-
 .comment-image-select:hover,
 .comment-image-select:focus-visible,
 .comment-image-remove:hover,
