@@ -28,6 +28,7 @@
   const detailContent = document.getElementById("post-detail-content");
   const listLink = document.getElementById("detail-list-link");
   const relatedPostList = document.getElementById("related-post-list");
+  const unansweredPostList = document.getElementById("detail-unanswered-post-list");
   const restaurantSide = document.getElementById("detail-restaurant-side");
   const commentCount = document.getElementById("detail-comment-count");
   const commentForm = document.getElementById("comment-form");
@@ -234,6 +235,81 @@
     } catch (error) {
       if (!cached) {
         relatedPostList.replaceChildren(
+          element("li", "best-loading", error.message || "불러오지 못했습니다."),
+        );
+      }
+    }
+  }
+
+  function formatWaitingDate(value) {
+    const date = new Date(value);
+    const elapsed = Date.now() - date.getTime();
+    if (Number.isNaN(date.getTime()) || elapsed < 0) return formatDate(value);
+    const minutes = Math.floor(elapsed / 60_000);
+    if (minutes < 1) return "방금 전";
+    if (minutes < 60) return `${minutes}분 전`;
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return `${hours}시간 전`;
+    if (hours < 48) return "어제";
+    return formatDate(value);
+  }
+
+  function renderUnansweredPosts(posts) {
+    if (!unansweredPostList) return;
+    unansweredPostList.replaceChildren();
+    const visiblePosts = (posts || [])
+      .filter((post) => String(post.postId) !== String(postId))
+      .slice(0, 3);
+    if (!visiblePosts.length) {
+      unansweredPostList.append(
+        element("li", "best-loading", "모든 질문에 답변이 달렸습니다."),
+      );
+      return;
+    }
+    visiblePosts.forEach((post) => {
+      const item = element("li");
+      const link = element("a");
+      link.href = detailPath(post.postId);
+      link.setAttribute("aria-label", `${post.title} 답변하러 가기`);
+      link.append(element("span", "best-rank", "Q"));
+      const copy = element("span", "best-copy");
+      const author = post.authorNickname
+        || (!post.authorLoginId ? "소셜 계정" : "작성자 정보 없음");
+      copy.append(
+        element("strong", "", post.title),
+        element("small", "", `${author} · ${formatWaitingDate(post.createdAt)}`),
+      );
+      link.append(copy);
+      item.append(link);
+      unansweredPostList.append(item);
+    });
+  }
+
+  async function loadUnansweredPosts() {
+    if (!unansweredPostList || !state.post) return;
+    const params = new URLSearchParams({
+      boardType: state.post.boardType === "BUSINESS" ? "BUSINESS" : "GENERAL",
+      size: "4",
+    });
+    const path = `/board/posts/unanswered?${params.toString()}`;
+    const cached = readBoardCache(path);
+    if (cached) {
+      renderUnansweredPosts(cached.data || []);
+      if (cached.fresh) return;
+    } else {
+      unansweredPostList.replaceChildren(
+        element("li", "best-loading", "불러오는 중"),
+      );
+    }
+
+    try {
+      const payload = await Api.get(path);
+      const posts = payload.data || [];
+      writeBoardCache(path, posts);
+      renderUnansweredPosts(posts);
+    } catch (error) {
+      if (!cached) {
+        unansweredPostList.replaceChildren(
           element("li", "best-loading", error.message || "불러오지 못했습니다."),
         );
       }
@@ -786,6 +862,7 @@
     invalidateBoardCache();
     renderRestaurantSide(null);
     relatedPostList?.replaceChildren();
+    unansweredPostList?.replaceChildren();
     commentForm.hidden = true;
     commentList.replaceChildren();
     commentCount.textContent = "0";
@@ -1041,14 +1118,17 @@
     if (!postId) {
       renderPostError("유효한 게시글 번호가 없습니다.");
       renderRelatedPosts([]);
+      renderUnansweredPosts([]);
       commentForm.hidden = true;
       return;
     }
     try {
+      const postPromise = loadPost();
       await Promise.all([
-        loadPost(),
+        postPromise,
         loadComments(),
         loadRelatedPosts(),
+        postPromise.then(loadUnansweredPosts),
       ]);
     } catch (error) {
       renderPostError(error.message);
