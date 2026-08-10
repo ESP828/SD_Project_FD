@@ -481,16 +481,17 @@ public class PostService {
         );
     }
 
-    @Transactional
+    @Transactional(readOnly = true)
     public PostDetailResponse getPost(Long postId, Long currentAccountId) {
         Account currentAccount = boardUserService.findOptional(currentAccountId);
         Post post = getExistingPost(postId);
         accessPolicy.assertCanRead(post.getBoardType(), currentAccount);
 
-        if (postRepository.increaseViewCount(postId, PostStatus.ACTIVE) != 1) {
+        long viewCount = referenceRepository.increasePostViewCountImmediately(postId);
+        if (viewCount < 0) {
             throw notFound("게시글을 찾을 수 없습니다.");
         }
-        return responseMapper.toDetail(getExistingPost(postId), currentAccount);
+        return responseMapper.toDetail(post, currentAccount, viewCount);
     }
 
     @Transactional

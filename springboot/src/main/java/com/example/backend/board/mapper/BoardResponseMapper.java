@@ -106,7 +106,21 @@ public class BoardResponseMapper {
         return toDetail(
                 post,
                 currentAccount,
-                accessPolicy.displayRole(post.getAuthor())
+                accessPolicy.displayRole(post.getAuthor()),
+                post.getViewCount()
+        );
+    }
+
+    public PostDetailResponse toDetail(
+            Post post,
+            Account currentAccount,
+            long viewCount
+    ) {
+        return toDetail(
+                post,
+                currentAccount,
+                accessPolicy.displayRole(post.getAuthor()),
+                viewCount
         );
     }
 
@@ -114,6 +128,15 @@ public class BoardResponseMapper {
             Post post,
             Account currentAccount,
             String authorRole
+    ) {
+        return toDetail(post, currentAccount, authorRole, post.getViewCount());
+    }
+
+    private PostDetailResponse toDetail(
+            Post post,
+            Account currentAccount,
+            String authorRole,
+            long viewCount
     ) {
         RestaurantSummaryResponse restaurant = post.getRestaurantId() == null
                 ? null
@@ -133,7 +156,7 @@ public class BoardResponseMapper {
                 post.getCategory(),
                 post.getRestaurantId(),
                 restaurant,
-                post.getViewCount(),
+                viewCount,
                 commentRepository.countByPostPostIdAndStatus(
                         post.getPostId(),
                         CommentStatus.ACTIVE

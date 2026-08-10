@@ -260,6 +260,35 @@ public class BoardReferenceQueryRepository {
     }
 
 
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public long increasePostViewCountImmediately(Long postId) {
+        int updated = jdbcTemplate.update(
+                """
+                update post
+                   set view_count = view_count + 1
+                 where post_id = :postId
+                   and status = 'ACTIVE'
+                """,
+                Map.of("postId", postId)
+        );
+        if (updated != 1) {
+            return -1;
+        }
+
+        Long viewCount = jdbcTemplate.queryForObject(
+                """
+                select view_count
+                  from post
+                 where post_id = :postId
+                   and status = 'ACTIVE'
+                """,
+                Map.of("postId", postId),
+                Long.class
+        );
+        return viewCount == null ? -1 : viewCount;
+    }
+
+
     public List<PostMediaReference> findPostMedia(Long postId) {
         return jdbcTemplate.query(
                 """
@@ -270,7 +299,11 @@ public class BoardReferenceQueryRepository {
                        original_name,
                        file_size,
                        display_order,
-                       coalesce(octet_length(media_data), 0) as stored_size
+                       case
+                           when media_url in ('db:pending', 'db:processing')
+                               then coalesce(octet_length(media_data), 0)
+                           else 0
+                       end as stored_size
                   from post_media
                  where post_id = :postId
                  order by display_order, post_media_id

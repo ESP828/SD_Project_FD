@@ -698,7 +698,11 @@
     const path = `/board/posts/${postId}`;
     const cached = readBoardCache(path);
     if (cached?.data) {
-      renderPost(cached.data);
+      const cachedViewCount = Number(cached.data.viewCount) || 0;
+      renderPost({
+        ...cached.data,
+        viewCount: cachedViewCount + 1,
+      });
     }
 
     try {
@@ -708,6 +712,7 @@
       renderPost(payload.data);
     } catch (error) {
       if (!cached?.data) throw error;
+      renderPost(cached.data);
     }
   }
 
