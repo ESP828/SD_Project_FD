@@ -325,9 +325,31 @@
           "이 브라우저에서는 해당 동영상 형식을 재생할 수 없습니다.",
         );
       } else {
-        video.src = media.mediaUrl;
+        const videoFrame = element("div", "detail-media-video");
+        const loading = element("div", "detail-media-loading");
+        loading.setAttribute("role", "status");
+        loading.setAttribute("aria-live", "polite");
+
+        const loadingIcon = element(
+          "span",
+          "material-symbols-rounded detail-media-loading__icon",
+          "progress_activity",
+        );
+        loadingIcon.setAttribute("aria-hidden", "true");
+        loading.append(
+          loadingIcon,
+          element("span", "detail-media-loading__text", "동영상을 불러오는 중..."),
+        );
+
+        const finishLoading = () => {
+          loading.hidden = true;
+          videoFrame.classList.add("is-ready");
+        };
+
         video.controls = true;
         video.preload = "auto";
+        video.addEventListener("loadeddata", finishLoading, { once: true });
+        video.addEventListener("canplay", finishLoading, { once: true });
         video.addEventListener("error", () => {
           renderMediaFallback(
             item,
@@ -335,7 +357,9 @@
             "동영상을 재생할 수 없습니다. 원본 파일을 내려받아 확인해 주세요.",
           );
         }, { once: true });
-        item.append(video);
+        videoFrame.append(video, loading);
+        item.append(videoFrame);
+        video.src = media.mediaUrl;
       }
     }
 
