@@ -5,6 +5,7 @@ import com.example.backend.auth.repository.AccountRepository;
 import com.example.backend.auth.service.AuthorityService;
 import com.example.backend.global.exception.BusinessException;
 import com.example.backend.global.exception.ErrorCode;
+import com.example.backend.mypage.dto.request.MyPageProfileUpdateRequest;
 import com.example.backend.mypage.dto.response.MyPageActivityResponse.CommentItem;
 import com.example.backend.mypage.dto.response.MyPageActivityResponse.FavoriteItem;
 import com.example.backend.mypage.dto.response.MyPageActivityResponse.NotificationItem;
@@ -36,9 +37,22 @@ public class MyPageService {
 
     @Transactional(readOnly = true)
     public MyPageOverviewResponse getOverview(Long accountId) {
-        Account account = accountRepository.findById(accountId)
-                .filter(Account::isActive)
-                .orElseThrow(() -> new BusinessException(ErrorCode.RESOURCE_NOT_FOUND));
+        Account account = requireActiveAccount(accountId);
+        return createOverview(accountId, account);
+    }
+
+    @Transactional
+    public MyPageOverviewResponse updateProfile(Long accountId, MyPageProfileUpdateRequest request) {
+        Account account = requireActiveAccount(accountId);
+        String nickname = normalizeNickname(request.nickname());
+        if (!nickname.equals(account.getNickname()) && accountRepository.existsByNickname(nickname)) {
+            throw new BusinessException(ErrorCode.DUPLICATE_NICKNAME);
+        }
+        account.updateProfile(nickname, request.gender(), request.birthDate());
+        return createOverview(accountId, account);
+    }
+
+    private MyPageOverviewResponse createOverview(Long accountId, Account account) {
         var counts = activityQueryRepository.findCounts(accountId);
         return new MyPageOverviewResponse(
                 account.getAccountId(),
@@ -89,9 +103,17 @@ public class MyPageService {
         return activityQueryRepository.findUnreadNotifications(accountId);
     }
 
-    private void requireActiveAccount(Long accountId) {
-        accountRepository.findById(accountId)
+    private Account requireActiveAccount(Long accountId) {
+        return accountRepository.findById(accountId)
                 .filter(Account::isActive)
                 .orElseThrow(() -> new BusinessException(ErrorCode.RESOURCE_NOT_FOUND));
+    }
+
+    private String normalizeNickname(String value) {
+        String nickname = value == null ? "" : value.trim().replaceAll("\\s+", " ");
+        if (nickname.length() < 2 || nickname.length() > 30) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT);
+        }
+        return nickname;
     }
 }

@@ -1,9 +1,10 @@
 (() => {
   const session = window.FooduckSession;
+  const profile = window.FooduckProfile;
   const gate = document.getElementById("mypage-gate");
   const content = document.getElementById("mypage-content");
 
-  if (!session || !gate || !content) {
+  if (!session || !profile || !gate || !content) {
     return;
   }
 
@@ -12,25 +13,6 @@
     if (className) node.className = className;
     if (text !== undefined && text !== null) node.textContent = text;
     return node;
-  }
-
-  function formatDate(value) {
-    if (!value) return "정보 없음";
-    const date = new Date(value);
-    if (Number.isNaN(date.getTime())) return String(value);
-    return new Intl.DateTimeFormat("ko-KR", {
-      year: "numeric",
-      month: "long",
-      day: "numeric",
-    }).format(date);
-  }
-
-  function authorityLabel(code) {
-    return {
-      ROLE_USER: "일반 사용자",
-      ROLE_BUSINESS: "사업자",
-      ROLE_ADMIN: "관리자",
-    }[code] || code;
   }
 
   function genderLabel(gender) {
@@ -46,6 +28,106 @@
     const wrapper = element("div");
     wrapper.append(element("dt", "", label), element("dd", "", value || "정보 없음"));
     return wrapper;
+  }
+
+  function field(label, control, className = "") {
+    const wrapper = element("label", `mypage-profile-field ${className}`.trim());
+    wrapper.append(element("span", "", label), control);
+    return wrapper;
+  }
+
+  function input(type, name, value = "") {
+    const control = document.createElement("input");
+    control.type = type;
+    control.name = name;
+    control.value = value || "";
+    return control;
+  }
+
+  function localDateValue(date = new Date()) {
+    const year = String(date.getFullYear());
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  }
+
+  function createProfileForm(data, onCancel) {
+    const form = element("form", "mypage-profile-form");
+    const loginId = input("text", "loginId", data.loginId || "소셜 로그인 계정");
+    const email = input("email", "email", data.email || "등록된 이메일 없음");
+    const createdAt = input("text", "createdAt", profile.formatDate(data.createdAt));
+    [loginId, email, createdAt].forEach((control) => {
+      control.readOnly = true;
+      control.setAttribute("aria-readonly", "true");
+    });
+
+    const nickname = input("text", "nickname", data.nickname);
+    nickname.required = true;
+    nickname.minLength = 2;
+    nickname.maxLength = 30;
+    nickname.autocomplete = "nickname";
+
+    const gender = document.createElement("select");
+    gender.name = "gender";
+    [
+      ["UNSPECIFIED", "미설정"],
+      ["MALE", "남성"],
+      ["FEMALE", "여성"],
+      ["OTHER", "기타"],
+    ].forEach(([value, label]) => {
+      const option = element("option", "", label);
+      option.value = value;
+      option.selected = value === (data.gender || "UNSPECIFIED");
+      gender.append(option);
+    });
+
+    const birthDate = input("date", "birthDate", data.birthDate);
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    birthDate.max = localDateValue(yesterday);
+
+    const status = element("p", "mypage-profile-form-status");
+    status.setAttribute("aria-live", "polite");
+    const actions = element("div", "mypage-profile-form-actions");
+    const cancelButton = element("button", "button button-secondary", "취소");
+    cancelButton.type = "button";
+    const saveButton = element("button", "button button-primary", "저장하기");
+    saveButton.type = "submit";
+    actions.append(cancelButton, saveButton);
+
+    form.append(
+      field("로그인 아이디", loginId),
+      field("이메일", email),
+      field("닉네임", nickname),
+      field("가입일", createdAt),
+      field("성별", gender),
+      field("생년월일", birthDate),
+      status,
+      actions,
+    );
+
+    cancelButton.addEventListener("click", onCancel);
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      status.className = "mypage-profile-form-status";
+      status.textContent = "저장하고 있습니다.";
+      saveButton.disabled = true;
+      cancelButton.disabled = true;
+      try {
+        const payload = await Api.patch("/mypage/profile", {
+          nickname: nickname.value,
+          gender: gender.value,
+          birthDate: birthDate.value || null,
+        });
+        render(payload.data || data, payload.message || "내 정보가 수정되었습니다.");
+      } catch (error) {
+        status.classList.add("is-error");
+        status.textContent = error.message || "내 정보를 수정하지 못했습니다.";
+        saveButton.disabled = false;
+        cancelButton.disabled = false;
+      }
+    });
+    return form;
   }
 
   function detailPath(tab) {
@@ -73,42 +155,23 @@
     return node;
   }
 
-  function render(data) {
+  function render(data, successMessage = "") {
     content.replaceChildren();
 
-    const summary = element("section", "profile-summary");
-    const profile = element("div", "profile-image");
-    if (data.profileImageUrl) {
-      const image = new Image();
-      image.src = data.profileImageUrl;
-      image.alt = `${data.nickname} 프로필`;
-      image.addEventListener("error", () => {
-        profile.replaceChildren();
-        const fallback = element("span", "material-symbols-rounded", "person");
-        fallback.setAttribute("aria-hidden", "true");
-        profile.append(fallback);
-        window.FooduckIcons?.enhance(profile);
-      }, { once: true });
-      profile.append(image);
-    } else {
-      const fallback = element("span", "material-symbols-rounded", "person");
-      fallback.setAttribute("aria-hidden", "true");
-      profile.append(fallback);
+    const profileActions = [];
+    if (session.canManageBusiness) {
+      profileActions.push({
+        label: "사업자 페이지",
+        href: "/pages/business/index.html",
+      });
     }
-
-    const profileCopy = element("div", "profile-copy");
-    profileCopy.append(
-      element("h2", "", `${data.nickname || "회원"}님, 반가워요`),
-      element("p", "", `${data.loginId || "소셜 계정"} · 가입 ${formatDate(data.createdAt)}`),
-    );
-    const authorities = element("div", "authority-list");
-    (data.authorities || []).forEach((code) => {
-      authorities.append(element("span", "authority-badge", authorityLabel(code)));
-    });
-    profileCopy.append(authorities);
-    const mapButton = element("a", "button button-secondary", "맛집 찾기");
-    mapButton.href = "/pages/map/index.html";
-    summary.append(profile, profileCopy, mapButton);
+    if (session.isAdmin) {
+      profileActions.push({
+        label: "관리자 페이지",
+        href: "/pages/admin/index.html",
+      });
+    }
+    const summary = profile.createSummary(data, profileActions);
 
     const activities = element("section", "activity-grid");
     activities.append(
@@ -125,21 +188,33 @@
     const accountTitle = element("div");
     accountTitle.append(
       element("h3", "", "내 정보"),
-      element("p", "", "현재 계정 테이블에 저장된 정보"),
+      element("p", "", "내 프로필에 등록된 정보"),
     );
-    accountHeader.append(accountTitle);
+    const editButton = element("button", "button button-secondary button-sm", "수정하기");
+    editButton.type = "button";
+    accountHeader.append(accountTitle, editButton);
     const details = element("dl", "account-details");
     details.append(
-      detail("계정 번호", String(data.accountId)),
-      detail("로그인 아이디", data.loginId || "소셜 로그인 계정"),
-      detail("이메일", data.email),
       detail("닉네임", data.nickname),
+      detail("가입일", profile.formatDate(data.createdAt)),
       detail("성별", genderLabel(data.gender)),
-      detail("생년월일", data.birthDate || "미설정"),
-      detail("계정 상태", data.status),
-      detail("가입일", formatDate(data.createdAt)),
+      detail("생년월일", data.birthDate ? profile.formatDate(data.birthDate) : "미설정"),
     );
     accountPanel.append(accountHeader, details);
+    if (successMessage) {
+      const feedback = element("p", "mypage-profile-feedback", successMessage);
+      feedback.setAttribute("role", "status");
+      accountPanel.append(feedback);
+    }
+    editButton.addEventListener("click", () => {
+      editButton.hidden = true;
+      const form = createProfileForm(data, () => {
+        form.replaceWith(details);
+        editButton.hidden = false;
+      });
+      details.replaceWith(form);
+      form.elements.nickname.focus();
+    });
 
     const side = element("aside", "mypage-side-stack");
     const actionPanel = element("section", "mypage-side-panel");
@@ -157,20 +232,13 @@
       action("내 게시글", "작성한 게시글 확인", detailPath("posts")),
       action("내 댓글", "작성한 댓글 확인", detailPath("comments")),
       action("읽지 않은 알림", "새 알림 확인", detailPath("notifications")),
-      session.canManageBusiness
-        ? action("사업자 관리", "내 가게와 사업자 기능", "/pages/business/index.html")
-        : action("사업자 권한 신청", "신청 API 연결 예정", "/pages/business/index.html#application"),
     );
     if (data.loginId) {
       actionList.append(
         action("비밀번호 변경", "현재 비밀번호를 확인하고 새로 설정", "/pages/mypage/change-password.html"),
       );
     }
-    actionList.append(
-      session.isAdmin
-        ? action("관리자 페이지", "계정·신청·가게 관리", "/pages/admin/index.html")
-        : action("계정 설정", "회원 탈퇴 API 연결 예정"),
-    );
+    actionList.append(action("계정 설정", "회원 탈퇴 API 연결 예정"));
     actionPanel.append(actionHeader, actionList);
 
     const notificationPanel = element("section", "mypage-side-panel");

@@ -58,6 +58,10 @@
   box-shadow: var(--shadow-sm);
 }
 
+.mypage-loading[hidden] {
+  display: none;
+}
+
 .mypage-loading .material-symbols-rounded {
   color: var(--color-orange);
   font-size: 2rem;
@@ -166,6 +170,17 @@
   font-weight: 850;
 }
 
+.profile-summary-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.profile-summary-actions .button {
+  white-space: nowrap;
+}
+
 .activity-grid {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
@@ -256,6 +271,10 @@
   font-size: 0.75rem;
 }
 
+.mypage-panel-header .button[hidden] {
+  display: none;
+}
+
 .account-details {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -279,6 +298,78 @@
   font-size: 0.86rem;
   font-weight: 800;
   word-break: break-all;
+}
+
+.mypage-profile-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  padding: 24px;
+}
+
+.mypage-profile-field {
+  display: grid;
+  gap: 7px;
+  color: var(--color-navy);
+  font-size: 0.76rem;
+  font-weight: 800;
+}
+
+.mypage-profile-field input,
+.mypage-profile-field select {
+  width: 100%;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--color-line);
+  border-radius: 12px;
+  outline: none;
+  color: var(--color-navy);
+  background: #fff;
+  font-family: inherit;
+  font-size: 0.82rem;
+  font-weight: 650;
+}
+
+.mypage-profile-field input:focus,
+.mypage-profile-field select:focus {
+  border-color: var(--color-orange);
+  box-shadow: 0 0 0 3px rgba(255, 152, 0, 0.12);
+}
+
+.mypage-profile-field input[readonly] {
+  color: var(--color-muted);
+  background: #f4f2ed;
+  cursor: not-allowed;
+}
+
+.mypage-profile-form-status {
+  min-height: 1.3em;
+  grid-column: 1 / -1;
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
+.mypage-profile-form-status.is-error {
+  color: var(--color-danger);
+}
+
+.mypage-profile-form-actions {
+  display: flex;
+  grid-column: 1 / -1;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.mypage-profile-feedback {
+  margin: -8px 24px 20px;
+  padding: 11px 13px;
+  border-radius: 12px;
+  color: var(--color-green);
+  background: var(--color-green-soft);
+  font-size: 0.76rem;
+  font-weight: 800;
 }
 
 .mypage-side-stack {
@@ -396,8 +487,9 @@
     grid-template-columns: auto 1fr;
   }
 
-  .profile-summary > .button {
+  .profile-summary-actions {
     grid-column: 1 / -1;
+    justify-content: flex-start;
   }
 
   .activity-grid,
@@ -409,7 +501,12 @@
 @media (max-width: 500px) {
   .activity-grid,
   .mypage-side-stack,
-  .account-details {
+  .account-details,
+  .mypage-profile-form {
     grid-template-columns: 1fr;
+  }
+
+  .mypage-panel-header {
+    align-items: flex-start;
   }
 }

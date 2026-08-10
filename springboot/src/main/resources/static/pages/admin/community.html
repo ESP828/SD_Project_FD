@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="푸드덕 관리자 커뮤니티 관리">
+  <title>커뮤니티 관리 · 푸드덕</title>
+  <link rel="icon" href="/images/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/css/common.css">
+  <link rel="stylesheet" href="/pages/management/management.css">
+  <link rel="stylesheet" href="/pages/mypage/detail.css">
+  <link rel="stylesheet" href="/pages/admin/community.css">
+</head>
+<body>
+  <div data-site-header data-active-nav="admin"></div>
+
+  <main class="management-main">
+    <section class="management-hero management-hero--admin">
+      <div class="container management-hero-grid">
+        <div>
+          <p class="eyebrow">Admin console</p>
+          <h1>커뮤니티 관리</h1>
+        </div>
+        <img src="/images/characters/laptop.png" alt="" aria-hidden="true">
+      </div>
+    </section>
+
+    <section class="container management-content">
+      <section id="community-access-gate" class="access-card" hidden>
+        <img src="/images/characters/error.png" alt="" aria-hidden="true">
+        <div>
+          <h2>관리자 권한이 필요합니다</h2>
+          <p>게시글과 댓글 관리는 ROLE_ADMIN 권한이 확인된 사용자만 이용할 수 있습니다.</p>
+          <a class="button button-secondary" href="/">홈으로</a>
+        </div>
+      </section>
+
+      <section id="community-dashboard" hidden>
+        <div class="mypage-detail-layout">
+          <aside class="mypage-detail-sidebar" data-management-sidebar data-management-section="admin" data-active-item="community"></aside>
+          <section class="mypage-detail-main">
+            <header class="mypage-detail-heading">
+              <div>
+                <h2>게시글·댓글 관리</h2>
+                <p>게시판별 게시글을 검색하고 부적절한 게시글과 댓글을 관리합니다.</p>
+              </div>
+            </header>
+
+            <div class="community-toolbar">
+              <div class="community-board-filter" role="group" aria-label="게시판 필터">
+                <button type="button" class="community-board-button is-active" data-board-type="GENERAL">일반 커뮤니티</button>
+                <button type="button" class="community-board-button" data-board-type="BUSINESS">사업자 커뮤니티</button>
+              </div>
+
+              <form id="community-search-form" class="community-search-form">
+                <label class="sr-only" for="community-category">게시글 분류</label>
+                <select id="community-category" name="category">
+                  <option value="">전체 분류</option>
+                  <option value="NOTICE">공지</option>
+                  <option value="GENERAL">일반</option>
+                  <option value="RECOMMENDATION">추천</option>
+                  <option value="REVIEW">후기</option>
+                  <option value="QUESTION">질문</option>
+                  <option value="TRAVEL">여행</option>
+                </select>
+                <label class="sr-only" for="community-keyword">제목·내용 검색</label>
+                <input id="community-keyword" name="keyword" type="search" placeholder="제목 또는 내용 검색">
+                <button type="submit" class="button button-primary button-sm">검색</button>
+                <button id="community-reset" type="button" class="button button-secondary button-sm">초기화</button>
+              </form>
+            </div>
+
+            <div class="community-table-wrap">
+              <table class="community-table">
+                <thead>
+                  <tr>
+                    <th>게시판</th>
+                    <th>분류</th>
+                    <th>제목</th>
+                    <th>작성자</th>
+                    <th>조회</th>
+                    <th>추천</th>
+                    <th>댓글</th>
+                    <th>작성일</th>
+                    <th>관리</th>
+                  </tr>
+                </thead>
+                <tbody id="community-table-body">
+                  <tr><td colspan="9" class="community-loading">불러오는 중...</td></tr>
+                </tbody>
+              </table>
+            </div>
+
+            <div class="community-footer-row">
+              <p id="community-count" class="community-count"></p>
+              <nav class="community-pagination" aria-label="게시글 페이지 이동">
+                <button id="community-prev" type="button" class="button button-secondary button-sm">이전</button>
+                <span id="community-page-label">1 / 1</span>
+                <button id="community-next" type="button" class="button button-secondary button-sm">다음</button>
+              </nav>
+            </div>
+          </section>
+        </div>
+      </section>
+    </section>
+  </main>
+
+  <div data-site-footer></div>
+
+  <dialog id="community-comments-dialog" class="community-comments-dialog">
+    <div class="community-comments-header">
+      <div>
+        <h2>댓글 관리</h2>
+        <p id="community-comments-post-title"></p>
+      </div>
+      <button type="button" class="community-dialog-close" data-close aria-label="댓글 관리 닫기">×</button>
+    </div>
+    <div id="community-comments-list" class="community-comments-list"></div>
+    <div class="community-comments-footer">
+      <p id="community-comments-status" aria-live="polite"></p>
+      <nav class="community-pagination" aria-label="댓글 페이지 이동">
+        <button id="community-comments-prev" type="button" class="button button-secondary button-sm">이전</button>
+        <span id="community-comments-page-label">1 / 1</span>
+        <button id="community-comments-next" type="button" class="button button-secondary button-sm">다음</button>
+      </nav>
+    </div>
+  </dialog>
+
+  <script src="/js/api.js"></script>
+  <script src="/js/common.js"></script>
+  <script src="/pages/management/detail-layout.js"></script>
+  <script src="/pages/admin/community.js"></script>
+</body>
+</html>

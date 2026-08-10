@@ -1,4 +1,4 @@
-.preset-admin-toolbar { display:flex; align-items:center; justify-content:space-between; margin-bottom:20px; }
+.preset-admin-toolbar { display:flex; align-items:center; justify-content:flex-end; margin-bottom:20px; }
 .preset-admin-toolbar a { color:var(--color-muted); font-weight:800; }
 .preset-admin-table-wrap { overflow:auto; border:1px solid var(--color-line); border-radius:18px; background:#fff; }
 .preset-admin-table { width:100%; border-collapse:collapse; }

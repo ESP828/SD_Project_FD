@@ -8,13 +8,14 @@
   <link rel="icon" href="/images/favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/css/common.css">
   <link rel="stylesheet" href="/pages/management/management.css">
+  <link rel="stylesheet" href="/pages/mypage/mypage.css">
 </head>
 <body>
   <div data-site-header data-active-nav="business"></div>
 
-  <main class="management-main">
-    <section class="management-hero">
-      <div class="container management-hero-grid">
+  <main class="mypage-main">
+    <section class="mypage-hero">
+      <div class="container mypage-hero-grid">
         <div>
           <p class="eyebrow">Business center</p>
           <h1>내 가게와 소식을<br>한곳에서 관리하세요</h1>
@@ -23,62 +24,78 @@
       </div>
     </section>
 
-    <section class="container management-content">
-      <section id="business-login-gate" class="access-card" hidden>
+    <section id="business-content" class="container mypage-content" aria-live="polite">
+      <div id="business-loading" class="mypage-loading">
+        <span class="material-symbols-rounded" aria-hidden="true">progress_activity</span>
+        <strong>사업자 정보를 불러오고 있습니다.</strong>
+      </div>
+
+      <section id="business-login-gate" class="mypage-gate" hidden>
         <img src="/images/characters/waving.png" alt="" aria-hidden="true">
         <div>
           <h2>로그인이 필요합니다</h2>
           <p>일반 회원으로 로그인하면 사업자 권한 신청 화면을 확인할 수 있습니다.</p>
-          <a class="button button-navy" href="/pages/auth/login.html?next=%2Fpages%2Fbusiness%2Findex.html">로그인</a>
-        </div>
-      </section>
-
-      <section id="business-application" class="access-card" hidden>
-        <img src="/images/characters/laptop.png" alt="" aria-hidden="true">
-        <div>
-          <p class="eyebrow">Business application</p>
-          <h2>사업자 권한 신청</h2>
-          <p>사업자 권한 신청서를 제출하면 서버에 저장되고, 관리자 승인 결과를 확인할 수 있습니다.</p>
-          <form class="application-form">
-            <label>사업자명<input name="businessName" type="text" disabled placeholder="사업자명"></label>
-            <label>사업자등록번호<input name="businessNumber" type="text" disabled placeholder="000-00-00000" inputmode="numeric"></label>
-            <label>대표자명<input name="representativeName" type="text" disabled placeholder="대표자명"></label>
-            <label>개업일자<input name="openedAt" type="date" disabled></label>
-            <label>연락처<input name="contact" type="tel" disabled placeholder="010-0000-0000"></label>
-            <label class="full">신청 사유<textarea name="reason" rows="3" disabled placeholder="신청 사유"></textarea></label>
-            <button class="button button-primary full" type="submit" disabled>신청 제출</button>
-          </form>
-          <ul id="business-application-list" class="management-list"></ul>
-        </div>
-      </section>
-
-      <section id="business-dashboard" class="management-dashboard" hidden>
-        <div class="management-summary">
-          <div>
-            <h2>사업자 관리</h2>
-            <p>현재 구현된 커뮤니티 기능과 후속 음식점 관리 기능을 구분했습니다.</p>
+          <div class="mypage-gate-actions">
+            <a class="button button-navy" href="/pages/auth/login.html?next=%2Fpages%2Fbusiness%2Findex.html">로그인</a>
           </div>
-          <a class="button button-primary" href="/pages/board/index.html">사업자 커뮤니티</a>
         </div>
-        <div class="management-grid">
-          <article class="management-card">
-            <span class="material-symbols-rounded" aria-hidden="true">storefront</span>
-            <h3>내 음식점</h3>
-            <p>등록한 음식점 목록·상태·등록일과 수정·삭제 기능이 들어갈 영역입니다.</p>
-            <button class="button button-secondary" type="button" disabled>음식점 API 연결 전</button>
-          </article>
-          <article class="management-card">
-            <span class="material-symbols-rounded" aria-hidden="true">edit</span>
-            <h3>음식점 등록</h3>
-            <p>이름·카테고리·주소·좌표·영업시간·메뉴·태그를 입력하는 기능입니다.</p>
-            <button class="button button-secondary" type="button" disabled>등록 API 연결 전</button>
-          </article>
-          <article class="management-card">
-            <span class="material-symbols-rounded" aria-hidden="true">forum</span>
-            <h3>가게 소식</h3>
-            <p>내 음식점의 소식 작성·수정·삭제와 상세 페이지 노출 기능입니다.</p>
-            <button class="button button-secondary" type="button" disabled>소식 API 연결 전</button>
-          </article>
+      </section>
+
+      <div id="business-profile-host"></div>
+
+      <section id="business-application" hidden>
+        <section id="business-application-metrics" class="activity-grid"></section>
+        <div class="mypage-layout">
+          <section class="mypage-panel">
+            <div class="mypage-panel-header">
+              <div>
+                <h3>사업자 권한 신청</h3>
+                <p>사업자 정보를 제출하고 관리자 승인 결과를 확인합니다.</p>
+              </div>
+            </div>
+            <div class="management-panel-body">
+              <form class="application-form">
+                <label>사업자명<input name="businessName" type="text" disabled placeholder="사업자명"></label>
+                <label>사업자등록번호<input name="businessNumber" type="text" disabled placeholder="000-00-00000" inputmode="numeric"></label>
+                <label>대표자명<input name="representativeName" type="text" disabled placeholder="대표자명"></label>
+                <label>개업일자<input name="openedAt" type="date" disabled></label>
+                <label>연락처<input name="contact" type="tel" disabled placeholder="010-0000-0000"></label>
+                <label class="full">신청 사유<textarea name="reason" rows="3" disabled placeholder="신청 사유"></textarea></label>
+                <button class="button button-primary full" type="submit" disabled>신청 제출</button>
+              </form>
+            </div>
+          </section>
+          <aside class="mypage-side-stack">
+            <section class="mypage-side-panel">
+              <div class="mypage-panel-header">
+                <div>
+                  <h3>신청 내역</h3>
+                  <p>최근 신청과 처리 상태</p>
+                </div>
+              </div>
+              <div id="business-application-history" class="management-preview-list management-preview-list--compact"></div>
+            </section>
+            <section class="mypage-side-panel">
+              <a id="business-application-status" class="notification-summary" href="#business-application-history">
+                <img src="/images/characters/notification.png" alt="" aria-hidden="true">
+                <div>
+                  <strong>신청 상태 확인 중</strong>
+                  <span>신청 내역을 불러오고 있습니다.</span>
+                </div>
+              </a>
+            </section>
+          </aside>
+        </div>
+      </section>
+
+      <section id="business-dashboard" hidden>
+        <section id="business-metrics" class="activity-grid"></section>
+        <div class="mypage-layout">
+          <section id="business-restaurant-panel" class="mypage-panel"></section>
+          <aside class="mypage-side-stack">
+            <section id="business-action-panel" class="mypage-side-panel"></section>
+            <section id="business-status-panel" class="mypage-side-panel"></section>
+          </aside>
         </div>
       </section>
     </section>
