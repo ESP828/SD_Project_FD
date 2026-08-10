@@ -11,14 +11,24 @@ import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.TestPropertySource;
+import org.springframework.test.context.transaction.AfterTransaction;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Base64;
 import java.util.List;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.not;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
@@ -31,7 +41,12 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
 @Transactional
+@TestPropertySource(properties = "app.upload.preset-image-dir=target/test-uploads/preset-images")
 class PresetControllerIntegrationTest {
+
+    private static final Path TEST_IMAGE_DIR = Path.of(
+            "target", "test-uploads", "preset-images"
+    ).toAbsolutePath().normalize();
 
     @Autowired private MockMvc mockMvc;
     @Autowired private JdbcTemplate jdbcTemplate;
@@ -41,6 +56,7 @@ class PresetControllerIntegrationTest {
     private Long restaurantId;
     private Long accountId;
     private String accessToken;
+    private Path rolledBackImagePath;
 
     @BeforeEach
     void setUp() {
@@ -88,6 +104,16 @@ class PresetControllerIntegrationTest {
         accessToken = jwtProvider.createAccessToken(accountId, "preset-owner", List.of("ROLE_USER"));
     }
 
+    @AfterTransaction
+    void confirmsRolledBackImageFileIsRemoved() throws Exception {
+        if (rolledBackImagePath == null) {
+            return;
+        }
+        boolean fileStillExists = Files.exists(rolledBackImagePath);
+        Files.deleteIfExists(rolledBackImagePath);
+        assertFalse(fileStillExists, "DB 트랜잭션 롤백 시 새 이미지 파일도 제거되어야 합니다.");
+    }
+
     @Test
     @DisplayName("로그인 사용자는 계정 소유권과 공개 여부를 포함해 Presset을 등록한다")
     void createsPresetForAuthenticatedAccount() throws Exception {
@@ -116,6 +142,8 @@ class PresetControllerIntegrationTest {
                 "select account_id from preset where preset_id = ?", Long.class, createdId));
         assertEquals(Boolean.FALSE, jdbcTemplate.queryForObject(
                 "select is_public from preset where preset_id = ?", Boolean.class, createdId));
+        assertEquals(0, jdbcTemplate.queryForObject(
+                "select count(*) from preset_image where preset_id = ?", Integer.class, createdId));
 
         mockMvc.perform(get("/api/presets/{presetId}", createdId))
                 .andExpect(status().isNotFound());
@@ -123,6 +151,70 @@ class PresetControllerIntegrationTest {
                         .header("Authorization", "Bearer " + accessToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.presetId").value(createdId));
+    }
+
+    @Test
+    @DisplayName("이미지가 있는 Presset은 파일과 preset_image 메타데이터를 같은 PK로 저장한다")
+    void storesPresetImageMetadataForCreatedPreset() throws Exception {
+        MockMultipartFile data = new MockMultipartFile(
+                "data", "data", MediaType.APPLICATION_JSON_VALUE, """
+                {
+                  "title": "이미지 포함 데이트 코스",
+                  "category": "데이트",
+                  "isPublic": false
+                }
+                """.getBytes(StandardCharsets.UTF_8)
+        );
+        byte[] imageBytes = Base64.getDecoder().decode(
+                "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl2n1cAAAAASUVORK5CYII="
+        );
+        MockMultipartFile image = new MockMultipartFile(
+                "image", "cover.png", MediaType.IMAGE_PNG_VALUE, imageBytes
+        );
+
+        mockMvc.perform(multipart("/api/presets")
+                        .file(data)
+                        .file(image)
+                        .header("Authorization", "Bearer " + accessToken))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data").isNumber());
+
+        Long createdId = jdbcTemplate.queryForObject(
+                "select preset_id from preset where title = ?",
+                Long.class,
+                "이미지 포함 데이트 코스"
+        );
+        Map<String, Object> metadata = jdbcTemplate.queryForMap("""
+                select preset_id, stored_filename, original_filename,
+                       content_type, file_size, created_at
+                  from preset_image
+                 where preset_id = ?
+                """, createdId);
+
+        assertEquals(createdId, ((Number) metadata.get("preset_id")).longValue());
+        assertEquals("cover.png", metadata.get("original_filename"));
+        assertEquals(MediaType.IMAGE_PNG_VALUE, metadata.get("content_type"));
+        assertEquals(imageBytes.length, ((Number) metadata.get("file_size")).longValue());
+        assertNotNull(metadata.get("created_at"));
+
+        String storedFilename = (String) metadata.get("stored_filename");
+        assertTrue(storedFilename.matches("[0-9a-f]{32}\\.png"));
+        rolledBackImagePath = TEST_IMAGE_DIR.resolve(storedFilename).normalize();
+        assertTrue(rolledBackImagePath.startsWith(TEST_IMAGE_DIR));
+        assertTrue(Files.exists(rolledBackImagePath));
+        assertEquals(imageBytes.length, Files.size(rolledBackImagePath));
+
+        String imageUrl = "/uploads/preset-images/" + storedFilename;
+        mockMvc.perform(get("/api/presets/{presetId}", createdId)
+                        .header("Authorization", "Bearer " + accessToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.imageUrl").value(imageUrl));
+        mockMvc.perform(get("/api/presets")
+                        .param("sort", "latest")
+                        .header("Authorization", "Bearer " + accessToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content[0].presetId").value(createdId))
+                .andExpect(jsonPath("$.data.content[0].imageUrl").value(imageUrl));
     }
 
     @Test
@@ -220,13 +312,18 @@ class PresetControllerIntegrationTest {
     }
 
     @Test
-    @DisplayName("Presset 목록·상세·관리 정적 페이지를 제공한다")
+    @DisplayName("Presset 목록·등록·상세·관리 정적 페이지를 제공한다")
     void servesPressetPages() throws Exception {
         mockMvc.perform(get("/pages/presset/index.html"))
                 .andExpect(status().isOk())
-                .andExpect(content().string(containsString("preset-create-form")))
-                .andExpect(content().string(containsString("result-message")))
+                .andExpect(content().string(containsString("/pages/presset/register.html")))
+                .andExpect(content().string(not(containsString("preset-create-form"))))
                 .andExpect(content().string(containsString("preset-list")));
+        mockMvc.perform(get("/pages/presset/register.html"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("preset-create-form")))
+                .andExpect(content().string(containsString("preset-image-preview")))
+                .andExpect(content().string(containsString("/pages/presset/register.js")));
         mockMvc.perform(get("/pages/presset/detail.html"))
                 .andExpect(status().isOk()).andExpect(content().string(containsString("preset-detail")));
         mockMvc.perform(get("/pages/admin/presets.html"))

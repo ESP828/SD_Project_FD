@@ -2,7 +2,14 @@
   "permissions": {
     "allow": [
       "Bash(powershell -NoProfile -Command \"Stop-Process -Id 20636 -Force; Start-Sleep -Seconds 2; Get-Process -Id 20636 -ErrorAction SilentlyContinue\")",
-      "Bash(powershell -NoProfile -Command \"Get-NetTCPConnection -LocalPort 8081 -State Listen -ErrorAction SilentlyContinue\")"
+      "Bash(powershell -NoProfile -Command \"Get-NetTCPConnection -LocalPort 8081 -State Listen -ErrorAction SilentlyContinue\")",
+      "Bash(curl -s -i http://localhost:8081/api/presets)",
+      "Bash(command -v mysql python3 python)",
+      "Bash(python3 -c \"import pymysql; print\\('pymysql ok'\\)\")",
+      "Bash(python3 -c \"import mysql.connector; print\\('connector ok'\\)\")",
+      "Bash(find ~/.m2/repository/com/mysql -iname \"*.jar\" 2>/dev/null | grep -v sources | grep -v javadoc)",
+      "Read(//c/Users/sdedu01/.m2/repository/com/mysql/**)",
+      "Bash(javac CheckDb.java)"
     ]
   }
 }

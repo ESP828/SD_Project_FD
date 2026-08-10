@@ -44,8 +44,29 @@
   gap: 10px;
 }
 
+.preset-register-hero {
+  padding-block: 52px;
+}
+
+.preset-register-hero .preset-hero-grid {
+  min-height: 250px;
+}
+
+.preset-register-hero .preset-back-link {
+  margin-bottom: 20px;
+  color: var(--color-navy);
+}
+
+.preset-register-hero h1 {
+  font-size: clamp(2.35rem, 4.5vw, 4rem);
+}
+
 .preset-create-section {
   padding-top: 58px;
+}
+
+.preset-register-section {
+  max-width: 940px;
 }
 
 .preset-create-intro {
@@ -314,6 +335,26 @@
 
 .preset-form-result.is-error {
   color: #b42318;
+}
+
+.preset-toast {
+  position: fixed;
+  z-index: 120;
+  right: 24px;
+  bottom: 24px;
+  max-width: min(420px, calc(100% - 48px));
+  padding: 15px 18px;
+  border: 1px solid #a6e2c6;
+  border-radius: 14px;
+  color: #05603a;
+  background: #ecfdf3;
+  box-shadow: var(--shadow-float);
+  font-size: 0.9rem;
+  font-weight: 800;
+}
+
+.preset-toast[hidden] {
+  display: none;
 }
 
 .preset-collection {
@@ -913,6 +954,13 @@
   .preset-detail-copy,
   .preset-restaurant-body {
     padding: 25px;
+  }
+
+  .preset-toast {
+    right: 20px;
+    bottom: 20px;
+    left: 20px;
+    max-width: none;
   }
 }
 

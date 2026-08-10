@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="나만의 상황별 맛집 Presset 등록">
+  <title>Presset 등록 · 푸드덕</title>
+  <link rel="icon" href="/images/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/css/common.css">
+  <link rel="stylesheet" href="/pages/presset/presset.css">
+</head>
+<body>
+  <div data-site-header data-active-nav="presset"></div>
+
+  <main class="preset-main preset-register-main">
+    <section class="preset-hero preset-register-hero">
+      <div class="container preset-hero-grid">
+        <div>
+          <a class="preset-back-link" href="/pages/presset/index.html">
+            <span aria-hidden="true">←</span> Presset으로 돌아가기
+          </a>
+          <p class="eyebrow">CREATE YOUR COLLECTION</p>
+          <h1 id="preset-register-title">나만의 맛집<br>프리셋 등록</h1>
+          <p class="preset-hero-copy">나만의 상황별 맛집 모음을 만들어보세요.</p>
+        </div>
+        <img src="/images/characters/cooking.png" alt="" aria-hidden="true">
+      </div>
+    </section>
+
+    <section class="container preset-create-section preset-register-section"
+             aria-labelledby="preset-register-form-title">
+      <div class="preset-create-intro">
+        <p class="eyebrow">PRESSET INFORMATION</p>
+        <h2 id="preset-register-form-title">프리셋 정보를 입력해 주세요</h2>
+        <p class="muted">로그인한 계정으로 저장됩니다. 제목과 카테고리는 필수 항목입니다.</p>
+      </div>
+
+      <form id="preset-create-form" class="preset-create-form surface-card" novalidate>
+        <div class="preset-form-grid">
+          <div class="preset-form-field">
+            <label for="preset-title">제목 <span class="preset-required" aria-hidden="true">*</span></label>
+            <input
+              id="preset-title"
+              name="title"
+              type="text"
+              maxlength="100"
+              required
+              aria-describedby="preset-title-error"
+              placeholder="예: 성수 데이트 맛집"
+            >
+            <p id="preset-title-error" class="preset-field-error" aria-live="polite"></p>
+          </div>
+
+          <div class="preset-form-field">
+            <label for="preset-category-input">카테고리 <span class="preset-required" aria-hidden="true">*</span></label>
+            <input id="preset-category" name="category" type="hidden" required>
+            <div id="preset-category-field" class="preset-token-field">
+              <ul id="preset-category-token-list" class="preset-token-list"></ul>
+              <input
+                id="preset-category-input"
+                type="text"
+                maxlength="50"
+                aria-describedby="preset-category-error preset-category-hint"
+                placeholder="예: 데이트, 가성비, 한식"
+              >
+            </div>
+            <p id="preset-category-hint" class="preset-field-hint">쉼표(,) 또는 Enter로 구분해 최대 3개까지 입력할 수 있습니다.</p>
+            <p id="preset-category-error" class="preset-field-error" aria-live="polite"></p>
+          </div>
+
+          <div class="preset-form-field">
+            <label for="preset-image-input">이미지 첨부 <span class="preset-optional">(선택)</span></label>
+            <input
+              id="preset-image-input"
+              name="image"
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              aria-describedby="preset-image-hint preset-image-error"
+            >
+            <p id="preset-image-hint" class="preset-field-hint">jpg, png, webp / 5MB 이하</p>
+            <p id="preset-image-error" class="preset-field-error" aria-live="polite"></p>
+            <img id="preset-image-preview" class="preset-image-preview" alt="첨부한 이미지 미리보기" hidden>
+          </div>
+
+          <fieldset class="preset-form-field preset-form-field--full preset-public-field">
+            <legend>공개 여부 <span class="preset-optional">(선택)</span></legend>
+            <label class="preset-public-toggle" for="preset-is-public">
+              <input id="preset-is-public" name="is_public" type="checkbox" checked>
+              <span aria-hidden="true"></span>
+              다른 사용자에게 이 프리셋 공개
+            </label>
+          </fieldset>
+        </div>
+
+        <div class="preset-form-footer">
+          <a class="button button-secondary" href="/pages/presset/index.html">취소</a>
+          <button id="preset-submit" class="button button-primary" type="submit">등록</button>
+          <div id="result-message" class="preset-form-result" role="status" aria-live="polite"></div>
+        </div>
+      </form>
+    </section>
+  </main>
+
+  <div data-site-footer></div>
+
+  <script src="/js/api.js"></script>
+  <script src="/js/common.js"></script>
+  <script src="/pages/presset/register.js"></script>
+</body>
+</html>
