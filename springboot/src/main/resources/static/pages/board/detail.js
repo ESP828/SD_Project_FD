@@ -40,6 +40,7 @@
     mapHref,
     readBoardCache,
     showToast,
+    updateCachedPostViewCount,
     writeBoardCache,
   } = board;
 
@@ -698,11 +699,11 @@
     const cached = readBoardCache(path);
     if (cached?.data) {
       renderPost(cached.data);
-      if (cached.fresh) return;
     }
 
     try {
       const payload = await Api.get(path);
+      updateCachedPostViewCount(postId, payload.data?.viewCount);
       writeBoardCache(path, payload.data);
       renderPost(payload.data);
     } catch (error) {

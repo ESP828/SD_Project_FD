@@ -538,5 +538,9 @@
     }
   }
 
+  window.addEventListener("pageshow", (event) => {
+    if (event.persisted) loadBoardContent();
+  });
+
   initializeBoard();
 })();
