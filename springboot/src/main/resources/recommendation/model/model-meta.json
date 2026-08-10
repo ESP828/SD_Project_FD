@@ -1,0 +1,13 @@
+{
+  "modelVersion": "fooduck-tfidf-v1",
+  "trainedAt": "2026-08-10T13:54:25.631355",
+  "documentCount": 3,
+  "vocabularySize": 40,
+  "ngramMin": 1,
+  "ngramMax": 2,
+  "smoothIdf": true,
+  "sublinearTf": false,
+  "normalization": "L2",
+  "rulesVersion": "fooduck-text-rules-v1",
+  "rulesSha256": "2bd9d4f02b79d8a1bd1c28c12889b7dbcaab8e56784a891e232f92bbeb96ce86"
+}
