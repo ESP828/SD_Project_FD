@@ -257,6 +257,7 @@ public class BoardResponseMapper {
             Account currentAccount,
             String authorRole
     ) {
+        boolean hasImage = comment.hasImage();
         return new CommentResponse(
                 comment.getCommentId(),
                 comment.getPost().getPostId(),
@@ -265,6 +266,12 @@ public class BoardResponseMapper {
                 comment.getAuthor().getNickname(),
                 authorRole,
                 comment.getContent(),
+                hasImage,
+                hasImage
+                        ? "/api/board/comments/" + comment.getCommentId() + "/image"
+                        : null,
+                hasImage ? comment.getImageOriginalName() : null,
+                hasImage ? comment.getImageFileSize() : null,
                 isOwned(comment.getAuthor(), currentAccount),
                 comment.getCreatedAt(),
                 comment.getUpdatedAt()

@@ -42,6 +42,25 @@
             <label class="sr-only" for="comment-content">댓글 내용</label>
             <textarea id="comment-content" maxlength="1000" rows="4"
                       placeholder="맛있는 이야기에 댓글을 남겨 보세요."></textarea>
+            <div class="comment-image-tools">
+              <input id="comment-image-input" class="sr-only" type="file"
+                     accept=".jpg,.jpeg,.png,.gif,.webp,image/jpeg,image/png,image/gif,image/webp">
+              <button id="comment-image-select" class="comment-image-select" type="button">
+                <span class="material-symbols-rounded" aria-hidden="true">add_photo_alternate</span>
+                사진 첨부
+              </button>
+              <span>사진 1장 · 최대 5MB</span>
+            </div>
+            <div id="comment-image-preview" class="comment-image-preview" hidden>
+              <img id="comment-image-preview-image" alt="댓글 첨부 사진 미리보기">
+              <div class="comment-image-preview-copy">
+                <strong id="comment-image-preview-name"></strong>
+                <span id="comment-image-preview-size"></span>
+              </div>
+              <button id="comment-image-remove" class="comment-image-remove" type="button">
+                선택 취소
+              </button>
+            </div>
             <div class="comment-submit-row">
               <p id="comment-login-note"></p>
               <button class="button button-sm button-primary" type="submit">댓글 등록</button>

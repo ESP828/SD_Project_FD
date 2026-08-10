@@ -41,6 +41,15 @@ public class Comment {
     @Column(nullable = false, length = 1000)
     private String content;
 
+    @Column(name = "image_mime_type", length = 100)
+    private String imageMimeType;
+
+    @Column(name = "image_original_name", length = 255)
+    private String imageOriginalName;
+
+    @Column(name = "image_file_size")
+    private Long imageFileSize;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     private CommentStatus status;
@@ -107,6 +116,25 @@ public class Comment {
 
     public String getContent() {
         return content;
+    }
+
+    public boolean hasImage() {
+        return imageFileSize != null
+                && imageFileSize > 0
+                && imageMimeType != null
+                && !imageMimeType.isBlank();
+    }
+
+    public String getImageMimeType() {
+        return imageMimeType;
+    }
+
+    public String getImageOriginalName() {
+        return imageOriginalName;
+    }
+
+    public Long getImageFileSize() {
+        return imageFileSize;
     }
 
     public CommentStatus getStatus() {

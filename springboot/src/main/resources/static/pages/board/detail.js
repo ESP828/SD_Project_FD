@@ -9,6 +9,14 @@
   const MEDIA_POLL_BASE_DELAY = 2500;
   const MEDIA_POLL_MAX_DELAY = 15000;
   const MEDIA_POLL_MAX_FAILURES = 5;
+  const COMMENT_IMAGE_MAX_BYTES = 5 * 1024 * 1024;
+  const COMMENT_IMAGE_TYPES = new Set([
+    "image/jpeg",
+    "image/png",
+    "image/gif",
+    "image/webp",
+  ]);
+  const COMMENT_IMAGE_NAME_PATTERN = /\.(?:jpe?g|png|gif|webp)$/i;
   let mediaPollTimer = null;
   let mediaPollInFlight = false;
   let mediaPollDelay = MEDIA_POLL_BASE_DELAY;
@@ -26,6 +34,17 @@
   const commentContent = document.getElementById("comment-content");
   const commentLoginNote = document.getElementById("comment-login-note");
   const commentList = document.getElementById("comment-list");
+  const commentImageInput = document.getElementById("comment-image-input");
+  const commentImageSelect = document.getElementById("comment-image-select");
+  const commentImagePreview = document.getElementById("comment-image-preview");
+  const commentImagePreviewImage =
+    document.getElementById("comment-image-preview-image");
+  const commentImagePreviewName =
+    document.getElementById("comment-image-preview-name");
+  const commentImagePreviewSize =
+    document.getElementById("comment-image-preview-size");
+  const commentImageRemove = document.getElementById("comment-image-remove");
+  const commentSubmitButton = commentForm?.querySelector('button[type="submit"]');
   const toast = document.getElementById("board-toast");
 
   if (!session || !board || !detailContent) return;
@@ -43,6 +62,98 @@
     updateCachedPostViewCount,
     writeBoardCache,
   } = board;
+
+  let selectedCommentImage = null;
+  let commentImagePreviewUrl = null;
+
+  function clearCommentImageSelection() {
+    selectedCommentImage = null;
+    if (commentImageInput) commentImageInput.value = "";
+    if (commentImagePreviewUrl) {
+      URL.revokeObjectURL(commentImagePreviewUrl);
+      commentImagePreviewUrl = null;
+    }
+    if (commentImagePreviewImage) commentImagePreviewImage.removeAttribute("src");
+    if (commentImagePreviewName) commentImagePreviewName.textContent = "";
+    if (commentImagePreviewSize) commentImagePreviewSize.textContent = "";
+    if (commentImagePreview) commentImagePreview.hidden = true;
+  }
+
+  function selectCommentImage(file) {
+    if (!file) {
+      clearCommentImageSelection();
+      return;
+    }
+    if (file.size < 1) {
+      showToast(toast, "비어 있는 사진은 첨부할 수 없습니다.", true);
+      clearCommentImageSelection();
+      return;
+    }
+    if (file.size > COMMENT_IMAGE_MAX_BYTES) {
+      showToast(toast, "댓글 사진은 5MB 이하만 첨부할 수 있습니다.", true);
+      clearCommentImageSelection();
+      return;
+    }
+    if (!COMMENT_IMAGE_NAME_PATTERN.test(file.name || "") ||
+        (file.type && !COMMENT_IMAGE_TYPES.has(file.type))) {
+      showToast(
+        toast,
+        "댓글에는 JPG, PNG, WEBP, GIF 사진만 첨부할 수 있습니다.",
+        true,
+      );
+      clearCommentImageSelection();
+      return;
+    }
+
+    clearCommentImageSelection();
+    selectedCommentImage = file;
+    commentImagePreviewUrl = URL.createObjectURL(file);
+    if (commentImagePreviewImage) {
+      commentImagePreviewImage.src = commentImagePreviewUrl;
+      commentImagePreviewImage.alt = `${file.name || "댓글 첨부 사진"} 미리보기`;
+    }
+    if (commentImagePreviewName) {
+      commentImagePreviewName.textContent = file.name || "첨부 사진";
+    }
+    if (commentImagePreviewSize) {
+      commentImagePreviewSize.textContent = formatBytes(file.size);
+    }
+    if (commentImagePreview) commentImagePreview.hidden = false;
+  }
+
+  async function uploadCommentImage(commentId, file) {
+    const headers = {
+      Accept: "application/json",
+      "Content-Type": file.type || "application/octet-stream",
+      "X-File-Name": encodeURIComponent(file.name || "comment-image"),
+    };
+    const token = Api.getToken();
+    if (token) headers.Authorization = `Bearer ${token}`;
+
+    const response = await fetch(
+      `/api/board/comments/${encodeURIComponent(commentId)}/image`,
+      {
+        method: "POST",
+        headers,
+        body: file,
+        credentials: "same-origin",
+      },
+    );
+    const responseType = response.headers.get("content-type") || "";
+    const payload = responseType.includes("application/json")
+      ? await response.json()
+      : await response.text();
+
+    if (!response.ok) {
+      if (response.status === 401) Api.clearToken();
+      const message =
+        typeof payload === "object" && payload
+          ? payload.message
+          : `댓글 사진 업로드에 실패했습니다. (${response.status})`;
+      throw new Error(message || "댓글 사진 업로드에 실패했습니다.");
+    }
+    return payload;
+  }
 
   function actionButton(label, className, handler) {
     const button = element("button", className, label);
@@ -764,6 +875,41 @@
         element("span", "comment-date", formatDate(comment.createdAt)),
       );
       item.append(top, element("div", "comment-content", comment.content));
+      if (comment.hasImage && comment.imageUrl) {
+        const imageWrap = element("div", "comment-image-wrap");
+        const image = new Image();
+        image.className = "comment-image";
+        image.src = comment.imageUrl;
+        image.alt = comment.imageOriginalName || "댓글 첨부 사진";
+        image.loading = "lazy";
+        image.tabIndex = 0;
+        image.setAttribute("role", "button");
+        image.setAttribute(
+          "aria-label",
+          `${comment.imageOriginalName || "댓글 첨부 사진"} 크게 보기`,
+        );
+        image.addEventListener("click", () => {
+          openImageViewer(
+            image,
+            comment.imageOriginalName || "댓글 첨부 사진",
+          );
+        });
+        image.addEventListener("keydown", (event) => {
+          if (event.key !== "Enter" && event.key !== " ") return;
+          event.preventDefault();
+          openImageViewer(
+            image,
+            comment.imageOriginalName || "댓글 첨부 사진",
+          );
+        });
+        image.addEventListener("error", () => {
+          imageWrap.replaceChildren(
+            element("span", "comment-image-error", "사진을 불러오지 못했습니다."),
+          );
+        }, { once: true });
+        imageWrap.append(image);
+        item.append(imageWrap);
+      }
       if (comment.ownedByCurrentUser || session.isAdmin) {
         const actions = element("div", "comment-actions");
         actions.append(
@@ -825,6 +971,18 @@
     }
   }
 
+  commentImageSelect?.addEventListener("click", () => {
+    commentImageInput?.click();
+  });
+
+  commentImageInput?.addEventListener("change", () => {
+    selectCommentImage(commentImageInput.files?.[0] || null);
+  });
+
+  commentImageRemove?.addEventListener("click", () => {
+    clearCommentImageSelection();
+  });
+
   commentForm.addEventListener("submit", async (event) => {
     event.preventDefault();
     if (!board.requireLogin(window.location.pathname + window.location.search)) return;
@@ -833,14 +991,43 @@
       showToast(toast, "댓글 내용을 입력해 주세요.", true);
       return;
     }
+
+    const imageFile = selectedCommentImage;
+    if (commentSubmitButton) commentSubmitButton.disabled = true;
+    if (commentImageSelect) commentImageSelect.disabled = true;
     try {
       const payload = await Api.post(`/board/posts/${postId}/comments`, { content });
+      const createdCommentId = payload.data?.commentId;
+      let imageUploadError = null;
+      if (imageFile && createdCommentId) {
+        try {
+          await uploadCommentImage(createdCommentId, imageFile);
+        } catch (error) {
+          imageUploadError = error;
+        }
+      }
+
       invalidateBoardCache();
       commentContent.value = "";
-      showToast(toast, payload.message);
+      clearCommentImageSelection();
+      if (imageUploadError) {
+        showToast(
+          toast,
+          `댓글은 등록됐지만 사진 업로드에 실패했습니다. ${imageUploadError.message}`,
+          true,
+        );
+      } else {
+        showToast(
+          toast,
+          imageFile ? "댓글과 사진이 등록되었습니다." : payload.message,
+        );
+      }
       await loadComments();
     } catch (error) {
       showToast(toast, error.message, true);
+    } finally {
+      if (commentSubmitButton) commentSubmitButton.disabled = false;
+      if (commentImageSelect) commentImageSelect.disabled = false;
     }
   });
 
@@ -883,6 +1070,7 @@
   window.addEventListener("pagehide", () => {
     mediaPollingDisposed = true;
     clearMediaPoll();
+    clearCommentImageSelection();
     document.querySelector(".detail-image-viewer")?.remove();
     document.body.classList.remove("is-image-viewer-open");
   });

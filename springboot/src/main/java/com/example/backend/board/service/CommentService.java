@@ -23,8 +23,14 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
+import java.net.URLDecoder;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.util.Arrays;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -33,6 +39,19 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class CommentService {
 
     private static final int MAX_PAGE_SIZE = 100;
+    private static final int MAX_COMMENT_IMAGE_BYTES = 5 * 1024 * 1024;
+    private static final int COMMENT_IMAGE_CHUNK_BYTES = 1024 * 1024;
+    private static final int MAX_COMMENT_IMAGE_NAME_LENGTH = 255;
+    private static final Set<String> COMMENT_IMAGE_EXTENSIONS = Set.of(
+            "jpg", "jpeg", "png", "gif", "webp"
+    );
+    private static final Map<String, String> COMMENT_IMAGE_MIME_TYPES = Map.of(
+            "jpg", "image/jpeg",
+            "jpeg", "image/jpeg",
+            "png", "image/png",
+            "gif", "image/gif",
+            "webp", "image/webp"
+    );
     private static final Duration RAPID_DUPLICATE_WINDOW =
             Duration.ofMillis(3_500);
     private static final long RAPID_DUPLICATE_WINDOW_NANOS =
@@ -164,6 +183,212 @@ public class CommentService {
         assertParentPostReadable(comment, currentAccount);
         assertOwnerOrAdmin(comment, currentAccount);
         commentRepository.delete(comment);
+    }
+
+    @Transactional
+    public void uploadCommentImage(
+            Long commentId,
+            String encodedOriginalName,
+            String declaredContentType,
+            byte[] imageData,
+            Long currentAccountId
+    ) {
+        Account currentAccount = boardUserService.require(currentAccountId);
+        Comment comment = getExistingCommentForUpdate(commentId);
+        assertParentPostReadable(comment, currentAccount);
+        assertOwnerOrAdmin(comment, currentAccount);
+
+        if (imageData == null || imageData.length == 0) {
+            throw badRequest("비어 있는 사진은 첨부할 수 없습니다.");
+        }
+        if (imageData.length > MAX_COMMENT_IMAGE_BYTES) {
+            throw badRequest("댓글 사진은 한 파일당 5MB 이하만 첨부할 수 있습니다.");
+        }
+
+        String originalName = normalizeCommentImageName(encodedOriginalName);
+        String extension = findCommentImageExtension(originalName);
+        String mimeType = COMMENT_IMAGE_MIME_TYPES.get(extension);
+        if (mimeType == null || !COMMENT_IMAGE_EXTENSIONS.contains(extension)) {
+            throw badRequest("댓글에는 JPG, PNG, WEBP, GIF 사진만 첨부할 수 있습니다.");
+        }
+        if (!matchesCommentImageSignature(extension, imageData)) {
+            throw badRequest("파일 확장자와 실제 사진 형식이 일치하지 않습니다.");
+        }
+
+        String normalizedContentType = normalizeContentType(declaredContentType);
+        if (normalizedContentType != null
+                && !"application/octet-stream".equals(normalizedContentType)
+                && !normalizedContentType.startsWith("image/")) {
+            throw badRequest("사진 파일의 Content-Type이 올바르지 않습니다.");
+        }
+
+        if (commentRepository.initializeCommentImage(
+                commentId,
+                mimeType,
+                originalName,
+                imageData.length
+        ) != 1) {
+            throw notFoundCommentImage();
+        }
+
+        for (int offset = 0; offset < imageData.length;
+             offset += COMMENT_IMAGE_CHUNK_BYTES) {
+            int end = Math.min(
+                    imageData.length,
+                    offset + COMMENT_IMAGE_CHUNK_BYTES
+            );
+            byte[] chunk = Arrays.copyOfRange(imageData, offset, end);
+            if (commentRepository.appendCommentImageChunk(commentId, chunk) != 1) {
+                throw new BoardException(
+                        HttpStatus.INTERNAL_SERVER_ERROR,
+                        "BOARD_COMMENT_IMAGE_SAVE_FAILED",
+                        "댓글 사진을 저장하지 못했습니다."
+                );
+            }
+        }
+
+        Long storedSize = commentRepository.findCommentImageStoredSize(commentId);
+        if (storedSize == null || storedSize != imageData.length) {
+            throw new BoardException(
+                    HttpStatus.INTERNAL_SERVER_ERROR,
+                    "BOARD_COMMENT_IMAGE_SIZE_MISMATCH",
+                    "댓글 사진 저장 크기가 일치하지 않습니다."
+            );
+        }
+    }
+
+    @Transactional(readOnly = true)
+    public CommentImageDownload getCommentImage(
+            Long commentId,
+            Long currentAccountId
+    ) {
+        validateId(commentId, "댓글");
+        Comment comment = commentRepository.findById(commentId)
+                .filter(candidate -> !candidate.isDeleted())
+                .orElseThrow(this::notFoundCommentImage);
+
+        Account currentAccount = boardUserService.findOptional(currentAccountId);
+        assertParentPostReadable(comment, currentAccount);
+
+        if (!comment.hasImage()) {
+            throw notFoundCommentImage();
+        }
+        byte[] imageData = commentRepository.findCommentImageData(commentId);
+        if (imageData == null || imageData.length == 0) {
+            throw notFoundCommentImage();
+        }
+
+        return new CommentImageDownload(
+                commentId,
+                comment.getImageMimeType(),
+                comment.getImageOriginalName(),
+                comment.getImageFileSize(),
+                imageData
+        );
+    }
+
+    private String normalizeCommentImageName(String encodedOriginalName) {
+        if (encodedOriginalName == null || encodedOriginalName.isBlank()) {
+            throw badRequest("댓글 사진 이름이 없습니다.");
+        }
+
+        String decoded;
+        try {
+            decoded = URLDecoder.decode(
+                    encodedOriginalName,
+                    StandardCharsets.UTF_8
+            );
+        } catch (IllegalArgumentException exception) {
+            throw badRequest("댓글 사진 이름이 올바르지 않습니다.");
+        }
+
+        decoded = decoded.replace('\\', '/');
+        int separator = decoded.lastIndexOf('/');
+        String fileName = separator >= 0
+                ? decoded.substring(separator + 1)
+                : decoded;
+        fileName = fileName
+                .replaceAll("[\\p{Cntrl}]", "_")
+                .strip();
+
+        if (fileName.isBlank() || ".".equals(fileName) || "..".equals(fileName)) {
+            throw badRequest("댓글 사진 이름이 올바르지 않습니다.");
+        }
+        if (fileName.length() > MAX_COMMENT_IMAGE_NAME_LENGTH) {
+            fileName = fileName.substring(0, MAX_COMMENT_IMAGE_NAME_LENGTH);
+        }
+        return fileName;
+    }
+
+    private String findCommentImageExtension(String fileName) {
+        int dot = fileName.lastIndexOf('.');
+        if (dot < 1 || dot == fileName.length() - 1) {
+            throw badRequest("댓글 사진 확장자를 확인해 주세요.");
+        }
+        return fileName.substring(dot + 1).toLowerCase(Locale.ROOT);
+    }
+
+    private String normalizeContentType(String contentType) {
+        if (contentType == null || contentType.isBlank()) {
+            return null;
+        }
+        int separator = contentType.indexOf(';');
+        String normalized = separator >= 0
+                ? contentType.substring(0, separator)
+                : contentType;
+        return normalized.strip().toLowerCase(Locale.ROOT);
+    }
+
+    private boolean matchesCommentImageSignature(
+            String extension,
+            byte[] data
+    ) {
+        return switch (extension) {
+            case "jpg", "jpeg" -> startsWith(data, 0xff, 0xd8, 0xff);
+            case "png" -> startsWith(
+                    data,
+                    0x89, 0x50, 0x4e, 0x47,
+                    0x0d, 0x0a, 0x1a, 0x0a
+            );
+            case "gif" -> asciiEquals(data, 0, "GIF87a")
+                    || asciiEquals(data, 0, "GIF89a");
+            case "webp" -> asciiEquals(data, 0, "RIFF")
+                    && asciiEquals(data, 8, "WEBP");
+            default -> false;
+        };
+    }
+
+    private boolean asciiEquals(byte[] data, int offset, String expected) {
+        byte[] bytes = expected.getBytes(StandardCharsets.US_ASCII);
+        if (offset < 0 || data.length < offset + bytes.length) {
+            return false;
+        }
+        for (int index = 0; index < bytes.length; index++) {
+            if (data[offset + index] != bytes[index]) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private boolean startsWith(byte[] data, int... expected) {
+        if (data.length < expected.length) {
+            return false;
+        }
+        for (int index = 0; index < expected.length; index++) {
+            if ((data[index] & 0xff) != expected[index]) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private BoardException notFoundCommentImage() {
+        return new BoardException(
+                HttpStatus.NOT_FOUND,
+                "BOARD_COMMENT_IMAGE_NOT_FOUND",
+                "댓글 사진을 찾을 수 없습니다."
+        );
     }
 
     private Post getReadablePost(Long postId, Account currentAccount) {
@@ -364,6 +589,15 @@ public class CommentService {
                 "BOARD_RAPID_DUPLICATE",
                 "같은 내용을 연달아 등록할 수 없습니다. 잠시 후 다시 시도해 주세요."
         );
+    }
+
+    public record CommentImageDownload(
+            Long commentId,
+            String mimeType,
+            String originalName,
+            long fileSize,
+            byte[] data
+    ) {
     }
 
     private record CommentSubmissionKey(
