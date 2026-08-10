@@ -142,6 +142,58 @@
     return `${url}${separator}download=true`;
   }
 
+  function openImageViewer(sourceImage, name) {
+    if (!sourceImage?.src) return;
+
+    if (document.querySelector(".detail-image-viewer")) return;
+
+    const viewer = element("div", "detail-image-viewer");
+    viewer.setAttribute("role", "dialog");
+    viewer.setAttribute("aria-modal", "true");
+    viewer.setAttribute("aria-label", `${name || "첨부 사진"} 크게 보기`);
+
+    const closeButton = element(
+      "button",
+      "detail-image-viewer__close",
+    );
+    closeButton.type = "button";
+    closeButton.setAttribute("aria-label", "사진 크게 보기 닫기");
+    closeButton.append(
+      element("span", "material-symbols-rounded", "close"),
+    );
+
+    const expandedImage = new Image();
+    expandedImage.className = "detail-image-viewer__image";
+    expandedImage.src = sourceImage.currentSrc || sourceImage.src;
+    expandedImage.alt = sourceImage.alt || name || "첨부 사진";
+
+    const previouslyFocused = document.activeElement;
+    const closeViewer = () => {
+      document.removeEventListener("keydown", handleViewerKeydown);
+      document.body.classList.remove("is-image-viewer-open");
+      viewer.remove();
+      if (previouslyFocused instanceof HTMLElement &&
+          document.contains(previouslyFocused)) {
+        previouslyFocused.focus();
+      }
+    };
+    const handleViewerKeydown = (event) => {
+      if (event.key === "Escape") closeViewer();
+    };
+
+    closeButton.addEventListener("click", closeViewer);
+    viewer.addEventListener("click", (event) => {
+      if (event.target === viewer) closeViewer();
+    });
+    document.addEventListener("keydown", handleViewerKeydown);
+
+    viewer.append(expandedImage, closeButton);
+    document.body.append(viewer);
+    document.body.classList.add("is-image-viewer-open");
+    window.FooduckIcons?.enhance(closeButton);
+    closeButton.focus();
+  }
+
   function renderMediaFallback(
     item,
     media,
@@ -296,6 +348,15 @@
       image.src = media.mediaUrl;
       image.alt = name;
       image.loading = "lazy";
+      image.tabIndex = 0;
+      image.setAttribute("role", "button");
+      image.setAttribute("aria-label", `${name} 크게 보기`);
+      image.addEventListener("click", () => openImageViewer(image, name));
+      image.addEventListener("keydown", (event) => {
+        if (event.key !== "Enter" && event.key !== " ") return;
+        event.preventDefault();
+        openImageViewer(image, name);
+      });
       image.addEventListener("error", () => {
         renderMediaFallback(
           item,
@@ -816,6 +877,8 @@
   window.addEventListener("pagehide", () => {
     mediaPollingDisposed = true;
     clearMediaPoll();
+    document.querySelector(".detail-image-viewer")?.remove();
+    document.body.classList.remove("is-image-viewer-open");
   });
 
   window.addEventListener("pageshow", () => {
