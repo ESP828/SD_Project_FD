@@ -1493,6 +1493,92 @@
   background: #f9fbfd;
 }
 
+.detail-media-item.is-processing {
+  border-color: #f4b36a;
+}
+
+.detail-media-item.is-failed {
+  border-color: #f0b4ae;
+}
+
+.detail-media-processing {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-height: 150px;
+  padding: 24px;
+  background: linear-gradient(135deg, #fffaf3, #f8fbff);
+}
+
+.detail-media-item.is-failed .detail-media-processing {
+  background: #fff6f5;
+}
+
+.detail-media-processing__icon {
+  display: grid;
+  flex: none;
+  width: 52px;
+  height: 52px;
+  place-items: center;
+  border-radius: 50%;
+  color: var(--color-orange-dark);
+  background: var(--color-orange-soft);
+  font-size: 1.8rem;
+}
+
+.detail-media-item.is-failed .detail-media-processing__icon {
+  color: var(--color-danger);
+  background: #fee4e2;
+}
+
+.detail-media-processing__copy {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+  gap: 8px;
+}
+
+.detail-media-processing__title {
+  color: var(--color-navy);
+  font-size: 0.96rem;
+}
+
+.detail-media-processing__message,
+.detail-media-processing__file {
+  color: var(--color-muted);
+  font-size: 0.76rem;
+}
+
+.detail-media-processing__file {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.detail-media-processing__progress {
+  width: 100%;
+  height: 10px;
+  overflow: hidden;
+  border: 0;
+  border-radius: 999px;
+  accent-color: var(--color-orange);
+}
+
+.detail-media-processing__progress::-webkit-progress-bar {
+  border-radius: 999px;
+  background: #eceff3;
+}
+
+.detail-media-processing__progress::-webkit-progress-value {
+  border-radius: 999px;
+  background: var(--color-orange);
+}
+
+.detail-media-processing__progress::-moz-progress-bar {
+  border-radius: 999px;
+  background: var(--color-orange);
+}
+
 .detail-media-item > img,
 .detail-media-item > video {
   display: block;
@@ -1539,5 +1625,16 @@
   .board-write-media__remove {
     grid-column: 2;
     justify-self: start;
+  }
+
+  .detail-media-processing {
+    align-items: flex-start;
+    padding: 20px 16px;
+  }
+
+  .detail-media-processing__icon {
+    width: 44px;
+    height: 44px;
+    font-size: 1.5rem;
   }
 }

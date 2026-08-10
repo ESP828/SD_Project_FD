@@ -6,6 +6,16 @@
   const fromBest = sourceView === "BEST";
   const fromPopular = sourceView === "POPULAR";
   const state = { post: null };
+  const MEDIA_POLL_BASE_DELAY = 2500;
+  const MEDIA_POLL_MAX_DELAY = 15000;
+  const MEDIA_POLL_MAX_FAILURES = 5;
+  let mediaPollTimer = null;
+  let mediaPollInFlight = false;
+  let mediaPollDelay = MEDIA_POLL_BASE_DELAY;
+  let mediaPollFailures = 0;
+  let mediaPollGeneration = 0;
+  let mediaPollingHalted = false;
+  let mediaPollingDisposed = false;
 
   const detailContent = document.getElementById("post-detail-content");
   const listLink = document.getElementById("detail-list-link");
@@ -160,79 +170,343 @@
     item.append(fallback);
   }
 
+  function mediaProcessingStatus(media) {
+    const storedUrl = String(media?.mediaUrl || "");
+    if (!media?.processingStatus && storedUrl === "db:processing") {
+      return "PROCESSING";
+    }
+    if (!media?.processingStatus && storedUrl === "db:failed") {
+      return "FAILED";
+    }
+    const status = String(media?.processingStatus || "READY").toUpperCase();
+    return ["QUEUED", "PROCESSING", "FAILED"].includes(status)
+      ? status
+      : "READY";
+  }
+
+  function mediaProcessingProgress(media) {
+    const progress = Number(media?.processingProgress);
+    if (!Number.isFinite(progress)) return 0;
+    return Math.max(0, Math.min(100, Math.round(progress)));
+  }
+
+  function isProcessingMedia(media) {
+    const status = mediaProcessingStatus(media);
+    return status === "QUEUED" || status === "PROCESSING";
+  }
+
+  function isVideoMedia(media) {
+    return Boolean(media && media.mediaType !== "IMAGE");
+  }
+
+  function renderMediaProcessing(item, media) {
+    const status = mediaProcessingStatus(media);
+    const progressValue = mediaProcessingProgress(media);
+    const failed = status === "FAILED";
+    item.classList.toggle("is-processing", !failed);
+    item.classList.toggle("is-failed", failed);
+
+    const panel = element("div", "detail-media-processing");
+    panel.setAttribute("role", "group");
+    panel.setAttribute("aria-label", "동영상 서버 처리 상태");
+    panel.setAttribute("aria-live", "off");
+
+    const icon = element(
+      "span",
+      "material-symbols-rounded detail-media-processing__icon",
+      failed ? "close" : "progress_activity",
+    );
+    icon.setAttribute("aria-hidden", "true");
+
+    const copy = element("div", "detail-media-processing__copy");
+    const title = element(
+      "strong",
+      "detail-media-processing__title",
+      failed
+        ? "동영상 처리에 실패했습니다."
+        : `이 동영상은 서버에서 처리 중입니다. (${progressValue}%)`,
+    );
+    const message = element(
+      "span",
+      "detail-media-processing__message",
+      media.processingMessage || (failed
+        ? "게시글 수정 화면에서 영상을 다시 첨부해 주세요."
+        : "처리가 끝나면 이 자리에 동영상이 자동으로 표시됩니다."),
+    );
+    copy.append(title, message);
+
+    if (!failed) {
+      const progress = document.createElement("progress");
+      progress.className = "detail-media-processing__progress";
+      progress.max = 100;
+      progress.value = progressValue;
+      progress.setAttribute("aria-label", "동영상 서버 처리 진행률");
+      copy.append(progress);
+    }
+    copy.append(
+      element(
+        "small",
+        "detail-media-processing__file",
+        `${media.originalName || "첨부 동영상"} · ${formatBytes(media.fileSize)}`,
+      ),
+    );
+    panel.append(icon, copy);
+    item.replaceChildren(panel);
+  }
+
+  function updateMediaProcessing(item, media) {
+    const progressValue = mediaProcessingProgress(media);
+    item.dataset.processingStatus = mediaProcessingStatus(media);
+    const titleText =
+      `이 동영상은 서버에서 처리 중입니다. (${progressValue}%)`;
+    const title = item.querySelector(".detail-media-processing__title");
+    if (title.textContent !== titleText) title.textContent = titleText;
+
+    const messageText = media.processingMessage ||
+      "처리가 끝나면 이 자리에 동영상이 자동으로 표시됩니다.";
+    const message = item.querySelector(".detail-media-processing__message");
+    if (message.textContent !== messageText) message.textContent = messageText;
+
+    const progress = item.querySelector(".detail-media-processing__progress");
+    if (progress && Number(progress.value) !== progressValue) {
+      progress.value = progressValue;
+    }
+
+    const fileText =
+      `${media.originalName || "첨부 동영상"} · ${formatBytes(media.fileSize)}`;
+    const file = item.querySelector(".detail-media-processing__file");
+    if (file.textContent !== fileText) file.textContent = fileText;
+  }
+
+  function renderPostMediaItem(media) {
+    if (!media) return null;
+    const item = element("article", "detail-media-item");
+    item.dataset.postMediaId = String(media.postMediaId || "");
+    item.dataset.processingStatus = mediaProcessingStatus(media);
+
+    if (isVideoMedia(media) && mediaProcessingStatus(media) !== "READY") {
+      renderMediaProcessing(item, media);
+      return item;
+    }
+    if (!media.mediaUrl) return null;
+
+    const name = media.originalName || "첨부파일";
+    if (media.mediaType === "IMAGE") {
+      const image = new Image();
+      image.src = media.mediaUrl;
+      image.alt = name;
+      image.loading = "lazy";
+      image.addEventListener("error", () => {
+        renderMediaFallback(
+          item,
+          media,
+          "이 브라우저에서는 해당 사진 형식을 표시할 수 없습니다.",
+        );
+      }, { once: true });
+      item.append(image);
+    } else {
+      const databaseMedia = String(media.mediaUrl).startsWith(
+        "/api/board/posts/media/",
+      );
+      const video = document.createElement("video");
+      const canPlay =
+        !media.mimeType || video.canPlayType(media.mimeType) !== "";
+      if (!databaseMedia && !media.mimeType) {
+        renderMediaFallback(
+          item,
+          media,
+          "외부 동영상 링크입니다.",
+          "영상 링크 열기",
+        );
+      } else if (!canPlay) {
+        renderMediaFallback(
+          item,
+          media,
+          "이 브라우저에서는 해당 동영상 형식을 재생할 수 없습니다.",
+        );
+      } else {
+        video.src = media.mediaUrl;
+        video.controls = true;
+        video.preload = "auto";
+        video.addEventListener("error", () => {
+          renderMediaFallback(
+            item,
+            media,
+            "동영상을 재생할 수 없습니다. 원본 파일을 내려받아 확인해 주세요.",
+          );
+        }, { once: true });
+        item.append(video);
+      }
+    }
+
+    if (!item.querySelector(".detail-media-fallback")) {
+      const meta = element("div", "detail-media-meta");
+      meta.append(
+        element("span", "", `${name} · ${formatBytes(media.fileSize)}`),
+      );
+      const download = element("a", "", "원본 다운로드");
+      download.href = mediaDownloadHref(media);
+      meta.append(download);
+      item.append(meta);
+    }
+    return item;
+  }
+
   function renderPostMedia(mediaItems) {
     if (!Array.isArray(mediaItems) || !mediaItems.length) return null;
 
     const section = element("section", "detail-media-list");
     section.setAttribute("aria-label", "게시글 첨부 미디어");
-
     mediaItems.forEach((media) => {
-      if (!media?.mediaUrl) return;
-      const item = element("article", "detail-media-item");
-      const name = media.originalName || "첨부파일";
+      const item = renderPostMediaItem(media);
+      if (item) section.append(item);
+    });
+    return section.childElementCount ? section : null;
+  }
 
-      if (media.mediaType === "IMAGE") {
-        const image = new Image();
-        image.src = media.mediaUrl;
-        image.alt = name;
-        image.loading = "lazy";
-        image.addEventListener("error", () => {
-          renderMediaFallback(
-            item,
-            media,
-            "이 브라우저에서는 해당 사진 형식을 표시할 수 없습니다.",
-          );
-        }, { once: true });
-        item.append(image);
-      } else {
-        const databaseMedia = String(media.mediaUrl).startsWith(
-          "/api/board/posts/media/",
-        );
-        const video = document.createElement("video");
-        const canPlay =
-          !media.mimeType || video.canPlayType(media.mimeType) !== "";
-        if (!databaseMedia && !media.mimeType) {
-          renderMediaFallback(
-            item,
-            media,
-            "외부 동영상 링크입니다.",
-            "영상 링크 열기",
-          );
-        } else if (!canPlay) {
-          renderMediaFallback(
-            item,
-            media,
-            "이 브라우저에서는 해당 동영상 형식을 재생할 수 없습니다.",
-          );
-        } else {
-          video.src = media.mediaUrl;
-          video.controls = true;
-          video.preload = "auto";
-          video.addEventListener("error", () => {
-            renderMediaFallback(
-              item,
-              media,
-              "동영상을 재생할 수 없습니다. 원본 파일을 내려받아 확인해 주세요.",
-            );
-          }, { once: true });
-          item.append(video);
-        }
-      }
+  function findRenderedMediaItem(postMediaId) {
+    const targetId = String(postMediaId || "");
+    return [...detailContent.querySelectorAll(".detail-media-item")]
+      .find((item) => item.dataset.postMediaId === targetId) || null;
+  }
 
-      if (!item.querySelector(".detail-media-fallback")) {
-        const meta = element("div", "detail-media-meta");
-        meta.append(
-          element("span", "", `${name} · ${formatBytes(media.fileSize)}`),
-        );
-        const download = element("a", "", "원본 다운로드");
-        download.href = mediaDownloadHref(media);
-        meta.append(download);
-        item.append(meta);
-      }
-      section.append(item);
+  function reconcilePostMedia(mediaItems) {
+    const nextMedia = Array.isArray(mediaItems) ? mediaItems : [];
+    let section = detailContent.querySelector(".detail-media-list");
+    const nextIds = new Set(
+      nextMedia.map((media) => String(media.postMediaId || "")),
+    );
+
+    section?.querySelectorAll(".detail-media-item").forEach((item) => {
+      if (!nextIds.has(item.dataset.postMediaId || "")) item.remove();
     });
 
-    return section.childElementCount ? section : null;
+    nextMedia.forEach((media) => {
+      const nextStatus = mediaProcessingStatus(media);
+      const currentItem = findRenderedMediaItem(media.postMediaId);
+      if (!currentItem) {
+        const nextItem = renderPostMediaItem(media);
+        if (!nextItem) return;
+        if (!section) {
+          section = element("section", "detail-media-list");
+          section.setAttribute("aria-label", "게시글 첨부 미디어");
+          const actions = detailContent.querySelector(".detail-actions");
+          detailContent.insertBefore(section, actions || null);
+        }
+        section.append(nextItem);
+        window.FooduckIcons?.enhance(nextItem);
+        return;
+      }
+
+      const currentStatus = currentItem.dataset.processingStatus || "READY";
+      if (isProcessingMedia(media) &&
+          ["QUEUED", "PROCESSING"].includes(currentStatus)) {
+        updateMediaProcessing(currentItem, media);
+        return;
+      }
+      if (currentStatus === nextStatus) return;
+
+      const nextItem = renderPostMediaItem(media);
+      if (nextItem) {
+        currentItem.replaceWith(nextItem);
+        window.FooduckIcons?.enhance(nextItem);
+      } else {
+        currentItem.remove();
+      }
+    });
+
+    if (section && !section.childElementCount) section.remove();
+  }
+
+  function clearMediaPoll() {
+    if (mediaPollTimer !== null) {
+      window.clearTimeout(mediaPollTimer);
+      mediaPollTimer = null;
+    }
+  }
+
+  function scheduleMediaPoll(delay = MEDIA_POLL_BASE_DELAY) {
+    clearMediaPoll();
+    if (
+      mediaPollingDisposed ||
+      mediaPollingHalted ||
+      document.hidden ||
+      mediaPollInFlight ||
+      !state.post
+    ) return;
+    mediaPollTimer = window.setTimeout(pollMediaStatus, delay);
+  }
+
+  function startMediaStatusPolling(mediaItems) {
+    clearMediaPoll();
+    mediaPollGeneration += 1;
+    mediaPollDelay = MEDIA_POLL_BASE_DELAY;
+    mediaPollFailures = 0;
+    mediaPollingHalted = false;
+    if (Array.isArray(mediaItems) && mediaItems.some(isVideoMedia)) {
+      scheduleMediaPoll(0);
+    }
+  }
+
+  function haltMediaStatusPolling(message) {
+    mediaPollingHalted = true;
+    clearMediaPoll();
+    detailContent.querySelectorAll(
+      ".detail-media-item.is-processing .detail-media-processing__message",
+    ).forEach((node) => {
+      node.textContent = message;
+    });
+  }
+
+  async function pollMediaStatus() {
+    if (mediaPollInFlight || mediaPollingDisposed || document.hidden) return;
+    mediaPollTimer = null;
+    mediaPollInFlight = true;
+    const generation = mediaPollGeneration;
+    let shouldContinue = false;
+    try {
+      const payload = await Api.get(`/board/posts/${postId}/media`);
+      if (mediaPollingDisposed || generation !== mediaPollGeneration ||
+          !state.post) return;
+      const mediaItems = Array.isArray(payload.data) ? payload.data : [];
+      const wasProcessing = Array.isArray(state.post.media) &&
+        state.post.media.some(isProcessingMedia);
+      reconcilePostMedia(mediaItems);
+      state.post = { ...state.post, media: mediaItems };
+      mediaPollDelay = MEDIA_POLL_BASE_DELAY;
+      mediaPollFailures = 0;
+      shouldContinue = mediaItems.some(isProcessingMedia);
+      if (wasProcessing && !shouldContinue) invalidateBoardCache();
+    } catch (error) {
+      if (generation !== mediaPollGeneration) return;
+      if ([401, 403, 404].includes(Number(error?.status))) {
+        renderPostError(error.message);
+        return;
+      }
+      mediaPollFailures += 1;
+      if (mediaPollFailures >= MEDIA_POLL_MAX_FAILURES) {
+        haltMediaStatusPolling(
+          "처리 상태를 확인할 수 없습니다. 잠시 후 페이지를 새로고침해 주세요.",
+        );
+        return;
+      }
+      mediaPollDelay = Math.min(
+        MEDIA_POLL_MAX_DELAY,
+        mediaPollDelay * 2,
+      );
+      shouldContinue = Array.isArray(state.post?.media) &&
+        state.post.media.some(isProcessingMedia);
+    } finally {
+      mediaPollInFlight = false;
+      if (generation !== mediaPollGeneration) {
+        if (Array.isArray(state.post?.media) &&
+            state.post.media.some(isVideoMedia)) {
+          scheduleMediaPoll(0);
+        }
+      } else if (shouldContinue) {
+        scheduleMediaPoll(mediaPollDelay);
+      }
+    }
   }
 
   function renderPost(post) {
@@ -283,6 +557,7 @@
     detailContent.append(element("div", "detail-body", post.content));
     const mediaSection = renderPostMedia(post.media);
     if (mediaSection) detailContent.append(mediaSection);
+    startMediaStatusPolling(post.media);
 
     const actions = element("div", "detail-actions");
     const likeButton = actionButton(
@@ -307,6 +582,16 @@
   }
 
   function renderPostError(message) {
+    clearMediaPoll();
+    mediaPollGeneration += 1;
+    mediaPollingHalted = true;
+    state.post = null;
+    invalidateBoardCache();
+    renderRestaurantSide(null);
+    relatedPostList?.replaceChildren();
+    commentForm.hidden = true;
+    commentList.replaceChildren();
+    commentCount.textContent = "0";
     detailContent.replaceChildren();
     const wrapper = element("div", "board-error");
     const image = new Image();
@@ -492,6 +777,30 @@
       commentForm.hidden = true;
     }
   }
+
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) {
+      clearMediaPoll();
+      return;
+    }
+    if (Array.isArray(state.post?.media) &&
+        state.post.media.some(isProcessingMedia)) {
+      scheduleMediaPoll(0);
+    }
+  });
+
+  window.addEventListener("pagehide", () => {
+    mediaPollingDisposed = true;
+    clearMediaPoll();
+  });
+
+  window.addEventListener("pageshow", () => {
+    mediaPollingDisposed = false;
+    if (Array.isArray(state.post?.media) &&
+        state.post.media.some(isProcessingMedia)) {
+      scheduleMediaPoll(0);
+    }
+  });
 
   loadPage();
 })();

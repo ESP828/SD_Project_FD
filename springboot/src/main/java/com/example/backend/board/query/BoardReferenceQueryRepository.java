@@ -6,7 +6,12 @@ import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.jdbc.support.GeneratedKeyHolder;
 import org.springframework.jdbc.support.KeyHolder;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
+import java.io.InputStream;
 import java.sql.Types;
 import java.util.Collection;
 import java.util.HashMap;
@@ -26,6 +31,8 @@ import java.util.stream.Collectors;
 public class BoardReferenceQueryRepository {
 
     private static final int MEDIA_BLOB_CHUNK_BYTES = 1024 * 1024;
+    public static final String MEDIA_URL_PROCESSING = "db:processing";
+    public static final String MEDIA_URL_FAILED = "db:failed";
 
     private final NamedParameterJdbcTemplate jdbcTemplate;
 
@@ -262,7 +269,8 @@ public class BoardReferenceQueryRepository {
                        mime_type,
                        original_name,
                        file_size,
-                       display_order
+                       display_order,
+                       coalesce(octet_length(media_data), 0) as stored_size
                   from post_media
                  where post_id = :postId
                  order by display_order, post_media_id
@@ -275,7 +283,8 @@ public class BoardReferenceQueryRepository {
                         resultSet.getString("mime_type"),
                         resultSet.getString("original_name"),
                         resultSet.getLong("file_size"),
-                        resultSet.getInt("display_order")
+                        resultSet.getInt("display_order"),
+                        resultSet.getLong("stored_size")
                 )
         );
     }
@@ -311,10 +320,51 @@ public class BoardReferenceQueryRepository {
             int displayOrder,
             byte[] mediaData
     ) {
+        Long postMediaId = insertPostMedia(
+                postId,
+                mediaType,
+                "db:pending",
+                mimeType,
+                originalName,
+                fileSize,
+                displayOrder
+        );
+        storePostMediaData(postMediaId, fileSize, mediaData);
+        return postMediaId;
+    }
+
+    public Long createProcessingPostMedia(
+            Long postId,
+            String mediaType,
+            String mimeType,
+            String originalName,
+            long fileSize,
+            int displayOrder
+    ) {
+        return insertPostMedia(
+                postId,
+                mediaType,
+                MEDIA_URL_PROCESSING,
+                mimeType,
+                originalName,
+                fileSize,
+                displayOrder
+        );
+    }
+
+    private Long insertPostMedia(
+            Long postId,
+            String mediaType,
+            String mediaUrl,
+            String mimeType,
+            String originalName,
+            long fileSize,
+            int displayOrder
+    ) {
         MapSqlParameterSource parameters = new MapSqlParameterSource()
                 .addValue("postId", postId)
                 .addValue("mediaType", mediaType)
-                .addValue("mediaUrl", "db:pending")
+                .addValue("mediaUrl", mediaUrl)
                 .addValue("mimeType", mimeType)
                 .addValue("originalName", originalName)
                 .addValue("fileSize", fileSize)
@@ -353,16 +403,35 @@ public class BoardReferenceQueryRepository {
         if (generatedKey == null) {
             throw new IllegalStateException("게시판 미디어 번호를 생성하지 못했습니다.");
         }
+        return generatedKey.longValue();
+    }
 
-        Long postMediaId = generatedKey.longValue();
-        for (int offset = 0; offset < mediaData.length; offset += MEDIA_BLOB_CHUNK_BYTES) {
-            int chunkLength = Math.min(
-                    MEDIA_BLOB_CHUNK_BYTES,
-                    mediaData.length - offset
+    public void storePostMediaData(
+            Long postMediaId,
+            long fileSize,
+            byte[] mediaData
+    ) {
+        try (ByteArrayInputStream inputStream =
+                     new ByteArrayInputStream(mediaData)) {
+            storePostMediaData(postMediaId, fileSize, inputStream);
+        } catch (IOException exception) {
+            throw new IllegalStateException(
+                    "게시판 미디어 데이터를 읽지 못했습니다.",
+                    exception
             );
-            byte[] chunk = new byte[chunkLength];
-            System.arraycopy(mediaData, offset, chunk, 0, chunkLength);
+        }
+    }
 
+    public void storePostMediaData(
+            Long postMediaId,
+            long fileSize,
+            InputStream inputStream
+    ) throws IOException {
+        while (true) {
+            byte[] chunk = inputStream.readNBytes(MEDIA_BLOB_CHUNK_BYTES);
+            if (chunk.length == 0) {
+                break;
+            }
             int updated = jdbcTemplate.update(
                     """
                     update post_media
@@ -371,6 +440,7 @@ public class BoardReferenceQueryRepository {
                                :mediaChunk
                            )
                      where post_media_id = :postMediaId
+                       and media_url in ('db:pending', 'db:processing')
                     """,
                     new MapSqlParameterSource()
                             .addValue("postMediaId", postMediaId)
@@ -402,18 +472,41 @@ public class BoardReferenceQueryRepository {
             );
         }
 
-        jdbcTemplate.update(
+        int updated = jdbcTemplate.update(
                 """
                 update post_media
                    set media_url = :mediaUrl
                  where post_media_id = :postMediaId
+                   and media_url in ('db:pending', 'db:processing')
                 """,
                 Map.of(
                         "mediaUrl", "/api/board/posts/media/" + postMediaId,
                         "postMediaId", postMediaId
                 )
         );
-        return postMediaId;
+        if (updated != 1) {
+            throw new IllegalStateException(
+                    "게시판 미디어 완료 상태를 저장하지 못했습니다."
+            );
+        }
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void markPostMediaFailed(Long postMediaId) {
+        jdbcTemplate.update(
+                """
+                update post_media
+                   set media_url = :failedUrl,
+                       media_data = x''
+                 where post_media_id = :postMediaId
+                   and media_url = :processingUrl
+                """,
+                Map.of(
+                        "failedUrl", MEDIA_URL_FAILED,
+                        "postMediaId", postMediaId,
+                        "processingUrl", MEDIA_URL_PROCESSING
+                )
+        );
     }
 
     public Optional<PostMediaFileReference> findPostMediaFile(Long postMediaId) {
@@ -502,7 +595,8 @@ public class BoardReferenceQueryRepository {
             String mimeType,
             String originalName,
             long fileSize,
-            int displayOrder
+            int displayOrder,
+            long storedSize
     ) {
     }
 
