@@ -16,6 +16,9 @@
   const presetContext = document.getElementById("preset-map-context");
   const presetSummary = document.getElementById("preset-map-summary");
   const presetBack = document.getElementById("preset-map-back");
+  const detailPanel = document.getElementById("place-detail-panel");
+  const detailClose = document.getElementById("place-detail-close");
+  const detailBody = document.getElementById("place-detail-body");
 
   const query = new URLSearchParams(location.search);
   const presetMode = query.has("presetId");
@@ -28,10 +31,11 @@
   let kakaoMap;
   let currentPositionMarker;
   let markerEntries = new Map();
+  let currentPlaces = new Map();
   let activeMarkerEntry;
-  let activeInfoWindow;
   let lastSearchKeyword = "";
   let presetItems = [];
+  let detailRequestToken = 0;
 
   function setMapStatus(message, isError = false) {
     mapStatus.textContent = message;
@@ -118,20 +122,140 @@
   function clearMarkers() {
     markerEntries.forEach((entry) => entry.marker.setMap(null));
     markerEntries.clear();
+    currentPlaces.clear();
     activeMarkerEntry = undefined;
-    if (activeInfoWindow) activeInfoWindow.close();
-    activeInfoWindow = undefined;
+    closeDetailPanel();
   }
 
-  function createInfoWindowContent(place) {
-    const wrapper = document.createElement("div");
-    wrapper.className = "fooduck-info-window";
-    const name = document.createElement("strong");
-    name.textContent = place.place_name;
-    const address = document.createElement("span");
-    address.textContent = place.road_address_name || place.address_name || "주소 정보 없음";
-    wrapper.append(name, address);
-    return wrapper.outerHTML;
+  function detailHref(restaurantId) {
+    const source = presetMode ? "owned" : "public";
+    return `/pages/restaurant/detail.html?source=${source}&id=${encodeURIComponent(restaurantId)}`;
+  }
+
+  function closeDetailPanel() {
+    detailRequestToken += 1;
+    detailPanel.classList.remove("is-open");
+  }
+
+  function escapeHtml(value) {
+    return String(value ?? "").replace(/[&<>"']/g, (char) => ({
+      "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+    }[char]));
+  }
+
+  function formatDate(value) {
+    if (!value) return "-";
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return "-";
+    return new Intl.DateTimeFormat("ko-KR", { year: "numeric", month: "2-digit", day: "2-digit" }).format(date);
+  }
+
+  async function toggleDetailPanelFavorite(button, place) {
+    if (!requireLogin()) return;
+    const source = presetMode ? "owned" : "public";
+    const path = source === "owned"
+      ? `/restaurants/${place.restaurantId}/favorite`
+      : `/map/restaurants/${place.restaurantId}/favorite`;
+    button.disabled = true;
+    try {
+      const response = place.favoriteByCurrentUser
+        ? await Api.delete(path)
+        : await Api.post(path);
+      place.favoriteByCurrentUser = Boolean(response.data?.favoriteByCurrentUser);
+      button.classList.toggle("is-favorited", place.favoriteByCurrentUser);
+      button.setAttribute("aria-pressed", String(place.favoriteByCurrentUser));
+    } catch (error) {
+      window.alert(error.message || "찜 처리 중 오류가 발생했습니다.");
+    } finally {
+      button.disabled = false;
+    }
+  }
+
+  function renderDetailPanel(place, detail, menuItems, reviews) {
+    const isOwned = presetMode;
+    const category = place.category_name || "기타";
+    const address = place.road_address_name || place.address_name || "주소 정보 없음";
+
+    const ratingAvg = isOwned
+      ? detail?.averageRating
+      : (reviews.length ? reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length : null);
+    const reviewCount = isOwned ? (detail?.reviewCount ?? 0) : reviews.length;
+
+    const menuHtml = isOwned
+      ? (menuItems.length
+        ? menuItems.slice(0, 4).map((item) => `
+            <div class="place-detail-menu-item">
+              <strong>${escapeHtml(item.name)}</strong>
+              <span>${item.price != null ? `${item.price.toLocaleString("ko-KR")}원` : "가격 미정"}</span>
+            </div>
+          `).join("")
+        : '<div class="place-detail-empty">등록된 메뉴가 없습니다.</div>')
+      : '<div class="place-detail-empty">공공데이터 출처 가게는 메뉴 정보를 제공하지 않습니다.<br>사업자가 푸드덕에 가게를 직접 등록하면 메뉴를 볼 수 있어요.</div>';
+
+    const reviewHtml = reviews.length
+      ? reviews.slice(0, 3).map((review) => `
+          <div class="place-detail-review-item">
+            <div class="place-detail-review-head">
+              <span>${escapeHtml(review.authorNickname || "익명")}</span>
+              <span>★ ${review.rating}.0</span>
+            </div>
+            <p>${review.content ? escapeHtml(review.content) : "내용 없음"} · ${formatDate(review.createdAt)}</p>
+          </div>
+        `).join("")
+      : '<div class="place-detail-empty">아직 작성된 리뷰가 없습니다.</div>';
+
+    detailBody.innerHTML = `
+      <div class="place-detail-header">
+        <div>
+          <span class="place-detail-category">${escapeHtml(category)}</span>
+          <h2>${escapeHtml(place.place_name)}</h2>
+          <p class="place-detail-address">${escapeHtml(isOwned && detail?.addressDetail ? `${address} ${detail.addressDetail}` : address)}</p>
+        </div>
+        <button type="button" class="place-detail-favorite${place.favoriteByCurrentUser ? " is-favorited" : ""}"
+                id="place-detail-favorite-btn" aria-pressed="${Boolean(place.favoriteByCurrentUser)}" aria-label="찜하기">
+          <span class="material-symbols-rounded" aria-hidden="true">favorite</span>
+        </button>
+      </div>
+      <div class="place-detail-rating">
+        <strong>${ratingAvg != null ? `★ ${ratingAvg.toFixed(1)}` : "리뷰 없음"}</strong>
+        <span>리뷰 ${reviewCount}건${isOwned && detail?.phone ? ` · ${detail.phone}` : ""}</span>
+      </div>
+      ${isOwned && detail?.openingHours ? `<div class="place-detail-empty" style="margin-bottom:20px;">${escapeHtml(detail.openingHours)}${detail?.closedDays ? ` · 휴무 ${escapeHtml(detail.closedDays)}` : ""}</div>` : ""}
+      <div class="place-detail-section">
+        <h3>메뉴</h3>
+        ${menuHtml}
+      </div>
+      <div class="place-detail-section">
+        <h3>리뷰</h3>
+        ${reviewHtml}
+      </div>
+      <a class="button button-primary place-detail-link" target="_blank" rel="noopener"
+         href="${detailHref(place.restaurantId)}">상세 페이지에서 더 보기</a>
+    `;
+
+    const favoriteButton = document.getElementById("place-detail-favorite-btn");
+    favoriteButton.addEventListener("click", () => toggleDetailPanelFavorite(favoriteButton, place));
+  }
+
+  async function openDetailPanel(place) {
+    detailPanel.classList.add("is-open");
+    detailBody.innerHTML = '<div class="place-detail-loading">불러오는 중입니다...</div>';
+    const requestId = (detailRequestToken += 1);
+    const isOwned = presetMode;
+
+    try {
+      const [detailResponse, reviewsResponse, menuResponse] = await Promise.all([
+        Api.get(isOwned ? `/public/restaurants/${place.restaurantId}` : `/public/map/restaurants/${place.restaurantId}`),
+        Api.get(isOwned ? `/public/restaurants/${place.restaurantId}/reviews` : `/public/map/restaurants/${place.restaurantId}/reviews`, { auth: false }),
+        isOwned ? Api.get(`/public/restaurants/${place.restaurantId}/menu`, { auth: false }) : Promise.resolve({ data: [] }),
+      ]);
+      if (requestId !== detailRequestToken) return;
+      place.favoriteByCurrentUser = Boolean(detailResponse.data?.favoritedByMe);
+      renderDetailPanel(place, detailResponse.data, menuResponse.data || [], reviewsResponse.data || []);
+    } catch (error) {
+      if (requestId !== detailRequestToken) return;
+      detailBody.innerHTML = `<div class="place-detail-error">${escapeHtml(error.message || "가게 정보를 불러오지 못했습니다.")}</div>`;
+    }
   }
 
   function selectRestaurant(restaurantId, moveMap = true) {
@@ -140,18 +264,21 @@
     placeResults.querySelector(".place-result.is-active")?.classList.remove("is-active");
     row?.classList.add("is-active");
     const entry = markerEntries.get(key);
-    if (!entry) {
-      setMapStatus("이 음식점은 등록된 좌표가 없어 목록에서만 확인할 수 있습니다.", true);
+    const place = entry?.place || currentPlaces.get(key);
+    if (!place) {
+      setMapStatus("음식점 정보를 찾을 수 없습니다.", true);
       return;
     }
-    if (activeMarkerEntry) activeMarkerEntry.marker.setImage(getMarkerImage(activeMarkerEntry.assetName));
-    activeMarkerEntry = entry;
-    entry.marker.setImage(getMarkerImage("state_selected.svg"));
-    if (activeInfoWindow) activeInfoWindow.close();
-    activeInfoWindow = new kakao.maps.InfoWindow({ content: createInfoWindowContent(entry.place), removable: true });
-    activeInfoWindow.open(kakaoMap, entry.marker);
-    if (moveMap) kakaoMap.panTo(entry.position);
-    setMapStatus(`“${entry.place.place_name}” 위치를 선택했습니다.`);
+    if (entry) {
+      if (activeMarkerEntry) activeMarkerEntry.marker.setImage(getMarkerImage(activeMarkerEntry.assetName));
+      activeMarkerEntry = entry;
+      entry.marker.setImage(getMarkerImage("state_selected.svg"));
+      if (moveMap) kakaoMap.panTo(entry.position);
+      setMapStatus(`“${place.place_name}” 위치를 선택했습니다.`);
+    } else {
+      setMapStatus("이 음식점은 등록된 좌표가 없어 지도에는 표시되지 않습니다.", true);
+    }
+    openDetailPanel(place);
   }
 
   function requireLogin() {
@@ -215,6 +342,8 @@
     }
     select.addEventListener("click", () => selectRestaurant(place.restaurantId));
     body.append(select);
+    const actions = document.createElement("div");
+    actions.className = "place-result-actions";
     if (presetMode) {
       const favorite = document.createElement("button");
       favorite.className = "place-result-link place-result-favorite";
@@ -222,8 +351,16 @@
       favorite.classList.toggle("is-active", place.favoriteByCurrentUser);
       favorite.textContent = place.favoriteByCurrentUser ? "♥ 저장됨" : "♡ 저장";
       favorite.addEventListener("click", () => toggleRestaurantFavorite(favorite, place));
-      body.append(favorite);
+      actions.append(favorite);
     }
+    const detail = document.createElement("a");
+    detail.className = "place-result-link place-result-detail";
+    detail.href = detailHref(place.restaurantId);
+    detail.target = "_blank";
+    detail.rel = "noopener";
+    detail.innerHTML = '<span class="material-symbols-rounded" aria-hidden="true">open_in_new</span>상세보기';
+    actions.append(detail);
+    body.append(actions);
     article.append(markerImage, body);
     return article;
   }
@@ -231,6 +368,7 @@
   function renderItems(items, title, fitBounds = true) {
     clearMarkers();
     placeResults.replaceChildren();
+    items.forEach((place) => currentPlaces.set(String(place.restaurantId), place));
     items.forEach((place, index) => placeResults.append(createResultRow(place, index)));
     setResultsState(items.length, title);
     if (!items.length) {
@@ -367,6 +505,13 @@
       setMapStatus(error.message, true);
     }
   }
+
+  detailClose.addEventListener("click", () => {
+    if (activeMarkerEntry) activeMarkerEntry.marker.setImage(getMarkerImage(activeMarkerEntry.assetName));
+    activeMarkerEntry = undefined;
+    placeResults.querySelector(".place-result.is-active")?.classList.remove("is-active");
+    closeDetailPanel();
+  });
 
   searchForm.addEventListener("submit", (event) => { event.preventDefault(); searchPlaces(keywordInput.value); });
   categoryList.querySelectorAll("[data-category-keyword]").forEach((button) => {

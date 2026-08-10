@@ -17,9 +17,11 @@ public record PublicRestaurantDetailResponse(
         String lotAddress,
         Double lat,
         Double lon,
-        String dataYm
+        String dataYm,
+        long favoriteCount,
+        boolean favoritedByMe
 ) {
-    public static PublicRestaurantDetailResponse from(PublicRestaurant restaurant) {
+    public static PublicRestaurantDetailResponse from(PublicRestaurant restaurant, long favoriteCount, boolean favoritedByMe) {
         return new PublicRestaurantDetailResponse(
                 restaurant.getPublicRestaurantId(),
                 restaurant.getName(),
@@ -31,7 +33,9 @@ public record PublicRestaurantDetailResponse(
                 restaurant.getLotAddress(),
                 restaurant.getLatitude() == null ? null : restaurant.getLatitude().doubleValue(),
                 restaurant.getLongitude() == null ? null : restaurant.getLongitude().doubleValue(),
-                restaurant.getDataYm()
+                restaurant.getDataYm(),
+                favoriteCount,
+                favoritedByMe
         );
     }
 }
