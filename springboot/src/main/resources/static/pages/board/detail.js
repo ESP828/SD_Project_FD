@@ -64,6 +64,14 @@
     writeBoardCache,
   } = board;
 
+  function isEdited(item) {
+    const createdAt = new Date(item?.createdAt).getTime();
+    const updatedAt = new Date(item?.updatedAt).getTime();
+    return Number.isFinite(createdAt)
+      && Number.isFinite(updatedAt)
+      && updatedAt > createdAt;
+  }
+
   let selectedCommentImage = null;
   let commentImagePreviewUrl = null;
   let activeReplyForm = null;
@@ -809,7 +817,11 @@
     const meta = element("div", "detail-meta");
     meta.append(
       authorIdentity(post, { showAuthorMenu: true }),
-      element("span", "", formatDate(post.createdAt)),
+      element(
+        "span",
+        "",
+        `${formatDate(post.createdAt)}${isEdited(post) ? " · 수정됨" : ""}`,
+      ),
       element("span", "", `조회 ${post.viewCount || 0}`),
       element("span", "", `추천 ${post.likeCount || 0}`),
     );
@@ -1190,7 +1202,11 @@
     const top = element("div", "comment-top");
     top.append(
       authorIdentity(comment, { showAuthorMenu: true }),
-      element("span", "comment-date", formatDate(comment.createdAt)),
+      element(
+        "span",
+        "comment-date",
+        `${formatDate(comment.createdAt)}${isEdited(comment) ? " · 수정됨" : ""}`,
+      ),
     );
     item.append(top, element("div", "comment-content", comment.content));
 

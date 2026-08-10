@@ -49,6 +49,14 @@
     writeBoardCache,
   } = board;
 
+  function isEdited(item) {
+    const createdAt = new Date(item?.createdAt).getTime();
+    const updatedAt = new Date(item?.updatedAt).getTime();
+    return Number.isFinite(createdAt)
+      && Number.isFinite(updatedAt)
+      && updatedAt > createdAt;
+  }
+
   function renderLoading() {
     boardList.replaceChildren();
     const loading = element("div", "board-loading");
@@ -121,9 +129,11 @@
       element(
         "span",
         "",
-        ["BEST", "POPULAR"].includes(state.boardType)
-          ? formatWaitingDate(post.createdAt)
-          : formatDate(post.createdAt),
+        `${
+          ["BEST", "POPULAR"].includes(state.boardType)
+            ? formatWaitingDate(post.createdAt)
+            : formatDate(post.createdAt)
+        }${isEdited(post) ? " · 수정됨" : ""}`,
       ),
     );
     if (post.restaurant?.name) {
