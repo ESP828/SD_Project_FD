@@ -399,7 +399,7 @@ function initializeMap() {
     const data = response.data || {};
     presetItems = (data.restaurants || []).map(toPresetPlace);
     pageTitle.textContent = data.title || "Presset 지도";
-    presetSummary.textContent = data.summary || "이 Presset에 포함된 맛집만 표시합니다.";
+    presetSummary.textContent = "이 Presset에 포함된 맛집만 표시합니다.";
     presetBack.href = `/pages/presset/detail.html?presetId=${encodeURIComponent(presetId)}`;
     document.title = `${data.title || "Presset"} 지도 · 푸드덕`;
     renderPresetFilters();

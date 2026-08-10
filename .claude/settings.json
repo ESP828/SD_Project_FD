@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(powershell -NoProfile -Command \"Stop-Process -Id 20636 -Force; Start-Sleep -Seconds 2; Get-Process -Id 20636 -ErrorAction SilentlyContinue\")",
+      "Bash(powershell -NoProfile -Command \"Get-NetTCPConnection -LocalPort 8081 -State Listen -ErrorAction SilentlyContinue\")"
+    ]
+  }
+}

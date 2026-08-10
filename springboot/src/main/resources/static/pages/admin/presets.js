@@ -21,9 +21,6 @@
     editingId = preset?.presetId || null;
     document.querySelector("#preset-dialog-title").textContent = editingId ? "Presset 수정" : "Presset 등록";
     form.elements.title.value = preset?.title || "";
-    form.elements.summary.value = preset?.summary || "";
-    form.elements.description.value = preset?.description || "";
-    form.elements.imageUrl.value = preset?.imageUrl || "";
     form.elements.category.value = preset?.category || "";
     form.elements.displayOrder.value = preset?.displayOrder ?? 0;
     form.elements.status.value = preset?.status || "ACTIVE";
@@ -70,8 +67,7 @@
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
     const payload = {
-      title: form.elements.title.value.trim(), summary: form.elements.summary.value.trim(),
-      description: form.elements.description.value.trim(), imageUrl: form.elements.imageUrl.value.trim(),
+      title: form.elements.title.value.trim(),
       category: form.elements.category.value.trim(), displayOrder: Number(form.elements.displayOrder.value) || 0,
       status: form.elements.status.value,
     };

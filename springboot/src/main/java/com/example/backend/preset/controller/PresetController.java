@@ -11,16 +11,19 @@ import com.example.backend.preset.dto.response.PresetTagResponse;
 import com.example.backend.preset.service.PresetService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 
@@ -48,16 +51,28 @@ public class PresetController {
         ));
     }
 
-    @PostMapping
+    @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @ResponseStatus(HttpStatus.CREATED)
     public ApiResponse<Long> createPreset(
             @AuthenticationPrincipal AuthenticatedAccount account,
-            @Valid @RequestBody PresetCreateRequest request
+            @Valid @RequestPart("data") PresetCreateRequest request,
+            @RequestPart(value = "image", required = false) MultipartFile image
     ) {
         return ApiResponse.success(
                 "프리셋을 등록했습니다.",
-                presetService.createPreset(account.accountId(), request)
+                presetService.createPreset(account.accountId(), request, image)
         );
+    }
+
+    @PutMapping(value = "/{presetId}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ApiResponse<Void> updatePreset(
+            @PathVariable Long presetId,
+            @AuthenticationPrincipal AuthenticatedAccount account,
+            @Valid @RequestPart("data") PresetCreateRequest request,
+            @RequestPart(value = "image", required = false) MultipartFile image
+    ) {
+        presetService.updatePreset(presetId, account.accountId(), request, image);
+        return ApiResponse.success("프리셋을 수정했습니다.", null);
     }
 
     @GetMapping("/tags")

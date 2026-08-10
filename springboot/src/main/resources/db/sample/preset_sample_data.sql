@@ -6,18 +6,12 @@ START TRANSACTION;
 
 INSERT INTO preset (
     title,
-    summary,
-    description,
-    image_url,
     category,
     display_order,
     status
 )
 SELECT
     '성수 데이트 맛집',
-    '분위기 좋은 성수 맛집을 한 번에 확인해 보세요.',
-    '데이트하기 좋은 분위기와 메뉴를 갖춘 성수 음식점을 모은 프리셋입니다.',
-    NULL,
     '데이트',
     1,
     'ACTIVE'
@@ -27,18 +21,12 @@ WHERE NOT EXISTS (
 
 INSERT INTO preset (
     title,
-    summary,
-    description,
-    image_url,
     category,
     display_order,
     status
 )
 SELECT
     '가족 외식 추천 맛집',
-    '가족과 함께 편하게 식사할 수 있는 맛집입니다.',
-    '여러 연령대가 함께 방문하기 좋은 음식점을 모은 프리셋입니다.',
-    NULL,
     '가족 외식',
     2,
     'ACTIVE'
@@ -48,18 +36,12 @@ WHERE NOT EXISTS (
 
 INSERT INTO preset (
     title,
-    summary,
-    description,
-    image_url,
     category,
     display_order,
     status
 )
 SELECT
     '혼자 먹기 좋은 맛집',
-    '혼자 방문해도 부담 없는 음식점을 모았습니다.',
-    '1인 좌석과 혼밥 메뉴를 이용하기 좋은 음식점을 모은 프리셋입니다.',
-    NULL,
     '혼밥',
     3,
     'ACTIVE'

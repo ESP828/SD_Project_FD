@@ -8,6 +8,8 @@ import com.example.backend.admin.dto.response.AdminPresetResponse;
 import com.example.backend.admin.query.AdminPresetQueryRepository;
 import com.example.backend.global.exception.BusinessException;
 import com.example.backend.global.exception.ErrorCode;
+import com.example.backend.preset.query.PresetImageQueryRepository;
+import com.example.backend.preset.storage.PresetImageStorage;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -19,9 +21,17 @@ import java.util.Set;
 public class AdminPresetService {
 
     private final AdminPresetQueryRepository queryRepository;
+    private final PresetImageQueryRepository imageQueryRepository;
+    private final PresetImageStorage imageStorage;
 
-    public AdminPresetService(AdminPresetQueryRepository queryRepository) {
+    public AdminPresetService(
+            AdminPresetQueryRepository queryRepository,
+            PresetImageQueryRepository imageQueryRepository,
+            PresetImageStorage imageStorage
+    ) {
         this.queryRepository = queryRepository;
+        this.imageQueryRepository = imageQueryRepository;
+        this.imageStorage = imageStorage;
     }
 
     @Transactional(readOnly = true)
@@ -39,8 +49,9 @@ public class AdminPresetService {
     }
 
     @Transactional
-    public void update(Long presetId, AdminPresetUpsertRequest request) {
+    public void update(Long presetId, Long requesterAccountId, AdminPresetUpsertRequest request) {
         requirePreset(presetId);
+        assertOwner(presetId, requesterAccountId);
         queryRepository.update(presetId, request);
     }
 
@@ -48,6 +59,8 @@ public class AdminPresetService {
     public void delete(Long presetId) {
         requirePreset(presetId);
         queryRepository.logicalDelete(presetId);
+        imageQueryRepository.findStoredFilename(presetId).ifPresent(imageStorage::delete);
+        imageQueryRepository.deleteByPresetId(presetId);
     }
 
     @Transactional
@@ -105,6 +118,13 @@ public class AdminPresetService {
     private void requirePreset(Long presetId) {
         if (presetId == null || presetId <= 0 || !queryRepository.presetExists(presetId)) {
             throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND, "Presset을 찾을 수 없습니다.");
+        }
+    }
+
+    private void assertOwner(Long presetId, Long requesterAccountId) {
+        Long ownerAccountId = queryRepository.findOwnerAccountId(presetId);
+        if (ownerAccountId == null || !ownerAccountId.equals(requesterAccountId)) {
+            throw new BusinessException(ErrorCode.PRESET_OWNER_REQUIRED);
         }
     }
 }

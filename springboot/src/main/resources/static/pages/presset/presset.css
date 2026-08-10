@@ -140,6 +140,94 @@
   font-weight: 700;
 }
 
+.preset-field-hint {
+  margin: 0;
+  color: var(--color-subtle);
+  font-size: 0.78rem;
+  font-weight: 650;
+}
+
+.preset-field-hint.is-limit {
+  color: #b45309;
+  font-weight: 800;
+}
+
+.preset-token-field {
+  display: flex;
+  min-height: 48px;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--color-line);
+  border-radius: 12px;
+  background: #fff;
+}
+
+.preset-token-field:focus-within {
+  border-color: var(--color-orange);
+  outline: 3px solid rgba(255, 152, 0, 0.16);
+}
+
+.preset-token-list {
+  display: contents;
+}
+
+.preset-token {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 6px 5px 11px;
+  border-radius: 999px;
+  color: var(--color-orange-dark);
+  background: var(--color-orange-soft);
+  font-size: 0.8rem;
+  font-weight: 800;
+  list-style: none;
+}
+
+.preset-token-remove {
+  display: grid;
+  width: 18px;
+  height: 18px;
+  place-items: center;
+  border-radius: 50%;
+  color: inherit;
+  background: rgba(255, 255, 255, 0.55);
+  font-size: 0.8rem;
+  line-height: 1;
+}
+
+.preset-token-remove:hover {
+  background: rgba(255, 255, 255, 0.85);
+}
+
+.preset-token-field input {
+  min-width: 90px;
+  min-height: 0;
+  flex: 1;
+  border: 0;
+  padding: 6px 2px;
+}
+
+.preset-token-field input:focus {
+  outline: none;
+}
+
+.preset-token-field input:disabled {
+  background: transparent;
+}
+
+.preset-image-preview {
+  width: 160px;
+  height: 120px;
+  margin-top: 10px;
+  border: 1px solid var(--color-line);
+  border-radius: 12px;
+  object-fit: cover;
+  background: var(--color-cream);
+}
+
 .preset-public-field {
   gap: 10px;
 }
@@ -410,10 +498,20 @@
   font-weight: 850;
 }
 
-.preset-card-visual .preset-category {
+.preset-category-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.preset-card-visual .preset-category-group {
   position: absolute;
   bottom: 14px;
   left: 14px;
+}
+
+.preset-card-visual .preset-category {
   box-shadow: 0 5px 18px rgba(15, 43, 77, 0.1);
 }
 
@@ -463,17 +561,6 @@
   border-radius: 10px;
   object-fit: cover;
   background: var(--color-cream);
-}
-
-.preset-card-summary {
-  display: -webkit-box;
-  min-height: 50px;
-  overflow: hidden;
-  margin-bottom: 20px;
-  color: var(--color-muted);
-  font-size: 0.88rem;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
 }
 
 .preset-card-meta {
@@ -583,6 +670,10 @@
 .preset-detail-hero {
   display: grid;
   overflow: hidden;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.preset-detail-hero--with-image {
   grid-template-columns: minmax(320px, 0.9fr) minmax(0, 1.1fr);
 }
 
@@ -602,17 +693,6 @@
 .preset-detail-copy h1 {
   margin: 18px 0 14px;
   font-size: clamp(2.2rem, 4vw, 3.7rem);
-}
-
-.preset-detail-summary {
-  margin-bottom: 18px;
-  color: var(--color-navy);
-  font-size: 1.08rem;
-  font-weight: 750;
-}
-
-.preset-detail-description {
-  color: var(--color-muted);
 }
 
 .preset-detail-stats {
@@ -635,6 +715,12 @@
   flex-wrap: wrap;
   gap: 10px;
   margin-top: 22px;
+}
+
+.preset-edit-form {
+  grid-column: 1 / -1;
+  margin: 24px clamp(20px, 4vw, 40px);
+  box-shadow: none;
 }
 
 .preset-detail-favorite {
@@ -754,6 +840,7 @@
   }
 
   .preset-detail-hero,
+  .preset-detail-hero--with-image,
   .preset-restaurant-card {
     grid-template-columns: 1fr;
   }

@@ -5,9 +5,6 @@ import java.time.LocalDateTime;
 public record AdminPresetResponse(
         Long presetId,
         String title,
-        String summary,
-        String description,
-        String imageUrl,
         String category,
         long viewCount,
         int displayOrder,

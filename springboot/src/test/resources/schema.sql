@@ -78,9 +78,6 @@ CREATE TABLE IF NOT EXISTS notification (
 CREATE TABLE IF NOT EXISTS preset (
     preset_id BIGINT AUTO_INCREMENT PRIMARY KEY,
     title VARCHAR(100) NOT NULL,
-    summary VARCHAR(255) NOT NULL,
-    description VARCHAR(2000),
-    image_url VARCHAR(500),
     category VARCHAR(50) NOT NULL,
     view_count INT NOT NULL DEFAULT 0,
     display_order INT NOT NULL DEFAULT 0,
@@ -91,6 +88,16 @@ CREATE TABLE IF NOT EXISTS preset (
     account_id BIGINT NOT NULL,
     name VARCHAR(100),
     is_public BOOLEAN DEFAULT TRUE
+);
+
+CREATE TABLE IF NOT EXISTS preset_image (
+    preset_image_id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    preset_id BIGINT NOT NULL UNIQUE,
+    stored_filename VARCHAR(255) NOT NULL,
+    original_filename VARCHAR(255),
+    content_type VARCHAR(100) NOT NULL,
+    file_size BIGINT NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS preset_restaurant (

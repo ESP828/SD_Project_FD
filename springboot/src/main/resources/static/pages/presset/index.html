@@ -56,54 +56,34 @@
           </div>
 
           <div class="preset-form-field">
-            <label for="preset-summary">요약 <span class="preset-required" aria-hidden="true">*</span></label>
-            <input
-              id="preset-summary"
-              name="summary"
-              type="text"
-              maxlength="255"
-              required
-              aria-describedby="preset-summary-error"
-              placeholder="프리셋을 한 문장으로 소개해 주세요"
-            >
-            <p id="preset-summary-error" class="preset-field-error" aria-live="polite"></p>
-          </div>
-
-          <div class="preset-form-field preset-form-field--full">
-            <label for="preset-description">상세 설명 <span class="preset-optional">(선택)</span></label>
-            <textarea
-              id="preset-description"
-              name="description"
-              rows="5"
-              maxlength="5000"
-              placeholder="어떤 상황에 어울리는 맛집 모음인지 자세히 적어 주세요"
-            ></textarea>
-          </div>
-
-          <div class="preset-form-field">
-            <label for="preset-image-url">대표 이미지 <span class="preset-optional">(선택)</span></label>
-            <input
-              id="preset-image-url"
-              name="image_url"
-              type="url"
-              maxlength="500"
-              inputmode="url"
-              placeholder="https://example.com/image.jpg"
-            >
-          </div>
-
-          <div class="preset-form-field">
-            <label for="preset-category">카테고리 <span class="preset-required" aria-hidden="true">*</span></label>
-            <input
-              id="preset-category"
-              name="category"
-              type="text"
-              maxlength="50"
-              required
-              aria-describedby="preset-category-error"
-              placeholder="예: 데이트, 가족 모임, 혼밥"
-            >
+            <label for="preset-category-input">카테고리 <span class="preset-required" aria-hidden="true">*</span></label>
+            <input id="preset-category" name="category" type="hidden" required>
+            <div id="preset-category-field" class="preset-token-field">
+              <ul id="preset-category-token-list" class="preset-token-list"></ul>
+              <input
+                id="preset-category-input"
+                type="text"
+                maxlength="50"
+                aria-describedby="preset-category-error preset-category-hint"
+                placeholder="예: 데이트, 가성비, 한식"
+              >
+            </div>
+            <p id="preset-category-hint" class="preset-field-hint">쉼표(,) 또는 Enter로 구분해 최대 3개까지 입력할 수 있습니다.</p>
             <p id="preset-category-error" class="preset-field-error" aria-live="polite"></p>
+          </div>
+
+          <div class="preset-form-field">
+            <label for="preset-image-input">이미지 첨부 <span class="preset-optional">(선택)</span></label>
+            <input
+              id="preset-image-input"
+              name="image"
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              aria-describedby="preset-image-hint preset-image-error"
+            >
+            <p id="preset-image-hint" class="preset-field-hint">jpg, png, webp / 5MB 이하</p>
+            <p id="preset-image-error" class="preset-field-error" aria-live="polite"></p>
+            <img id="preset-image-preview" class="preset-image-preview" alt="첨부한 이미지 미리보기" hidden>
           </div>
 
           <fieldset class="preset-form-field preset-form-field--full preset-public-field">

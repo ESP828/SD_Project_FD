@@ -5,8 +5,6 @@ import java.util.List;
 public record PresetMapResponse(
         Long presetId,
         String title,
-        String summary,
-        String imageUrl,
         long favoriteCount,
         boolean favoriteByCurrentUser,
         List<PresetRestaurantResponse> restaurants

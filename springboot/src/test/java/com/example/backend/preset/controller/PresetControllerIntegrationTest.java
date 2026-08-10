@@ -9,16 +9,19 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -53,13 +56,11 @@ class PresetControllerIntegrationTest {
 
         jdbcTemplate.update("""
                 insert into preset (
-                    title, summary, description, image_url, category,
+                    title, category,
                     view_count, display_order, status, account_id, is_public
-                ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) values (?, ?, ?, ?, ?, ?, ?)
                 """,
-                "성수 데이트 맛집", "분위기 좋은 성수 맛집을 한 번에 확인하세요.",
-                "데이트하기 좋은 음식점을 모은 프리셋입니다.",
-                "/images/characters/cooking.png", "데이트", 12, 1, "ACTIVE", accountId, true);
+                "성수 데이트 맛집", "데이트", 12, 1, "ACTIVE", accountId, true);
         presetId = jdbcTemplate.queryForObject("select max(preset_id) from preset", Long.class);
 
         jdbcTemplate.update("""
@@ -90,19 +91,18 @@ class PresetControllerIntegrationTest {
     @Test
     @DisplayName("로그인 사용자는 계정 소유권과 공개 여부를 포함해 Presset을 등록한다")
     void createsPresetForAuthenticatedAccount() throws Exception {
-        mockMvc.perform(post("/api/presets")
-                        .header("Authorization", "Bearer " + accessToken)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {
-                                  "title": "비공개 회식 후보",
-                                  "summary": "팀원들과 검토할 회식 장소입니다.",
-                                  "description": "예약 전에 내부에서 먼저 확인합니다.",
-                                  "imageUrl": "https://example.com/dinner.jpg",
-                                  "category": "회식",
-                                  "isPublic": false
-                                }
-                                """))
+        MockMultipartFile data = new MockMultipartFile(
+                "data", "data", MediaType.APPLICATION_JSON_VALUE, """
+                {
+                  "title": "비공개 회식 후보",
+                  "category": "회식",
+                  "isPublic": false
+                }
+                """.getBytes(StandardCharsets.UTF_8)
+        );
+        mockMvc.perform(multipart("/api/presets")
+                        .file(data)
+                        .header("Authorization", "Bearer " + accessToken))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.message").value("프리셋을 등록했습니다."))
                 .andExpect(jsonPath("$.data").isNumber());
@@ -128,15 +128,17 @@ class PresetControllerIntegrationTest {
     @Test
     @DisplayName("Presset 등록 요청의 필수값을 서버에서도 검증한다")
     void validatesPresetCreateRequest() throws Exception {
-        mockMvc.perform(post("/api/presets")
-                        .header("Authorization", "Bearer " + accessToken)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {"title":" ","summary":"","category":" "}
-                                """))
+        MockMultipartFile data = new MockMultipartFile(
+                "data", "data", MediaType.APPLICATION_JSON_VALUE,
+                """
+                {"title":" ","category":" "}
+                """.getBytes(StandardCharsets.UTF_8)
+        );
+        mockMvc.perform(multipart("/api/presets")
+                        .file(data)
+                        .header("Authorization", "Bearer " + accessToken))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.data.title").exists())
-                .andExpect(jsonPath("$.data.summary").exists())
                 .andExpect(jsonPath("$.data.category").exists());
     }
 
@@ -196,11 +198,13 @@ class PresetControllerIntegrationTest {
     void protectsFavoriteAndAdminApis() throws Exception {
         mockMvc.perform(post("/api/presets/{presetId}/favorite", presetId))
                 .andExpect(status().isUnauthorized());
-        mockMvc.perform(post("/api/presets")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {"title":"테스트","summary":"요약","category":"기타"}
-                                """))
+        MockMultipartFile data = new MockMultipartFile(
+                "data", "data", MediaType.APPLICATION_JSON_VALUE,
+                """
+                {"title":"테스트","category":"기타"}
+                """.getBytes(StandardCharsets.UTF_8)
+        );
+        mockMvc.perform(multipart("/api/presets").file(data))
                 .andExpect(status().isUnauthorized());
         mockMvc.perform(get("/api/admin/presets")
                         .header("Authorization", "Bearer " + accessToken))

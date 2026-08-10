@@ -22,8 +22,9 @@ const Api = {
   },
 
   async request(path, { method = "GET", body, auth = true, _retried = false } = {}) {
+    const isFormData = typeof FormData !== "undefined" && body instanceof FormData;
     const headers = { Accept: "application/json" };
-    if (body !== undefined) {
+    if (body !== undefined && !isFormData) {
       headers["Content-Type"] = "application/json";
     }
 
@@ -35,7 +36,7 @@ const Api = {
     const response = await fetch(`${this.baseUrl}${path}`, {
       method,
       headers,
-      body: body === undefined ? undefined : JSON.stringify(body),
+      body: body === undefined ? undefined : isFormData ? body : JSON.stringify(body),
       credentials: "same-origin",
     });
 

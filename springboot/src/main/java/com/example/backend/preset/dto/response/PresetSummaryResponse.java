@@ -6,9 +6,8 @@ import java.util.List;
 public record PresetSummaryResponse(
         Long presetId,
         String title,
-        String summary,
-        String imageUrl,
         String category,
+        String imageUrl,
         long viewCount,
         int displayOrder,
         long restaurantCount,

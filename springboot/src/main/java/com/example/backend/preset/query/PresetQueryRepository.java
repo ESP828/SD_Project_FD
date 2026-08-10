@@ -22,15 +22,16 @@ import java.util.Optional;
 @Repository
 public class PresetQueryRepository {
 
+    private static final String IMAGE_BASE_URL = "/uploads/preset-images/";
+
     private static final String LIST_SELECT = """
             select p.preset_id,
                    p.title,
-                   p.summary,
-                   p.image_url,
                    p.category,
                    p.view_count,
                    p.display_order,
                    p.created_at,
+                   pi.stored_filename,
                    count(distinct case when r.status = 'ACTIVE' then r.restaurant_id end) as restaurant_count,
                    (select count(*) from preset_favorite pf_count
                      where pf_count.preset_id = p.preset_id) as favorite_count,
@@ -42,6 +43,7 @@ public class PresetQueryRepository {
               from preset p
               left join preset_restaurant pr on pr.preset_id = p.preset_id
               left join restaurant r on r.restaurant_id = pr.restaurant_id
+              left join preset_image pi on pi.preset_id = p.preset_id
             """;
 
     private static final String ACTIVE_FILTER = """
@@ -54,7 +56,6 @@ public class PresetQueryRepository {
                ))
                and (:keyword = ''
                     or lower(p.title) like :keywordLike
-                    or lower(p.summary) like :keywordLike
                     or exists (
                         select 1
                           from preset_tag pt_keyword
@@ -65,8 +66,8 @@ public class PresetQueryRepository {
             """;
 
     private static final String LIST_GROUP = """
-             group by p.preset_id, p.title, p.summary, p.image_url, p.category,
-                      p.view_count, p.display_order, p.created_at
+             group by p.preset_id, p.title, p.category,
+                      p.view_count, p.display_order, p.created_at, pi.stored_filename
             """;
 
     private static final String COUNT_SQL = """
@@ -81,7 +82,6 @@ public class PresetQueryRepository {
                ))
                and (:keyword = ''
                     or lower(p.title) like :keywordLike
-                    or lower(p.summary) like :keywordLike
                     or exists (
                         select 1
                           from preset_tag pt_keyword
@@ -94,20 +94,21 @@ public class PresetQueryRepository {
     private static final String DETAIL_SQL = """
             select p.preset_id,
                    p.title,
-                   p.summary,
-                   p.description,
-                   p.image_url,
                    p.category,
                    p.view_count,
                    p.created_at,
+                   pi.stored_filename,
                    (select count(*) from preset_favorite pf_count
                      where pf_count.preset_id = p.preset_id) as favorite_count,
                    case when :accountId is not null and exists (
                        select 1 from preset_favorite pf_me
                         where pf_me.preset_id = p.preset_id
                           and pf_me.account_id = :accountId
-                   ) then true else false end as favorite_by_current_user
+                   ) then true else false end as favorite_by_current_user,
+                   case when :accountId is not null and p.account_id = :accountId
+                        then true else false end as is_owner
              from preset p
+             left join preset_image pi on pi.preset_id = p.preset_id
              where p.preset_id = :presetId
                and p.status = 'ACTIVE'
                and (coalesce(p.is_public, true) = true or p.account_id = :accountId)
@@ -170,18 +171,15 @@ public class PresetQueryRepository {
     public Long create(Long accountId, PresetCreateRequest request) {
         String sql = """
                 insert into preset (
-                    title, summary, description, image_url, category,
+                    title, category,
                     account_id, is_public
                 ) values (
-                    :title, :summary, :description, :imageUrl, :category,
+                    :title, :category,
                     :accountId, :isPublic
                 )
                 """;
         MapSqlParameterSource parameters = new MapSqlParameterSource()
                 .addValue("title", request.title().trim())
-                .addValue("summary", request.summary().trim())
-                .addValue("description", blankToNull(request.description()))
-                .addValue("imageUrl", blankToNull(request.imageUrl()))
                 .addValue("category", request.category().trim())
                 .addValue("accountId", accountId)
                 .addValue("isPublic", request.publicOrDefault());
@@ -189,6 +187,32 @@ public class PresetQueryRepository {
         jdbcTemplate.update(sql, parameters, keyHolder, new String[]{"preset_id"});
         Number key = keyHolder.getKey();
         return key == null ? null : key.longValue();
+    }
+
+    public int update(Long presetId, PresetCreateRequest request) {
+        String sql = """
+                update preset
+                   set title = :title,
+                       category = :category,
+                       is_public = :isPublic,
+                       updated_at = current_timestamp
+                 where preset_id = :presetId
+                """;
+        MapSqlParameterSource parameters = new MapSqlParameterSource()
+                .addValue("presetId", presetId)
+                .addValue("title", request.title().trim())
+                .addValue("category", request.category().trim())
+                .addValue("isPublic", request.publicOrDefault());
+        return jdbcTemplate.update(sql, parameters);
+    }
+
+    public Long findOwnerAccountId(Long presetId) {
+        String sql = "select account_id from preset where preset_id = :presetId and status = 'ACTIVE'";
+        return jdbcTemplate.query(
+                sql,
+                new MapSqlParameterSource("presetId", presetId),
+                (rs, rowNumber) -> rs.getObject("account_id", Long.class)
+        ).stream().findFirst().orElse(null);
     }
 
     public long countActive(Long accountId, Integer tagId, String keyword) {
@@ -222,8 +246,8 @@ public class PresetQueryRepository {
                   and pf_saved.account_id = :accountId
                  where p.status = 'ACTIVE'
                    and (coalesce(p.is_public, true) = true or p.account_id = :accountId)
-                 group by p.preset_id, p.title, p.summary, p.image_url, p.category,
-                          p.view_count, p.display_order, p.created_at, pf_saved.created_at
+                 group by p.preset_id, p.title, p.category,
+                          p.view_count, p.display_order, p.created_at, pi.stored_filename, pf_saved.created_at
                  order by pf_saved.created_at desc, p.preset_id desc
                 """;
         return enrichSummaries(jdbcTemplate.query(sql, parameters, this::mapSummaryRow));
@@ -251,13 +275,12 @@ public class PresetQueryRepository {
                 new PresetDetailRow(
                         resultSet.getLong("preset_id"),
                         resultSet.getString("title"),
-                        resultSet.getString("summary"),
-                        resultSet.getString("description"),
-                        resultSet.getString("image_url"),
                         resultSet.getString("category"),
                         resultSet.getLong("view_count"),
                         resultSet.getLong("favorite_count"),
                         resultSet.getBoolean("favorite_by_current_user"),
+                        resultSet.getBoolean("is_owner"),
+                        imageUrl(resultSet.getString("stored_filename")),
                         resultSet.getObject("created_at", LocalDateTime.class)
                 )
         ).stream().findFirst();
@@ -388,9 +411,8 @@ public class PresetQueryRepository {
         return rows.stream().map(row -> new PresetSummaryResponse(
                 row.presetId(),
                 row.title(),
-                row.summary(),
-                row.imageUrl(),
                 row.category(),
+                row.imageUrl(),
                 row.viewCount(),
                 row.displayOrder(),
                 row.restaurantCount(),
@@ -453,9 +475,8 @@ public class PresetQueryRepository {
         return new PresetSummaryRow(
                 resultSet.getLong("preset_id"),
                 resultSet.getString("title"),
-                resultSet.getString("summary"),
-                resultSet.getString("image_url"),
                 resultSet.getString("category"),
+                imageUrl(resultSet.getString("stored_filename")),
                 resultSet.getLong("view_count"),
                 resultSet.getInt("display_order"),
                 resultSet.getLong("restaurant_count"),
@@ -499,8 +520,8 @@ public class PresetQueryRepository {
         return resultSet.wasNull() ? null : value;
     }
 
-    private static String blankToNull(String value) {
-        return value == null || value.isBlank() ? null : value.trim();
+    private static String imageUrl(String storedFilename) {
+        return storedFilename == null ? null : IMAGE_BASE_URL + storedFilename;
     }
 
     private static boolean isValidCoordinate(Double latitude, Double longitude) {
@@ -516,9 +537,8 @@ public class PresetQueryRepository {
     private record PresetSummaryRow(
             Long presetId,
             String title,
-            String summary,
-            String imageUrl,
             String category,
+            String imageUrl,
             long viewCount,
             int displayOrder,
             long restaurantCount,
@@ -531,13 +551,12 @@ public class PresetQueryRepository {
     public record PresetDetailRow(
             Long presetId,
             String title,
-            String summary,
-            String description,
-            String imageUrl,
             String category,
             long viewCount,
             long favoriteCount,
             boolean favoriteByCurrentUser,
+            boolean isOwner,
+            String imageUrl,
             LocalDateTime createdAt
     ) {
     }

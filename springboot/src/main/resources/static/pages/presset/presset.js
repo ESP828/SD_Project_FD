@@ -13,15 +13,160 @@
   const state = { page: 0, size: 12, sort: "popular", tagId: null, keyword: "", tags: [] };
   const requiredCreateFields = [
     { name: "title", message: "제목을 입력해주세요", errorId: "preset-title-error" },
-    { name: "summary", message: "요약을 입력해주세요", errorId: "preset-summary-error" },
     { name: "category", message: "카테고리를 입력해주세요", errorId: "preset-category-error" },
   ];
+  const categoryHiddenInput = document.querySelector("#preset-category");
+  const categoryInput = document.querySelector("#preset-category-input");
+  const categoryTokenList = document.querySelector("#preset-category-token-list");
+  const categoryHint = document.querySelector("#preset-category-hint");
+  const MAX_CATEGORY_TOKENS = 3;
+  const categoryTokens = [];
+  const imageInput = document.querySelector("#preset-image-input");
+  const imagePreview = document.querySelector("#preset-image-preview");
+  const imageError = document.querySelector("#preset-image-error");
+  const ALLOWED_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
+  const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 
   function element(tagName, className = "", text = "") {
     const node = document.createElement(tagName);
     if (className) node.className = className;
     if (text) node.textContent = text;
     return node;
+  }
+
+  function syncCategoryHiddenInput() {
+    categoryHiddenInput.value = categoryTokens.join(", ");
+    categoryHiddenInput.dispatchEvent(new Event("input", { bubbles: true }));
+  }
+
+  function renderCategoryTokens() {
+    categoryTokenList.replaceChildren();
+    categoryTokens.forEach((token, index) => {
+      const item = element("li", "preset-token");
+      const remove = element("button", "preset-token-remove", "×");
+      remove.type = "button";
+      remove.setAttribute("aria-label", `${token} 삭제`);
+      remove.addEventListener("click", () => {
+        categoryTokens.splice(index, 1);
+        renderCategoryTokens();
+        syncCategoryHiddenInput();
+        updateCategoryLimitState();
+        categoryInput.focus();
+      });
+      item.append(document.createTextNode(token), remove);
+      categoryTokenList.append(item);
+    });
+  }
+
+  function updateCategoryLimitState() {
+    const atLimit = categoryTokens.length >= MAX_CATEGORY_TOKENS;
+    categoryInput.disabled = atLimit;
+    categoryHint.textContent = atLimit
+      ? "카테고리는 최대 3개까지 입력할 수 있습니다."
+      : "쉼표(,) 또는 Enter로 구분해 최대 3개까지 입력할 수 있습니다.";
+    categoryHint.classList.toggle("is-limit", atLimit);
+  }
+
+  function addCategoryToken(rawValue) {
+    const value = rawValue.trim();
+    if (!value) return false;
+    if (categoryTokens.length >= MAX_CATEGORY_TOKENS) return false;
+    if (categoryTokens.includes(value)) return false;
+    categoryTokens.push(value);
+    return true;
+  }
+
+  function commitCategoryInputValue() {
+    const added = addCategoryToken(categoryInput.value);
+    categoryInput.value = "";
+    if (added) {
+      renderCategoryTokens();
+      syncCategoryHiddenInput();
+    }
+    updateCategoryLimitState();
+  }
+
+  function resetCategoryTokens() {
+    categoryTokens.length = 0;
+    categoryInput.value = "";
+    renderCategoryTokens();
+    syncCategoryHiddenInput();
+    updateCategoryLimitState();
+  }
+
+  categoryInput.addEventListener("keydown", (event) => {
+    if (event.key === "," || event.key === "Enter") {
+      event.preventDefault();
+      commitCategoryInputValue();
+    }
+  });
+
+  categoryInput.addEventListener("input", () => {
+    if (!categoryInput.value.includes(",")) return;
+    const parts = categoryInput.value.split(",");
+    const trailing = parts.pop();
+    parts.forEach((part) => addCategoryToken(part));
+    categoryInput.value = trailing;
+    renderCategoryTokens();
+    syncCategoryHiddenInput();
+    updateCategoryLimitState();
+  });
+
+  categoryInput.addEventListener("blur", () => {
+    if (categoryInput.value.trim()) commitCategoryInputValue();
+  });
+
+  updateCategoryLimitState();
+
+  function resetImageField() {
+    imageInput.value = "";
+    imagePreview.hidden = true;
+    imagePreview.src = "";
+    imageError.textContent = "";
+  }
+
+  imageInput.addEventListener("change", () => {
+    imageError.textContent = "";
+    const file = imageInput.files?.[0];
+    if (!file) {
+      imagePreview.hidden = true;
+      imagePreview.src = "";
+      return;
+    }
+    if (!ALLOWED_IMAGE_TYPES.has(file.type)) {
+      imageError.textContent = "jpg, png, webp 형식의 이미지만 첨부할 수 있습니다.";
+      imageInput.value = "";
+      imagePreview.hidden = true;
+      return;
+    }
+    if (file.size > MAX_IMAGE_BYTES) {
+      imageError.textContent = "이미지 파일은 5MB 이하만 첨부할 수 있습니다.";
+      imageInput.value = "";
+      imagePreview.hidden = true;
+      return;
+    }
+    imagePreview.src = URL.createObjectURL(file);
+    imagePreview.hidden = false;
+  });
+
+  function parseCategoryTokens(category) {
+    const tokens = [];
+    (category || "").split(",").forEach((part) => {
+      const value = part.trim();
+      if (value && !tokens.includes(value)) tokens.push(value);
+    });
+    return tokens;
+  }
+
+  function createCategoryBadges(category) {
+    const group = element("div", "preset-category-group");
+    const tokens = parseCategoryTokens(category);
+    if (!tokens.length) {
+      group.append(element("span", "preset-category", "테마"));
+      return group;
+    }
+    tokens.forEach((token) => group.append(element("span", "preset-category", token)));
+    return group;
   }
 
   function detailPath(presetId) {
@@ -67,7 +212,7 @@
       const errorElement = document.querySelector(`#${errorId}`);
       const fieldMessage = field.value.trim() ? "" : message;
       setFieldError(field, errorElement, fieldMessage);
-      if (fieldMessage && !firstInvalid) firstInvalid = field;
+      if (fieldMessage && !firstInvalid) firstInvalid = field.name === "category" ? categoryInput : field;
     });
     firstInvalid?.focus();
     return firstInvalid === null;
@@ -76,13 +221,13 @@
   async function submitPreset(formData) {
     const payload = {
       title: formData.title,
-      summary: formData.summary,
-      description: formData.description || null,
-      imageUrl: formData.imageUrl || null,
-      category: formData.category,
+      category: Array.isArray(formData.category) ? formData.category.join(", ") : formData.category,
       isPublic: formData.isPublic,
     };
-    return Api.post("/presets", payload);
+    const body = new FormData();
+    body.append("data", new Blob([JSON.stringify(payload)], { type: "application/json" }));
+    if (formData.image) body.append("image", formData.image);
+    return Api.post("/presets", body);
   }
 
   function createErrorMessage(error) {
@@ -133,8 +278,8 @@
     const card = element("article", "preset-card");
     const visualLink = element("a", "preset-card-visual");
     visualLink.href = detailPath(preset.presetId);
-    visualLink.append(safeImage(preset.imageUrl, preset.title, "preset-card-image"));
-    visualLink.append(element("span", "preset-category", preset.category || "테마"));
+    if (preset.imageUrl) visualLink.append(safeImage(preset.imageUrl, preset.title, "preset-card-image"));
+    visualLink.append(createCategoryBadges(preset.category));
 
     const favorite = element("button", "preset-favorite-button", preset.favoriteByCurrentUser ? "♥" : "♡");
     favorite.type = "button";
@@ -151,7 +296,7 @@
     const body = element("div", "preset-card-body");
     const titleLink = element("a", "preset-card-title", preset.title || "이름 없는 Presset");
     titleLink.href = detailPath(preset.presetId);
-    body.append(titleLink, element("p", "preset-card-summary", preset.summary || "선별된 맛집을 확인해 보세요."));
+    body.append(titleLink);
 
     const tags = element("div", "preset-tag-list");
     (preset.tags || []).forEach((tag) => tags.append(element("span", "preset-tag", `#${tag.tagName}`)));
@@ -278,11 +423,9 @@
 
     const formData = {
       title: createForm.elements.title.value.trim(),
-      summary: createForm.elements.summary.value.trim(),
-      description: createForm.elements.description.value.trim(),
-      imageUrl: createForm.elements.image_url.value.trim(),
-      category: createForm.elements.category.value.trim(),
+      category: categoryTokens.slice(),
       isPublic: createForm.elements.is_public.checked,
+      image: imageInput.files?.[0] || null,
     };
 
     createSubmit.disabled = true;
@@ -293,6 +436,8 @@
       const presetId = response.data?.presetId ?? response.data?.preset_id ?? response.data;
       console.info("등록된 프리셋 ID:", presetId);
       createForm.reset();
+      resetCategoryTokens();
+      resetImageField();
       clearCreateValidation();
       setCreateResult("등록되었습니다", "success");
       state.page = 0;

@@ -6,13 +6,12 @@ import java.util.List;
 public record PresetDetailResponse(
         Long presetId,
         String title,
-        String summary,
-        String description,
-        String imageUrl,
         String category,
         long viewCount,
         long favoriteCount,
         boolean favoriteByCurrentUser,
+        boolean isOwner,
+        String imageUrl,
         LocalDateTime createdAt,
         List<PresetTagResponse> tags,
         List<PresetRestaurantResponse> restaurants

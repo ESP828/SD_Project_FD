@@ -22,7 +22,7 @@ public class AdminPresetQueryRepository {
 
     public List<AdminPresetResponse> findAll() {
         String sql = """
-                select p.preset_id, p.title, p.summary, p.description, p.image_url,
+                select p.preset_id, p.title,
                        p.category, p.view_count, p.display_order, p.status,
                        (select count(*) from preset_restaurant pr
                          where pr.preset_id = p.preset_id) as restaurant_count,
@@ -38,9 +38,6 @@ public class AdminPresetQueryRepository {
         return jdbcTemplate.query(sql, (rs, rowNumber) -> new AdminPresetResponse(
                 rs.getLong("preset_id"),
                 rs.getString("title"),
-                rs.getString("summary"),
-                rs.getString("description"),
-                rs.getString("image_url"),
                 rs.getString("category"),
                 rs.getLong("view_count"),
                 rs.getInt("display_order"),
@@ -56,10 +53,10 @@ public class AdminPresetQueryRepository {
     public Long create(Long accountId, AdminPresetUpsertRequest request) {
         String sql = """
                 insert into preset (
-                    title, summary, description, image_url, category,
+                    title, category,
                     display_order, status, deleted_at, account_id, is_public
                 ) values (
-                    :title, :summary, :description, :imageUrl, :category,
+                    :title, :category,
                     :displayOrder, :status,
                     case when :status = 'DELETED' then current_timestamp else null end,
                     :accountId, true
@@ -80,9 +77,6 @@ public class AdminPresetQueryRepository {
         String sql = """
                 update preset
                    set title = :title,
-                       summary = :summary,
-                       description = :description,
-                       image_url = :imageUrl,
                        category = :category,
                        display_order = :displayOrder,
                        status = :status,
@@ -109,6 +103,15 @@ public class AdminPresetQueryRepository {
 
     public boolean presetExists(Long presetId) {
         return exists("preset", "preset_id", presetId);
+    }
+
+    public Long findOwnerAccountId(Long presetId) {
+        String sql = "select account_id from preset where preset_id = :presetId";
+        return jdbcTemplate.query(
+                sql,
+                new MapSqlParameterSource("presetId", presetId),
+                (rs, rowNumber) -> rs.getObject("account_id", Long.class)
+        ).stream().findFirst().orElse(null);
     }
 
     public boolean activeRestaurantExists(Long restaurantId) {
@@ -197,9 +200,6 @@ public class AdminPresetQueryRepository {
     private static MapSqlParameterSource presetParameters(AdminPresetUpsertRequest request) {
         return new MapSqlParameterSource()
                 .addValue("title", request.title().trim())
-                .addValue("summary", request.summary().trim())
-                .addValue("description", blankToNull(request.description()))
-                .addValue("imageUrl", blankToNull(request.imageUrl()))
                 .addValue("category", request.category().trim())
                 .addValue("displayOrder", valueOrZero(request.displayOrder()))
                 .addValue("status", request.status());
