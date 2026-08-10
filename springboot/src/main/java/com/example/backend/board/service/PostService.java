@@ -70,7 +70,6 @@ public class PostService {
     private static final int MAX_AUTHOR_RECENT_POSTS = 5;
     private static final int MAX_AUTHOR_RECENT_COMMENTS = 5;
     private static final int BEST_COMMUNITY_MINIMUM_LIKE_COUNT = 3;
-    private static final Duration BEST_COMMUNITY_WINDOW = Duration.ofDays(7);
     private static final Duration RAPID_DUPLICATE_WINDOW =
             Duration.ofMillis(3_500);
     private static final long RAPID_DUPLICATE_WINDOW_NANOS =
@@ -333,10 +332,11 @@ public class PostService {
         BoardType readableBoardType = accessPolicy.isApprovedBusiness(currentAccount)
                 ? null
                 : BoardType.GENERAL;
+        int safeWindowDays = Math.max(1, Math.min(bestWindowDays, 365));
         Page<Post> result = postRepository.findBestPostPage(
                 readableBoardType,
                 PostCategory.NOTICE,
-                LocalDateTime.now().minus(BEST_COMMUNITY_WINDOW),
+                LocalDateTime.now().minusDays(safeWindowDays),
                 BEST_COMMUNITY_MINIMUM_LIKE_COUNT,
                 PostStatus.ACTIVE,
                 PageRequest.of(page, size)
