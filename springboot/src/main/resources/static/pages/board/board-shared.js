@@ -240,12 +240,6 @@
     return item;
   }
 
-  function authorMenuShortcut(label, href) {
-    const link = element("a", "author-menu-shortcut", label);
-    link.href = href;
-    return link;
-  }
-
   function renderAuthorMenuLoading(author, context = "COMMUNITY") {
     const menu = ensureAuthorMenu();
     menu.replaceChildren(
@@ -254,8 +248,8 @@
         "p",
         "author-menu-loading",
         context === "NEWS"
-          ? "커뮤니티와 가게 소식, 리뷰 활동을 불러오는 중입니다."
-          : "작성자의 공개 활동을 불러오는 중입니다.",
+          ? "커뮤니티와 가게 소식 활동을 불러오는 중입니다."
+          : "활동 정보를 불러오는 중입니다.",
       ),
     );
   }
@@ -346,83 +340,6 @@
     return section;
   }
 
-  function authorMenuReviewPath(review) {
-    const publicRestaurantId = Number(review?.publicRestaurantId);
-    if (Number.isSafeInteger(publicRestaurantId) && publicRestaurantId > 0) {
-      return `/pages/restaurant/detail.html?source=public&id=${encodeURIComponent(publicRestaurantId)}&tab=review`;
-    }
-    const restaurantId = Number(review?.restaurantId);
-    if (Number.isSafeInteger(restaurantId) && restaurantId > 0) {
-      return `/pages/restaurant/detail.html?source=owned&id=${encodeURIComponent(restaurantId)}&tab=review`;
-    }
-    return null;
-  }
-
-  function authorMenuReviewSection(summary) {
-    const group = element("section", "author-menu-review-group");
-    const heading = element("div", "author-menu-group-heading author-menu-group-heading--review");
-    heading.append(
-      element("strong", "author-menu-group-title", "리뷰 활동"),
-      element(
-        "small",
-        "author-menu-group-copy",
-        "음식점 상세에 공개되어 있는 이 작성자의 리뷰입니다.",
-      ),
-    );
-
-    const stats = element("div", "author-menu-stats author-menu-stats--review");
-    stats.append(authorMenuStat("작성한 리뷰", summary.reviewCount));
-
-    const section = element("section", "author-menu-recent");
-    section.append(element("strong", "author-menu-recent-title", "최근 리뷰"));
-    const reviews = Array.isArray(summary.recentReviews) ? summary.recentReviews : [];
-    if (reviews.length === 0) {
-      section.append(
-        element("p", "author-menu-recent-empty", "표시할 공개 리뷰가 없습니다."),
-      );
-    } else {
-      const list = element("ul", "author-menu-recent-list");
-      reviews.forEach((review) => {
-        const item = element("li", "author-menu-recent-item");
-        const href = authorMenuReviewPath(review);
-        const body = href
-          ? element("a", "author-menu-recent-link")
-          : element("div", "author-menu-recent-link author-menu-recent-link--static");
-        if (href) body.href = href;
-
-        const rating = Math.max(0, Math.min(5, Number(review.rating) || 0));
-        body.append(
-          element(
-            "span",
-            "author-menu-review-restaurant",
-            review.restaurantName || "음식점",
-          ),
-          element(
-            "span",
-            "author-menu-review-rating",
-            `${"★".repeat(rating)}${"☆".repeat(5 - rating)} · ${rating}점`,
-          ),
-          element(
-            "span",
-            "author-menu-review-content",
-            review.content || "작성한 리뷰 내용이 없습니다.",
-          ),
-          element(
-            "small",
-            "author-menu-recent-meta",
-            `공개 리뷰 · ${formatDate(review.createdAt)}`,
-          ),
-        );
-        item.append(body);
-        list.append(item);
-      });
-      section.append(list);
-    }
-
-    group.append(heading, stats, section);
-    return group;
-  }
-
   function renderAuthorMenuSummary(summary, context = "COMMUNITY") {
     const menu = ensureAuthorMenu();
     const newsContext = context === "NEWS";
@@ -458,7 +375,7 @@
         element(
           "p",
           "author-menu-context-copy",
-          "아래에서 커뮤니티 활동, 가게 소식 활동, 공개 리뷰를 구분해 표시합니다.",
+          "아래에서 이 작성자의 커뮤니티 활동과 가게 소식 활동을 구분해 표시합니다.",
         ),
       );
     }
@@ -526,33 +443,13 @@
       );
     }
 
-    const reviewGroup = authorMenuReviewSection(summary);
-
     const footer = element("div", "author-menu-footer");
     const isCurrentUser = Number(window.FooduckSession?.accountId)
       === Number(summary.accountId);
     if (isCurrentUser) {
-      const privateHeading = element("div", "author-menu-private-heading");
-      privateHeading.append(
-        element("strong", "author-menu-private-title", "내 마이페이지"),
-        element(
-          "small",
-          "author-menu-private-copy",
-          "본인 계정에서만 열 수 있는 개인 활동 바로가기입니다.",
-        ),
-      );
-
-      const myPageLink = element("a", "author-menu-link", "마이페이지 홈");
-      myPageLink.href = "/pages/mypage/index.html";
-
-      const shortcuts = element("nav", "author-menu-shortcuts");
-      shortcuts.setAttribute("aria-label", "마이페이지 바로가기");
-      shortcuts.append(
-        authorMenuShortcut("찜한 가게", "/pages/mypage/detail.html?tab=favorites"),
-        authorMenuShortcut("내 리뷰", "/pages/mypage/detail.html?tab=reviews"),
-        authorMenuShortcut("알림", "/pages/mypage/detail.html?tab=notifications"),
-      );
-      footer.append(privateHeading, myPageLink, shortcuts);
+      const myPageLink = element("a", "author-menu-link", "마이페이지");
+      myPageLink.href = "/pages/mypage/index.html#notifications";
+      footer.append(myPageLink);
     } else {
       const disabledLink = element(
         "span",
@@ -571,7 +468,7 @@
     if (communityHeading) children.push(communityHeading);
     children.push(stats, recentSection, recentCommentSection);
     if (newsGroup) children.push(newsGroup);
-    children.push(reviewGroup, footer);
+    children.push(footer);
     menu.replaceChildren(...children);
   }
 

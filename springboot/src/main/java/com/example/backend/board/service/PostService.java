@@ -69,7 +69,6 @@ public class PostService {
     private static final int MAX_DISCOVERY_SIZE = 10;
     private static final int MAX_AUTHOR_RECENT_POSTS = 5;
     private static final int MAX_AUTHOR_RECENT_COMMENTS = 5;
-    private static final int MAX_AUTHOR_RECENT_REVIEWS = 5;
     private static final int MAX_NEWS_TITLE_LENGTH = 200;
     private static final int MAX_NEWS_CONTENT_LENGTH = 10_000;
     private static final int BEST_COMMUNITY_MINIMUM_LIKE_COUNT = 3;
@@ -705,23 +704,6 @@ public class PostService {
                 .toList()
                 : List.of();
 
-        List<AuthorRecentReviewResponse> recentReviews = referenceRepository
-                .findRecentActiveReviewsByAuthor(
-                        authorAccountId,
-                        MAX_AUTHOR_RECENT_REVIEWS
-                )
-                .stream()
-                .map(review -> new AuthorRecentReviewResponse(
-                        review.reviewId(),
-                        review.restaurantId(),
-                        review.publicRestaurantId(),
-                        review.restaurantName(),
-                        review.rating(),
-                        review.content(),
-                        review.createdAt()
-                ))
-                .toList();
-
         return new AuthorSummaryResponse(
                 author.getAccountId(),
                 author.getNickname(),
@@ -755,9 +737,7 @@ public class PostService {
                         )
                         : 0L,
                 recentNewsPosts,
-                recentNewsComments,
-                referenceRepository.countActiveReviewsByAuthor(authorAccountId),
-                recentReviews
+                recentNewsComments
         );
     }
 
@@ -1945,16 +1925,13 @@ public class PostService {
             long newsPostCount,
             long newsCommentCount,
             List<AuthorRecentPostResponse> recentNewsPosts,
-            List<AuthorRecentCommentResponse> recentNewsComments,
-            long reviewCount,
-            List<AuthorRecentReviewResponse> recentReviews
+            List<AuthorRecentCommentResponse> recentNewsComments
     ) {
         public AuthorSummaryResponse {
             recentPosts = List.copyOf(recentPosts);
             recentComments = List.copyOf(recentComments);
             recentNewsPosts = List.copyOf(recentNewsPosts);
             recentNewsComments = List.copyOf(recentNewsComments);
-            recentReviews = List.copyOf(recentReviews);
         }
     }
 
@@ -1971,17 +1948,6 @@ public class PostService {
             Long commentId,
             Long postId,
             String postTitle,
-            String content,
-            LocalDateTime createdAt
-    ) {
-    }
-
-    public record AuthorRecentReviewResponse(
-            Long reviewId,
-            Long restaurantId,
-            Long publicRestaurantId,
-            String restaurantName,
-            int rating,
             String content,
             LocalDateTime createdAt
     ) {
