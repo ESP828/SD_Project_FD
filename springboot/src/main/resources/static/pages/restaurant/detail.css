@@ -1,3 +1,19 @@
+/* Keep the shared header sticky on this page.
+   common.js renders .site-header inside a data-site-header wrapper,
+   so the wrapper must own the sticky positioning; otherwise the
+   restaurant tab bar keeps a header-height offset after the header
+   itself has scrolled away. */
+body > [data-site-header] {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+body > [data-site-header] > .site-header {
+  position: relative;
+  top: auto;
+}
+
 .store-main {
   min-height: calc(100vh - var(--header-height));
   padding-bottom: 90px;
