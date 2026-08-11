@@ -435,6 +435,7 @@ public class CommentService {
                         "BOARD_POST_NOT_FOUND",
                         "게시글을 찾을 수 없습니다."
                 ));
+        assertCommunityPost(post);
         accessPolicy.assertCanRead(post.getBoardType(), currentAccount);
         return post;
     }
@@ -452,6 +453,7 @@ public class CommentService {
                         "BOARD_POST_NOT_FOUND",
                         "게시글을 찾을 수 없습니다."
                 ));
+        assertCommunityPost(post);
         accessPolicy.assertCanRead(post.getBoardType(), currentAccount);
         return post;
     }
@@ -521,6 +523,11 @@ public class CommentService {
 
     private void assertParentPostReadable(Comment comment, Account currentAccount) {
         Post post = comment.getPost();
+        assertCommunityPost(post);
+        accessPolicy.assertCanRead(post.getBoardType(), currentAccount);
+    }
+
+    private void assertCommunityPost(Post post) {
         if (post.isDeleted()) {
             throw new BoardException(
                     HttpStatus.NOT_FOUND,
@@ -528,7 +535,6 @@ public class CommentService {
                     "게시글을 찾을 수 없습니다."
             );
         }
-        accessPolicy.assertCanRead(post.getBoardType(), currentAccount);
     }
 
     private void assertOwnerOrAdmin(Comment comment, Account account) {

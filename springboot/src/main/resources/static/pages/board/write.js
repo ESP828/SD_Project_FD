@@ -74,14 +74,88 @@
     });
   }
 
+  function isNewsPost(post = originalPost) {
+    return post?.category === "NEWS";
+  }
+
+  function ensureNewsCategoryOption() {
+    if ([...categorySelect.options].some((option) => option.value === "NEWS")) {
+      return;
+    }
+    const option = board.element("option", "", "가게 소식");
+    option.value = "NEWS";
+    categorySelect.append(option);
+  }
+
+  function newsSource(post) {
+    const hasPublicRestaurant = post?.publicRestaurantId != null;
+    const hasOwnedRestaurant = post?.restaurantId != null;
+    if (hasPublicRestaurant === hasOwnedRestaurant) return null;
+    return hasPublicRestaurant
+      ? { source: "public", id: post.publicRestaurantId }
+      : { source: "owned", id: post.restaurantId };
+  }
+
+  function newsDetailPath(targetPostId) {
+    const params = new URLSearchParams({
+      postId: String(targetPostId),
+      from: "NEWS",
+    });
+    return `/pages/board/detail.html?${params.toString()}`;
+  }
+
+  function newsWritePath(targetPostId) {
+    const params = new URLSearchParams({
+      postId: String(targetPostId),
+      from: "NEWS",
+    });
+    return `/pages/board/write.html?${params.toString()}`;
+  }
+
+  function restaurantNewsPath(post) {
+    const target = newsSource(post);
+    if (!target) return null;
+    const params = new URLSearchParams({
+      source: target.source,
+      id: String(target.id),
+      tab: "news",
+    });
+    return `/pages/restaurant/detail.html?${params.toString()}`;
+  }
+
+  function newsUpdatePath(post) {
+    const target = newsSource(post);
+    if (!target) return null;
+    const restaurantId = encodeURIComponent(target.id);
+    const targetPostId = encodeURIComponent(post.postId);
+    return target.source === "public"
+      ? `/board/posts/restaurants/public/${restaurantId}/news/${targetPostId}`
+      : `/board/posts/restaurants/${restaurantId}/news/${targetPostId}`;
+  }
+
+  function setEditorBackLink(href, label) {
+    listLink.href = href;
+    const icon = board.element("span", "material-symbols-rounded", "arrow_back");
+    icon.setAttribute("aria-hidden", "true");
+    listLink.replaceChildren(icon, document.createTextNode(` ${label}`));
+  }
+
   function updateCounts() {
     titleCount.textContent = String(titleInput.value.length);
     contentCount.textContent = String(contentInput.value.length);
   }
 
   function setListLinks(boardType) {
+    if (isNewsPost()) {
+      setEditorBackLink(
+        restaurantNewsPath(originalPost) || newsDetailPath(postId),
+        "가게 소식으로 돌아가기",
+      );
+      cancelLink.href = newsDetailPath(postId);
+      return;
+    }
     const href = board.listPath(boardType);
-    listLink.href = href;
+    setEditorBackLink(href, "커뮤니티 목록");
     if (!postId) cancelLink.href = href;
   }
 
@@ -316,16 +390,23 @@
   function markAsEditMode(savedPost) {
     postId = savedPost.postId;
     originalPost = savedPost;
-    pageTitle.textContent = "이야기 수정";
-    document.title = "이야기 수정 · 푸드덕";
+    const newsPost = isNewsPost(savedPost);
+    if (newsPost) ensureNewsCategoryOption();
+    pageTitle.textContent = newsPost ? "가게 소식 수정" : "이야기 수정";
+    document.title = `${newsPost ? "가게 소식" : "이야기"} 수정 · 푸드덕`;
     modeBadge.textContent = "수정";
     submitButton.textContent = "수정 저장";
-    boardTypeSelect.disabled = !session.isAdmin;
-    cancelLink.href = board.detailPath(postId);
+    boardTypeSelect.disabled = newsPost || !session.isAdmin;
+    categorySelect.disabled = newsPost;
+    cancelLink.href = newsPost
+      ? newsDetailPath(postId)
+      : board.detailPath(postId);
     window.history.replaceState(
       {},
       "",
-      board.writePath(savedPost.boardType, postId),
+      newsPost
+        ? newsWritePath(postId)
+        : board.writePath(savedPost.boardType, postId),
     );
   }
 
@@ -333,14 +414,20 @@
     try {
       const payload = await Api.get(`/board/posts/${postId}`);
       originalPost = payload.data;
-      if (!originalPost?.ownedByCurrentUser && !session.isAdmin) {
-        throw new Error("본인이 작성한 게시글만 수정할 수 있습니다.");
-      }
-      if (
-        originalPost.boardType === "BUSINESS" &&
-        !businessAccessAllowed
-      ) {
-        throw new Error("사업자 커뮤니티 게시글을 수정할 권한이 없습니다.");
+      if (isNewsPost()) {
+        if (originalPost.newsManageableByCurrentUser !== true) {
+          throw new Error("이 가게 소식을 수정할 권한이 없습니다.");
+        }
+      } else {
+        if (!originalPost?.ownedByCurrentUser && !session.isAdmin) {
+          throw new Error("본인이 작성한 게시글만 수정할 수 있습니다.");
+        }
+        if (
+          originalPost.boardType === "BUSINESS" &&
+          !businessAccessAllowed
+        ) {
+          throw new Error("사업자 커뮤니티 게시글을 수정할 권한이 없습니다.");
+        }
       }
 
       existingMedia = Array.isArray(originalPost.media)
@@ -508,13 +595,18 @@
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
     errorMessage.textContent = "";
-    const body = {
-      boardType: boardTypeSelect.value,
-      category: categorySelect.value,
-      restaurantId: originalPost?.restaurantId || null,
-      title: titleInput.value.trim(),
-      content: contentInput.value.trim(),
-    };
+    const newsEdit = Boolean(postId && isNewsPost());
+    const title = titleInput.value.trim();
+    const content = contentInput.value.trim();
+    const body = newsEdit
+      ? { title, content }
+      : {
+        boardType: boardTypeSelect.value,
+        category: categorySelect.value,
+        restaurantId: originalPost?.restaurantId || null,
+        title,
+        content,
+      };
     if (!body.title || !body.content) {
       errorMessage.textContent = "제목과 내용을 입력해 주세요.";
       return;
@@ -528,20 +620,33 @@
     submitButton.disabled = true;
     submitButton.textContent = postId ? "저장 중..." : "등록 중...";
     try {
+      const updatePath = newsEdit ? newsUpdatePath(originalPost) : null;
+      if (newsEdit && !updatePath) {
+        throw new Error("가게 소식의 식당 정보를 확인할 수 없습니다.");
+      }
       const payload = postId
-        ? await Api.put(`/board/posts/${postId}`, body)
+        ? await Api.put(updatePath || `/board/posts/${postId}`, body)
         : await Api.post("/board/posts", body);
+      const savedPostId = payload.data?.postId ?? postId;
 
       if (!postId) {
         existingMedia = Array.isArray(payload.data.media)
           ? [...payload.data.media]
           : [];
         markAsEditMode(payload.data);
+      } else if (newsEdit) {
+        originalPost = {
+          ...originalPost,
+          ...(payload.data || {}),
+          postId: savedPostId,
+          title,
+          content,
+        };
       } else {
         originalPost = payload.data;
       }
 
-      const failures = await saveMediaChanges(payload.data.postId);
+      const failures = await saveMediaChanges(savedPostId);
       board.invalidateBoardCache();
 
       if (failures.length) {
@@ -552,7 +657,11 @@
         return;
       }
 
-      window.location.assign(board.detailPath(payload.data.postId));
+      window.location.assign(
+        newsEdit
+          ? newsDetailPath(savedPostId)
+          : board.detailPath(savedPostId),
+      );
     } catch (error) {
       errorMessage.textContent =
         error.message || "게시글을 저장하지 못했습니다.";
