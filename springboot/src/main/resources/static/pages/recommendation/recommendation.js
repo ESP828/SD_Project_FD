@@ -48,6 +48,9 @@
   }
 
   function mapHref(item) {
+    if (item.restaurantId) {
+      return `/pages/restaurant/detail.html?source=owned&id=${item.restaurantId}`;
+    }
     const params = new URLSearchParams({ q: item.restaurantName || "맛집" });
     return `/pages/map/index.html?${params.toString()}`;
   }
@@ -111,7 +114,7 @@
         element(
           "span",
           "",
-          `${item.categoryName || "카테고리 없음"} · 평점 ${Number(item.averageRating || 0).toFixed(1)} · 리뷰 ${item.reviewCount || 0}`,
+          `${item.categoryName || "카테고리 없음"} · 평점 ${Number(item.averageRating || 0).toFixed(1)} · 리뷰 ${item.reviewCount || 0} · 찜 ${item.favoriteCount || 0}`,
         ),
       );
     } else {
@@ -134,33 +137,6 @@
     return row;
   }
 
-<<<<<<< Updated upstream
-  function createBestMenus(items) {
-    const list = element("ol", "best-menu-list");
-    for (let index = 0; index < 5; index += 1) {
-      const item = items[index];
-      const row = element("li");
-      if (item) {
-        const link = element("a");
-        link.href = mapHref(item);
-        link.append(element("span", "best-menu-rank", String(index + 1)));
-        const copy = element("span", "best-menu-copy");
-        copy.append(
-          element("strong", "", item.menuName),
-          element("small", "", item.restaurantName),
-        );
-        link.append(copy);
-        row.append(link);
-      } else {
-        const empty = element("div", "best-menu-empty");
-        empty.append(
-          element("span", "best-menu-rank", String(index + 1)),
-          element("span", "best-menu-copy", "메뉴 데이터 없음"),
-        );
-        row.append(empty);
-      }
-      list.append(row);
-=======
   function createPresetRankingCard(preset, rank) {
     const card = element("article", "preset-ranking-card");
     const image = element("div", "preset-ranking-card-image");
@@ -203,12 +179,12 @@
       const empty = element("div", "preset-ranking-empty", "아직 랭킹에 표시할 프리셋이 없습니다.");
       list.append(empty);
       return list;
->>>>>>> Stashed changes
     }
+    presets.forEach((preset, index) => list.append(createPresetRankingCard(preset, index + 1)));
     return list;
   }
 
-  function render(data) {
+  function render(data, presets) {
     content.replaceChildren();
 
     const grid = element("div", "recommendation-grid");
@@ -249,47 +225,62 @@
       element("h3", "", "맛집 랭킹"),
       element("p", "", "평점·리뷰·찜 집계 순"),
     );
-    rankingHeader.append(rankingTitle);
+
+    const rankingSortLabel = element("label", "ranking-sort-label");
+    rankingSortLabel.htmlFor = "ranking-sort-select";
+    rankingSortLabel.append(document.createTextNode("정렬"));
+    const rankingSortSelect = document.createElement("select");
+    rankingSortSelect.id = "ranking-sort-select";
+    [["rating", "평점순"], ["review", "리뷰순"], ["favorite", "찜순"]].forEach(([value, label]) => {
+      const option = document.createElement("option");
+      option.value = value;
+      option.textContent = label;
+      rankingSortSelect.append(option);
+    });
+    rankingSortLabel.append(rankingSortSelect);
+
+    rankingHeader.append(rankingTitle, rankingSortLabel);
     rankingPanel.append(rankingHeader);
+
     const rankingList = element("div", "ranking-list");
     rankingList.setAttribute("aria-label", "맛집 랭킹 5개");
-    for (let index = 0; index < 5; index += 1) {
-      rankingList.append(createRankingRow(data.ranking?.[index], index + 1));
-    }
     rankingPanel.append(rankingList);
     grid.append(primary, rankingPanel);
 
-    const lower = element("div", "recommendation-lower");
-    const signalPanel = element("section", "signal-panel");
-    const signalHeader = element("div", "recommendation-section-header");
-    const signalTitle = element("div");
-    signalTitle.append(
-      element("h3", "", "추천을 만든 신호"),
-      element("p", "", "현재 DB에서 확인 가능한 정보만 표시합니다."),
-    );
-    signalHeader.append(signalTitle);
-    signalPanel.append(signalHeader);
-    const signalList = element("div", "signal-list");
-    (data.signals || []).forEach((signal) => {
-      const item = element("div", "signal-item");
-      item.append(
-        element("span", "", signal.label),
-        element("strong", "", signal.value),
-      );
-      signalList.append(item);
-    });
-    signalPanel.append(signalList);
+    function renderRankingList(items) {
+      rankingList.replaceChildren();
+      for (let index = 0; index < 5; index += 1) {
+        rankingList.append(createRankingRow(items?.[index], index + 1));
+      }
+      window.FooduckIcons?.enhance(rankingList);
+    }
+    renderRankingList(data.ranking);
 
-    const bestPanel = element("aside", "best-menu-panel");
-    const bestHeader = element("div", "recommendation-section-header");
-    const bestTitle = element("div");
-    bestTitle.append(
-      element("h3", "", "베스트 메뉴"),
-      element("p", "", "메뉴를 누르면 Kakao Map에서 가게를 찾습니다."),
+    rankingSortSelect.addEventListener("change", async () => {
+      rankingSortSelect.disabled = true;
+      try {
+        const payload = await Api.get(`/recommendations?rankingSort=${rankingSortSelect.value}`);
+        renderRankingList(payload.data?.ranking);
+      } catch (error) {
+        window.alert(error.message || "랭킹을 불러오지 못했습니다.");
+      } finally {
+        rankingSortSelect.disabled = false;
+      }
+    });
+
+    const lower = element("div", "recommendation-lower");
+    const presetPanel = element("section", "preset-ranking-panel");
+    const presetHeader = element("div", "recommendation-section-header");
+    const presetTitle = element("div");
+    presetTitle.append(
+      element("h3", "", "프리셋 랭킹"),
+      element("p", "", "찜이 많은 인기 프리셋 순입니다."),
     );
-    bestHeader.append(bestTitle);
-    bestPanel.append(bestHeader, createBestMenus(data.bestMenus || []));
-    lower.append(signalPanel, bestPanel);
+    const presetMoreLink = element("a", "button button-sm button-secondary", "전체 보기");
+    presetMoreLink.href = "/pages/presset/index.html";
+    presetHeader.append(presetTitle, presetMoreLink);
+    presetPanel.append(presetHeader, createPresetRankingList(presets));
+    lower.append(presetPanel);
 
     content.append(grid, lower);
     window.FooduckIcons?.enhance(content);
@@ -313,8 +304,13 @@
     content.append(wrapper);
   }
 
-  Api.get("/recommendations")
-    .then((payload) => render(payload.data || {}))
+  Promise.all([
+    Api.get("/recommendations"),
+    Api.get("/presets?sort=popular&size=5").catch(() => ({ data: { content: [] } })),
+  ])
+    .then(([recommendationPayload, presetPayload]) => {
+      render(recommendationPayload.data || {}, presetPayload.data?.content || []);
+    })
     .catch((error) => {
       if (!localStorage.getItem("accessToken")) {
         window.location.assign(loginPath);

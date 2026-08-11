@@ -1,148 +1,35 @@
-﻿<!doctype html>
+<!doctype html>
 <html lang="ko">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="presset에 담긴 맛집을 한눈에 확인하세요">
-  <title>성수동 데이트 맛집 모음 · presset · 푸드덕</title>
+  <meta name="description" content="푸드덕 맛집 프리셋 상세">
+  <title>Presset 상세 · 푸드덕</title>
   <link rel="icon" href="/images/favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/css/common.css">
-  <link rel="stylesheet" href="/pages/presset/presset-design.css">
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"
-        integrity="sha512-SnH5WK+bZxgPHs44uWIX+LLJAJ9/2PkPKZ5QiAj6Ta86w+fsb2TkcmfRyVX3pBnMFcV7oQPJkl9QevSCWr3W6A=="
-        crossorigin="anonymous" referrerpolicy="no-referrer">
+  <link rel="stylesheet" href="/pages/presset/presset.css">
 </head>
 <body>
   <div data-site-header data-active-nav="presset"></div>
 
-  <main class="pd">
-    <div class="pd-container">
-      <!-- 브레드크럼 -->
-      <nav class="pd-crumb" aria-label="현재 위치">
-        <a href="/index.html">홈</a>
+  <main id="preset-detail" class="preset-main preset-detail-main" aria-live="polite">
+    <div class="container">
+      <nav class="preset-breadcrumb" aria-label="이동 경로">
+        <a href="/">홈</a>
         <span aria-hidden="true">›</span>
         <a href="/pages/presset/index.html">presset</a>
         <span aria-hidden="true">›</span>
-        <strong>성수동 데이트 맛집 모음</strong>
+        <span id="preset-breadcrumb-title" aria-current="page">상세</span>
       </nav>
-
-      <!-- ================= 상세 히어로 ================= -->
-      <section class="pd-detail-hero">
-        <div class="pd-detail-visual pd-photo pd-photo--1"></div>
-
-        <div class="pd-detail-info">
-          <button class="pd-detail-heart" type="button" aria-label="presset 찜"><i class="fa-regular fa-heart"></i></button>
-          <h1>성수동 데이트 맛집 모음</h1>
-          <p class="pd-detail-lead">분위기 좋은 성수동에서 특별한 데이트를 완성해보세요.</p>
-          <p class="pd-detail-desc">
-            성수동에서 데이트 코스로 좋은 맛집들만 모아봤어요.<br>
-            분위기 좋은 공간에서 맛있는 음식과 함께 소중한 시간을 보내보세요.
-          </p>
-          <div class="pd-detail-stats">
-            <span><i class="fa-solid fa-utensils"></i> 맛집 7곳</span>
-            <span><i class="fa-regular fa-heart"></i> 찜 324</span>
-            <span><i class="fa-solid fa-eye"></i> 조회 2,181</span>
-            <span class="pd-detail-manage">
-              <button id="pd-preset-edit" class="pd-btn pd-btn--ghost pd-btn--sm" type="button"><i class="fa-solid fa-pen"></i>수정</button>
-              <button id="pd-preset-delete" class="pd-btn pd-btn--danger pd-btn--sm" type="button"><i class="fa-solid fa-trash-can"></i>삭제</button>
-            </span>
-          </div>
+      <a class="preset-back-link" href="/pages/presset/index.html">
+        <span aria-hidden="true">←</span> 전체 Presset
+      </a>
+      <div id="preset-detail-content" aria-busy="true">
+        <div class="preset-state preset-state--surface">
+          <span class="preset-spinner" aria-hidden="true"></span>
+          <strong>프리셋 상세 정보를 불러오고 있습니다.</strong>
         </div>
-      </section>
-
-      <!-- ================= 카테고리 필터 ================= -->
-      <div class="pd-filters" role="group" aria-label="음식 종류 필터">
-        <button class="pd-filter" type="button" aria-pressed="true">전체</button>
-        <button class="pd-filter" type="button" aria-pressed="false">한식</button>
-        <button class="pd-filter" type="button" aria-pressed="false">일식</button>
-        <button class="pd-filter" type="button" aria-pressed="false">중식</button>
-        <button class="pd-filter" type="button" aria-pressed="false">양식</button>
-        <button class="pd-filter" type="button" aria-pressed="false">분식</button>
-        <button class="pd-filter" type="button" aria-pressed="false">카페</button>
       </div>
-
-      <!-- ================= 포함된 맛집 ================= -->
-      <section>
-        <div class="pd-section-head">
-          <h2>이 presset에 포함된 맛집</h2>
-        </div>
-
-        <div class="pd-rlist">
-          <!-- 맛집 1 -->
-          <article class="pd-rcard">
-            <div class="pd-rcard-photo pd-photo pd-photo--6"></div>
-            <div class="pd-rcard-body">
-              <h3>성수 다이닝</h3>
-              <p class="pd-rcard-sub">한식 · 서울 성동구 성수동1가</p>
-              <p class="pd-rcard-rating">
-                <b><i class="fa-solid fa-star"></i> 4.7</b> <span>(392)</span> · <em>영업 중</em>
-              </p>
-              <div class="pd-rcard-tags">
-                <span class="pd-chip">데이트 코스</span>
-                <span class="pd-chip">분위기 좋은</span>
-                <span class="pd-chip">와인</span>
-              </div>
-            </div>
-            <p class="pd-rcard-desc">
-              감각적인 인테리어와 정갈한 한식 코스 요리가 인상적인 곳이에요.<br>
-              조용한 분위기에서 특별한 시간을 보낼 수 있어요.
-            </p>
-            <div class="pd-rcard-actions">
-              <a class="pd-btn pd-btn--ghost pd-btn--sm" href="/pages/map/index.html?presetId=1">지도에서 보기</a>
-            </div>
-          </article>
-
-          <!-- 맛집 2 -->
-          <article class="pd-rcard">
-            <div class="pd-rcard-photo pd-photo pd-photo--4"></div>
-            <div class="pd-rcard-body">
-              <h3>무드 커피</h3>
-              <p class="pd-rcard-sub">카페 · 서울 성동구 성수동2가</p>
-              <p class="pd-rcard-rating">
-                <b><i class="fa-solid fa-star"></i> 4.6</b> <span>(187)</span> · <em>영업 중</em>
-              </p>
-              <div class="pd-rcard-tags">
-                <span class="pd-chip">감성 카페</span>
-                <span class="pd-chip">디저트</span>
-                <span class="pd-chip">사진 맛집</span>
-              </div>
-            </div>
-            <p class="pd-rcard-desc">
-              창가 자리에서 햇살을 즐기기 좋은 카페예요.<br>
-              시그니처 디저트와 스페셜티 커피가 인기예요.<br>
-              데이트 코스 중간에 들르기 좋아요.
-            </p>
-            <div class="pd-rcard-actions">
-              <a class="pd-btn pd-btn--ghost pd-btn--sm" href="/pages/map/index.html?presetId=1">지도에서 보기</a>
-            </div>
-          </article>
-
-          <!-- 맛집 3 -->
-          <article class="pd-rcard">
-            <div class="pd-rcard-photo pd-photo pd-photo--8"></div>
-            <div class="pd-rcard-body">
-              <h3>트라토리아 성수</h3>
-              <p class="pd-rcard-sub">양식 · 서울 성동구 성수동1가</p>
-              <p class="pd-rcard-rating">
-                <b><i class="fa-solid fa-star"></i> 4.4</b> <span>(256)</span> · <em>영업 중</em>
-              </p>
-              <div class="pd-rcard-tags">
-                <span class="pd-chip">파스타 맛집</span>
-                <span class="pd-chip">분위기 좋은</span>
-                <span class="pd-chip">와인</span>
-              </div>
-            </div>
-            <p class="pd-rcard-desc">
-              이탈리안 가정식 요리를 맛볼 수 있는 레스토랑이에요.<br>
-              아늑한 분위기와 친절한 서비스가 매력적이에요.<br>
-              예약하고 방문하면 더 좋아요.
-            </p>
-            <div class="pd-rcard-actions">
-              <a class="pd-btn pd-btn--ghost pd-btn--sm" href="/pages/map/index.html?presetId=1">지도에서 보기</a>
-            </div>
-          </article>
-        </div>
-      </section>
     </div>
   </main>
 
@@ -150,31 +37,6 @@
 
   <script src="/js/api.js"></script>
   <script src="/js/common.js"></script>
-  <script>
-    /* 수정/삭제 버튼 – 디자인 시안이지만 이 두 액션은 실제 API와 연동한다 */
-    (() => {
-      const presetId = new URLSearchParams(location.search).get("presetId");
-      const editButton = document.querySelector("#pd-preset-edit");
-      const deleteButton = document.querySelector("#pd-preset-delete");
-      if (!presetId) return;
-
-      editButton?.addEventListener("click", () => {
-        location.href = `/pages/map/index.html?presetId=${encodeURIComponent(presetId)}&edit=1`;
-      });
-
-      deleteButton?.addEventListener("click", async () => {
-        if (!window.confirm("이 presset을 삭제할까요? 삭제하면 되돌릴 수 없습니다.")) return;
-        deleteButton.disabled = true;
-        try {
-          await Api.delete(`/presets/${encodeURIComponent(presetId)}`);
-          alert("presset을 삭제했습니다.");
-          location.href = "/pages/presset/index.html";
-        } catch (error) {
-          alert(error.message || "삭제 중 오류가 발생했습니다.");
-          deleteButton.disabled = false;
-        }
-      });
-    })();
-  </script>
+  <script src="/pages/presset/detail.js"></script>
 </body>
 </html>
