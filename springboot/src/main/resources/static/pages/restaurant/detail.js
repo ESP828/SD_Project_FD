@@ -255,11 +255,116 @@
     return `/pages/board/${pageName}.html?${query.toString()}`;
   }
 
-  function newsTitleHtml(news) {
-    const title = escapeHtml(news.title);
-    if (news.postId == null) return title;
-    return `<a class="store-news-title-link"
-               href="${escapeHtml(newsBoardPath("detail", news.postId))}">${title}</a>`;
+  function newsSummaryHtml(news) {
+    const title = escapeHtml(news.title || "소식");
+    const content = escapeHtml(news.content || "");
+    if (news.postId == null) {
+      return `
+        <div class="store-news-summary-link is-static">
+          <p class="store-news-title">${title}</p>
+          <p class="store-news-content">${content}</p>
+        </div>
+      `;
+    }
+    const href = escapeHtml(newsBoardPath("detail", news.postId));
+    const label = escapeHtml(`${news.title || "소식"} 상세 보기`);
+    return `
+      <a class="store-news-summary-link" href="${href}" aria-label="${label}">
+        <p class="store-news-title">${title}</p>
+        <p class="store-news-content">${content}</p>
+      </a>
+    `;
+  }
+
+  function newsMediaStatus(media) {
+    const storedUrl = String(media?.mediaUrl || "");
+    if (!media?.processingStatus && storedUrl === "db:processing") return "PROCESSING";
+    if (!media?.processingStatus && storedUrl === "db:failed") return "FAILED";
+    const status = String(media?.processingStatus || "READY").toUpperCase();
+    return ["QUEUED", "PROCESSING", "FAILED"].includes(status) ? status : "READY";
+  }
+
+  function newsMediaUrl(media) {
+    if (media?.mediaUrl) return String(media.mediaUrl);
+    if (media?.postMediaId == null) return "";
+    return `/api/board/posts/media/${encodeURIComponent(media.postMediaId)}`;
+  }
+
+  function newsMediaHtml(mediaItems) {
+    if (!Array.isArray(mediaItems) || mediaItems.length === 0) return "";
+    return mediaItems.map((media) => {
+      const status = newsMediaStatus(media);
+      const name = escapeHtml(media?.originalName || "첨부파일");
+      if (status === "FAILED") {
+        return `<div class="store-news-media-status is-failed">${name} · 동영상 처리에 실패했습니다.</div>`;
+      }
+      if (status !== "READY") {
+        const progress = Math.max(0, Math.min(99, Number(media?.processingProgress) || 0));
+        return `<div class="store-news-media-status">${name} · 동영상 처리 중 ${progress}%</div>`;
+      }
+
+      const url = newsMediaUrl(media);
+      if (!url) return "";
+      const safeUrl = escapeHtml(url);
+      if (String(media?.mediaType || "").toUpperCase() === "IMAGE") {
+        return `
+          <a class="store-news-media-item store-news-media-item--image"
+             href="${safeUrl}" target="_blank" rel="noopener" aria-label="${name} 원본 보기">
+            <img src="${safeUrl}" alt="${name}" loading="lazy">
+          </a>
+        `;
+      }
+      return `
+        <div class="store-news-media-item store-news-media-item--video">
+          <video src="${safeUrl}" controls preload="metadata" aria-label="${name}"></video>
+        </div>
+      `;
+    }).join("");
+  }
+
+  function findNewsMediaHost(postId) {
+    const target = String(postId ?? "");
+    return [...panels.news.querySelectorAll("[data-news-media-post-id]")]
+      .find((node) => node.dataset.newsMediaPostId === target) || null;
+  }
+
+  let newsMediaGeneration = 0;
+
+  async function loadNewsMedia(postId, generation, attempt = 0) {
+    if (generation !== newsMediaGeneration) return;
+    const host = findNewsMediaHost(postId);
+    if (!host || !host.isConnected) return;
+
+    try {
+      const response = await Api.get(
+        `/board/posts/${encodeURIComponent(postId)}/media`,
+        { auth: false },
+      );
+      if (generation !== newsMediaGeneration) return;
+      const mediaItems = Array.isArray(response.data) ? response.data : [];
+      const html = newsMediaHtml(mediaItems);
+      host.innerHTML = html;
+      host.hidden = !html;
+
+      const processing = mediaItems.some((media) => {
+        const status = newsMediaStatus(media);
+        return status === "QUEUED" || status === "PROCESSING";
+      });
+      if (processing && attempt < 120) {
+        window.setTimeout(() => loadNewsMedia(postId, generation, attempt + 1), 2500);
+      }
+    } catch (_error) {
+      host.hidden = true;
+    }
+  }
+
+  function bindNewsMedia(items) {
+    const generation = newsMediaGeneration;
+    items.forEach((news) => {
+      if (news?.postId != null) {
+        void loadNewsMedia(news.postId, generation);
+      }
+    });
   }
 
   function newsManageActionsHtml(news, itemCount) {
@@ -419,20 +524,21 @@
     const bodyHtml = items.length === 0
       ? '<div class="store-empty">아직 등록된 소식이 없습니다.</div>'
       : `<div class="store-news-list">${items.map((news, index) => `
-          <div class="store-news-item">
+          <article class="store-news-item">
             <div class="store-news-item-head">
-              <p class="store-news-title">${newsTitleHtml(news)}</p>
+              ${newsSummaryHtml(news)}
               ${newsManageActionsHtml(news, items.length)}
             </div>
-            <p class="store-news-content">${escapeHtml(news.content)}</p>
+            <div class="store-news-media" data-news-media-post-id="${escapeHtml(news.postId ?? "")}" hidden></div>
             <div class="store-news-meta">
               <span class="store-news-author" data-news-author-index="${index}">${escapeHtml(news.authorNickname || "-")}</span>
               <span class="store-news-date">${formatDate(news.createdAt)}</span>
             </div>
-          </div>
+          </article>
         `).join("")}</div>`;
     renderNewsCard(bodyHtml, newsPaginationHtml(pageData));
     bindNewsAuthors(items);
+    bindNewsMedia(items);
   }
 
   function renderNewsError(error) {
@@ -447,6 +553,7 @@
 
   async function loadNews(page = newsPage) {
     const requestedPage = Number.isInteger(page) && page >= 0 ? page : 0;
+    newsMediaGeneration += 1;
     newsPage = requestedPage;
     panels.news.innerHTML = '<div class="store-empty">소식을 불러오는 중입니다.</div>';
     const params = new URLSearchParams({
@@ -596,6 +703,41 @@
     activateTab(tabOrder.includes(requestedTab) ? requestedTab : "menu");
   }
 
+  function initializeScrollTopButton() {
+    if (document.querySelector(".board-scroll-top")) return;
+
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "board-scroll-top";
+    button.textContent = "↑";
+    button.title = "맨 위로 이동";
+    button.setAttribute("aria-label", "맨 위로 이동");
+    button.hidden = true;
+    document.body.append(button);
+
+    let ticking = false;
+    const updateVisibility = () => {
+      button.hidden = window.scrollY <= 450;
+      ticking = false;
+    };
+
+    window.addEventListener("scroll", () => {
+      if (ticking) return;
+      ticking = true;
+      window.requestAnimationFrame(updateVisibility);
+    }, { passive: true });
+
+    button.addEventListener("click", () => {
+      const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      window.scrollTo({
+        top: 0,
+        behavior: reduceMotion ? "auto" : "smooth",
+      });
+    });
+
+    updateVisibility();
+  }
+
   async function init() {
     try {
       if (source === "owned") {
@@ -614,5 +756,6 @@
     }
   }
 
+  initializeScrollTopButton();
   init();
 })();
