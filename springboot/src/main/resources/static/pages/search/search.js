@@ -16,6 +16,9 @@
   const pageLabel = document.getElementById("search-page-label");
   const quickButtons = document.querySelectorAll("[data-quick-category]");
 
+  // 기본 좌표 (위치 권한 거부/실패 시 강남역 좌표로 fallback)
+  const DEFAULT_LOCATION = { latitude: 37.4979, longitude: 127.0276 };
+
   let currentPage = 0;
 
   function setFilterPanelOpen(isOpen) {
@@ -28,6 +31,7 @@
     status.classList.toggle("is-error", isError);
   }
 
+  // 마커 아이콘 결정 로직 (기존 유지)
   function markerFor(place) {
     const category = place.categoryName || "";
     if (/카페|커피/.test(category)) return "category_cafe.png";
@@ -57,45 +61,79 @@
     return row;
   }
 
-  function createResultCard(place) {
+  // 추천 결과 카드 생성 (자연어 추천 DTO 필드 규격에 맞춤)
+  function createResultCard(item) {
     const article = document.createElement("article");
     article.className = "surface-card search-result-card";
 
+    // 1. 이미지 및 마커
     const visual = document.createElement("div");
     visual.className = "search-result-visual";
     const image = document.createElement("img");
-    image.src = `/images/markers/${markerFor(place)}`;
+    image.src = `/images/markers/${markerFor(item)}`;
     image.alt = "";
     image.setAttribute("aria-hidden", "true");
     visual.append(image);
 
+    // 2. 바디 (상호명, 카테고리, 주소, 추천 이유 태그)
     const body = document.createElement("div");
     body.className = "search-result-body";
 
     const category = document.createElement("span");
     category.className = "search-result-category";
-    category.textContent = place.categoryName || "음식점";
+    category.textContent = item.categoryName || "음식점";
 
     const title = document.createElement("h3");
-    title.textContent = place.name;
+    title.textContent = item.restaurantName; // DTO 필드: restaurantName
 
     const address = createTextRow(
       "search-result-address",
       "location_on",
-      place.roadAddress || place.lotAddress || "주소 정보 없음",
+      item.address || "주소 정보 없음", // DTO 필드: address
     );
-    body.append(category, title, address);
 
+    // 거리 정보 표시
+    const distanceInfo = createTextRow(
+      "search-result-distance",
+      "near_me",
+      `약 ${item.distanceMeters}m 거리 (매칭점수 ${(item.score * 100).toFixed(0)}점)`
+    );
+    distanceInfo.style.fontSize = "0.85rem";
+    distanceInfo.style.color = "#007bff";
+
+    body.append(category, title, address, distanceInfo);
+
+    // 추천 이유 (Reasons) 태그 출력
+    if (item.reasons && item.reasons.length > 0) {
+      const reasonsWrap = document.createElement("div");
+      reasonsWrap.className = "search-result-reasons";
+      reasonsWrap.style.marginTop = "8px";
+
+      item.reasons.forEach(reason => {
+        const badge = document.createElement("span");
+        badge.className = "reason-badge";
+        badge.style.cssText = "display:inline-block; background:#ebf8ff; color:#2b6cb0; font-size:12px; padding:2px 8px; border-radius:12px; margin-right:4px; margin-top:4px;";
+        badge.textContent = `💡 ${reason}`;
+        reasonsWrap.append(badge);
+      });
+      body.append(reasonsWrap);
+    }
+
+    // 3. 버튼 영역 (상세보기, 지도)
     const actions = document.createElement("div");
     actions.className = "search-result-actions";
+
+    const sourceType = (item.sourceType || "PUBLIC").toLowerCase();
     const detailLink = document.createElement("a");
     detailLink.className = "button button-primary";
-    detailLink.href = `/pages/restaurant/detail.html?source=public&id=${place.id}`;
+    detailLink.href = `/pages/restaurant/detail.html?source=${sourceType}&id=${item.sourceId}`;
     detailLink.textContent = "상세보기";
+
     const mapLink = document.createElement("a");
     mapLink.className = "button button-secondary";
-    mapLink.href = `/pages/map/index.html?q=${encodeURIComponent(place.name)}`;
+    mapLink.href = `/pages/map/index.html?q=${encodeURIComponent(item.restaurantName)}`;
     mapLink.textContent = "지도에서 찾기";
+
     actions.append(detailLink, mapLink);
     body.append(actions);
 
@@ -120,37 +158,62 @@
     count.textContent = "0";
   }
 
-  function updatePagination(response) {
-    const current = response.page + 1;
-    const total = Math.max(1, response.totalPages);
-    pageLabel.textContent = `${current} / ${total}`;
-    previousButton.disabled = !response.hasPrevPage;
-    nextButton.disabled = !response.hasNextPage;
+  // GPS 좌표 구하기
+  function getCurrentLocation() {
+    return new Promise((resolve) => {
+      if (!navigator.geolocation) {
+        resolve(DEFAULT_LOCATION);
+        return;
+      }
+      navigator.geolocation.getCurrentPosition(
+        (pos) => resolve({ latitude: pos.coords.latitude, longitude: pos.coords.longitude }),
+        () => resolve(DEFAULT_LOCATION),
+        { timeout: 5000 }
+      );
+    });
   }
 
-  async function runSearch(page = 0) {
+  // 자연어 맛집 추천 API (POST /api/recommendations/query) 실행
+  async function runSearch() {
     resultHeading.hidden = false;
-    const params = new URLSearchParams({
-      page: String(page),
-      size: String(PAGE_SIZE),
-    });
-    const keyword = keywordInput.value.trim();
+
+    // 자연어 입력 문장 구성 (키워드 + 지역 + 카테고리 조합)
+    let keyword = keywordInput.value.trim();
     const region = regionInput.value.trim();
     const category = categorySelect.value;
-    if (keyword) params.set("keyword", keyword);
-    if (region) params.set("region", region);
-    if (category) params.set("category", category);
 
-    setStatus("검색 중입니다.");
+    let fullQuery = keyword;
+    if (!fullQuery) {
+      if (region || category) {
+        fullQuery = `${region} ${category}`.trim();
+      } else {
+        fullQuery = "맛집 추천해줘";
+      }
+    } else {
+      if (region && !fullQuery.includes(region)) fullQuery = `${region} ${fullQuery}`;
+      if (category && !fullQuery.includes(category)) fullQuery = `${fullQuery} ${category}`;
+    }
+
+    setStatus("🤖 자연어 분석 및 맞춤 맛집을 계산 중입니다...");
     results.setAttribute("aria-busy", "true");
 
     try {
-      const response = await Api.get(`/public/map/restaurants/search?${params.toString()}`, { auth: false });
-      const data = response.data;
-      results.removeAttribute("aria-busy");
-      currentPage = data.page;
+      const coords = await getCurrentLocation();
 
-      if (data.items.length === 0) {
+      // POST /api/recommendations/query 요청
+      const response = await Api.post("/recommendations/query", {
+        query: fullQuery,
+        latitude: coords.latitude,
+        longitude: coords.longitude,
+        radiusMeters: 2000,
+        limit: PAGE_SIZE
+      });
+
+      results.removeAttribute("aria-busy");
+
+      const data = response.data; // NaturalLanguageRecommendationResponse
+
+      if (!data || !data.items || data.items.length === 0) {
         renderEmpty("다른 검색어나 지역으로 다시 찾아보세요.");
         setStatus("조건에 맞는 맛집을 찾지 못했습니다.");
         previousButton.disabled = true;
@@ -159,10 +222,16 @@
         return;
       }
 
+      // 카드 목록 동적 렌더링
       results.replaceChildren(...data.items.map(createResultCard));
-      count.textContent = String(data.totalCount);
-      setStatus(`총 ${data.totalCount}개 중 ${data.page + 1}페이지 결과입니다.`);
-      updatePagination(data);
+      count.textContent = String(data.items.length);
+      setStatus(`'${data.originalQuery}' 추천 결과 ${data.items.length}건입니다.`);
+
+      // 추천 API는 상위 N개 추천 방식이므로 페이징 버튼은 1페이지 고정
+      pageLabel.textContent = "1 / 1";
+      previousButton.disabled = true;
+      nextButton.disabled = true;
+
     } catch (error) {
       results.removeAttribute("aria-busy");
       renderEmpty("검색 요청을 완료하지 못했습니다.");
@@ -170,22 +239,28 @@
     }
   }
 
+  // 폼 제출 이벤트 handler
   form.addEventListener("submit", (event) => {
     event.preventDefault();
-    runSearch(0);
+    runSearch();
   });
 
   filterToggle.addEventListener("click", () => {
     setFilterPanelOpen(filterPanel.hidden);
   });
 
+  // 빠른 카테고리 버튼 클릭
   quickButtons.forEach((button) => {
     button.addEventListener("click", () => {
-      categorySelect.value = button.dataset.quickCategory;
+      const selectedCategory = button.dataset.quickCategory;
+      categorySelect.value = selectedCategory;
       quickButtons.forEach((item) =>
         item.classList.toggle("is-active", item === button),
       );
-      runSearch(0);
+      if (!keywordInput.value.trim()) {
+        keywordInput.value = `${selectedCategory} 추천해줘`;
+      }
+      runSearch();
     });
   });
 
@@ -198,20 +273,12 @@
     );
   });
 
-  previousButton.addEventListener("click", () => {
-    if (currentPage > 0) {
-      runSearch(currentPage - 1);
-    }
-  });
-  nextButton.addEventListener("click", () => {
-    runSearch(currentPage + 1);
-  });
-
   setStatus("검색 조건을 입력해 주세요.");
 
+  // URL Query Parameter (예: search.html?q=강남역 파스타) 자동 검색 실행
   const query = new URLSearchParams(window.location.search).get("q");
   if (query) {
     keywordInput.value = query;
-    runSearch(0);
+    runSearch();
   }
 })();

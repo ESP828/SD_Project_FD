@@ -3,10 +3,9 @@ package com.example.backend.recommendation.ai;
 import com.example.backend.restaurant.domain.entity.PublicRestaurant;
 import com.example.backend.restaurant.repository.PublicRestaurantRepository;
 import org.springframework.boot.CommandLineRunner;
-import org.springframework.stereotype.Component;
 import java.util.List;
 
-@Component
+//@Component
 public class DocumentTestRunner implements CommandLineRunner {
 
 
