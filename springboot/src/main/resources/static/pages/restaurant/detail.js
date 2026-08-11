@@ -819,6 +819,7 @@
           ? []
           : await uploadNewsSelectedMedia(createdPostId);
 
+        window.FooduckBoard?.invalidateBoardCache?.();
         resetNewsSelectedMedia();
         await loadNews(0);
 
@@ -829,6 +830,7 @@
         }
       } catch (error) {
         if (createdPostId != null) {
+          window.FooduckBoard?.invalidateBoardCache?.();
           resetNewsSelectedMedia();
           await loadNews(0);
           window.alert(
@@ -914,6 +916,7 @@
         button.disabled = true;
         try {
           await Api.delete(newsDeleteApiPath(postId));
+          window.FooduckBoard?.invalidateBoardCache?.();
           const targetPage = newsPage > 0 && itemCount === 1
             ? newsPage - 1
             : newsPage;
@@ -996,22 +999,43 @@
 
   async function loadNews(page = newsPage) {
     const requestedPage = Number.isInteger(page) && page >= 0 ? page : 0;
-    newsMediaGeneration += 1;
-    newsPage = requestedPage;
-    panels.news.innerHTML = '<div class="store-empty">소식을 불러오는 중입니다.</div>';
+    const board = window.FooduckBoard;
     const params = new URLSearchParams({
       page: String(requestedPage),
       size: String(NEWS_PAGE_SIZE),
     });
+    const path = `${newsApiPath()}?${params.toString()}`;
+    const cached = board?.readBoardCache?.(path) || null;
+
+    newsMediaGeneration += 1;
+    newsPage = requestedPage;
+
+    if (cached) {
+      const cachedPageData = cached.data || {};
+      newsPage = Number.isInteger(cachedPageData.page) && cachedPageData.page >= 0
+        ? cachedPageData.page
+        : requestedPage;
+      renderNewsPanel({ ...cachedPageData, page: newsPage });
+      if (cached.fresh) return;
+    } else {
+      panels.news.innerHTML = '<div class="store-empty">소식을 불러오는 중입니다.</div>';
+    }
+
     try {
-      const response = await Api.get(`${newsApiPath()}?${params.toString()}`);
+      const response = await Api.get(path);
       const pageData = response.data || {};
+      board?.writeBoardCache?.(path, pageData);
       newsPage = Number.isInteger(pageData.page) && pageData.page >= 0
         ? pageData.page
         : requestedPage;
+
+      if (cached) {
+        // stale 캐시에서 시작한 미디어 조회/polling을 끊고 최신 목록 기준으로 다시 연결한다.
+        newsMediaGeneration += 1;
+      }
       renderNewsPanel({ ...pageData, page: newsPage });
     } catch (error) {
-      renderNewsError(error);
+      if (!cached) renderNewsError(error);
     }
   }
 
