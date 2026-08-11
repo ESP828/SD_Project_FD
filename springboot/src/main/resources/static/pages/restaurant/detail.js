@@ -290,36 +290,151 @@
     return `/api/board/posts/media/${encodeURIComponent(media.postMediaId)}`;
   }
 
+  function newsFormatBytes(bytes) {
+    const value = Number(bytes) || 0;
+    if (value < 1024) return `${value}B`;
+    if (value < 1024 * 1024) return `${(value / 1024).toFixed(1)}KB`;
+    return `${(value / 1024 / 1024).toFixed(1)}MB`;
+  }
+
+  function newsMediaDownloadUrl(media) {
+    const url = newsMediaUrl(media);
+    if (!url.startsWith("/api/board/posts/media/")) return url;
+    const separator = url.includes("?") ? "&" : "?";
+    return `${url}${separator}download=true`;
+  }
+
+  function newsMediaProcessingHtml(media, status) {
+    const failed = status === "FAILED";
+    const progress = Math.max(0, Math.min(100, Math.round(Number(media?.processingProgress) || 0)));
+    const name = escapeHtml(media?.originalName || "첨부 동영상");
+    const message = escapeHtml(
+      media?.processingMessage || (failed
+        ? "게시글 수정 화면에서 영상을 다시 첨부해 주세요."
+        : "처리가 끝나면 이 자리에 동영상이 자동으로 표시됩니다."),
+    );
+    return `
+      <article class="detail-media-item store-news-media-processing-card ${failed ? "is-failed" : "is-processing"}">
+        <div class="detail-media-processing" role="group" aria-label="동영상 서버 처리 상태" aria-live="off">
+          <span class="material-symbols-rounded detail-media-processing__icon" aria-hidden="true">${failed ? "close" : "progress_activity"}</span>
+          <div class="detail-media-processing__copy">
+            <strong class="detail-media-processing__title">${failed
+              ? "동영상 처리에 실패했습니다."
+              : `이 동영상은 서버에서 처리 중입니다. (${progress}%)`}</strong>
+            <span class="detail-media-processing__message">${message}</span>
+            ${failed ? "" : `<progress class="detail-media-processing__progress" max="100" value="${progress}" aria-label="동영상 서버 처리 진행률"></progress>`}
+            <small class="detail-media-processing__file">${name} · ${newsFormatBytes(media?.fileSize)}</small>
+          </div>
+        </div>
+      </article>
+    `;
+  }
+
+  function newsReadyImageHtml(media) {
+    const name = escapeHtml(media?.originalName || "첨부 이미지");
+    const url = newsMediaUrl(media);
+    if (!url) return "";
+    const safeUrl = escapeHtml(url);
+    return `
+      <a class="store-news-media-photo" href="${safeUrl}" target="_blank" rel="noopener" aria-label="${name} 원본 보기">
+        <img src="${safeUrl}" alt="${name}" loading="lazy">
+      </a>
+    `;
+  }
+
+  function newsReadyVideoHtml(media) {
+    const name = escapeHtml(media?.originalName || "첨부 동영상");
+    const url = newsMediaUrl(media);
+    if (!url) return "";
+    const safeUrl = escapeHtml(url);
+    const downloadUrl = escapeHtml(newsMediaDownloadUrl(media));
+    return `
+      <article class="detail-media-item store-news-media-item store-news-media-item--video">
+        <div class="detail-media-video store-news-media-video">
+          <video src="${safeUrl}" controls preload="auto" aria-label="${name}"></video>
+          <div class="detail-media-loading" role="status" aria-live="polite">
+            <span class="material-symbols-rounded detail-media-loading__icon" aria-hidden="true">progress_activity</span>
+            <span class="detail-media-loading__text">동영상을 불러오는 중...</span>
+          </div>
+        </div>
+        <div class="detail-media-meta">
+          <span>${name} · ${newsFormatBytes(media?.fileSize)}</span>
+          <a href="${downloadUrl}">원본 다운로드</a>
+        </div>
+      </article>
+    `;
+  }
+
   function newsMediaHtml(mediaItems) {
     if (!Array.isArray(mediaItems) || mediaItems.length === 0) return "";
-    return mediaItems.map((media) => {
-      const status = newsMediaStatus(media);
-      const name = escapeHtml(media?.originalName || "첨부파일");
-      if (status === "FAILED") {
-        return `<div class="store-news-media-status is-failed">${name} · 동영상 처리에 실패했습니다.</div>`;
-      }
-      if (status !== "READY") {
-        const progress = Math.max(0, Math.min(99, Number(media?.processingProgress) || 0));
-        return `<div class="store-news-media-status">${name} · 동영상 처리 중 ${progress}%</div>`;
-      }
 
-      const url = newsMediaUrl(media);
-      if (!url) return "";
-      const safeUrl = escapeHtml(url);
-      if (String(media?.mediaType || "").toUpperCase() === "IMAGE") {
-        return `
-          <a class="store-news-media-item store-news-media-item--image"
-             href="${safeUrl}" target="_blank" rel="noopener" aria-label="${name} 원본 보기">
-            <img src="${safeUrl}" alt="${name}" loading="lazy">
-          </a>
-        `;
-      }
-      return `
-        <div class="store-news-media-item store-news-media-item--video">
-          <video src="${safeUrl}" controls preload="metadata" aria-label="${name}"></video>
+    const readyImages = mediaItems.filter((media) =>
+      newsMediaStatus(media) === "READY" &&
+      String(media?.mediaType || "").toUpperCase() === "IMAGE" &&
+      Boolean(newsMediaUrl(media))
+    );
+    const secondaryItems = mediaItems.filter((media) => !readyImages.includes(media));
+
+    let imageGrid = "";
+    if (readyImages.length > 0) {
+      const countClass = readyImages.length === 1
+        ? "is-count-1"
+        : readyImages.length === 2
+          ? "is-count-2"
+          : readyImages.length === 3
+            ? "is-count-3"
+            : readyImages.length === 4
+              ? "is-count-4"
+              : "is-count-many";
+      imageGrid = `
+        <div class="store-news-media-images ${countClass}" aria-label="첨부 이미지 ${readyImages.length}장">
+          ${readyImages.map(newsReadyImageHtml).join("")}
         </div>
       `;
+    }
+
+    const secondaryHtml = secondaryItems.map((media) => {
+      const status = newsMediaStatus(media);
+      if (status !== "READY") return newsMediaProcessingHtml(media, status);
+      return newsReadyVideoHtml(media);
     }).join("");
+
+    return `${imageGrid}${secondaryHtml ? `<div class="store-news-media-secondary">${secondaryHtml}</div>` : ""}`;
+  }
+
+  function bindNewsMediaRuntime(host) {
+    window.FooduckIcons?.enhance(host);
+    host.querySelectorAll(".store-news-media-video").forEach((frame) => {
+      const video = frame.querySelector("video");
+      const loading = frame.querySelector(".detail-media-loading");
+      if (!video || !loading) return;
+
+      const finishLoading = () => {
+        loading.hidden = true;
+        frame.classList.add("is-ready");
+      };
+
+      if (video.readyState >= 2) {
+        finishLoading();
+      } else {
+        video.addEventListener("loadeddata", finishLoading, { once: true });
+        video.addEventListener("canplay", finishLoading, { once: true });
+      }
+
+      video.addEventListener("error", () => {
+        const item = frame.closest(".store-news-media-item");
+        if (!item) return;
+        const download = video.currentSrc || video.getAttribute("src") || "";
+        item.innerHTML = `
+          <div class="detail-media-fallback">
+            <span class="material-symbols-rounded" aria-hidden="true">movie</span>
+            <span>동영상을 재생할 수 없습니다. 원본 파일을 내려받아 확인해 주세요.</span>
+            ${download ? `<a class="button button-sm button-secondary" href="${escapeHtml(download)}">원본 다운로드</a>` : ""}
+          </div>
+        `;
+        window.FooduckIcons?.enhance(item);
+      }, { once: true });
+    });
   }
 
   function findNewsMediaHost(postId) {
@@ -345,6 +460,7 @@
       const html = newsMediaHtml(mediaItems);
       host.innerHTML = html;
       host.hidden = !html;
+      if (html) bindNewsMediaRuntime(host);
 
       const processing = mediaItems.some((media) => {
         const status = newsMediaStatus(media);
