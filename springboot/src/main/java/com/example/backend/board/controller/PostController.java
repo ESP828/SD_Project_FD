@@ -76,12 +76,14 @@ public class PostController {
     getPublicRestaurantNews(
             @PathVariable Long publicRestaurantId,
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "10") int size
+            @RequestParam(defaultValue = "10") int size,
+            Authentication authentication
     ) {
         return ApiResponse.success(postService.getPublicRestaurantNews(
                 publicRestaurantId,
                 page,
-                size
+                size,
+                BoardAuthentication.accountId(authentication)
         ));
     }
 
@@ -142,12 +144,14 @@ public class PostController {
     getOwnedRestaurantNews(
             @PathVariable Long restaurantId,
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "10") int size
+            @RequestParam(defaultValue = "10") int size,
+            Authentication authentication
     ) {
         return ApiResponse.success(postService.getOwnedRestaurantNews(
                 restaurantId,
                 page,
-                size
+                size,
+                BoardAuthentication.accountId(authentication)
         ));
     }
 

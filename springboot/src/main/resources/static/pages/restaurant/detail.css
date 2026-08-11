@@ -645,7 +645,20 @@ body > [data-site-header] > .site-header {
 }
 
 .store-news-meta {
-  margin-top: 6px;
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+
+.store-news-meta-copy {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.store-news-like {
+  flex: 0 0 auto;
 }
 
 .store-news-author,
@@ -897,6 +910,14 @@ body > [data-site-header] > .site-header {
   .store-news-actions {
     width: 100%;
     flex-wrap: wrap;
+  }
+
+  .store-news-meta {
+    align-items: flex-start;
+  }
+
+  .store-news-like {
+    margin-left: auto;
   }
 
   .store-news-media-images.is-count-many {

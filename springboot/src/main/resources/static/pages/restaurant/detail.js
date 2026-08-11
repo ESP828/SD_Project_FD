@@ -483,6 +483,21 @@
     });
   }
 
+  function newsLikeButtonHtml(news) {
+    if (news?.postId == null) return "";
+    const liked = news.likedByCurrentUser === true;
+    const likeCount = Math.max(0, Number(news.likeCount) || 0);
+    return `
+      <button type="button"
+              class="button button-sm ${liked ? "button-primary" : "button-secondary"} store-news-like"
+              data-news-like="${escapeHtml(news.postId)}"
+              data-news-liked="${liked}"
+              aria-pressed="${liked}">
+        ${liked ? "추천 취소" : "추천"} · ${likeCount}
+      </button>
+    `;
+  }
+
   function newsManageActionsHtml(news, itemCount) {
     if (!canWriteNews() || news.postId == null) return "";
     return `
@@ -572,6 +587,36 @@
 
   function bindNewsPanelActions() {
     bindNewsForm();
+    panels.news.querySelectorAll("[data-news-like]").forEach((button) => {
+      button.addEventListener("click", async () => {
+        const board = window.FooduckBoard;
+        if (!board?.requireLogin?.(window.location.pathname + window.location.search)) {
+          return;
+        }
+        const postId = button.dataset.newsLike;
+        if (!postId) return;
+
+        const liked = button.dataset.newsLiked === "true";
+        button.disabled = true;
+        try {
+          const response = liked
+            ? await Api.delete(`/board/posts/${encodeURIComponent(postId)}/like`)
+            : await Api.post(`/board/posts/${encodeURIComponent(postId)}/like`, {});
+          const nextLiked = response.data?.liked === true;
+          const nextCount = Math.max(0, Number(response.data?.likeCount) || 0);
+          button.dataset.newsLiked = String(nextLiked);
+          button.setAttribute("aria-pressed", String(nextLiked));
+          button.classList.toggle("button-primary", nextLiked);
+          button.classList.toggle("button-secondary", !nextLiked);
+          button.textContent = `${nextLiked ? "추천 취소" : "추천"} · ${nextCount}`;
+          board.invalidateBoardCache?.();
+        } catch (error) {
+          window.alert(error.message || "추천 처리 중 오류가 발생했습니다.");
+        } finally {
+          button.disabled = false;
+        }
+      });
+    });
     panels.news.querySelectorAll("[data-news-page]").forEach((button) => {
       button.addEventListener("click", () => {
         const targetPage = Number(button.dataset.newsPage);
@@ -647,8 +692,11 @@
             </div>
             <div class="store-news-media" data-news-media-post-id="${escapeHtml(news.postId ?? "")}" hidden></div>
             <div class="store-news-meta">
-              <span class="store-news-author" data-news-author-index="${index}">${escapeHtml(news.authorNickname || "-")}</span>
-              <span class="store-news-date">${formatDate(news.createdAt)}</span>
+              <div class="store-news-meta-copy">
+                <span class="store-news-author" data-news-author-index="${index}">${escapeHtml(news.authorNickname || "-")}</span>
+                <span class="store-news-date">${formatDate(news.createdAt)}</span>
+              </div>
+              ${newsLikeButtonHtml(news)}
             </div>
           </article>
         `).join("")}</div>`;
@@ -677,7 +725,7 @@
       size: String(NEWS_PAGE_SIZE),
     });
     try {
-      const response = await Api.get(`${newsApiPath()}?${params.toString()}`, { auth: false });
+      const response = await Api.get(`${newsApiPath()}?${params.toString()}`);
       const pageData = response.data || {};
       newsPage = Number.isInteger(pageData.page) && pageData.page >= 0
         ? pageData.page

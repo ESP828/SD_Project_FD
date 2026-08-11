@@ -881,9 +881,7 @@
       ),
       element("span", "", `조회 ${post.viewCount || 0}`),
     );
-    if (!newsPost) {
-      meta.append(element("span", "", `추천 ${post.likeCount || 0}`));
-    }
+    meta.append(element("span", "", `추천 ${post.likeCount || 0}`));
     heading.append(meta);
     detailContent.append(heading);
 
@@ -906,16 +904,14 @@
     startMediaStatusPolling(post.media);
 
     const actions = element("div", "detail-actions");
-    if (!newsPost) {
-      const likeButton = actionButton(
-        `${post.likedByCurrentUser ? "추천 취소" : "추천"} · ${post.likeCount || 0}`,
-        post.likedByCurrentUser
-          ? "button button-sm button-primary"
-          : "button button-sm button-secondary",
-        toggleLike,
-      );
-      actions.append(likeButton);
-    }
+    const likeButton = actionButton(
+      `${post.likedByCurrentUser ? "추천 취소" : "추천"} · ${post.likeCount || 0}`,
+      post.likedByCurrentUser
+        ? "button button-sm button-primary"
+        : "button button-sm button-secondary",
+      toggleLike,
+    );
+    actions.append(likeButton);
     const canManage = newsPost
       ? post.newsManageableByCurrentUser === true && Boolean(newsTarget)
       : (!fromBest && post.ownedByCurrentUser) || session.isAdmin;
@@ -1013,7 +1009,7 @@
       return;
     }
     const message = newsPost
-      ? "이 가게 소식과 연결된 댓글을 삭제하시겠습니까?"
+      ? "이 가게 소식과 연결된 댓글·추천을 삭제하시겠습니까?"
       : "게시글과 연결된 댓글·추천을 삭제하시겠습니까?";
     if (!window.confirm(message)) return;
     try {

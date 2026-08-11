@@ -211,7 +211,8 @@ public class PostService {
     public RestaurantNewsPageResponse getPublicRestaurantNews(
             Long publicRestaurantId,
             int page,
-            int size
+            int size,
+            Long currentAccountId
     ) {
         validatePage(page, size);
         validateId(publicRestaurantId, "공공데이터 음식점");
@@ -219,6 +220,7 @@ public class PostService {
             throw publicRestaurantNotFound();
         }
 
+        Account currentAccount = boardUserService.findOptional(currentAccountId);
         Page<Post> result = postRepository.findPublicRestaurantNews(
                 publicRestaurantId,
                 BoardType.GENERAL,
@@ -226,7 +228,7 @@ public class PostService {
                 PostStatus.ACTIVE,
                 PageRequest.of(page, size)
         );
-        return toRestaurantNewsPage(result);
+        return toRestaurantNewsPage(result, currentAccount);
     }
 
     @Transactional
@@ -310,7 +312,8 @@ public class PostService {
     public RestaurantNewsPageResponse getOwnedRestaurantNews(
             Long restaurantId,
             int page,
-            int size
+            int size,
+            Long currentAccountId
     ) {
         validatePage(page, size);
         validateId(restaurantId, "음식점");
@@ -318,6 +321,7 @@ public class PostService {
             throw restaurantNotFound();
         }
 
+        Account currentAccount = boardUserService.findOptional(currentAccountId);
         Page<Post> result = postRepository.findOwnedRestaurantNews(
                 restaurantId,
                 BoardType.GENERAL,
@@ -325,7 +329,7 @@ public class PostService {
                 PostStatus.ACTIVE,
                 PageRequest.of(page, size)
         );
-        return toRestaurantNewsPage(result);
+        return toRestaurantNewsPage(result, currentAccount);
     }
 
     @Transactional
@@ -1139,7 +1143,8 @@ public class PostService {
     @Transactional
     public PostLikeResponse likePost(Long postId, Long currentAccountId) {
         Account currentAccount = boardUserService.require(currentAccountId);
-        Post post = getExistingPostForUpdate(postId);
+        Post post = getExistingActivePostForUpdate(postId);
+        assertLikeablePost(post);
         accessPolicy.assertCanRead(post.getBoardType(), currentAccount);
 
         PostLikeId id = new PostLikeId(postId, currentAccount.getAccountId());
@@ -1153,7 +1158,8 @@ public class PostService {
     @Transactional
     public PostLikeResponse unlikePost(Long postId, Long currentAccountId) {
         Account currentAccount = boardUserService.require(currentAccountId);
-        Post post = getExistingPostForUpdate(postId);
+        Post post = getExistingActivePostForUpdate(postId);
+        assertLikeablePost(post);
         accessPolicy.assertCanRead(post.getBoardType(), currentAccount);
 
         PostLikeId id = new PostLikeId(postId, currentAccount.getAccountId());
@@ -1197,7 +1203,7 @@ public class PostService {
                     normalizedContent
             );
             postRepository.save(post);
-            RestaurantNewsItemResponse response = toRestaurantNewsItem(post);
+            RestaurantNewsItemResponse response = toRestaurantNewsItem(post, false);
             completePostSubmissionAfterTransaction(submissionKey);
             return response;
         } catch (RuntimeException | Error exception) {
@@ -1206,10 +1212,23 @@ public class PostService {
         }
     }
 
-    private RestaurantNewsPageResponse toRestaurantNewsPage(Page<Post> page) {
+    private RestaurantNewsPageResponse toRestaurantNewsPage(
+            Page<Post> page,
+            Account currentAccount
+    ) {
+        List<Post> posts = page.getContent();
+        Set<Long> likedPostIds = currentAccount == null || posts.isEmpty()
+                ? Set.of()
+                : Set.copyOf(postLikeRepository.findLikedPostIds(
+                        currentAccount.getAccountId(),
+                        posts.stream().map(Post::getPostId).toList()
+                ));
         return new RestaurantNewsPageResponse(
-                page.getContent().stream()
-                        .map(this::toRestaurantNewsItem)
+                posts.stream()
+                        .map(post -> toRestaurantNewsItem(
+                                post,
+                                likedPostIds.contains(post.getPostId())
+                        ))
                         .toList(),
                 page.getNumber(),
                 page.getSize(),
@@ -1220,13 +1239,18 @@ public class PostService {
         );
     }
 
-    private RestaurantNewsItemResponse toRestaurantNewsItem(Post post) {
+    private RestaurantNewsItemResponse toRestaurantNewsItem(
+            Post post,
+            boolean likedByCurrentUser
+    ) {
         return new RestaurantNewsItemResponse(
                 post.getPostId(),
                 post.getTitle(),
                 post.getContent(),
                 post.getAuthor().getAccountId(),
                 post.getAuthor().getNickname(),
+                post.getLikeCount(),
+                likedByCurrentUser,
                 post.getCreatedAt()
         );
     }
@@ -1289,6 +1313,17 @@ public class PostService {
 
     private void assertCommunityPost(Post post) {
         if (post.getCategory() == PostCategory.NEWS) {
+            throw notFound("게시글을 찾을 수 없습니다.");
+        }
+    }
+
+    private void assertLikeablePost(Post post) {
+        if (post.getCategory() != PostCategory.NEWS) {
+            return;
+        }
+        Long restaurantId = post.getRestaurantId();
+        Long publicRestaurantId = post.getPublicRestaurantId();
+        if ((restaurantId == null) == (publicRestaurantId == null)) {
             throw notFound("게시글을 찾을 수 없습니다.");
         }
     }
@@ -1867,6 +1902,8 @@ public class PostService {
             String content,
             Long authorAccountId,
             String authorNickname,
+            long likeCount,
+            boolean likedByCurrentUser,
             LocalDateTime createdAt
     ) {
     }
