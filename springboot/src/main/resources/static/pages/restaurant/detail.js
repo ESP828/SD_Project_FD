@@ -14,6 +14,17 @@
     return;
   }
 
+  const backButton = document.getElementById("store-back-button");
+  if (backButton) {
+    backButton.addEventListener("click", () => {
+      if (window.history.length > 1) {
+        window.history.back();
+      } else {
+        window.location.href = "/pages/search/index.html";
+      }
+    });
+  }
+
   const badgesEl = document.getElementById("store-badges");
   const nameEl = document.getElementById("store-name");
   const ownedBadge = document.getElementById("store-owned-badge");
@@ -95,17 +106,12 @@
   }
 
   async function loadMenu() {
-    if (source === "public") {
-      panels.menu.innerHTML = `
-        <div class="store-section-card">
-          <div class="store-empty">공공데이터 출처 가게는 메뉴 정보를 제공하지 않습니다.<br>사업자가 푸드덕에 가게를 직접 등록하면 메뉴를 볼 수 있어요.</div>
-        </div>
-      `;
-      return;
-    }
     panels.menu.innerHTML = '<div class="store-empty">메뉴를 불러오는 중입니다.</div>';
     try {
-      const response = await Api.get(`/public/restaurants/${storeId}/menu`, { auth: false });
+      const path = source === "public"
+        ? `/public/map/restaurants/${storeId}/menu`
+        : `/public/restaurants/${storeId}/menu`;
+      const response = await Api.get(path, { auth: false });
       const items = response.data || [];
       renderMenuPanel(items);
     } catch (error) {
@@ -115,12 +121,19 @@
 
   function renderMenuPanel(items) {
     if (items.length === 0) {
-      panels.menu.innerHTML = '<div class="store-section-card"><div class="store-empty">등록된 메뉴가 없습니다.</div></div>';
+      const emptyMessage = source === "public"
+        ? "등록된 메뉴가 없습니다.<br>사업자가 푸드덕에 가게를 직접 등록하면 정확한 메뉴를 볼 수 있어요."
+        : "등록된 메뉴가 없습니다.";
+      panels.menu.innerHTML = `<div class="store-section-card"><div class="store-empty">${emptyMessage}</div></div>`;
       return;
     }
+    const disclaimer = source === "public"
+      ? '<p class="store-menu-disclaimer">* 공공데이터 기반 예시 메뉴로 실제 메뉴·가격과 다를 수 있습니다.</p>'
+      : "";
     panels.menu.innerHTML = `
       <div class="store-section-card">
         <h2>전체 메뉴</h2>
+        ${disclaimer}
         <div class="store-menu-list">
           ${items.map(menuItemHtml).join("")}
         </div>
@@ -378,7 +391,7 @@
     const address = store.roadAddress || store.lotAddress || "-";
     addressEl.textContent = address;
 
-    const categoryName = store.categorySmallName || store.categoryMediumName || store.categoryLargeName;
+    const categoryName = store.categoryGroup || store.categorySmallName || store.categoryMediumName || store.categoryLargeName;
     badgesEl.innerHTML = categoryName
       ? `<span class="store-badge store-badge--category">${escapeHtml(categoryName)}</span>`
       : "";

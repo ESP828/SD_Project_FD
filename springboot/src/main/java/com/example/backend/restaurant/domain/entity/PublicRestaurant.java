@@ -53,6 +53,9 @@ public class PublicRestaurant {
     @Column(name = "category_small_name", length = 50)
     private String categorySmallName;
 
+    @Column(name = "category_group", length = 20)
+    private String categoryGroup;
+
     @Column(name = "sido_name", length = 30)
     private String sidoName;
 
@@ -172,6 +175,10 @@ public class PublicRestaurant {
 
     public String getCategorySmallName() {
         return categorySmallName;
+    }
+
+    public String getCategoryGroup() {
+        return categoryGroup;
     }
 
     public String getSidoName() {

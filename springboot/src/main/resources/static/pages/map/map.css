@@ -687,6 +687,12 @@
   line-height: 1.5;
 }
 
+.place-detail-menu-disclaimer {
+  margin: 0 0 8px;
+  color: var(--color-subtle);
+  font-size: 0.7rem;
+}
+
 .place-detail-menu-item {
   display: flex;
   align-items: center;

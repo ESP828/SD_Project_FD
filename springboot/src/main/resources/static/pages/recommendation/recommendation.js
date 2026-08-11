@@ -217,7 +217,6 @@
 
     const rankingSortLabel = element("label", "ranking-sort-label");
     rankingSortLabel.htmlFor = "ranking-sort-select";
-    rankingSortLabel.append(document.createTextNode("정렬"));
     const rankingSortSelect = document.createElement("select");
     rankingSortSelect.id = "ranking-sort-select";
     [["rating", "평점순"], ["review", "리뷰순"], ["favorite", "찜순"]].forEach(([value, label]) => {

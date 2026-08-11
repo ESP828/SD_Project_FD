@@ -181,16 +181,15 @@
       : (reviews.length ? reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length : null);
     const reviewCount = isOwned ? (detail?.reviewCount ?? 0) : reviews.length;
 
-    const menuHtml = isOwned
-      ? (menuItems.length
-        ? menuItems.slice(0, 4).map((item) => `
+    const menuHtml = menuItems.length
+      ? (isOwned ? "" : '<p class="place-detail-menu-disclaimer">* 공공데이터 기반 예시 메뉴로 실제와 다를 수 있습니다.</p>')
+        + menuItems.slice(0, 4).map((item) => `
             <div class="place-detail-menu-item">
               <strong>${escapeHtml(item.name)}</strong>
               <span>${item.price != null ? `${item.price.toLocaleString("ko-KR")}원` : "가격 미정"}</span>
             </div>
           `).join("")
-        : '<div class="place-detail-empty">등록된 메뉴가 없습니다.</div>')
-      : '<div class="place-detail-empty">공공데이터 출처 가게는 메뉴 정보를 제공하지 않습니다.<br>사업자가 푸드덕에 가게를 직접 등록하면 메뉴를 볼 수 있어요.</div>';
+      : '<div class="place-detail-empty">등록된 메뉴가 없습니다.</div>';
 
     const reviewHtml = reviews.length
       ? reviews.slice(0, 3).map((review) => `
@@ -247,7 +246,7 @@
       const [detailResponse, reviewsResponse, menuResponse] = await Promise.all([
         Api.get(isOwned ? `/public/restaurants/${place.restaurantId}` : `/public/map/restaurants/${place.restaurantId}`),
         Api.get(isOwned ? `/public/restaurants/${place.restaurantId}/reviews` : `/public/map/restaurants/${place.restaurantId}/reviews`, { auth: false }),
-        isOwned ? Api.get(`/public/restaurants/${place.restaurantId}/menu`, { auth: false }) : Promise.resolve({ data: [] }),
+        Api.get(isOwned ? `/public/restaurants/${place.restaurantId}/menu` : `/public/map/restaurants/${place.restaurantId}/menu`, { auth: false }),
       ]);
       if (requestId !== detailRequestToken) return;
       place.favoriteByCurrentUser = Boolean(detailResponse.data?.favoritedByMe);

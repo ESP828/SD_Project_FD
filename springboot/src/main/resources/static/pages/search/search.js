@@ -141,6 +141,8 @@
     if (region) params.set("region", region);
     if (category) params.set("category", category);
 
+    window.history.replaceState(null, "", `${window.location.pathname}?${params.toString()}`);
+
     setStatus("검색 중입니다.");
     results.setAttribute("aria-busy", "true");
 
@@ -209,9 +211,25 @@
 
   setStatus("검색 조건을 입력해 주세요.");
 
-  const query = new URLSearchParams(window.location.search).get("q");
-  if (query) {
-    keywordInput.value = query;
-    runSearch(0);
+  const initialParams = new URLSearchParams(window.location.search);
+  const initialKeyword = initialParams.get("keyword") || initialParams.get("q") || "";
+  const initialRegion = initialParams.get("region") || "";
+  const initialCategory = initialParams.get("category") || "";
+  const initialPage = Number(initialParams.get("page")) || 0;
+
+  if (initialKeyword) keywordInput.value = initialKeyword;
+  if (initialRegion) regionInput.value = initialRegion;
+  if (initialCategory) {
+    categorySelect.value = initialCategory;
+    quickButtons.forEach((button) =>
+      button.classList.toggle("is-active", button.dataset.quickCategory === initialCategory),
+    );
+    setFilterPanelOpen(true);
+  } else if (initialRegion) {
+    setFilterPanelOpen(true);
+  }
+
+  if (initialKeyword || initialRegion || initialCategory) {
+    runSearch(initialPage);
   }
 })();

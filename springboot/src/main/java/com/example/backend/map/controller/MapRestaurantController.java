@@ -9,6 +9,8 @@ import com.example.backend.map.dto.response.PublicRestaurantDetailResponse;
 import com.example.backend.map.dto.response.PublicRestaurantMarkerResponse;
 import com.example.backend.map.dto.response.PublicRestaurantSearchResponse;
 import com.example.backend.restaurant.domain.entity.PublicRestaurant;
+import com.example.backend.restaurant.dto.response.MenuResponse;
+import com.example.backend.restaurant.query.PublicRestaurantMenuQueryRepository;
 import com.example.backend.restaurant.repository.PublicRestaurantRepository;
 import com.example.backend.restaurant.repository.PublicRestaurantSpecifications;
 import com.example.backend.review.dto.response.ReviewResponse;
@@ -55,15 +57,18 @@ public class MapRestaurantController {
     private final PublicRestaurantRepository publicRestaurantRepository;
     private final ReviewService reviewService;
     private final PublicRestaurantFavoriteService favoriteService;
+    private final PublicRestaurantMenuQueryRepository menuQueryRepository;
 
     public MapRestaurantController(
             PublicRestaurantRepository publicRestaurantRepository,
             ReviewService reviewService,
-            PublicRestaurantFavoriteService favoriteService
+            PublicRestaurantFavoriteService favoriteService,
+            PublicRestaurantMenuQueryRepository menuQueryRepository
     ) {
         this.publicRestaurantRepository = publicRestaurantRepository;
         this.reviewService = reviewService;
         this.favoriteService = favoriteService;
+        this.menuQueryRepository = menuQueryRepository;
     }
 
     @GetMapping("/restaurants")
@@ -102,6 +107,11 @@ public class MapRestaurantController {
     @GetMapping("/restaurants/{id}/reviews")
     public ApiResponse<List<ReviewResponse>> getReviews(@PathVariable Long id) {
         return ApiResponse.success(reviewService.getReviewsForPublicRestaurant(id));
+    }
+
+    @GetMapping("/restaurants/{id}/menu")
+    public ApiResponse<List<MenuResponse>> getMenu(@PathVariable Long id) {
+        return ApiResponse.success(menuQueryRepository.findVisibleByPublicRestaurantId(id));
     }
 
     @GetMapping("/restaurants/search")

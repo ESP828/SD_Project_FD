@@ -53,6 +53,28 @@
   gap: 18px;
 }
 
+.store-back-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 14px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.78);
+  font-size: 0.82rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.store-back-button:hover {
+  color: #fff;
+}
+
+.store-back-button .material-symbols-rounded {
+  font-size: 1.1rem;
+}
+
 .store-hero-badges {
   display: flex;
   flex-wrap: wrap;
@@ -290,6 +312,12 @@
 }
 
 /* Menu */
+
+.store-menu-disclaimer {
+  margin: -4px 0 14px;
+  color: var(--color-subtle);
+  font-size: 0.74rem;
+}
 
 .store-menu-list {
   display: grid;
