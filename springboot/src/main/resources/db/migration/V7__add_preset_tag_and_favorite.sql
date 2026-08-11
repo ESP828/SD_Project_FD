@@ -11,7 +11,7 @@ CREATE TABLE preset_favorite (
 ) ENGINE=InnoDB
   DEFAULT CHARSET=utf8mb4
   COLLATE=utf8mb4_0900_ai_ci
-  COMMENT='사용자별 프리셋 저장';
+  COMMENT='사용자별 프리셋 찜';
 
 CREATE TABLE preset_tag (
     preset_id BIGINT UNSIGNED NOT NULL,

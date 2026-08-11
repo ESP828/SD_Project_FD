@@ -1,0 +1,238 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="presset에서 가져온 맛집을 지도에서 확인하세요">
+  <title>presset에서 가져온 맛집 · 푸드덕</title>
+  <link rel="icon" href="/images/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/css/common.css">
+  <link rel="stylesheet" href="/pages/presset/presset-design.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"
+        integrity="sha512-SnH5WK+bZxgPHs44uWIX+LLJAJ9/2PkPKZ5QiAj6Ta86w+fsb2TkcmfRyVX3pBnMFcV7oQPJkl9QevSCWr3W6A=="
+        crossorigin="anonymous" referrerpolicy="no-referrer">
+</head>
+<body>
+  <div data-site-header data-active-nav="맛집추천"></div>
+
+  <main class="pd">
+    <div class="pd-container">
+      <nav class="pd-crumb" aria-label="현재 위치">
+        <a href="/index.html"><i class="fa-solid fa-house"></i> 홈</a>
+        <span aria-hidden="true">›</span>
+        <a href="/pages/presset/index.html">맛집 추천</a>
+        <span aria-hidden="true">›</span>
+        <strong>presset에서 가져온 맛집</strong>
+      </nav>
+
+      <!-- ================= 페이지 헤더 ================= -->
+      <div class="pd-mapv-head">
+        <div>
+          <h1 class="pd-mapv-title">
+            presset에서 가져온 맛집
+            <button class="pd-mapv-heart" type="button" aria-label="presset 찜"><i class="fa-regular fa-heart"></i></button>
+          </h1>
+          <p class="pd-mapv-sub">
+            선택하신 presset ‘성수동 데이트 맛집 모음’의 맛집을 지도에서 확인해보세요.
+          </p>
+        </div>
+
+        <aside class="pd-mapv-preset">
+          <div class="pd-mapv-preset-photo pd-photo pd-photo--1"></div>
+          <div class="pd-mapv-preset-body">
+            <strong>성수동 데이트 맛집 모음</strong>
+            <p>분위기 좋은 성수동 데이트 맛집을 카페부터,<br>다이닝까지 모아봤어요.</p>
+            <span class="pd-mapv-preset-meta">맛집 8곳 · 저장 324회</span>
+          </div>
+          <a class="pd-mapv-preset-link" href="/pages/presset/detail.html?presetId=1">presset 보기 →</a>
+        </aside>
+      </div>
+
+      <!-- ================= 카테고리 필터 ================= -->
+      <div class="pd-filters" role="group" aria-label="음식 종류 필터">
+        <button class="pd-filter" type="button" aria-pressed="false">전체</button>
+        <button class="pd-filter" type="button" aria-pressed="false">한식</button>
+        <button class="pd-filter" type="button" aria-pressed="false">일식</button>
+        <button class="pd-filter" type="button" aria-pressed="false">중식</button>
+        <button class="pd-filter" type="button" aria-pressed="false">양식</button>
+        <button class="pd-filter" type="button" aria-pressed="false">분식</button>
+        <button class="pd-filter" type="button" aria-pressed="true">카페</button>
+      </div>
+
+      <!-- ================= 목록 + 지도 ================= -->
+      <div class="pd-mapv-grid">
+        <!-- 좌측 목록 -->
+        <section class="pd-mapv-panel">
+          <div class="pd-mapv-listhead">
+            <strong>카페 3곳</strong>
+            <label class="pd-mapv-sort">
+              <span class="sr-only">정렬</span>
+              <select>
+                <option>인기순</option>
+                <option>별점순</option>
+                <option>리뷰순</option>
+              </select>
+            </label>
+          </div>
+
+          <div class="pd-mapv-list">
+            <article class="pd-mcard is-selected">
+              <span class="pd-mcard-no">1</span>
+              <div class="pd-mcard-photo pd-photo pd-photo--6"></div>
+              <div class="pd-mcard-body">
+                <h3>성수 다이닝 <span class="pd-chip">카페</span></h3>
+                <p class="pd-mcard-rating"><b><i class="fa-solid fa-star"></i> 4.7</b> · 방문자 리뷰 892</p>
+                <p class="pd-mcard-desc">감각적인 인테리어와 브런치로 유명한 성수 감성 카페</p>
+                <div class="pd-rcard-tags">
+                  <span class="pd-chip">분위기 좋은</span>
+                  <span class="pd-chip">브런치</span>
+                  <span class="pd-chip">데이트</span>
+                </div>
+              </div>
+              <div class="pd-mcard-actions">
+                <button class="pd-icon-btn" type="button" aria-label="맛집 찜"><i class="fa-regular fa-heart"></i></button>
+                <button class="pd-btn pd-btn--ghost pd-btn--sm" type="button">상세보기</button>
+              </div>
+            </article>
+
+            <article class="pd-mcard">
+              <span class="pd-mcard-no">2</span>
+              <div class="pd-mcard-photo pd-photo pd-photo--3"></div>
+              <div class="pd-mcard-body">
+                <h3>무드 커피 <span class="pd-chip">카페</span></h3>
+                <p class="pd-mcard-rating"><b><i class="fa-solid fa-star"></i> 4.6</b> · 방문자 리뷰 671</p>
+                <p class="pd-mcard-desc">따뜻한 분위기와 직접 로스팅한 원두가 맛있는 카페</p>
+                <div class="pd-rcard-tags">
+                  <span class="pd-chip">조용한</span>
+                  <span class="pd-chip">디저트</span>
+                  <span class="pd-chip">사진 맛집</span>
+                </div>
+              </div>
+              <div class="pd-mcard-actions">
+                <button class="pd-icon-btn" type="button" aria-label="맛집 찜"><i class="fa-regular fa-heart"></i></button>
+                <button class="pd-btn pd-btn--ghost pd-btn--sm" type="button">상세보기</button>
+              </div>
+            </article>
+
+            <article class="pd-mcard">
+              <span class="pd-mcard-no">3</span>
+              <div class="pd-mcard-photo pd-photo pd-photo--5"></div>
+              <div class="pd-mcard-body">
+                <h3>플루어 커피 <span class="pd-chip">카페</span></h3>
+                <p class="pd-mcard-rating"><b><i class="fa-solid fa-star"></i> 4.5</b> · 방문자 리뷰 544</p>
+                <p class="pd-mcard-desc">플라워 감성 인테리어가 매력적인 플루어 커피</p>
+                <div class="pd-rcard-tags">
+                  <span class="pd-chip">분위기 좋은</span>
+                  <span class="pd-chip">디저트</span>
+                  <span class="pd-chip">사진 맛집</span>
+                </div>
+              </div>
+              <div class="pd-mcard-actions">
+                <button class="pd-icon-btn" type="button" aria-label="맛집 찜"><i class="fa-regular fa-heart"></i></button>
+                <button class="pd-btn pd-btn--ghost pd-btn--sm" type="button">상세보기</button>
+              </div>
+            </article>
+          </div>
+        </section>
+
+        <!-- 우측 지도 -->
+        <section class="pd-mapv-mapwrap">
+          <div class="pd-mapv-legend">
+            <span><i class="pd-dot pd-dot--check"></i> 카페만 보기</span>
+            <span><i class="pd-dot pd-dot--pin"></i> 선택한 맛집</span>
+            <span><i class="pd-dot pd-dot--soft"></i> 카페</span>
+          </div>
+
+          <div id="pd-map" class="pd-mapv-map" data-fallback="지도를 불러오는 중입니다."></div>
+
+          <button class="pd-mapv-listbtn" type="button"><i class="fa-solid fa-bars"></i> 목록 보기</button>
+        </section>
+      </div>
+
+      <p class="pd-mapv-help">
+        <i class="fa-solid fa-map-location-dot"></i> 지도에서 마커를 클릭하거나 목록을 선택하면 맛집 정보를 확인할 수 있어요.
+      </p>
+    </div>
+  </main>
+
+  <div data-site-footer></div>
+
+  <script src="/js/api.js"></script>
+  <script src="/js/common.js"></script>
+  <script>
+    /* presset 지도 뷰 – 디자인 시안용 지도 렌더링 */
+    (() => {
+      const host = document.querySelector("#pd-map");
+      const spots = [
+        { no: 1, name: "성수 다이닝", lat: 37.5445, lng: 127.0557 },
+        { no: 2, name: "무드 커피", lat: 37.5478, lng: 127.0602 },
+        { no: 3, name: "플루어 커피", lat: 37.5421, lng: 127.0498 },
+        { no: 4, name: "성수 한식당", lat: 37.5462, lng: 127.0521 },
+        { no: 5, name: "뚝섬 파스타", lat: 37.5403, lng: 127.0546 },
+        { no: 6, name: "서울숲 베이커리", lat: 37.5439, lng: 127.0463 },
+        { no: 7, name: "성수 와인바", lat: 37.5487, lng: 127.0669 },
+        { no: 8, name: "연무장 카페", lat: 37.5412, lng: 127.0631 },
+      ];
+
+      function loadSdk(key) {
+        return new Promise((resolve, reject) => {
+          const script = document.createElement("script");
+          script.async = true;
+          script.src =
+            `https://dapi.kakao.com/v2/maps/sdk.js?appkey=${encodeURIComponent(key)}&autoload=false`;
+          script.onload = () => window.kakao.maps.load(resolve);
+          script.onerror = () => reject(new Error("지도 SDK 로드 실패"));
+          document.head.appendChild(script);
+        });
+      }
+
+      function render() {
+        const { kakao } = window;
+        const map = new kakao.maps.Map(host, {
+          center: new kakao.maps.LatLng(37.5445, 127.0557),
+          level: 5,
+        });
+
+        spots.forEach((spot) => {
+          const position = new kakao.maps.LatLng(spot.lat, spot.lng);
+          const selected = spot.no === 1;
+          const overlay = new kakao.maps.CustomOverlay({
+            position,
+            yAnchor: 1,
+            content:
+              `<span class="pd-pin${selected ? " pd-pin--active" : ""}"><i>${spot.no}</i></span>`,
+          });
+          overlay.setMap(map);
+        });
+
+        /* 선택한 맛집 정보 말풍선 */
+        new kakao.maps.CustomOverlay({
+          position: new kakao.maps.LatLng(37.5445, 127.0557),
+          xAnchor: -0.08,
+          yAnchor: 0.9,
+          content: `
+            <div class="pd-mappop">
+              <div class="pd-mappop-photo pd-photo pd-photo--6"></div>
+              <div class="pd-mappop-body">
+                <strong>성수 다이닝 <span class="pd-chip">카페</span></strong>
+                <p class="pd-mappop-rating"><i class="fa-solid fa-star"></i> 4.7 · 방문자 리뷰 892</p>
+                <p class="pd-mappop-desc">감각적인 인테리어와 브런치로<br>유명한 성수 감성 카페</p>
+              </div>
+              <button class="pd-btn pd-btn--primary pd-mappop-cta" type="button">상세 정보 보기</button>
+            </div>`,
+        }).setMap(map);
+      }
+
+      Api.get("/public/map/config", { auth: false })
+        .then((config) => {
+          if (!config.data?.configured) throw new Error("지도 키 미설정");
+          return loadSdk(config.data.javascriptKey).then(render);
+        })
+        .catch(() => {
+          host.classList.add("is-placeholder");
+          host.textContent = "지도 키가 설정되지 않아 지도를 표시할 수 없습니다.";
+        });
+    })();
+  </script>
+</body>
+</html>

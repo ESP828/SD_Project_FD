@@ -339,6 +339,7 @@
   font-size: 0.88rem;
 }
 
+<<<<<<< Updated upstream
 .best-menu-list {
   display: grid;
   margin: 0;
@@ -363,6 +364,28 @@
 
 .best-menu-rank {
   color: var(--color-orange-dark);
+=======
+.preset-ranking-image-placeholder {
+  display: grid;
+  width: 100%;
+  height: 100%;
+  place-items: center;
+  color: var(--color-muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.preset-ranking-rank {
+  position: absolute;
+  z-index: 2;
+  top: 8px;
+  left: 8px;
+  padding: 2px 9px;
+  border-radius: 999px;
+  color: #fff;
+  background: rgba(15, 43, 77, 0.78);
+  font-size: 0.72rem;
+>>>>>>> Stashed changes
   font-weight: 950;
   text-align: center;
 }

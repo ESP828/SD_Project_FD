@@ -134,6 +134,7 @@
     return row;
   }
 
+<<<<<<< Updated upstream
   function createBestMenus(items) {
     const list = element("ol", "best-menu-list");
     for (let index = 0; index < 5; index += 1) {
@@ -159,6 +160,50 @@
         row.append(empty);
       }
       list.append(row);
+=======
+  function createPresetRankingCard(preset, rank) {
+    const card = element("article", "preset-ranking-card");
+    const image = element("div", "preset-ranking-card-image");
+    image.append(element("span", "preset-ranking-rank", String(rank)));
+    const imagePlaceholder = () => {
+      const placeholder = element("span", "preset-ranking-image-placeholder", "이미지 없음");
+      placeholder.setAttribute("aria-label", "등록 이미지 없음");
+      return placeholder;
+    };
+    if (preset.imageUrl) {
+      const img = new Image();
+      img.alt = `${preset.title || "Presset"} 대표 이미지`;
+      img.loading = "lazy";
+      img.src = preset.imageUrl;
+      img.addEventListener("error", () => {
+        img.replaceWith(imagePlaceholder());
+      }, { once: true });
+      image.append(img);
+    } else {
+      image.append(imagePlaceholder());
+    }
+
+    const body = element("div", "preset-ranking-card-body");
+    body.append(
+      element("strong", "", preset.title || "이름 없는 프리셋"),
+      element("span", "", `${preset.category || "기타"} · 찜 ${preset.favoriteCount || 0}`),
+    );
+
+    const link = element("a", "preset-ranking-card-link");
+    link.href = `/pages/presset/detail.html?presetId=${preset.presetId}`;
+    link.setAttribute("aria-label", `${preset.title || "프리셋"} 상세보기`);
+
+    card.append(image, body, link);
+    return card;
+  }
+
+  function createPresetRankingList(presets) {
+    const list = element("div", "preset-ranking-list");
+    if (!presets.length) {
+      const empty = element("div", "preset-ranking-empty", "아직 랭킹에 표시할 프리셋이 없습니다.");
+      list.append(empty);
+      return list;
+>>>>>>> Stashed changes
     }
     return list;
   }

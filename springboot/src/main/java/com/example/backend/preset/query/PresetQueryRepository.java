@@ -1,6 +1,7 @@
 package com.example.backend.preset.query;
 
 import com.example.backend.preset.dto.request.PresetCreateRequest;
+import com.example.backend.preset.dto.response.PresetRestaurantOptionResponse;
 import com.example.backend.preset.dto.response.PresetRestaurantResponse;
 import com.example.backend.preset.dto.response.PresetSummaryResponse;
 import com.example.backend.preset.dto.response.PresetTagResponse;
@@ -10,14 +11,19 @@ import org.springframework.jdbc.support.GeneratedKeyHolder;
 import org.springframework.stereotype.Repository;
 
 import java.sql.ResultSet;
+import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
+import java.util.concurrent.ThreadLocalRandom;
 
 @Repository
 public class PresetQueryRepository {
@@ -32,7 +38,7 @@ public class PresetQueryRepository {
                    p.display_order,
                    p.created_at,
                    pi.stored_filename,
-                   count(distinct case when r.status = 'ACTIVE' then r.restaurant_id end) as restaurant_count,
+                   count(distinct pr.restaurant_id) as restaurant_count,
                    (select count(*) from preset_favorite pf_count
                      where pf_count.preset_id = p.preset_id) as favorite_count,
                    case when :accountId is not null and exists (
@@ -42,8 +48,9 @@ public class PresetQueryRepository {
                    ) then true else false end as favorite_by_current_user
               from preset p
               left join preset_restaurant pr on pr.preset_id = p.preset_id
-              left join restaurant r on r.restaurant_id = pr.restaurant_id
-              left join preset_image pi on pi.preset_id = p.preset_id
+              left join preset_image pi
+                on pi.preset_image_id = p.preset_image_id
+               and pi.preset_id = p.preset_id
             """;
 
     private static final String ACTIVE_FILTER = """
@@ -108,7 +115,9 @@ public class PresetQueryRepository {
                    case when :accountId is not null and p.account_id = :accountId
                         then true else false end as is_owner
              from preset p
-             left join preset_image pi on pi.preset_id = p.preset_id
+             left join preset_image pi
+               on pi.preset_image_id = p.preset_image_id
+              and pi.preset_id = p.preset_id
              where p.preset_id = :presetId
                and p.status = 'ACTIVE'
                and (coalesce(p.is_public, true) = true or p.account_id = :accountId)
@@ -163,6 +172,7 @@ public class PresetQueryRepository {
             """;
 
     private final NamedParameterJdbcTemplate jdbcTemplate;
+    private volatile Set<String> presetRestaurantColumns;
 
     public PresetQueryRepository(NamedParameterJdbcTemplate jdbcTemplate) {
         this.jdbcTemplate = jdbcTemplate;
@@ -206,6 +216,34 @@ public class PresetQueryRepository {
         return jdbcTemplate.update(sql, parameters);
     }
 
+    public int softDelete(Long presetId) {
+        String sql = """
+                update preset
+                   set status = 'DELETED',
+                       deleted_at = current_timestamp
+                 where preset_id = :presetId
+                   and status = 'ACTIVE'
+                """;
+        return jdbcTemplate.update(sql, new MapSqlParameterSource("presetId", presetId));
+    }
+
+    public int linkImage(Long presetId, Long presetImageId) {
+        String sql = """
+                update preset
+                   set preset_image_id = :presetImageId
+                 where preset_id = :presetId
+                   and exists (
+                       select 1
+                         from preset_image
+                        where preset_image_id = :presetImageId
+                          and preset_id = :presetId
+                   )
+                """;
+        return jdbcTemplate.update(sql, new MapSqlParameterSource()
+                .addValue("presetId", presetId)
+                .addValue("presetImageId", presetImageId));
+    }
+
     public Long findOwnerAccountId(Long presetId) {
         String sql = "select account_id from preset where preset_id = :presetId and status = 'ACTIVE'";
         return jdbcTemplate.query(
@@ -213,6 +251,159 @@ public class PresetQueryRepository {
                 new MapSqlParameterSource("presetId", presetId),
                 (rs, rowNumber) -> rs.getObject("account_id", Long.class)
         ).stream().findFirst().orElse(null);
+    }
+
+    public Long findOwnerAccountIdForUpdate(Long presetId) {
+        String sql = """
+                select account_id
+                  from preset
+                 where preset_id = :presetId
+                   and status = 'ACTIVE'
+                   for update
+                """;
+        return jdbcTemplate.query(
+                sql,
+                new MapSqlParameterSource("presetId", presetId),
+                (rs, rowNumber) -> rs.getObject("account_id", Long.class)
+        ).stream().findFirst().orElse(null);
+    }
+
+    public boolean activeRestaurantExists(Long restaurantId) {
+        Integer count = jdbcTemplate.queryForObject(
+                """
+                select count(*)
+                  from restaurant
+                 where restaurant_id = :restaurantId
+                   and status = 'ACTIVE'
+                """,
+                new MapSqlParameterSource("restaurantId", restaurantId),
+                Integer.class
+        );
+        return count != null && count > 0;
+    }
+
+    public boolean presetRestaurantExists(Long presetId, Long restaurantId) {
+        Integer count = jdbcTemplate.queryForObject(
+                """
+                select count(*)
+                  from preset_restaurant
+                 where preset_id = :presetId
+                   and restaurant_id = :restaurantId
+                """,
+                new MapSqlParameterSource()
+                        .addValue("presetId", presetId)
+                        .addValue("restaurantId", restaurantId),
+                Integer.class
+        );
+        return count != null && count > 0;
+    }
+
+    public long countPresetRestaurants(Long presetId) {
+        Long count = jdbcTemplate.queryForObject(
+                "select count(*) from preset_restaurant where preset_id = :presetId",
+                new MapSqlParameterSource("presetId", presetId),
+                Long.class
+        );
+        return count == null ? 0 : count;
+    }
+
+    public int nextRestaurantDisplayOrder(Long presetId) {
+        Integer nextOrder = jdbcTemplate.queryForObject(
+                """
+                select coalesce(max(display_order), -1) + 1
+                  from preset_restaurant
+                 where preset_id = :presetId
+                """,
+                new MapSqlParameterSource("presetId", presetId),
+                Integer.class
+        );
+        return nextOrder == null ? 0 : nextOrder;
+    }
+
+    public int addRestaurant(Long presetId, Long restaurantId, int displayOrder) {
+        List<String> columns = new ArrayList<>(List.of(
+                "preset_id", "restaurant_id", "display_order", "description"
+        ));
+        List<String> values = new ArrayList<>(List.of(
+                ":presetId", ":restaurantId", ":displayOrder", ":description"
+        ));
+        MapSqlParameterSource parameters = new MapSqlParameterSource()
+                .addValue("presetId", presetId)
+                .addValue("restaurantId", restaurantId)
+                .addValue("displayOrder", displayOrder)
+                .addValue("description", null);
+
+        Set<String> actualColumns = presetRestaurantColumns();
+        if (actualColumns.contains("preset_content_id")) {
+            columns.add("preset_content_id");
+            values.add(":presetContentId");
+            parameters.addValue(
+                    "presetContentId",
+                    ThreadLocalRandom.current().nextLong(1, Long.MAX_VALUE)
+            );
+        }
+        if (actualColumns.contains("owner_restaurant_id")) {
+            columns.add("owner_restaurant_id");
+            values.add(":ownerRestaurantId");
+            parameters.addValue("ownerRestaurantId", restaurantId);
+        }
+        if (actualColumns.contains("sort_order")) {
+            columns.add("sort_order");
+            values.add(":sortOrder");
+            parameters.addValue("sortOrder", displayOrder);
+        }
+
+        String sql = "insert into preset_restaurant ("
+                + String.join(", ", columns)
+                + ") values ("
+                + String.join(", ", values)
+                + ")";
+        return jdbcTemplate.update(sql, parameters);
+    }
+
+    public int removeRestaurant(Long presetId, Long restaurantId) {
+        return jdbcTemplate.update(
+                """
+                delete from preset_restaurant
+                 where preset_id = :presetId
+                   and restaurant_id = :restaurantId
+                """,
+                new MapSqlParameterSource()
+                        .addValue("presetId", presetId)
+                        .addValue("restaurantId", restaurantId)
+        );
+    }
+
+    public List<PresetRestaurantOptionResponse> findAvailableActiveRestaurants(Long presetId) {
+        String sql = """
+                select r.restaurant_id,
+                       r.name,
+                       rc.name as category_name,
+                       r.address,
+                       r.address_detail
+                  from restaurant r
+                  left join restaurant_category rc
+                    on rc.category_id = r.category_id
+                 where r.status = 'ACTIVE'
+                   and not exists (
+                       select 1
+                         from preset_restaurant pr
+                        where pr.preset_id = :presetId
+                          and pr.restaurant_id = r.restaurant_id
+                   )
+                 order by r.name asc, r.restaurant_id asc
+                """;
+        return jdbcTemplate.query(
+                sql,
+                new MapSqlParameterSource("presetId", presetId),
+                (rs, rowNumber) -> new PresetRestaurantOptionResponse(
+                        rs.getLong("restaurant_id"),
+                        rs.getString("name"),
+                        rs.getString("category_name"),
+                        rs.getString("address"),
+                        rs.getString("address_detail")
+                )
+        );
     }
 
     public long countActive(Long accountId, Integer tagId, String keyword) {
@@ -532,6 +723,26 @@ public class PresetQueryRepository {
                 && latitude >= -90 && latitude <= 90
                 && longitude >= -180 && longitude <= 180
                 && !(latitude == 0 && longitude == 0);
+    }
+
+    private Set<String> presetRestaurantColumns() {
+        Set<String> cached = presetRestaurantColumns;
+        if (cached != null) {
+            return cached;
+        }
+        Set<String> detected = jdbcTemplate.getJdbcTemplate().query(
+                "select * from preset_restaurant where 1 = 0",
+                resultSet -> {
+                    ResultSetMetaData metadata = resultSet.getMetaData();
+                    Set<String> names = new HashSet<>();
+                    for (int index = 1; index <= metadata.getColumnCount(); index++) {
+                        names.add(metadata.getColumnLabel(index).toLowerCase(Locale.ROOT));
+                    }
+                    return Set.copyOf(names);
+                }
+        );
+        presetRestaurantColumns = detected;
+        return detected;
     }
 
     private record PresetSummaryRow(

@@ -7,6 +7,8 @@ import com.example.backend.preset.dto.response.FavoriteStateResponse;
 import com.example.backend.preset.dto.response.PresetDetailResponse;
 import com.example.backend.preset.dto.response.PresetMapResponse;
 import com.example.backend.preset.dto.response.PresetPageResponse;
+import com.example.backend.preset.dto.response.PresetRestaurantCountResponse;
+import com.example.backend.preset.dto.response.PresetRestaurantOptionResponse;
 import com.example.backend.preset.dto.response.PresetRestaurantResponse;
 import com.example.backend.preset.dto.response.PresetSummaryResponse;
 import com.example.backend.preset.dto.response.PresetTagResponse;
@@ -32,6 +34,7 @@ public class PresetService {
 
     private static final int DEFAULT_PAGE_SIZE = 12;
     private static final int MAX_PAGE_SIZE = 24;
+    private static final int MAX_RESTAURANTS_PER_PRESET = 15;
     private static final Set<String> SORT_OPTIONS = Set.of("popular", "latest", "favorite");
     private static final long MAX_IMAGE_BYTES = 5L * 1024 * 1024;
     private static final Map<String, String> ALLOWED_IMAGE_TYPES = Map.of(
@@ -124,18 +127,31 @@ public class PresetService {
         }
     }
 
+    @Transactional
+    public void deletePreset(Long presetId, Long accountId) {
+        validateId(presetId, "프리셋");
+        validateId(accountId, "계정");
+        verifyOwnerWithLock(presetId, accountId);
+        if (queryRepository.softDelete(presetId) == 0) {
+            throw new PresetNotFoundException(presetId);
+        }
+    }
+
     private void saveImage(Long presetId, MultipartFile image) {
         String extension = validateImage(image);
         Optional<String> previousStoredFilename = imageQueryRepository.findStoredFilename(presetId);
         String storedFilename = imageStorage.save(image, extension);
         try {
-            imageQueryRepository.replace(
+            Long presetImageId = imageQueryRepository.replace(
                     presetId,
                     storedFilename,
                     sanitizeOriginalFilename(image.getOriginalFilename()),
                     image.getContentType(),
                     image.getSize()
             );
+            if (presetImageId == null || queryRepository.linkImage(presetId, presetImageId) == 0) {
+                throw new BusinessException(ErrorCode.INTERNAL_ERROR);
+            }
             synchronizeImageFiles(previousStoredFilename.orElse(null), storedFilename);
         } catch (RuntimeException | Error exception) {
             imageStorage.delete(storedFilename);
@@ -243,6 +259,52 @@ public class PresetService {
         return new FavoriteStateResponse(queryRepository.countFavorites(presetId), false);
     }
 
+    @Transactional
+    public PresetRestaurantCountResponse addRestaurant(
+            Long presetId,
+            Long restaurantId,
+            Long accountId
+    ) {
+        validateRestaurantRequest(presetId, restaurantId, accountId);
+        verifyOwnerWithLock(presetId, accountId);
+        if (!queryRepository.activeRestaurantExists(restaurantId)) {
+            throw new BusinessException(ErrorCode.RESTAURANT_NOT_FOUND);
+        }
+        if (queryRepository.presetRestaurantExists(presetId, restaurantId)) {
+            throw new BusinessException(ErrorCode.PRESET_RESTAURANT_DUPLICATE);
+        }
+
+        long currentCount = queryRepository.countPresetRestaurants(presetId);
+        if (currentCount >= MAX_RESTAURANTS_PER_PRESET) {
+            throw new BusinessException(ErrorCode.PRESET_RESTAURANT_LIMIT_EXCEEDED);
+        }
+
+        int displayOrder = queryRepository.nextRestaurantDisplayOrder(presetId);
+        try {
+            queryRepository.addRestaurant(presetId, restaurantId, displayOrder);
+        } catch (DuplicateKeyException exception) {
+            if (queryRepository.presetRestaurantExists(presetId, restaurantId)) {
+                throw new BusinessException(ErrorCode.PRESET_RESTAURANT_DUPLICATE);
+            }
+            throw exception;
+        }
+        return restaurantCountResponse(queryRepository.countPresetRestaurants(presetId));
+    }
+
+    @Transactional
+    public PresetRestaurantCountResponse removeRestaurant(
+            Long presetId,
+            Long restaurantId,
+            Long accountId
+    ) {
+        validateRestaurantRequest(presetId, restaurantId, accountId);
+        verifyOwnerWithLock(presetId, accountId);
+        if (queryRepository.removeRestaurant(presetId, restaurantId) == 0) {
+            throw new BusinessException(ErrorCode.PRESET_RESTAURANT_NOT_FOUND);
+        }
+        return restaurantCountResponse(queryRepository.countPresetRestaurants(presetId));
+    }
+
     @Transactional(readOnly = true)
     public List<PresetSummaryResponse> getSavedPresets(Long accountId) {
         validateId(accountId, "계정");
@@ -252,6 +314,10 @@ public class PresetService {
     private PresetDetailResponse toDetail(PresetDetailRow preset, Long accountId) {
         List<PresetRestaurantResponse> restaurants =
                 queryRepository.findActiveRestaurants(preset.presetId(), accountId);
+        long restaurantCount = queryRepository.countPresetRestaurants(preset.presetId());
+        List<PresetRestaurantOptionResponse> restaurantOptions = preset.isOwner()
+                ? queryRepository.findAvailableActiveRestaurants(preset.presetId())
+                : List.of();
         return new PresetDetailResponse(
                 preset.presetId(),
                 preset.title(),
@@ -262,8 +328,11 @@ public class PresetService {
                 preset.isOwner(),
                 preset.imageUrl(),
                 preset.createdAt(),
+                restaurantCount,
+                MAX_RESTAURANTS_PER_PRESET,
                 queryRepository.findTagsByPresetId(preset.presetId()),
-                restaurants
+                restaurants,
+                restaurantOptions
         );
     }
 
@@ -278,6 +347,30 @@ public class PresetService {
         if (!queryRepository.activePresetExists(presetId, accountId)) {
             throw new PresetNotFoundException(presetId);
         }
+    }
+
+    private void verifyOwnerWithLock(Long presetId, Long accountId) {
+        Long ownerAccountId = queryRepository.findOwnerAccountIdForUpdate(presetId);
+        if (ownerAccountId == null) {
+            throw new PresetNotFoundException(presetId);
+        }
+        if (!ownerAccountId.equals(accountId)) {
+            throw new BusinessException(ErrorCode.PRESET_OWNER_REQUIRED);
+        }
+    }
+
+    private static void validateRestaurantRequest(
+            Long presetId,
+            Long restaurantId,
+            Long accountId
+    ) {
+        validateId(presetId, "프리셋");
+        validateId(restaurantId, "맛집");
+        validateId(accountId, "계정");
+    }
+
+    private static PresetRestaurantCountResponse restaurantCountResponse(long count) {
+        return new PresetRestaurantCountResponse(count, MAX_RESTAURANTS_PER_PRESET);
     }
 
     private static void validateListRequest(

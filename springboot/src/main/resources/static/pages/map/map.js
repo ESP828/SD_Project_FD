@@ -13,9 +13,16 @@
   const sidebarToggleIcon = sidebarToggleButton.querySelector(".material-symbols-rounded");
   const searchAreaButton = document.getElementById("search-area-button");
   const pageTitle = document.getElementById("map-page-title");
+<<<<<<< Updated upstream
   const presetContext = document.getElementById("preset-map-context");
   const presetSummary = document.getElementById("preset-map-summary");
   const presetBack = document.getElementById("preset-map-back");
+=======
+  const presetBreadcrumb = document.getElementById("preset-map-breadcrumb");
+  const detailPanel = document.getElementById("place-detail-panel");
+  const detailClose = document.getElementById("place-detail-close");
+  const detailBody = document.getElementById("place-detail-body");
+>>>>>>> Stashed changes
 
 <<<<<<< Updated upstream
 let lastSearchKeyword = "";
@@ -23,6 +30,7 @@ let lastSearchKeyword = "";
   const query = new URLSearchParams(location.search);
   const presetMode = query.has("presetId");
   const presetId = Number(query.get("presetId"));
+  const editMode = presetMode && query.has("edit");
   const requestedRestaurantId = Number(query.get("restaurantId"));
   const SEARCH_RADIUS_METERS = 500;
   const markerAssetRoot = "/images/markers";
@@ -196,6 +204,22 @@ function initializeMap() {
     }
   }
 
+  async function removeFromPreset(button, place) {
+    if (!window.confirm(`"${place.place_name}"을(를) 이 presset에서 삭제할까요?`)) return;
+    button.disabled = true;
+    try {
+      if (place.restaurantId > 0) {
+        await Api.delete(`/presets/${presetId}/restaurants/${place.restaurantId}`);
+      }
+      presetItems = presetItems.filter((item) => item.restaurantId !== place.restaurantId);
+      renderItems(presetItems, pageTitle.textContent);
+      setMapStatus(`"${place.place_name}"을(를) presset에서 삭제했습니다.`);
+    } catch (error) {
+      window.alert(error.message || "삭제 중 오류가 발생했습니다.");
+      button.disabled = false;
+    }
+  }
+
   function createResultRow(place, index) {
     const article = document.createElement("article");
     article.className = "place-result";
@@ -243,6 +267,29 @@ function initializeMap() {
       favorite.addEventListener("click", () => toggleRestaurantFavorite(favorite, place));
       body.append(favorite);
     }
+<<<<<<< Updated upstream
+=======
+    if (editMode) {
+      const remove = document.createElement("button");
+      remove.className = "place-result-link place-result-remove";
+      remove.type = "button";
+      remove.setAttribute("aria-label", `${place.place_name} presset에서 삭제`);
+      remove.innerHTML = '<i class="fa-solid fa-trash-can" aria-hidden="true"></i> 삭제';
+      remove.addEventListener("click", (event) => {
+        event.stopPropagation();
+        removeFromPreset(remove, place);
+      });
+      actions.append(remove);
+    }
+    const detail = document.createElement("a");
+    detail.className = "place-result-link place-result-detail";
+    detail.href = detailHref(place.restaurantId);
+    detail.target = "_blank";
+    detail.rel = "noopener";
+    detail.innerHTML = '<span class="material-symbols-rounded" aria-hidden="true">open_in_new</span>상세보기';
+    actions.append(detail);
+    body.append(actions);
+>>>>>>> Stashed changes
     article.append(markerImage, body);
     return article;
   }
@@ -388,6 +435,14 @@ function initializeMap() {
     });
   }
 
+  const DEMO_PRESET_RESTAURANTS = [
+    { restaurantId: -1, name: "성수 다이닝", categoryName: "한식", address: "서울 성동구 성수동1가", latitude: 37.5445, longitude: 127.0557, coordinateAvailable: true },
+    { restaurantId: -2, name: "무드 커피", categoryName: "카페", address: "서울 성동구 성수동2가", latitude: 37.5478, longitude: 127.0602, coordinateAvailable: true },
+    { restaurantId: -3, name: "플루어 커피", categoryName: "카페", address: "서울 성동구 성수동1가", latitude: 37.5421, longitude: 127.0498, coordinateAvailable: true },
+    { restaurantId: -4, name: "트라토리아 성수", categoryName: "양식", address: "서울 성동구 성수동1가", latitude: 37.5462, longitude: 127.0521, coordinateAvailable: true },
+    { restaurantId: -5, name: "뚝섬 파스타", categoryName: "양식", address: "서울 성동구 성수동2가", latitude: 37.5403, longitude: 127.0546, coordinateAvailable: true },
+  ];
+
   async function loadPreset() {
     if (!Number.isSafeInteger(presetId) || presetId <= 0) {
       setResultsState(0, "Presset 지도");
@@ -397,10 +452,9 @@ function initializeMap() {
     }
     const response = await Api.get(`/presets/${presetId}/map-restaurants`);
     const data = response.data || {};
-    presetItems = (data.restaurants || []).map(toPresetPlace);
-    pageTitle.textContent = data.title || "Presset 지도";
-    presetSummary.textContent = "이 Presset에 포함된 맛집만 표시합니다.";
-    presetBack.href = `/pages/presset/detail.html?presetId=${encodeURIComponent(presetId)}`;
+    const restaurants = data.restaurants?.length ? data.restaurants : DEMO_PRESET_RESTAURANTS;
+    presetItems = restaurants.map(toPresetPlace);
+    pageTitle.textContent = editMode ? `${data.title || "Presset"} 맛집 관리` : (data.title || "Presset 지도");
     document.title = `${data.title || "Presset"} 지도 · 푸드덕`;
     renderPresetFilters();
     renderItems(presetItems, data.title || "Presset 지도");
@@ -514,7 +568,7 @@ function setSidebarCollapsed(collapsed) {
 =======
   if (presetMode) {
     mapPage.classList.add("preset-map-mode");
-    presetContext.hidden = false;
+    if (presetBreadcrumb) presetBreadcrumb.hidden = false;
     searchForm.hidden = true;
     locationButton.hidden = true;
     searchAreaButton.hidden = true;

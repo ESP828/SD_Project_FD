@@ -13,11 +13,15 @@ public record PresetDetailResponse(
         boolean isOwner,
         String imageUrl,
         LocalDateTime createdAt,
+        long restaurantCount,
+        int restaurantLimit,
         List<PresetTagResponse> tags,
-        List<PresetRestaurantResponse> restaurants
+        List<PresetRestaurantResponse> restaurants,
+        List<PresetRestaurantOptionResponse> restaurantOptions
 ) {
     public PresetDetailResponse {
         tags = List.copyOf(tags);
         restaurants = List.copyOf(restaurants);
+        restaurantOptions = List.copyOf(restaurantOptions);
     }
 }

@@ -2,6 +2,7 @@ package com.example.backend.preset.query;
 
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
+import org.springframework.jdbc.support.GeneratedKeyHolder;
 import org.springframework.stereotype.Repository;
 
 import java.util.Optional;
@@ -24,7 +25,7 @@ public class PresetImageQueryRepository {
         ).stream().findFirst();
     }
 
-    public void replace(
+    public Long replace(
             Long presetId,
             String storedFilename,
             String originalFilename,
@@ -42,12 +43,16 @@ public class PresetImageQueryRepository {
                     :presetId, :storedFilename, :originalFilename, :contentType, :fileSize
                 )
                 """;
-        jdbcTemplate.update(sql, new MapSqlParameterSource()
+        MapSqlParameterSource parameters = new MapSqlParameterSource()
                 .addValue("presetId", presetId)
                 .addValue("storedFilename", storedFilename)
                 .addValue("originalFilename", originalFilename)
                 .addValue("contentType", contentType)
-                .addValue("fileSize", fileSize));
+                .addValue("fileSize", fileSize);
+        GeneratedKeyHolder keyHolder = new GeneratedKeyHolder();
+        jdbcTemplate.update(sql, parameters, keyHolder, new String[]{"preset_image_id"});
+        Number key = keyHolder.getKey();
+        return key == null ? null : key.longValue();
     }
 
     public void deleteByPresetId(Long presetId) {
