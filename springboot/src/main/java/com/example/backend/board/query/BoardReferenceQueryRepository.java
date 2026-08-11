@@ -13,6 +13,7 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.sql.Types;
+import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -151,6 +152,78 @@ public class BoardReferenceQueryRepository {
                 RestaurantSummaryResponse::restaurantId,
                 Function.identity()
         ));
+    }
+
+    public long countActiveReviewsByAuthor(Long accountId) {
+        Long count = jdbcTemplate.queryForObject(
+                """
+                select count(*)
+                  from review rv
+                  left join restaurant r
+                    on r.restaurant_id = rv.restaurant_id
+                  left join public_restaurant p
+                    on p.public_restaurant_id = rv.public_restaurant_id
+                 where rv.account_id = :accountId
+                   and rv.status = 'ACTIVE'
+                   and (
+                        (rv.restaurant_id is not null
+                         and r.restaurant_id is not null
+                         and r.status <> 'DELETED')
+                        or
+                        (rv.public_restaurant_id is not null
+                         and p.public_restaurant_id is not null)
+                   )
+                """,
+                Map.of("accountId", accountId),
+                Long.class
+        );
+        return count == null ? 0L : count;
+    }
+
+    public List<AuthorReviewReference> findRecentActiveReviewsByAuthor(
+            Long accountId,
+            int limit
+    ) {
+        return jdbcTemplate.query(
+                """
+                select rv.review_id,
+                       rv.restaurant_id,
+                       rv.public_restaurant_id,
+                       coalesce(r.name, p.name) as restaurant_name,
+                       rv.rating,
+                       rv.content,
+                       rv.created_at
+                  from review rv
+                  left join restaurant r
+                    on r.restaurant_id = rv.restaurant_id
+                  left join public_restaurant p
+                    on p.public_restaurant_id = rv.public_restaurant_id
+                 where rv.account_id = :accountId
+                   and rv.status = 'ACTIVE'
+                   and (
+                        (rv.restaurant_id is not null
+                         and r.restaurant_id is not null
+                         and r.status <> 'DELETED')
+                        or
+                        (rv.public_restaurant_id is not null
+                         and p.public_restaurant_id is not null)
+                   )
+                 order by rv.created_at desc
+                 limit :limit
+                """,
+                new MapSqlParameterSource()
+                        .addValue("accountId", accountId)
+                        .addValue("limit", limit),
+                (resultSet, rowNumber) -> new AuthorReviewReference(
+                        resultSet.getLong("review_id"),
+                        (Long) resultSet.getObject("restaurant_id"),
+                        (Long) resultSet.getObject("public_restaurant_id"),
+                        resultSet.getString("restaurant_name"),
+                        resultSet.getInt("rating"),
+                        resultSet.getString("content"),
+                        resultSet.getObject("created_at", LocalDateTime.class)
+                )
+        );
     }
 
     /**
@@ -627,6 +700,18 @@ public class BoardReferenceQueryRepository {
                     ? Set.of()
                     : Set.copyOf(authorityCodes);
         }
+    }
+
+
+    public record AuthorReviewReference(
+            Long reviewId,
+            Long restaurantId,
+            Long publicRestaurantId,
+            String restaurantName,
+            int rating,
+            String content,
+            LocalDateTime createdAt
+    ) {
     }
 
 
