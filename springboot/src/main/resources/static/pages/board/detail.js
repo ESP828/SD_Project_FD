@@ -131,7 +131,7 @@
       address: "가게 정보를 불러오지 못했습니다.",
       phone: null,
       openingHours: null,
-      sourceLabel: "공공데이터 식당",
+      sourceLabel: "식당",
     };
   }
 
@@ -150,7 +150,7 @@
         address: restaurant.roadAddress || restaurant.lotAddress || "주소 정보 없음",
         phone: null,
         openingHours: null,
-        sourceLabel: "공공데이터 식당",
+        sourceLabel: "식당",
       };
     }
 
@@ -193,7 +193,7 @@
     const details = element("div", "news-restaurant-card__details");
     if (data.category) {
       const category = element("span", "news-restaurant-card__detail");
-      const categoryIcon = element("span", "material-symbols-rounded", "restaurant");
+      const categoryIcon = element("span", "material-symbols-rounded", "storefront");
       categoryIcon.setAttribute("aria-hidden", "true");
       category.append(categoryIcon, document.createTextNode(data.category));
       details.append(category);
@@ -244,7 +244,7 @@
         address: "잠시만 기다려 주세요.",
         phone: null,
         openingHours: null,
-        sourceLabel: target.source === "public" ? "공공데이터 식당" : "푸드덕 등록 식당",
+        sourceLabel: target.source === "public" ? "식당" : "푸드덕 등록 식당",
       },
       { loading: true },
     );
@@ -1041,7 +1041,7 @@
       detailBadge(
         newsPost
           ? newsTarget?.source === "public"
-            ? "공공데이터 식당 소식"
+            ? "식당 소식"
             : "등록 식당 소식"
           : post.boardType === "BUSINESS"
             ? "사업자 커뮤니티"
