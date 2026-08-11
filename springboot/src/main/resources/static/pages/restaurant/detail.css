@@ -552,9 +552,13 @@ body > [data-site-header] > .site-header {
 .store-news-media-photo {
   position: relative;
   display: block;
+  width: 100%;
   min-width: 0;
+  padding: 0;
   overflow: hidden;
+  border: 0;
   background: #111;
+  cursor: zoom-in;
 }
 
 .store-news-media-photo img {

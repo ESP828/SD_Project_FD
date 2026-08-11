@@ -350,10 +350,57 @@
     if (!url) return "";
     const safeUrl = escapeHtml(url);
     return `
-      <a class="store-news-media-photo" href="${safeUrl}" target="_blank" rel="noopener" aria-label="${name} 원본 보기">
+      <button type="button" class="store-news-media-photo" aria-label="${name} 크게 보기" data-news-image-viewer>
         <img src="${safeUrl}" alt="${name}" loading="lazy">
-      </a>
+      </button>
     `;
+  }
+
+  function openNewsImageViewer(sourceImage) {
+    if (!sourceImage?.src || document.querySelector(".detail-image-viewer")) return;
+
+    const name = sourceImage.alt || "첨부 이미지";
+    const viewer = document.createElement("div");
+    viewer.className = "detail-image-viewer";
+    viewer.setAttribute("role", "dialog");
+    viewer.setAttribute("aria-modal", "true");
+    viewer.setAttribute("aria-label", `${name} 크게 보기`);
+
+    const expandedImage = new Image();
+    expandedImage.className = "detail-image-viewer__image";
+    expandedImage.src = sourceImage.currentSrc || sourceImage.src;
+    expandedImage.alt = name;
+
+    const closeButton = document.createElement("button");
+    closeButton.type = "button";
+    closeButton.className = "detail-image-viewer__close";
+    closeButton.setAttribute("aria-label", "사진 크게 보기 닫기");
+    closeButton.innerHTML = '<span class="material-symbols-rounded" aria-hidden="true">close</span>';
+
+    const previouslyFocused = document.activeElement;
+    const closeViewer = () => {
+      document.removeEventListener("keydown", handleViewerKeydown);
+      document.body.classList.remove("is-image-viewer-open");
+      viewer.remove();
+      if (previouslyFocused instanceof HTMLElement && document.contains(previouslyFocused)) {
+        previouslyFocused.focus();
+      }
+    };
+    const handleViewerKeydown = (event) => {
+      if (event.key === "Escape") closeViewer();
+    };
+
+    closeButton.addEventListener("click", closeViewer);
+    viewer.addEventListener("click", (event) => {
+      if (event.target === viewer) closeViewer();
+    });
+    document.addEventListener("keydown", handleViewerKeydown);
+
+    viewer.append(expandedImage, closeButton);
+    document.body.append(viewer);
+    document.body.classList.add("is-image-viewer-open");
+    window.FooduckIcons?.enhance(closeButton);
+    closeButton.focus();
   }
 
   function newsReadyVideoHtml(media) {
@@ -418,6 +465,12 @@
 
   function bindNewsMediaRuntime(host) {
     window.FooduckIcons?.enhance(host);
+    host.querySelectorAll("[data-news-image-viewer]").forEach((button) => {
+      const image = button.querySelector("img");
+      if (!image) return;
+      button.addEventListener("click", () => openNewsImageViewer(image));
+    });
+
     host.querySelectorAll(".store-news-media-video").forEach((frame) => {
       const video = frame.querySelector("video");
       const loading = frame.querySelector(".detail-media-loading");
