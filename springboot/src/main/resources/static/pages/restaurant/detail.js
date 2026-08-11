@@ -64,6 +64,20 @@
   let isOwner = false;
   let newsPage = 0;
   const NEWS_PAGE_SIZE = 10;
+  const NEWS_MAX_MEDIA_COUNT = 10;
+  const NEWS_MAX_IMAGE_BYTES = 20 * 1024 * 1024;
+  const NEWS_MAX_VIDEO_BYTES = 100 * 1024 * 1024;
+  const NEWS_IMAGE_EXTENSIONS = new Set([
+    "jpg", "jpeg", "png", "gif", "webp", "bmp",
+    "tif", "tiff", "avif", "heic", "heif",
+  ]);
+  const NEWS_VIDEO_EXTENSIONS = new Set([
+    "mp4", "webm", "ogv", "m4v", "mov", "mkv",
+    "avi", "wmv", "flv", "mpg", "mpeg", "3gp", "3g2",
+  ]);
+  let newsSelectedMedia = [];
+  let newsSelectedMediaSequence = 0;
+  let newsMediaBusy = false;
   const session = window.FooduckSession || {};
   const isLoggedIn = Boolean(session.authenticated);
   const isAdmin = Boolean(session.isAdmin);
@@ -526,9 +540,236 @@
         <h3>소식 작성</h3>
         <input type="text" id="store-news-title" maxlength="200" placeholder="제목">
         <textarea id="store-news-content" maxlength="10000" placeholder="소식 내용을 입력하세요"></textarea>
+        <div class="store-news-attachment">
+          <div class="store-news-attachment__head">
+            <div>
+              <strong>사진 · 동영상</strong>
+              <small>사진 20MB, 동영상 100MB · 최대 10개</small>
+            </div>
+            <button type="button" class="button button-secondary button-sm" id="store-news-media-select">파일 선택</button>
+          </div>
+          <input type="file" id="store-news-media-input" accept="image/*,video/*" multiple hidden>
+          <div class="store-news-attachment-list" id="store-news-media-list"></div>
+          <p class="store-news-attachment-status" id="store-news-media-status" role="status" aria-live="polite"></p>
+        </div>
         <button type="button" class="button button-primary button-sm" id="store-news-submit">소식 등록</button>
       </div>
     `;
+  }
+
+  function newsFileExtension(fileName) {
+    const dot = String(fileName || "").lastIndexOf(".");
+    return dot < 0 ? "" : String(fileName).slice(dot + 1).toLowerCase();
+  }
+
+  function newsSelectedMediaKind(fileName) {
+    const extension = newsFileExtension(fileName);
+    if (NEWS_IMAGE_EXTENSIONS.has(extension)) return "IMAGE";
+    if (NEWS_VIDEO_EXTENSIONS.has(extension)) return "VIDEO";
+    return null;
+  }
+
+  function setNewsMediaStatus(message, isError = false) {
+    const status = document.getElementById("store-news-media-status");
+    if (!status) return;
+    status.textContent = message || "";
+    status.classList.toggle("is-error", Boolean(isError));
+  }
+
+  function resetNewsSelectedMedia() {
+    newsSelectedMedia.forEach((entry) => URL.revokeObjectURL(entry.previewUrl));
+    newsSelectedMedia = [];
+    newsMediaBusy = false;
+  }
+
+  function setNewsMediaBusy(busy) {
+    newsMediaBusy = busy;
+    const form = document.getElementById("store-news-form");
+    const selectButton = document.getElementById("store-news-media-select");
+    const mediaInput = document.getElementById("store-news-media-input");
+    const submitButton = document.getElementById("store-news-submit");
+    if (selectButton) selectButton.disabled = busy;
+    if (mediaInput) mediaInput.disabled = busy;
+    if (submitButton) submitButton.disabled = busy;
+    form?.querySelectorAll('input[type="text"], textarea').forEach((field) => {
+      field.disabled = busy;
+    });
+    renderNewsSelectedMedia();
+  }
+
+  function newsSelectedMediaPreview(entry) {
+    const kind = newsSelectedMediaKind(entry.file.name);
+    const safeName = escapeHtml(entry.file.name || "첨부파일");
+    if (kind === "IMAGE") {
+      return `<img src="${escapeHtml(entry.previewUrl)}" alt="${safeName} 미리보기">`;
+    }
+    return `
+      <video src="${escapeHtml(entry.previewUrl)}" preload="metadata" muted aria-label="${safeName} 미리보기"></video>
+      <span class="store-news-attachment-video-badge">동영상</span>
+    `;
+  }
+
+  function renderNewsSelectedMedia() {
+    const list = document.getElementById("store-news-media-list");
+    if (!list) return;
+    if (newsSelectedMedia.length === 0) {
+      list.innerHTML = '<p class="store-news-attachment-empty">선택한 사진이나 동영상이 없습니다.</p>';
+      if (!newsMediaBusy) setNewsMediaStatus(`0/${NEWS_MAX_MEDIA_COUNT}개 첨부`);
+      return;
+    }
+    list.innerHTML = newsSelectedMedia.map((entry) => {
+      const kind = newsSelectedMediaKind(entry.file.name);
+      return `
+        <article class="store-news-attachment-item">
+          <div class="store-news-attachment-preview">${newsSelectedMediaPreview(entry)}</div>
+          <div class="store-news-attachment-meta">
+            <strong title="${escapeHtml(entry.file.name)}">${escapeHtml(entry.file.name)}</strong>
+            <small>${kind === "IMAGE" ? "사진" : "동영상"} · ${newsFormatBytes(entry.file.size)}</small>
+            <button type="button" class="button button-secondary button-sm" data-news-media-remove="${entry.key}"${newsMediaBusy ? " disabled" : ""}>선택 취소</button>
+          </div>
+        </article>
+      `;
+    }).join("");
+    list.querySelectorAll("[data-news-media-remove]").forEach((button) => {
+      button.addEventListener("click", () => {
+        if (newsMediaBusy) return;
+        const key = Number(button.dataset.newsMediaRemove);
+        const target = newsSelectedMedia.find((entry) => entry.key === key);
+        if (target) URL.revokeObjectURL(target.previewUrl);
+        newsSelectedMedia = newsSelectedMedia.filter((entry) => entry.key !== key);
+        renderNewsSelectedMedia();
+      });
+    });
+    if (!newsMediaBusy) {
+      setNewsMediaStatus(`${newsSelectedMedia.length}/${NEWS_MAX_MEDIA_COUNT}개 첨부`);
+    }
+  }
+
+  function validateNewsSelectedFile(file) {
+    const kind = newsSelectedMediaKind(file.name);
+    if (!kind) return `${file.name}: 지원하지 않는 사진·동영상 형식입니다.`;
+    if (file.size < 1) return `${file.name}: 비어 있는 파일입니다.`;
+    if (kind === "IMAGE" && file.size > NEWS_MAX_IMAGE_BYTES) {
+      return `${file.name}: 사진 20MB 제한을 초과했습니다.`;
+    }
+    if (kind === "VIDEO" && file.size > NEWS_MAX_VIDEO_BYTES) {
+      return `${file.name}: 동영상 100MB 제한을 초과했습니다.`;
+    }
+    const duplicated = newsSelectedMedia.some((entry) =>
+      entry.file.name === file.name &&
+      entry.file.size === file.size &&
+      entry.file.lastModified === file.lastModified
+    );
+    if (duplicated) return `${file.name}: 이미 선택한 파일입니다.`;
+    return null;
+  }
+
+  function addNewsSelectedFiles(files) {
+    const errors = [];
+    for (const file of files) {
+      if (newsSelectedMedia.length >= NEWS_MAX_MEDIA_COUNT) {
+        errors.push(`첨부파일은 최대 ${NEWS_MAX_MEDIA_COUNT}개까지 등록할 수 있습니다.`);
+        break;
+      }
+      const validationError = validateNewsSelectedFile(file);
+      if (validationError) {
+        errors.push(validationError);
+        continue;
+      }
+      newsSelectedMedia.push({
+        key: ++newsSelectedMediaSequence,
+        file,
+        previewUrl: URL.createObjectURL(file),
+      });
+    }
+    renderNewsSelectedMedia();
+    if (errors.length) setNewsMediaStatus(errors.join(" "), true);
+  }
+
+  function uploadNewsMediaFile(targetPostId, entry, onProgress) {
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open(
+        "POST",
+        `/api/board/posts/${encodeURIComponent(targetPostId)}/media`,
+        true,
+      );
+      xhr.withCredentials = true;
+      xhr.setRequestHeader("Accept", "application/json");
+      xhr.setRequestHeader(
+        "Content-Type",
+        entry.file.type || "application/octet-stream",
+      );
+      xhr.setRequestHeader("X-File-Name", encodeURIComponent(entry.file.name));
+      const token = Api.getToken?.();
+      if (token) xhr.setRequestHeader("Authorization", `Bearer ${token}`);
+
+      xhr.upload.addEventListener("progress", (event) => {
+        if (typeof onProgress !== "function") return;
+        onProgress(
+          Number(event.loaded) || 0,
+          event.lengthComputable ? Number(event.total) || 0 : 0,
+        );
+      });
+
+      xhr.addEventListener("load", () => {
+        const responseType = xhr.getResponseHeader("content-type") || "";
+        let payload = xhr.responseText;
+        if (responseType.includes("application/json")) {
+          try {
+            payload = JSON.parse(xhr.responseText || "null");
+          } catch (_error) {
+            payload = null;
+          }
+        }
+        if (xhr.status < 200 || xhr.status >= 300) {
+          if (xhr.status === 401) Api.clearToken?.();
+          const message = typeof payload === "object" && payload
+            ? payload.message
+            : `첨부파일 업로드에 실패했습니다. (${xhr.status})`;
+          reject(new Error(message || "첨부파일 업로드에 실패했습니다."));
+          return;
+        }
+        resolve(payload);
+      });
+      xhr.addEventListener("error", () => {
+        reject(new Error("첨부파일을 서버로 전송하지 못했습니다."));
+      });
+      xhr.addEventListener("abort", () => {
+        reject(new Error("첨부파일 업로드가 취소되었습니다."));
+      });
+      xhr.send(entry.file);
+    });
+  }
+
+  async function uploadNewsSelectedMedia(targetPostId) {
+    const failures = [];
+    const filesToUpload = [...newsSelectedMedia];
+    for (let index = 0; index < filesToUpload.length; index += 1) {
+      const entry = filesToUpload[index];
+      setNewsMediaStatus(
+        `${entry.file.name} 업로드 중 (${index + 1}/${filesToUpload.length})`,
+      );
+      try {
+        await uploadNewsMediaFile(targetPostId, entry, (loaded, total) => {
+          if (total > 0 && loaded >= total) {
+            setNewsMediaStatus(
+              `${entry.file.name} 전송 완료 · 서버 저장 중 (${index + 1}/${filesToUpload.length})`,
+            );
+            return;
+          }
+          const progress = total > 0
+            ? `${Math.min(99, Math.round((loaded / total) * 100))}%`
+            : newsFormatBytes(loaded);
+          setNewsMediaStatus(
+            `${entry.file.name} 업로드 중 ${progress} (${index + 1}/${filesToUpload.length})`,
+          );
+        });
+      } catch (error) {
+        failures.push(`${entry.file.name}: ${error.message || "업로드 실패"}`);
+      }
+    }
+    return failures;
   }
 
   function bindNewsForm() {
@@ -546,6 +787,15 @@
       });
     }
 
+    const mediaSelectButton = document.getElementById("store-news-media-select");
+    const mediaInput = document.getElementById("store-news-media-input");
+    mediaSelectButton?.addEventListener("click", () => mediaInput?.click());
+    mediaInput?.addEventListener("change", () => {
+      addNewsSelectedFiles([...(mediaInput.files || [])]);
+      mediaInput.value = "";
+    });
+    renderNewsSelectedMedia();
+
     const submitButton = document.getElementById("store-news-submit");
     if (!submitButton) return;
     submitButton.addEventListener("click", async () => {
@@ -555,14 +805,43 @@
         window.alert("제목과 내용을 입력해 주세요.");
         return;
       }
-      submitButton.disabled = true;
+      setNewsMediaBusy(true);
+      let createdPostId = null;
       try {
-        await Api.post(newsApiPath(), { title, content });
+        setNewsMediaStatus("소식을 등록하는 중입니다.");
+        const created = await Api.post(newsApiPath(), { title, content });
+        createdPostId = created?.data?.postId;
+        if (newsSelectedMedia.length > 0 && createdPostId == null) {
+          throw new Error("소식은 등록되었지만 첨부파일을 연결할 게시글 정보를 확인하지 못했습니다.");
+        }
+
+        const failures = createdPostId == null
+          ? []
+          : await uploadNewsSelectedMedia(createdPostId);
+
+        resetNewsSelectedMedia();
         await loadNews(0);
+
+        if (failures.length > 0) {
+          window.alert(
+            `소식은 등록되었습니다. 일부 첨부파일 업로드에 실패했습니다.\n\n${failures.join("\n")}\n\n해당 소식의 '수정·첨부'에서 다시 첨부할 수 있습니다.`,
+          );
+        }
       } catch (error) {
-        window.alert(error.message || "소식 등록에 실패했습니다.");
-      } finally {
-        submitButton.disabled = false;
+        if (createdPostId != null) {
+          resetNewsSelectedMedia();
+          await loadNews(0);
+          window.alert(
+            `소식은 등록되었지만 첨부파일 처리 중 문제가 발생했습니다.\n${error.message || "첨부파일 업로드에 실패했습니다."}\n\n해당 소식의 '수정·첨부'에서 다시 첨부해 주세요.`,
+          );
+        } else {
+          setNewsMediaBusy(false);
+          setNewsMediaStatus(
+            error.message || "소식 등록에 실패했습니다.",
+            true,
+          );
+          window.alert(error.message || "소식 등록에 실패했습니다.");
+        }
       }
     });
   }
