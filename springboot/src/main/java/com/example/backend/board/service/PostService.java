@@ -614,6 +614,7 @@ public class PostService {
     public AuthorSummaryResponse getAuthorSummary(
             Long authorAccountId,
             Long excludePostId,
+            boolean includeNewsActivity,
             Long currentAccountId
     ) {
         validateId(authorAccountId, "작성자 계정");
@@ -667,6 +668,41 @@ public class PostService {
                         comment.getCreatedAt()
                 ))
                 .toList();
+        List<AuthorRecentPostResponse> recentNewsPosts = includeNewsActivity
+                ? postRepository.findRecentActiveNewsPostsByAuthor(
+                        authorAccountId,
+                        PostStatus.ACTIVE,
+                        excludePostId,
+                        PageRequest.of(0, MAX_AUTHOR_RECENT_POSTS)
+                )
+                .stream()
+                .map(post -> new AuthorRecentPostResponse(
+                        post.getPostId(),
+                        post.getTitle(),
+                        post.getBoardType(),
+                        post.getCategory(),
+                        post.getCreatedAt()
+                ))
+                .toList()
+                : List.of();
+        List<AuthorRecentCommentResponse> recentNewsComments = includeNewsActivity
+                ? commentRepository.findRecentActiveNewsCommentsByAuthor(
+                        authorAccountId,
+                        CommentStatus.ACTIVE,
+                        PostStatus.ACTIVE,
+                        excludePostId,
+                        PageRequest.of(0, MAX_AUTHOR_RECENT_COMMENTS)
+                )
+                .stream()
+                .map(comment -> new AuthorRecentCommentResponse(
+                        comment.getCommentId(),
+                        comment.getPost().getPostId(),
+                        comment.getPost().getTitle(),
+                        comment.getContent(),
+                        comment.getCreatedAt()
+                ))
+                .toList()
+                : List.of();
 
         return new AuthorSummaryResponse(
                 author.getAccountId(),
@@ -686,7 +722,22 @@ public class PostService {
                         readableBoardType
                 ),
                 recentPosts,
-                recentComments
+                recentComments,
+                includeNewsActivity
+                        ? postRepository.countActiveNewsPostsByAuthor(
+                                authorAccountId,
+                                PostStatus.ACTIVE
+                        )
+                        : 0L,
+                includeNewsActivity
+                        ? commentRepository.countActiveNewsCommentsByAuthor(
+                                authorAccountId,
+                                CommentStatus.ACTIVE,
+                                PostStatus.ACTIVE
+                        )
+                        : 0L,
+                recentNewsPosts,
+                recentNewsComments
         );
     }
 
@@ -1870,11 +1921,17 @@ public class PostService {
             long postCount,
             long commentCount,
             List<AuthorRecentPostResponse> recentPosts,
-            List<AuthorRecentCommentResponse> recentComments
+            List<AuthorRecentCommentResponse> recentComments,
+            long newsPostCount,
+            long newsCommentCount,
+            List<AuthorRecentPostResponse> recentNewsPosts,
+            List<AuthorRecentCommentResponse> recentNewsComments
     ) {
         public AuthorSummaryResponse {
             recentPosts = List.copyOf(recentPosts);
             recentComments = List.copyOf(recentComments);
+            recentNewsPosts = List.copyOf(recentNewsPosts);
+            recentNewsComments = List.copyOf(recentNewsComments);
         }
     }
 

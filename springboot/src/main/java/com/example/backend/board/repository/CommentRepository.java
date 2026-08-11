@@ -57,6 +57,39 @@ public interface CommentRepository extends JpaRepository<Comment, Long> {
     );
 
     @Query("""
+            select count(c)
+            from Comment c
+            where c.author.accountId = :accountId
+              and c.status = :commentStatus
+              and c.post.status = :postStatus
+              and c.post.category = com.example.backend.board.domain.type.PostCategory.NEWS
+            """)
+    long countActiveNewsCommentsByAuthor(
+            @Param("accountId") Long accountId,
+            @Param("commentStatus") CommentStatus commentStatus,
+            @Param("postStatus") PostStatus postStatus
+    );
+
+    @Query("""
+            select c
+            from Comment c
+            join fetch c.post p
+            where c.author.accountId = :accountId
+              and c.status = :commentStatus
+              and p.status = :postStatus
+              and p.category = com.example.backend.board.domain.type.PostCategory.NEWS
+              and (:excludedPostId is null or p.postId <> :excludedPostId)
+            order by c.createdAt desc, c.commentId desc
+            """)
+    List<Comment> findRecentActiveNewsCommentsByAuthor(
+            @Param("accountId") Long accountId,
+            @Param("commentStatus") CommentStatus commentStatus,
+            @Param("postStatus") PostStatus postStatus,
+            @Param("excludedPostId") Long excludedPostId,
+            Pageable pageable
+    );
+
+    @Query("""
             select case when count(c) > 0 then true else false end
             from Comment c
             where c.post.postId = :postId

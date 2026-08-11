@@ -242,13 +242,102 @@
 
   function renderAuthorMenuLoading(author, context = "COMMUNITY") {
     const menu = ensureAuthorMenu();
-    const loadingLabel = context === "NEWS"
-      ? "커뮤니티 활동을 불러오는 중입니다."
-      : "활동 정보를 불러오는 중입니다.";
     menu.replaceChildren(
       element("strong", "author-menu-nickname", author.authorNickname || "작성자"),
-      element("p", "author-menu-loading", loadingLabel),
+      element(
+        "p",
+        "author-menu-loading",
+        context === "NEWS"
+          ? "커뮤니티와 가게 소식 활동을 불러오는 중입니다."
+          : "활동 정보를 불러오는 중입니다.",
+      ),
     );
+  }
+
+  function authorMenuRecentPostSection(title, posts, { newsActivity = false } = {}) {
+    const section = element("section", "author-menu-recent");
+    section.append(element("strong", "author-menu-recent-title", title));
+    const items = Array.isArray(posts) ? posts : [];
+    if (items.length === 0) {
+      section.append(
+        element(
+          "p",
+          "author-menu-recent-empty",
+          newsActivity
+            ? "표시할 이전 가게 소식이 없습니다."
+            : "표시할 이전 게시글이 없습니다.",
+        ),
+      );
+      return section;
+    }
+
+    const list = element("ul", "author-menu-recent-list");
+    items.forEach((post) => {
+      const item = element("li", "author-menu-recent-item");
+      const link = element("a", "author-menu-recent-link");
+      link.href = newsActivity
+        ? `${detailPath(post.postId)}&from=NEWS`
+        : detailPath(post.postId);
+      link.append(
+        element("span", "author-menu-recent-post-title", post.title || "제목 없음"),
+        element(
+          "small",
+          "author-menu-recent-meta",
+          newsActivity
+            ? `가게 소식 · 커뮤니티 외 · ${formatDate(post.createdAt)}`
+            : `${categoryLabel(post.category)} · ${formatDate(post.createdAt)}`,
+        ),
+      );
+      item.append(link);
+      list.append(item);
+    });
+    section.append(list);
+    return section;
+  }
+
+  function authorMenuRecentCommentSection(title, comments, { newsActivity = false } = {}) {
+    const section = element("section", "author-menu-recent");
+    section.append(element("strong", "author-menu-recent-title", title));
+    const items = Array.isArray(comments) ? comments : [];
+    if (items.length === 0) {
+      section.append(
+        element(
+          "p",
+          "author-menu-recent-empty",
+          newsActivity
+            ? "표시할 이전 가게 소식 댓글이 없습니다."
+            : "표시할 이전 댓글이 없습니다.",
+        ),
+      );
+      return section;
+    }
+
+    const list = element("ul", "author-menu-recent-list");
+    items.forEach((comment) => {
+      const item = element("li", "author-menu-recent-item");
+      const link = element("a", "author-menu-recent-link");
+      link.href = newsActivity
+        ? `${detailPath(comment.postId)}&from=NEWS`
+        : detailPath(comment.postId);
+      link.append(
+        element(
+          "span",
+          "author-menu-recent-content",
+          comment.content || "댓글 내용 없음",
+        ),
+        element(
+          "small",
+          "author-menu-recent-meta",
+          newsActivity
+            ? `가게 소식 · ${comment.postTitle || "소식"} · ${formatDate(comment.createdAt)}`
+            : `${comment.postTitle || "게시글"} · ${formatDate(comment.createdAt)}`,
+        ),
+      );
+      item.append(link);
+      list.append(item);
+    });
+    section.append(list);
+    return section;
   }
 
   function renderAuthorMenuSummary(summary, context = "COMMUNITY") {
@@ -278,11 +367,15 @@
       : null;
     if (contextNote) {
       contextNote.append(
-        element("strong", "author-menu-context-title", "현재 보고 있는 글은 가게 소식입니다."),
+        element(
+          "strong",
+          "author-menu-context-title",
+          "현재 보고 있는 항목은 커뮤니티 게시글이 아닌 가게 소식입니다.",
+        ),
         element(
           "p",
           "author-menu-context-copy",
-          "아래 게시글과 댓글은 이 작성자가 커뮤니티에 남긴 활동만 표시합니다.",
+          "아래에서 이 작성자의 커뮤니티 활동과 가게 소식 활동을 구분해 표시합니다.",
         ),
       );
     }
@@ -293,84 +386,61 @@
       authorMenuStat(newsContext ? "커뮤니티 댓글" : "작성한 댓글", summary.commentCount),
     );
 
-    const recentSection = element("section", "author-menu-recent");
-    recentSection.append(element(
-      "strong",
-      "author-menu-recent-title",
-      newsContext ? "커뮤니티 이전글" : "이전 작성글",
-    ));
-    const recentPosts = Array.isArray(summary.recentPosts)
-      ? summary.recentPosts
-      : [];
-    if (recentPosts.length === 0) {
-      recentSection.append(
+    const communityHeading = newsContext
+      ? element("div", "author-menu-group-heading")
+      : null;
+    if (communityHeading) {
+      communityHeading.append(
+        element("strong", "author-menu-group-title", "커뮤니티 활동"),
         element(
-          "p",
-          "author-menu-recent-empty",
-          newsContext ? "표시할 이전 커뮤니티 게시글이 없습니다." : "표시할 이전 게시글이 없습니다.",
+          "small",
+          "author-menu-group-copy",
+          "현재 계정에서 열람 가능한 커뮤니티에 남긴 기록입니다.",
         ),
       );
-    } else {
-      const list = element("ul", "author-menu-recent-list");
-      recentPosts.forEach((post) => {
-        const item = element("li", "author-menu-recent-item");
-        const link = element("a", "author-menu-recent-link");
-        link.href = detailPath(post.postId);
-        link.append(
-          element("span", "author-menu-recent-post-title", post.title || "제목 없음"),
-          element(
-            "small",
-            "author-menu-recent-meta",
-            `${categoryLabel(post.category)} · ${formatDate(post.createdAt)}`,
-          ),
-        );
-        item.append(link);
-        list.append(item);
-      });
-      recentSection.append(list);
     }
 
-    const recentCommentSection = element("section", "author-menu-recent");
-    recentCommentSection.append(
-      element(
-        "strong",
-        "author-menu-recent-title",
-        newsContext ? "커뮤니티 이전댓글" : "이전 댓글",
-      ),
+    const recentSection = authorMenuRecentPostSection(
+      newsContext ? "커뮤니티 이전글" : "이전 작성글",
+      summary.recentPosts,
     );
-    const recentComments = Array.isArray(summary.recentComments)
-      ? summary.recentComments
-      : [];
-    if (recentComments.length === 0) {
-      recentCommentSection.append(
+    const recentCommentSection = authorMenuRecentCommentSection(
+      newsContext ? "커뮤니티 이전댓글" : "이전 댓글",
+      summary.recentComments,
+    );
+
+    const newsGroup = newsContext
+      ? element("section", "author-menu-news-group")
+      : null;
+    if (newsGroup) {
+      const heading = element("div", "author-menu-group-heading author-menu-group-heading--news");
+      heading.append(
+        element("strong", "author-menu-group-title", "가게 소식 활동"),
         element(
-          "p",
-          "author-menu-recent-empty",
-          newsContext ? "표시할 이전 커뮤니티 댓글이 없습니다." : "표시할 이전 댓글이 없습니다.",
+          "small",
+          "author-menu-group-copy",
+          "커뮤니티 목록에는 노출되지 않는 가게 소식 글·댓글입니다.",
         ),
       );
-    } else {
-      const list = element("ul", "author-menu-recent-list");
-      recentComments.forEach((comment) => {
-        const item = element("li", "author-menu-recent-item");
-        const link = element("a", "author-menu-recent-link");
-        link.href = detailPath(comment.postId);
-        link.append(
-          element(
-            "span",
-            "author-menu-recent-content",
-            comment.content || "댓글 내용 없음",
-          ),
-          element(
-            "small",
-            "author-menu-recent-meta",
-            `${comment.postTitle || "게시글"} · ${formatDate(comment.createdAt)}`,
-          ),
-        );
-        item.append(link);
-        list.append(item);
-      });
-      recentCommentSection.append(list);
+      const newsStats = element("div", "author-menu-stats author-menu-stats--news");
+      newsStats.append(
+        authorMenuStat("가게 소식 글", summary.newsPostCount),
+        authorMenuStat("가게 소식 댓글", summary.newsCommentCount),
+      );
+      newsGroup.append(
+        heading,
+        newsStats,
+        authorMenuRecentPostSection(
+          "가게 소식 이전글",
+          summary.recentNewsPosts,
+          { newsActivity: true },
+        ),
+        authorMenuRecentCommentSection(
+          "가게 소식 이전댓글",
+          summary.recentNewsComments,
+          { newsActivity: true },
+        ),
+      );
     }
 
     const footer = element("div", "author-menu-footer");
@@ -393,14 +463,13 @@
       );
     }
 
-    menu.replaceChildren(
-      header,
-      ...(contextNote ? [contextNote] : []),
-      stats,
-      recentSection,
-      recentCommentSection,
-      footer,
-    );
+    const children = [header];
+    if (contextNote) children.push(contextNote);
+    if (communityHeading) children.push(communityHeading);
+    children.push(stats, recentSection, recentCommentSection);
+    if (newsGroup) children.push(newsGroup);
+    children.push(footer);
+    menu.replaceChildren(...children);
   }
 
   function renderAuthorMenuError(message) {
@@ -437,6 +506,9 @@
       const excludePostId = Number(author.postId);
       if (Number.isSafeInteger(excludePostId) && excludePostId > 0) {
         params.set("excludePostId", String(excludePostId));
+      }
+      if (context === "NEWS") {
+        params.set("includeNewsActivity", "true");
       }
       const query = params.size > 0 ? `?${params.toString()}` : "";
       const payload = await Api.get(
@@ -484,7 +556,11 @@
     if (showNickname && author?.authorNickname) {
       const nickname = element("span", "author-nickname", author.authorNickname);
       if (showAuthorMenu && author.authorAccountId) {
-        enableAuthorMenu(nickname, author, authorMenuContext);
+        enableAuthorMenu(
+          nickname,
+          author,
+          authorMenuContext === "NEWS" ? "NEWS" : "COMMUNITY",
+        );
       }
       wrapper.append(nickname);
     }

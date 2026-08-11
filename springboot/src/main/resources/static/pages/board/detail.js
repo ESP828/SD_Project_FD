@@ -1055,7 +1055,10 @@
 
     const meta = element("div", "detail-meta");
     meta.append(
-      authorIdentity(post, { showAuthorMenu: true }),
+      authorIdentity(post, {
+        showAuthorMenu: true,
+        authorMenuContext: newsPost ? "NEWS" : "COMMUNITY",
+      }),
       element(
         "span",
         "",
@@ -1460,7 +1463,10 @@
 
     const top = element("div", "comment-top");
     top.append(
-      authorIdentity(comment, { showAuthorMenu: true }),
+      authorIdentity(comment, {
+        showAuthorMenu: true,
+        authorMenuContext: isNewsPost() ? "NEWS" : "COMMUNITY",
+      }),
       element(
         "span",
         "comment-date",
