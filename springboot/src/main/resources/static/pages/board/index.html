@@ -46,10 +46,23 @@
                 aria-selected="false" data-board-type="POPULAR">
           인기 이야기
         </button>
+        <button id="news-admin-board-tab" class="board-tab board-tab--admin" type="button" role="tab"
+                aria-selected="false" data-board-type="NEWS" hidden>
+          <span class="material-symbols-rounded" aria-hidden="true">admin_panel_settings</span>
+          가게 소식 관리
+        </button>
       </div>
 
+      <section id="news-admin-notice" class="news-admin-notice" aria-labelledby="news-admin-notice-title" hidden>
+        <span class="material-symbols-rounded news-admin-notice__icon" aria-hidden="true">admin_panel_settings</span>
+        <div>
+          <strong id="news-admin-notice-title">관리자용 가게 소식 관리 화면</strong>
+          <p>여러 가게에 등록된 소식 게시물을 한곳에서 확인·점검하는 관리자 전용 목록입니다. 일반 사용자에게는 이 탭과 목록이 노출되지 않습니다.</p>
+        </div>
+      </section>
+
       <form id="board-search-form" class="board-toolbar" role="search">
-        <label>
+        <label id="board-category-filter">
           <span class="sr-only">카테고리</span>
           <select id="board-category">
             <option value="">전체 카테고리</option>
@@ -85,7 +98,7 @@
           <div class="board-panel-header">
             <div>
               <h2 id="board-heading">일반 커뮤니티</h2>
-              <p><strong id="board-total-count">0</strong>개의 이야기</p>
+              <p><strong id="board-total-count">0</strong><span id="board-total-label">개의 이야기</span></p>
             </div>
             <a id="write-button" class="button button-sm button-primary"
                href="/pages/board/write.html?boardType=GENERAL" data-write-link hidden>
@@ -102,7 +115,7 @@
           <nav id="board-pagination" class="board-pagination" aria-label="게시글 페이지"></nav>
         </section>
 
-        <aside class="board-side-stack">
+        <aside id="board-side-stack" class="board-side-stack">
           <section id="best-post-panel" class="best-panel">
             <div class="board-panel-header">
               <div>

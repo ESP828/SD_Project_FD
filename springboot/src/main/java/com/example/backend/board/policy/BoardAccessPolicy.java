@@ -143,6 +143,23 @@ public class BoardAccessPolicy {
         }
     }
 
+    public void assertCanReadNewsAdmin(Account account) {
+        if (account == null) {
+            throw new BoardException(
+                    HttpStatus.UNAUTHORIZED,
+                    "BOARD_AUTHENTICATION_REQUIRED",
+                    "로그인이 필요합니다."
+            );
+        }
+        if (!isAdmin(account)) {
+            throw new BoardException(
+                    HttpStatus.FORBIDDEN,
+                    "BOARD_NEWS_ADMIN_READ_FORBIDDEN",
+                    "가게 소식 관리 목록은 관리자만 확인할 수 있습니다."
+            );
+        }
+    }
+
     public void assertCanWritePublicRestaurantNews(
             Long publicRestaurantId,
             Account account

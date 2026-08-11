@@ -124,6 +124,34 @@ public class BoardReferenceQueryRepository {
         return rows.stream().findFirst();
     }
 
+    public Map<Long, String> findPublicRestaurantNames(
+            Collection<Long> publicRestaurantIds
+    ) {
+        if (publicRestaurantIds == null || publicRestaurantIds.isEmpty()) {
+            return Map.of();
+        }
+
+        MapSqlParameterSource parameters =
+                new MapSqlParameterSource("publicRestaurantIds", publicRestaurantIds);
+        List<PublicRestaurantNameReference> rows = jdbcTemplate.query(
+                """
+                select public_restaurant_id, name
+                  from public_restaurant
+                 where public_restaurant_id in (:publicRestaurantIds)
+                """,
+                parameters,
+                (resultSet, rowNumber) -> new PublicRestaurantNameReference(
+                        resultSet.getLong("public_restaurant_id"),
+                        resultSet.getString("name")
+                )
+        );
+
+        return rows.stream().collect(Collectors.toUnmodifiableMap(
+                PublicRestaurantNameReference::publicRestaurantId,
+                PublicRestaurantNameReference::name
+        ));
+    }
+
     public Map<Long, RestaurantSummaryResponse> findRestaurants(Collection<Long> restaurantIds) {
         if (restaurantIds == null || restaurantIds.isEmpty()) {
             return Map.of();
@@ -660,4 +688,11 @@ public class BoardReferenceQueryRepository {
             boolean hasBusinessProfile
     ) {
     }
+
+    private record PublicRestaurantNameReference(
+            Long publicRestaurantId,
+            String name
+    ) {
+    }
+
 }

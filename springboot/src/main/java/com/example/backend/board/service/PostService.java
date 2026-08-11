@@ -208,6 +208,57 @@ public class PostService {
     }
 
     @Transactional(readOnly = true)
+    public PostPageResponse getAdminNewsPosts(
+            String keyword,
+            String sortValue,
+            int page,
+            int size,
+            Long currentAccountId
+    ) {
+        validatePage(page, size);
+        Account currentAccount = boardUserService.findOptional(currentAccountId);
+        accessPolicy.assertCanReadNewsAdmin(currentAccount);
+
+        String normalizedKeyword = normalizeKeyword(keyword);
+        String sort = normalizeSort(sortValue);
+        Page<Post> result;
+        if ("COMMENTS".equals(sort)) {
+            result = postRepository.searchNewsForAdminOrderByComments(
+                    normalizedKeyword,
+                    PostStatus.ACTIVE,
+                    CommentStatus.ACTIVE,
+                    PageRequest.of(page, size)
+            );
+        } else {
+            Sort springSort = "LIKES".equals(sort)
+                    ? Sort.by(
+                            Sort.Order.desc("likeCount"),
+                            Sort.Order.desc("createdAt"),
+                            Sort.Order.desc("postId")
+                    )
+                    : Sort.by(
+                            Sort.Order.desc("createdAt"),
+                            Sort.Order.desc("postId")
+                    );
+            result = postRepository.searchNewsForAdmin(
+                    normalizedKeyword,
+                    PostStatus.ACTIVE,
+                    PageRequest.of(page, size, springSort)
+            );
+        }
+
+        return new PostPageResponse(
+                responseMapper.toListItems(result.getContent(), currentAccount),
+                result.getNumber(),
+                result.getSize(),
+                result.getTotalElements(),
+                result.getTotalPages(),
+                result.isFirst(),
+                result.isLast()
+        );
+    }
+
+    @Transactional(readOnly = true)
     public RestaurantNewsPageResponse getPublicRestaurantNews(
             Long publicRestaurantId,
             int page,

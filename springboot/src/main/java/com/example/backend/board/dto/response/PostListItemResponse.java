@@ -16,6 +16,8 @@ public record PostListItemResponse(
         BoardType boardType,
         PostCategory category,
         Long restaurantId,
+        Long publicRestaurantId,
+        String publicRestaurantName,
         RestaurantSummaryResponse restaurant,
         long viewCount,
         long commentCount,

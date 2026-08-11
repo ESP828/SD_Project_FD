@@ -5,6 +5,7 @@
   const sourceView = new URLSearchParams(window.location.search).get("from");
   const fromBest = sourceView === "BEST";
   const fromPopular = sourceView === "POPULAR";
+  const fromNewsAdmin = sourceView === "NEWS_ADMIN" && session?.isAdmin;
   const state = { post: null };
   const MEDIA_POLL_BASE_DELAY = 2500;
   const MEDIA_POLL_MAX_DELAY = 15000;
@@ -1025,14 +1026,19 @@
     const newsTarget = newsPost ? newsSource(post) : null;
     const newsReturnPath = newsPost ? restaurantNewsPath(post) : null;
     document.title = `${post.title} · 푸드덕`;
-    setBackLink(
-      newsReturnPath || (fromBest
+    const detailReturnPath = fromNewsAdmin && newsPost
+      ? "/pages/board/index.html?boardType=NEWS"
+      : newsReturnPath || (fromBest
         ? "/pages/board/index.html?boardType=BEST"
         : fromPopular
           ? "/pages/board/index.html?boardType=POPULAR"
-          : board.listPath(post.boardType)),
-      newsReturnPath ? "가게 소식으로 돌아가기" : "커뮤니티 목록",
-    );
+          : board.listPath(post.boardType));
+    const detailReturnLabel = fromNewsAdmin && newsPost
+      ? "가게 소식 관리로 돌아가기"
+      : newsReturnPath
+        ? "가게 소식으로 돌아가기"
+        : "커뮤니티 목록";
+    setBackLink(detailReturnPath, detailReturnLabel);
     detailContent.replaceChildren();
 
     const badges = element("div", "detail-badges");
