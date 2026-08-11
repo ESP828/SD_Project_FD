@@ -81,6 +81,15 @@ public class BoardReferenceQueryRepository {
         return count != null && count > 0;
     }
 
+    public boolean publicRestaurantExists(Long publicRestaurantId) {
+        Integer count = jdbcTemplate.queryForObject(
+                "select count(*) from public_restaurant where public_restaurant_id = :publicRestaurantId",
+                new MapSqlParameterSource("publicRestaurantId", publicRestaurantId),
+                Integer.class
+        );
+        return count != null && count > 0;
+    }
+
     public boolean restaurantOwnedBy(Long restaurantId, Long accountId) {
         Integer count = jdbcTemplate.queryForObject(
                 """

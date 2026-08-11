@@ -69,6 +69,8 @@ public class PostService {
     private static final int MAX_DISCOVERY_SIZE = 10;
     private static final int MAX_AUTHOR_RECENT_POSTS = 5;
     private static final int MAX_AUTHOR_RECENT_COMMENTS = 5;
+    private static final int MAX_NEWS_TITLE_LENGTH = 200;
+    private static final int MAX_NEWS_CONTENT_LENGTH = 10_000;
     private static final int BEST_COMMUNITY_MINIMUM_LIKE_COUNT = 3;
     private static final Duration RAPID_DUPLICATE_WINDOW =
             Duration.ofMillis(3_500);
@@ -206,6 +208,92 @@ public class PostService {
     }
 
     @Transactional(readOnly = true)
+    public RestaurantNewsPageResponse getPublicRestaurantNews(
+            Long publicRestaurantId,
+            int page,
+            int size
+    ) {
+        validatePage(page, size);
+        validateId(publicRestaurantId, "공공데이터 음식점");
+        if (!referenceRepository.publicRestaurantExists(publicRestaurantId)) {
+            throw publicRestaurantNotFound();
+        }
+
+        Page<Post> result = postRepository.findPublicRestaurantNews(
+                publicRestaurantId,
+                BoardType.GENERAL,
+                PostCategory.NEWS,
+                PostStatus.ACTIVE,
+                PageRequest.of(page, size)
+        );
+        return toRestaurantNewsPage(result);
+    }
+
+    @Transactional
+    public RestaurantNewsItemResponse createPublicRestaurantNews(
+            Long publicRestaurantId,
+            String title,
+            String content,
+            Long currentAccountId
+    ) {
+        Account currentAccount = boardUserService.require(currentAccountId);
+        accessPolicy.assertCanWritePublicRestaurantNews(
+                publicRestaurantId,
+                currentAccount
+        );
+        return createRestaurantNews(
+                currentAccount,
+                null,
+                publicRestaurantId,
+                title,
+                content
+        );
+    }
+
+    @Transactional(readOnly = true)
+    public RestaurantNewsPageResponse getOwnedRestaurantNews(
+            Long restaurantId,
+            int page,
+            int size
+    ) {
+        validatePage(page, size);
+        validateId(restaurantId, "음식점");
+        if (!referenceRepository.restaurantExists(restaurantId)) {
+            throw restaurantNotFound();
+        }
+
+        Page<Post> result = postRepository.findOwnedRestaurantNews(
+                restaurantId,
+                BoardType.GENERAL,
+                PostCategory.NEWS,
+                PostStatus.ACTIVE,
+                PageRequest.of(page, size)
+        );
+        return toRestaurantNewsPage(result);
+    }
+
+    @Transactional
+    public RestaurantNewsItemResponse createOwnedRestaurantNews(
+            Long restaurantId,
+            String title,
+            String content,
+            Long currentAccountId
+    ) {
+        Account currentAccount = boardUserService.require(currentAccountId);
+        accessPolicy.assertCanWriteOwnedRestaurantNews(
+                restaurantId,
+                currentAccount
+        );
+        return createRestaurantNews(
+                currentAccount,
+                restaurantId,
+                null,
+                title,
+                content
+        );
+    }
+
+    @Transactional(readOnly = true)
     public PostPageResponse getPosts(
             String boardTypeValue,
             String categoryValue,
@@ -222,6 +310,13 @@ public class PostService {
                 currentAccount
         );
         PostCategory category = parseCategory(categoryValue);
+        if (category == PostCategory.NEWS) {
+            throw new BoardException(
+                    HttpStatus.BAD_REQUEST,
+                    "BOARD_NEWS_DEDICATED_ENDPOINT_REQUIRED",
+                    "식당 소식은 식당 소식 전용 API를 이용해 주세요."
+            );
+        }
         String normalizedKeyword = normalizeKeyword(keyword);
         String sort = normalizeSort(sortValue);
 
@@ -957,16 +1052,121 @@ public class PostService {
         return new PostLikeResponse(postId, post.getLikeCount(), false);
     }
 
+    private RestaurantNewsItemResponse createRestaurantNews(
+            Account currentAccount,
+            Long restaurantId,
+            Long publicRestaurantId,
+            String title,
+            String content
+    ) {
+        String normalizedTitle = normalizeNewsTitle(title);
+        String normalizedContent = normalizeNewsContent(content);
+        PostSubmissionKey submissionKey = new PostSubmissionKey(
+                currentAccount.getAccountId(),
+                normalizedContent
+        );
+        long checkedAt = System.nanoTime();
+        if (!reservePostSubmission(submissionKey, checkedAt)) {
+            throw rapidDuplicatePost();
+        }
+
+        try {
+            assertNotRapidDuplicate(
+                    currentAccount.getAccountId(),
+                    normalizedContent
+            );
+            Post post = Post.create(
+                    currentAccount,
+                    restaurantId,
+                    publicRestaurantId,
+                    BoardType.GENERAL,
+                    PostCategory.NEWS,
+                    normalizedTitle,
+                    normalizedContent
+            );
+            postRepository.save(post);
+            RestaurantNewsItemResponse response = toRestaurantNewsItem(post);
+            completePostSubmissionAfterTransaction(submissionKey);
+            return response;
+        } catch (RuntimeException | Error exception) {
+            releasePostSubmission(submissionKey);
+            throw exception;
+        }
+    }
+
+    private RestaurantNewsPageResponse toRestaurantNewsPage(Page<Post> page) {
+        return new RestaurantNewsPageResponse(
+                page.getContent().stream()
+                        .map(this::toRestaurantNewsItem)
+                        .toList(),
+                page.getNumber(),
+                page.getSize(),
+                page.getTotalElements(),
+                page.getTotalPages(),
+                page.isFirst(),
+                page.isLast()
+        );
+    }
+
+    private RestaurantNewsItemResponse toRestaurantNewsItem(Post post) {
+        return new RestaurantNewsItemResponse(
+                post.getPostId(),
+                post.getTitle(),
+                post.getContent(),
+                post.getCreatedAt()
+        );
+    }
+
+    private String normalizeNewsTitle(String title) {
+        String normalized = title == null ? "" : title.strip();
+        if (normalized.isBlank()) {
+            throw badRequest("제목을 입력해 주세요.");
+        }
+        if (normalized.length() > MAX_NEWS_TITLE_LENGTH) {
+            throw badRequest(
+                    "제목은 " + MAX_NEWS_TITLE_LENGTH + "자 이하로 입력해 주세요."
+            );
+        }
+        return normalized;
+    }
+
+    private String normalizeNewsContent(String content) {
+        String normalized = content == null ? "" : content.strip();
+        if (normalized.isBlank()) {
+            throw badRequest("내용을 입력해 주세요.");
+        }
+        if (normalized.length() > MAX_NEWS_CONTENT_LENGTH) {
+            throw badRequest(
+                    "내용은 " + MAX_NEWS_CONTENT_LENGTH + "자 이하로 입력해 주세요."
+            );
+        }
+        return normalized;
+    }
+
     private Post getExistingPost(Long postId) {
         validateId(postId, "게시글");
-        return postRepository.findByPostIdAndStatus(postId, PostStatus.ACTIVE)
+        Post post = postRepository.findByPostIdAndStatus(
+                        postId,
+                        PostStatus.ACTIVE
+                )
                 .orElseThrow(() -> notFound("게시글을 찾을 수 없습니다."));
+        if (post.getCategory() == PostCategory.NEWS) {
+            throw notFound("게시글을 찾을 수 없습니다.");
+        }
+        return post;
     }
 
     private Post getExistingPostForUpdate(Long postId) {
         validateId(postId, "게시글");
-        return postRepository.findByPostIdAndStatusForUpdate(postId, PostStatus.ACTIVE)
+        Post post = postRepository.findByPostIdAndStatusForUpdate(
+                        postId,
+                        PostStatus.ACTIVE
+                )
                 .orElseThrow(() -> notFound("게시글을 찾을 수 없습니다."));
+        if (post.getCategory() == PostCategory.NEWS) {
+            throw notFound("게시글을 찾을 수 없습니다.");
+        }
+        return post;
     }
 
     private void assertOwnerOrAdmin(Post post, Account account) {
@@ -1418,6 +1618,22 @@ public class PostService {
         );
     }
 
+    private BoardException publicRestaurantNotFound() {
+        return new BoardException(
+                HttpStatus.NOT_FOUND,
+                "BOARD_PUBLIC_RESTAURANT_NOT_FOUND",
+                "공공데이터 음식점을 찾을 수 없습니다."
+        );
+    }
+
+    private BoardException restaurantNotFound() {
+        return new BoardException(
+                HttpStatus.NOT_FOUND,
+                "BOARD_RESTAURANT_NOT_FOUND",
+                "음식점을 찾을 수 없습니다."
+        );
+    }
+
     private BoardException notFound(String message) {
         return new BoardException(
                 HttpStatus.NOT_FOUND,
@@ -1490,5 +1706,27 @@ public class PostService {
             String content,
             LocalDateTime createdAt
     ) {
+    }
+
+    public record RestaurantNewsItemResponse(
+            Long postId,
+            String title,
+            String content,
+            LocalDateTime createdAt
+    ) {
+    }
+
+    public record RestaurantNewsPageResponse(
+            List<RestaurantNewsItemResponse> content,
+            int page,
+            int size,
+            long totalElements,
+            int totalPages,
+            boolean first,
+            boolean last
+    ) {
+        public RestaurantNewsPageResponse {
+            content = List.copyOf(content);
+        }
     }
 }

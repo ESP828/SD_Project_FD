@@ -61,7 +61,11 @@
   let tabOrder = [];
   let storeId = null;
   let isOwner = false;
-  const isLoggedIn = Boolean(window.FooduckSession && window.FooduckSession.authenticated);
+  let newsPage = 0;
+  const NEWS_PAGE_SIZE = 10;
+  const session = window.FooduckSession || {};
+  const isLoggedIn = Boolean(session.authenticated);
+  const isAdmin = Boolean(session.isAdmin);
 
   function renderTabs(order) {
     tabOrder = order;
@@ -225,19 +229,54 @@
     }
   }
 
-  function newsWriteFormHtml() {
-    if (!isOwner) return "";
+  function canWriteNews() {
+    return source === "public"
+      ? isLoggedIn && isAdmin
+      : isOwner;
+  }
+
+  function newsApiPath() {
+    const encodedStoreId = encodeURIComponent(storeId);
+    return source === "public"
+      ? `/board/posts/restaurants/public/${encodedStoreId}/news`
+      : `/board/posts/restaurants/${encodedStoreId}/news`;
+  }
+
+  function newsWriteButtonHtml() {
+    if (!canWriteNews()) return "";
     return `
-      <div class="store-write-form" id="store-news-form">
+      <button type="button" class="button button-primary button-sm" id="store-news-write-toggle"
+              aria-controls="store-news-form" aria-expanded="false">글쓰기</button>
+    `;
+  }
+
+  function newsWriteFormHtml() {
+    if (!canWriteNews()) return "";
+    return `
+      <div class="store-write-form store-news-form" id="store-news-form" hidden>
         <h3>소식 작성</h3>
         <input type="text" id="store-news-title" maxlength="200" placeholder="제목">
-        <textarea id="store-news-content" maxlength="4000" placeholder="소식 내용을 입력하세요"></textarea>
+        <textarea id="store-news-content" maxlength="10000" placeholder="소식 내용을 입력하세요"></textarea>
         <button type="button" class="button button-primary button-sm" id="store-news-submit">소식 등록</button>
       </div>
     `;
   }
 
   function bindNewsForm() {
+    const toggleButton = document.getElementById("store-news-write-toggle");
+    const form = document.getElementById("store-news-form");
+    if (toggleButton && form) {
+      toggleButton.addEventListener("click", () => {
+        const willOpen = form.hidden;
+        form.hidden = !willOpen;
+        toggleButton.setAttribute("aria-expanded", String(willOpen));
+        toggleButton.textContent = willOpen ? "닫기" : "글쓰기";
+        if (willOpen) {
+          document.getElementById("store-news-title")?.focus();
+        }
+      });
+    }
+
     const submitButton = document.getElementById("store-news-submit");
     if (!submitButton) return;
     submitButton.addEventListener("click", async () => {
@@ -249,8 +288,8 @@
       }
       submitButton.disabled = true;
       try {
-        await Api.post(`/restaurants/${storeId}/news`, { title, content });
-        await loadNews();
+        await Api.post(newsApiPath(), { title, content });
+        await loadNews(0);
       } catch (error) {
         window.alert(error.message || "소식 등록에 실패했습니다.");
       } finally {
@@ -259,38 +298,95 @@
     });
   }
 
-  async function loadNews() {
-    if (source === "public") {
-      panels.news.innerHTML = `
-        <div class="store-section-card">
-          <div class="store-empty">공공데이터 출처 가게는 등록된 사장님이 없어 소식 기능을 지원하지 않습니다.<br>사업자가 푸드덕에 가게를 직접 등록하면 소식을 볼 수 있어요.</div>
-        </div>
-      `;
-      return;
-    }
-    panels.news.innerHTML = '<div class="store-empty">소식을 불러오는 중입니다.</div>';
-    try {
-      const response = await Api.get(`/public/restaurants/${storeId}/news`, { auth: false });
-      const items = response.data || [];
-      const listHtml = items.length === 0
-        ? '<div class="store-empty">아직 등록된 소식이 없습니다.</div>'
-        : items.map((news) => `
-            <div class="store-news-item">
-              <p class="store-news-title">${escapeHtml(news.title)}</p>
-              <p class="store-news-content">${escapeHtml(news.content)}</p>
-              <p class="store-news-date">${formatDate(news.createdAt)}</p>
-            </div>
-          `).join("");
-      panels.news.innerHTML = `
-        <div class="store-section-card">
+  function newsPaginationHtml(pageData) {
+    const totalPages = Math.max(0, Number(pageData.totalPages) || 0);
+    if (totalPages <= 1) return "";
+
+    const currentPage = Math.max(0, Number(pageData.page) || 0);
+    const first = pageData.first === true || currentPage === 0;
+    const last = pageData.last === true || currentPage + 1 >= totalPages;
+    return `
+      <nav class="store-news-pagination" aria-label="소식 페이지">
+        <button type="button" class="button button-secondary button-sm"
+                data-news-page="${currentPage - 1}"${first ? " disabled" : ""}>이전</button>
+        <span>${currentPage + 1} / ${totalPages}</span>
+        <button type="button" class="button button-secondary button-sm"
+                data-news-page="${currentPage + 1}"${last ? " disabled" : ""}>다음</button>
+      </nav>
+    `;
+  }
+
+  function bindNewsPanelActions() {
+    bindNewsForm();
+    panels.news.querySelectorAll("[data-news-page]").forEach((button) => {
+      button.addEventListener("click", () => {
+        const targetPage = Number(button.dataset.newsPage);
+        if (Number.isInteger(targetPage) && targetPage >= 0) {
+          loadNews(targetPage);
+        }
+      });
+    });
+    document.getElementById("store-news-retry")?.addEventListener("click", () => {
+      loadNews(newsPage);
+    });
+  }
+
+  function renderNewsCard(bodyHtml, paginationHtml = "") {
+    panels.news.innerHTML = `
+      <div class="store-section-card">
+        <div class="store-news-header">
           <h2>가게 소식</h2>
-          ${newsWriteFormHtml()}
-          ${listHtml}
+          ${newsWriteButtonHtml()}
         </div>
-      `;
-      bindNewsForm();
+        ${newsWriteFormHtml()}
+        ${bodyHtml}
+        ${paginationHtml}
+      </div>
+    `;
+    bindNewsPanelActions();
+  }
+
+  function renderNewsPanel(pageData) {
+    const items = Array.isArray(pageData.content) ? pageData.content : [];
+    const bodyHtml = items.length === 0
+      ? '<div class="store-empty">아직 등록된 소식이 없습니다.</div>'
+      : `<div class="store-news-list">${items.map((news) => `
+          <div class="store-news-item">
+            <p class="store-news-title">${escapeHtml(news.title)}</p>
+            <p class="store-news-content">${escapeHtml(news.content)}</p>
+            <p class="store-news-date">${formatDate(news.createdAt)}</p>
+          </div>
+        `).join("")}</div>`;
+    renderNewsCard(bodyHtml, newsPaginationHtml(pageData));
+  }
+
+  function renderNewsError(error) {
+    const message = escapeHtml(error.message || "소식을 불러오지 못했습니다.");
+    renderNewsCard(`
+      <div class="store-empty store-news-error">
+        <span>${message}</span>
+        <button type="button" class="button button-secondary button-sm" id="store-news-retry">다시 시도</button>
+      </div>
+    `);
+  }
+
+  async function loadNews(page = newsPage) {
+    const requestedPage = Number.isInteger(page) && page >= 0 ? page : 0;
+    newsPage = requestedPage;
+    panels.news.innerHTML = '<div class="store-empty">소식을 불러오는 중입니다.</div>';
+    const params = new URLSearchParams({
+      page: String(requestedPage),
+      size: String(NEWS_PAGE_SIZE),
+    });
+    try {
+      const response = await Api.get(`${newsApiPath()}?${params.toString()}`, { auth: false });
+      const pageData = response.data || {};
+      newsPage = Number.isInteger(pageData.page) && pageData.page >= 0
+        ? pageData.page
+        : requestedPage;
+      renderNewsPanel({ ...pageData, page: newsPage });
     } catch (error) {
-      panels.news.innerHTML = `<div class="store-empty">${error.message || "소식을 불러오지 못했습니다."}</div>`;
+      renderNewsError(error);
     }
   }
 

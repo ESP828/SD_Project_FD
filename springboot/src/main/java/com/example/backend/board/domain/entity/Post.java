@@ -39,6 +39,9 @@ public class Post {
     @Column(name = "restaurant_id")
     private Long restaurantId;
 
+    @Column(name = "public_restaurant_id")
+    private Long publicRestaurantId;
+
     @OneToMany(mappedBy = "post", fetch = FetchType.LAZY)
     private List<Comment> comments = new ArrayList<>();
 
@@ -84,15 +87,25 @@ public class Post {
     private Post(
             Account author,
             Long restaurantId,
+            Long publicRestaurantId,
             BoardType boardType,
             PostCategory category,
             String title,
             String content
     ) {
         this.author = Objects.requireNonNull(author);
+        BoardType resolvedBoardType = Objects.requireNonNull(boardType);
+        PostCategory resolvedCategory = Objects.requireNonNull(category);
+        validateRestaurantReference(
+                resolvedBoardType,
+                resolvedCategory,
+                restaurantId,
+                publicRestaurantId
+        );
         this.restaurantId = restaurantId;
-        this.boardType = Objects.requireNonNull(boardType);
-        this.category = Objects.requireNonNull(category);
+        this.publicRestaurantId = publicRestaurantId;
+        this.boardType = resolvedBoardType;
+        this.category = resolvedCategory;
         this.title = Objects.requireNonNull(title);
         this.content = Objects.requireNonNull(content);
         this.status = PostStatus.ACTIVE;
@@ -106,7 +119,27 @@ public class Post {
             String title,
             String content
     ) {
-        return new Post(author, restaurantId, boardType, category, title, content);
+        return create(author, restaurantId, null, boardType, category, title, content);
+    }
+
+    public static Post create(
+            Account author,
+            Long restaurantId,
+            Long publicRestaurantId,
+            BoardType boardType,
+            PostCategory category,
+            String title,
+            String content
+    ) {
+        return new Post(
+                author,
+                restaurantId,
+                publicRestaurantId,
+                boardType,
+                category,
+                title,
+                content
+        );
     }
 
     public void update(
@@ -116,17 +149,36 @@ public class Post {
             String title,
             String content
     ) {
+        update(restaurantId, null, boardType, category, title, content);
+    }
+
+    public void update(
+            Long restaurantId,
+            Long publicRestaurantId,
+            BoardType boardType,
+            PostCategory category,
+            String title,
+            String content
+    ) {
         BoardType nextBoardType = Objects.requireNonNull(boardType);
         PostCategory nextCategory = Objects.requireNonNull(category);
         String nextTitle = Objects.requireNonNull(title);
         String nextContent = Objects.requireNonNull(content);
+        validateRestaurantReference(
+                nextBoardType,
+                nextCategory,
+                restaurantId,
+                publicRestaurantId
+        );
         boolean changed = !Objects.equals(this.restaurantId, restaurantId)
+                || !Objects.equals(this.publicRestaurantId, publicRestaurantId)
                 || this.boardType != nextBoardType
                 || this.category != nextCategory
                 || !Objects.equals(this.title, nextTitle)
                 || !Objects.equals(this.content, nextContent);
 
         this.restaurantId = restaurantId;
+        this.publicRestaurantId = publicRestaurantId;
         this.boardType = nextBoardType;
         this.category = nextCategory;
         this.title = nextTitle;
@@ -134,6 +186,32 @@ public class Post {
         this.updatedAt = LocalDateTime.now();
         if (changed) {
             this.edited = true;
+        }
+    }
+
+    private static void validateRestaurantReference(
+            BoardType boardType,
+            PostCategory category,
+            Long restaurantId,
+            Long publicRestaurantId
+    ) {
+        if (category == PostCategory.NEWS) {
+            if (boardType != BoardType.GENERAL) {
+                throw new IllegalArgumentException(
+                        "식당 소식은 일반 게시 공간에만 저장할 수 있습니다."
+                );
+            }
+            if ((restaurantId == null) == (publicRestaurantId == null)) {
+                throw new IllegalArgumentException(
+                        "식당 소식은 자체 등록 음식점 또는 공공데이터 음식점 중 하나만 연결해야 합니다."
+                );
+            }
+            return;
+        }
+        if (publicRestaurantId != null) {
+            throw new IllegalArgumentException(
+                    "식당 소식이 아닌 게시글에는 공공데이터 음식점을 연결할 수 없습니다."
+            );
         }
     }
 
@@ -181,6 +259,10 @@ public class Post {
 
     public Long getRestaurantId() {
         return restaurantId;
+    }
+
+    public Long getPublicRestaurantId() {
+        return publicRestaurantId;
     }
 
     public BoardType getBoardType() {

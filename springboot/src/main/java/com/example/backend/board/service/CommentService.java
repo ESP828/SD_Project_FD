@@ -4,6 +4,7 @@ import com.example.backend.auth.domain.entity.Account;
 import com.example.backend.board.domain.entity.Comment;
 import com.example.backend.board.domain.entity.Post;
 import com.example.backend.board.domain.type.CommentStatus;
+import com.example.backend.board.domain.type.PostCategory;
 import com.example.backend.board.domain.type.PostStatus;
 import com.example.backend.board.dto.request.CommentCreateRequest;
 import com.example.backend.board.dto.request.CommentUpdateRequest;
@@ -435,6 +436,7 @@ public class CommentService {
                         "BOARD_POST_NOT_FOUND",
                         "게시글을 찾을 수 없습니다."
                 ));
+        assertCommunityPost(post);
         accessPolicy.assertCanRead(post.getBoardType(), currentAccount);
         return post;
     }
@@ -452,6 +454,7 @@ public class CommentService {
                         "BOARD_POST_NOT_FOUND",
                         "게시글을 찾을 수 없습니다."
                 ));
+        assertCommunityPost(post);
         accessPolicy.assertCanRead(post.getBoardType(), currentAccount);
         return post;
     }
@@ -521,6 +524,11 @@ public class CommentService {
 
     private void assertParentPostReadable(Comment comment, Account currentAccount) {
         Post post = comment.getPost();
+        assertCommunityPost(post);
+        accessPolicy.assertCanRead(post.getBoardType(), currentAccount);
+    }
+
+    private void assertCommunityPost(Post post) {
         if (post.isDeleted()) {
             throw new BoardException(
                     HttpStatus.NOT_FOUND,
@@ -528,7 +536,13 @@ public class CommentService {
                     "게시글을 찾을 수 없습니다."
             );
         }
-        accessPolicy.assertCanRead(post.getBoardType(), currentAccount);
+        if (post.getCategory() == PostCategory.NEWS) {
+            throw new BoardException(
+                    HttpStatus.NOT_FOUND,
+                    "BOARD_POST_NOT_FOUND",
+                    "게시글을 찾을 수 없습니다."
+            );
+        }
     }
 
     private void assertOwnerOrAdmin(Comment comment, Account account) {

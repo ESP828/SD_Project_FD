@@ -391,6 +391,32 @@
 
 /* News */
 
+.store-news-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.store-news-header h2 {
+  margin-bottom: 0;
+}
+
+.store-news-header .button {
+  flex: 0 0 auto;
+  margin-left: auto;
+}
+
+.store-news-list {
+  display: grid;
+}
+
+.store-news-form[hidden] {
+  display: none;
+}
+
 .store-news-item {
   padding-bottom: 16px;
   border-bottom: 1px solid var(--color-line);
@@ -419,6 +445,32 @@
   margin-top: 6px;
   color: var(--color-subtle);
   font-size: 0.72rem;
+}
+
+.store-news-error {
+  gap: 12px;
+}
+
+.store-news-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid var(--color-line);
+}
+
+.store-news-pagination .button {
+  min-width: 76px;
+}
+
+.store-news-pagination span {
+  min-width: 54px;
+  color: var(--color-muted);
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-align: center;
 }
 
 /* Side info card */

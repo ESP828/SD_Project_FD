@@ -26,6 +26,7 @@ public interface PostRepository extends JpaRepository<Post, Long> {
             where p.author.accountId = :accountId
               and p.status = :status
               and (:boardType is null or p.boardType = :boardType)
+              and p.category <> com.example.backend.board.domain.type.PostCategory.NEWS
             """)
     long countActivePostsByAuthor(
             @Param("accountId") Long accountId,
@@ -41,6 +42,7 @@ public interface PostRepository extends JpaRepository<Post, Long> {
               and p.status = :status
               and (:boardType is null or p.boardType = :boardType)
               and (:excludedPostId is null or p.postId <> :excludedPostId)
+              and p.category <> com.example.backend.board.domain.type.PostCategory.NEWS
             order by p.createdAt desc, p.postId desc
             """)
     List<Post> findRecentActivePostsByAuthor(
@@ -62,6 +64,7 @@ public interface PostRepository extends JpaRepository<Post, Long> {
             from Post p
             join fetch p.author a
             where p.status = :status
+              and p.category <> com.example.backend.board.domain.type.PostCategory.NEWS
               and (:boardType is null or p.boardType = :boardType)
               and (:category is null or p.category = :category)
               and (
@@ -77,6 +80,7 @@ public interface PostRepository extends JpaRepository<Post, Long> {
             from Post p
             join p.author a
             where p.status = :status
+              and p.category <> com.example.backend.board.domain.type.PostCategory.NEWS
               and (:boardType is null or p.boardType = :boardType)
               and (:category is null or p.category = :category)
               and (
@@ -100,6 +104,7 @@ public interface PostRepository extends JpaRepository<Post, Long> {
             from Post p
             join fetch p.author a
             where p.status = :postStatus
+              and p.category <> com.example.backend.board.domain.type.PostCategory.NEWS
               and (:boardType is null or p.boardType = :boardType)
               and (:category is null or p.category = :category)
               and (
@@ -121,6 +126,7 @@ public interface PostRepository extends JpaRepository<Post, Long> {
             from Post p
             join p.author a
             where p.status = :postStatus
+              and p.category <> com.example.backend.board.domain.type.PostCategory.NEWS
               and (:boardType is null or p.boardType = :boardType)
               and (:category is null or p.category = :category)
               and (
@@ -147,6 +153,7 @@ public interface PostRepository extends JpaRepository<Post, Long> {
             where p.status = :status
               and p.createdAt >= :since
               and p.category <> :excludedCategory
+              and p.category <> com.example.backend.board.domain.type.PostCategory.NEWS
               and (:boardType is null or p.boardType = :boardType)
             order by p.likeCount desc, p.createdAt desc, p.postId desc
             """)
@@ -165,6 +172,7 @@ public interface PostRepository extends JpaRepository<Post, Long> {
             where p.status = :status
               and p.likeCount >= :minimumLikeCount
               and p.category <> :excludedCategory
+              and p.category <> com.example.backend.board.domain.type.PostCategory.NEWS
               and (:readableBoardType is null or p.boardType = :readableBoardType)
             order by p.likeCount desc, p.createdAt desc, p.postId desc
             """,
@@ -174,6 +182,7 @@ public interface PostRepository extends JpaRepository<Post, Long> {
             where p.status = :status
               and p.likeCount >= :minimumLikeCount
               and p.category <> :excludedCategory
+              and p.category <> com.example.backend.board.domain.type.PostCategory.NEWS
               and (:readableBoardType is null or p.boardType = :readableBoardType)
             """)
     Page<Post> findBestPostPage(
@@ -191,6 +200,7 @@ public interface PostRepository extends JpaRepository<Post, Long> {
             where p.status = :postStatus
               and p.postId <> :currentPostId
               and p.category <> :excludedCategory
+              and p.category <> com.example.backend.board.domain.type.PostCategory.NEWS
               and (:readableBoardType is null or p.boardType = :readableBoardType)
               and (
                     (:restaurantId is not null and p.restaurantId = :restaurantId)
@@ -239,12 +249,67 @@ public interface PostRepository extends JpaRepository<Post, Long> {
             Pageable pageable
     );
 
+    @Query(value = """
+            select p
+            from Post p
+            where p.publicRestaurantId = :publicRestaurantId
+              and p.restaurantId is null
+              and p.boardType = :boardType
+              and p.category = :category
+              and p.status = :status
+            order by p.createdAt desc, p.postId desc
+            """,
+            countQuery = """
+            select count(p)
+            from Post p
+            where p.publicRestaurantId = :publicRestaurantId
+              and p.restaurantId is null
+              and p.boardType = :boardType
+              and p.category = :category
+              and p.status = :status
+            """)
+    Page<Post> findPublicRestaurantNews(
+            @Param("publicRestaurantId") Long publicRestaurantId,
+            @Param("boardType") BoardType boardType,
+            @Param("category") PostCategory category,
+            @Param("status") PostStatus status,
+            Pageable pageable
+    );
+
+    @Query(value = """
+            select p
+            from Post p
+            where p.restaurantId = :restaurantId
+              and p.publicRestaurantId is null
+              and p.boardType = :boardType
+              and p.category = :category
+              and p.status = :status
+            order by p.createdAt desc, p.postId desc
+            """,
+            countQuery = """
+            select count(p)
+            from Post p
+            where p.restaurantId = :restaurantId
+              and p.publicRestaurantId is null
+              and p.boardType = :boardType
+              and p.category = :category
+              and p.status = :status
+            """)
+    Page<Post> findOwnedRestaurantNews(
+            @Param("restaurantId") Long restaurantId,
+            @Param("boardType") BoardType boardType,
+            @Param("category") PostCategory category,
+            @Param("status") PostStatus status,
+            Pageable pageable
+    );
+
     @Query("""
             select p
             from Post p
             join fetch p.author
             where p.postId = :postId
               and p.status = :status
+              and p.category <> com.example.backend.board.domain.type.PostCategory.NEWS
             """)
     Optional<Post> findByPostIdAndStatus(
             @Param("postId") Long postId,
@@ -258,6 +323,7 @@ public interface PostRepository extends JpaRepository<Post, Long> {
             join fetch p.author
             where p.postId = :postId
               and p.status = :status
+              and p.category <> com.example.backend.board.domain.type.PostCategory.NEWS
             """)
     Optional<Post> findByPostIdAndStatusForUpdate(
             @Param("postId") Long postId,
