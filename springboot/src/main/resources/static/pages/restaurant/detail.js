@@ -996,6 +996,7 @@
       host.replaceChildren(board.authorIdentity(news, {
         showNickname: true,
         showAuthorMenu: true,
+        authorMenuContext: "NEWS",
       }));
     });
   }

@@ -240,16 +240,20 @@
     return item;
   }
 
-  function renderAuthorMenuLoading(author) {
+  function renderAuthorMenuLoading(author, context = "COMMUNITY") {
     const menu = ensureAuthorMenu();
+    const loadingLabel = context === "NEWS"
+      ? "커뮤니티 활동을 불러오는 중입니다."
+      : "활동 정보를 불러오는 중입니다.";
     menu.replaceChildren(
       element("strong", "author-menu-nickname", author.authorNickname || "작성자"),
-      element("p", "author-menu-loading", "활동 정보를 불러오는 중입니다."),
+      element("p", "author-menu-loading", loadingLabel),
     );
   }
 
-  function renderAuthorMenuSummary(summary) {
+  function renderAuthorMenuSummary(summary, context = "COMMUNITY") {
     const menu = ensureAuthorMenu();
+    const newsContext = context === "NEWS";
     const header = element("header", "author-menu-header");
     const identity = element("div", "author-menu-identity");
     identity.append(
@@ -262,23 +266,49 @@
     );
     header.append(
       identity,
-      element("span", "author-menu-caption", "커뮤니티 활동"),
+      element(
+        "span",
+        "author-menu-caption",
+        newsContext ? "가게 소식 작성자" : "커뮤니티 활동",
+      ),
     );
+
+    const contextNote = newsContext
+      ? element("div", "author-menu-context-note")
+      : null;
+    if (contextNote) {
+      contextNote.append(
+        element("strong", "author-menu-context-title", "현재 보고 있는 글은 가게 소식입니다."),
+        element(
+          "p",
+          "author-menu-context-copy",
+          "아래 게시글과 댓글은 이 작성자가 커뮤니티에 남긴 활동만 표시합니다.",
+        ),
+      );
+    }
 
     const stats = element("div", "author-menu-stats");
     stats.append(
-      authorMenuStat("작성한 게시글", summary.postCount),
-      authorMenuStat("작성한 댓글", summary.commentCount),
+      authorMenuStat(newsContext ? "커뮤니티 게시글" : "작성한 게시글", summary.postCount),
+      authorMenuStat(newsContext ? "커뮤니티 댓글" : "작성한 댓글", summary.commentCount),
     );
 
     const recentSection = element("section", "author-menu-recent");
-    recentSection.append(element("strong", "author-menu-recent-title", "이전 작성글"));
+    recentSection.append(element(
+      "strong",
+      "author-menu-recent-title",
+      newsContext ? "커뮤니티 이전글" : "이전 작성글",
+    ));
     const recentPosts = Array.isArray(summary.recentPosts)
       ? summary.recentPosts
       : [];
     if (recentPosts.length === 0) {
       recentSection.append(
-        element("p", "author-menu-recent-empty", "표시할 이전 게시글이 없습니다."),
+        element(
+          "p",
+          "author-menu-recent-empty",
+          newsContext ? "표시할 이전 커뮤니티 게시글이 없습니다." : "표시할 이전 게시글이 없습니다.",
+        ),
       );
     } else {
       const list = element("ul", "author-menu-recent-list");
@@ -302,14 +332,22 @@
 
     const recentCommentSection = element("section", "author-menu-recent");
     recentCommentSection.append(
-      element("strong", "author-menu-recent-title", "이전 댓글"),
+      element(
+        "strong",
+        "author-menu-recent-title",
+        newsContext ? "커뮤니티 이전댓글" : "이전 댓글",
+      ),
     );
     const recentComments = Array.isArray(summary.recentComments)
       ? summary.recentComments
       : [];
     if (recentComments.length === 0) {
       recentCommentSection.append(
-        element("p", "author-menu-recent-empty", "표시할 이전 댓글이 없습니다."),
+        element(
+          "p",
+          "author-menu-recent-empty",
+          newsContext ? "표시할 이전 커뮤니티 댓글이 없습니다." : "표시할 이전 댓글이 없습니다.",
+        ),
       );
     } else {
       const list = element("ul", "author-menu-recent-list");
@@ -357,6 +395,7 @@
 
     menu.replaceChildren(
       header,
+      ...(contextNote ? [contextNote] : []),
       stats,
       recentSection,
       recentCommentSection,
@@ -372,7 +411,7 @@
     );
   }
 
-  async function openAuthorMenu(author, trigger, event) {
+  async function openAuthorMenu(author, trigger, event, context = "COMMUNITY") {
     event.preventDefault();
     event.stopPropagation();
     if (!author?.authorAccountId) return;
@@ -388,7 +427,7 @@
     }
     activeAuthorTrigger = trigger;
     trigger.setAttribute("aria-expanded", "true");
-    renderAuthorMenuLoading(author);
+    renderAuthorMenuLoading(author, context);
     menu.hidden = false;
     positionAuthorMenu(trigger);
 
@@ -405,7 +444,7 @@
       );
       const summary = payload.data;
       if (activeAuthorTrigger !== trigger || menu.hidden) return;
-      renderAuthorMenuSummary(summary);
+      renderAuthorMenuSummary(summary, context);
       positionAuthorMenu(trigger);
     } catch (error) {
       if (activeAuthorTrigger !== trigger || menu.hidden) return;
@@ -414,7 +453,7 @@
     }
   }
 
-  function enableAuthorMenu(trigger, author) {
+  function enableAuthorMenu(trigger, author, context = "COMMUNITY") {
     trigger.classList.add("author-nickname--interactive");
     trigger.tabIndex = 0;
     trigger.setAttribute("role", "button");
@@ -422,17 +461,21 @@
     trigger.setAttribute("aria-controls", "board-author-menu");
     trigger.setAttribute("aria-expanded", "false");
     trigger.addEventListener("click", (event) => {
-      openAuthorMenu(author, trigger, event);
+      openAuthorMenu(author, trigger, event, context);
     });
     trigger.addEventListener("keydown", (event) => {
       if (event.key !== "Enter" && event.key !== " ") return;
-      openAuthorMenu(author, trigger, event);
+      openAuthorMenu(author, trigger, event, context);
     });
   }
 
   function authorIdentity(
     author,
-    { showNickname = true, showAuthorMenu = false } = {},
+    {
+      showNickname = true,
+      showAuthorMenu = false,
+      authorMenuContext = "COMMUNITY",
+    } = {},
   ) {
     const wrapper = element("span", "author-identity");
     if (!author?.authorLoginId) {
@@ -441,7 +484,7 @@
     if (showNickname && author?.authorNickname) {
       const nickname = element("span", "author-nickname", author.authorNickname);
       if (showAuthorMenu && author.authorAccountId) {
-        enableAuthorMenu(nickname, author);
+        enableAuthorMenu(nickname, author, authorMenuContext);
       }
       wrapper.append(nickname);
     }

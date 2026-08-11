@@ -849,6 +849,29 @@
   font-size: 0.68rem;
 }
 
+.author-menu-context-note {
+  display: grid;
+  gap: 4px;
+  margin-top: 12px;
+  padding: 10px 12px;
+  border: 1px solid rgba(255, 145, 0, 0.24);
+  border-radius: 10px;
+  background: rgba(255, 145, 0, 0.08);
+}
+
+.author-menu-context-title {
+  color: var(--color-navy);
+  font-size: 0.76rem;
+  line-height: 1.45;
+}
+
+.author-menu-context-copy {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 0.7rem;
+  line-height: 1.5;
+}
+
 .author-menu-stats {
   display: grid;
   gap: 8px;
