@@ -250,6 +250,29 @@ public class PostService {
         );
     }
 
+    @Transactional
+    public void deletePublicRestaurantNews(
+            Long publicRestaurantId,
+            Long postId,
+            Long currentAccountId
+    ) {
+        validateId(postId, "게시글");
+        Account currentAccount = boardUserService.require(currentAccountId);
+        accessPolicy.assertCanWritePublicRestaurantNews(
+                publicRestaurantId,
+                currentAccount
+        );
+        Post post = postRepository.findPublicRestaurantNewsForUpdate(
+                        postId,
+                        publicRestaurantId,
+                        BoardType.GENERAL,
+                        PostCategory.NEWS,
+                        PostStatus.ACTIVE
+                )
+                .orElseThrow(this::newsNotFound);
+        postRepository.delete(post);
+    }
+
     @Transactional(readOnly = true)
     public RestaurantNewsPageResponse getOwnedRestaurantNews(
             Long restaurantId,
@@ -291,6 +314,29 @@ public class PostService {
                 title,
                 content
         );
+    }
+
+    @Transactional
+    public void deleteOwnedRestaurantNews(
+            Long restaurantId,
+            Long postId,
+            Long currentAccountId
+    ) {
+        validateId(postId, "게시글");
+        Account currentAccount = boardUserService.require(currentAccountId);
+        accessPolicy.assertCanWriteOwnedRestaurantNews(
+                restaurantId,
+                currentAccount
+        );
+        Post post = postRepository.findOwnedRestaurantNewsForUpdate(
+                        postId,
+                        restaurantId,
+                        BoardType.GENERAL,
+                        PostCategory.NEWS,
+                        PostStatus.ACTIVE
+                )
+                .orElseThrow(this::newsNotFound);
+        postRepository.delete(post);
     }
 
     @Transactional(readOnly = true)
@@ -1113,6 +1159,7 @@ public class PostService {
                 post.getPostId(),
                 post.getTitle(),
                 post.getContent(),
+                post.getAuthor().getNickname(),
                 post.getCreatedAt()
         );
     }
@@ -1634,6 +1681,14 @@ public class PostService {
         );
     }
 
+    private BoardException newsNotFound() {
+        return new BoardException(
+                HttpStatus.NOT_FOUND,
+                "BOARD_NEWS_NOT_FOUND",
+                "식당 소식을 찾을 수 없습니다."
+        );
+    }
+
     private BoardException notFound(String message) {
         return new BoardException(
                 HttpStatus.NOT_FOUND,
@@ -1712,6 +1767,7 @@ public class PostService {
             Long postId,
             String title,
             String content,
+            String authorNickname,
             LocalDateTime createdAt
     ) {
     }

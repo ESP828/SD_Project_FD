@@ -104,6 +104,20 @@ public class PostController {
         );
     }
 
+    @DeleteMapping("/restaurants/public/{publicRestaurantId}/news/{postId}")
+    public ApiResponse<Void> deletePublicRestaurantNews(
+            @PathVariable Long publicRestaurantId,
+            @PathVariable Long postId,
+            Authentication authentication
+    ) {
+        postService.deletePublicRestaurantNews(
+                publicRestaurantId,
+                postId,
+                BoardAuthentication.accountId(authentication)
+        );
+        return ApiResponse.success("식당 소식이 삭제되었습니다.", null);
+    }
+
     @GetMapping("/restaurants/{restaurantId}/news")
     public ApiResponse<PostService.RestaurantNewsPageResponse>
     getOwnedRestaurantNews(
@@ -135,6 +149,20 @@ public class PostController {
                         BoardAuthentication.accountId(authentication)
                 )
         );
+    }
+
+    @DeleteMapping("/restaurants/{restaurantId}/news/{postId}")
+    public ApiResponse<Void> deleteOwnedRestaurantNews(
+            @PathVariable Long restaurantId,
+            @PathVariable Long postId,
+            Authentication authentication
+    ) {
+        postService.deleteOwnedRestaurantNews(
+                restaurantId,
+                postId,
+                BoardAuthentication.accountId(authentication)
+        );
+        return ApiResponse.success("식당 소식이 삭제되었습니다.", null);
     }
 
     @GetMapping("/best")

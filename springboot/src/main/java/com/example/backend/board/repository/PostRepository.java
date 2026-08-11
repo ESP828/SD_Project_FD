@@ -252,6 +252,7 @@ public interface PostRepository extends JpaRepository<Post, Long> {
     @Query(value = """
             select p
             from Post p
+            join fetch p.author
             where p.publicRestaurantId = :publicRestaurantId
               and p.restaurantId is null
               and p.boardType = :boardType
@@ -279,6 +280,7 @@ public interface PostRepository extends JpaRepository<Post, Long> {
     @Query(value = """
             select p
             from Post p
+            join fetch p.author
             where p.restaurantId = :restaurantId
               and p.publicRestaurantId is null
               and p.boardType = :boardType
@@ -301,6 +303,44 @@ public interface PostRepository extends JpaRepository<Post, Long> {
             @Param("category") PostCategory category,
             @Param("status") PostStatus status,
             Pageable pageable
+    );
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("""
+            select p
+            from Post p
+            where p.postId = :postId
+              and p.publicRestaurantId = :publicRestaurantId
+              and p.restaurantId is null
+              and p.boardType = :boardType
+              and p.category = :category
+              and p.status = :status
+            """)
+    Optional<Post> findPublicRestaurantNewsForUpdate(
+            @Param("postId") Long postId,
+            @Param("publicRestaurantId") Long publicRestaurantId,
+            @Param("boardType") BoardType boardType,
+            @Param("category") PostCategory category,
+            @Param("status") PostStatus status
+    );
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("""
+            select p
+            from Post p
+            where p.postId = :postId
+              and p.restaurantId = :restaurantId
+              and p.publicRestaurantId is null
+              and p.boardType = :boardType
+              and p.category = :category
+              and p.status = :status
+            """)
+    Optional<Post> findOwnedRestaurantNewsForUpdate(
+            @Param("postId") Long postId,
+            @Param("restaurantId") Long restaurantId,
+            @Param("boardType") BoardType boardType,
+            @Param("category") PostCategory category,
+            @Param("status") PostStatus status
     );
 
     @Query("""

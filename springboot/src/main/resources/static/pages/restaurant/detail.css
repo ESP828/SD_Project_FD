@@ -427,6 +427,19 @@
   padding-bottom: 0;
 }
 
+.store-news-item-head,
+.store-news-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.store-news-delete {
+  flex: 0 0 auto;
+  color: var(--color-danger);
+}
+
 .store-news-title {
   margin-bottom: 4px;
   color: var(--color-navy);
@@ -441,10 +454,18 @@
   white-space: pre-line;
 }
 
-.store-news-date {
+.store-news-meta {
   margin-top: 6px;
+}
+
+.store-news-author,
+.store-news-date {
   color: var(--color-subtle);
   font-size: 0.72rem;
+}
+
+.store-news-author {
+  font-weight: 700;
 }
 
 .store-news-error {

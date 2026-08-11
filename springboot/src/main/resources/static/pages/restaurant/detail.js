@@ -242,6 +242,10 @@
       : `/board/posts/restaurants/${encodedStoreId}/news`;
   }
 
+  function newsDeleteApiPath(postId) {
+    return `${newsApiPath()}/${encodeURIComponent(postId)}`;
+  }
+
   function newsWriteButtonHtml() {
     if (!canWriteNews()) return "";
     return `
@@ -326,6 +330,26 @@
         }
       });
     });
+    panels.news.querySelectorAll("[data-news-delete]").forEach((button) => {
+      button.addEventListener("click", async () => {
+        if (!canWriteNews()) return;
+        const postId = button.dataset.newsDelete;
+        if (!postId || !window.confirm("이 소식을 삭제하시겠습니까?")) return;
+
+        const itemCount = Number(button.dataset.newsItemCount);
+        button.disabled = true;
+        try {
+          await Api.delete(newsDeleteApiPath(postId));
+          const targetPage = newsPage > 0 && itemCount === 1
+            ? newsPage - 1
+            : newsPage;
+          await loadNews(targetPage);
+        } catch (error) {
+          window.alert(error.message || "소식 삭제에 실패했습니다.");
+          button.disabled = false;
+        }
+      });
+    });
     document.getElementById("store-news-retry")?.addEventListener("click", () => {
       loadNews(newsPage);
     });
@@ -352,9 +376,19 @@
       ? '<div class="store-empty">아직 등록된 소식이 없습니다.</div>'
       : `<div class="store-news-list">${items.map((news) => `
           <div class="store-news-item">
-            <p class="store-news-title">${escapeHtml(news.title)}</p>
+            <div class="store-news-item-head">
+              <p class="store-news-title">${escapeHtml(news.title)}</p>
+              ${canWriteNews() && news.postId != null ? `
+                <button type="button" class="button button-secondary button-sm store-news-delete"
+                        data-news-delete="${escapeHtml(news.postId)}"
+                        data-news-item-count="${items.length}">삭제</button>
+              ` : ""}
+            </div>
             <p class="store-news-content">${escapeHtml(news.content)}</p>
-            <p class="store-news-date">${formatDate(news.createdAt)}</p>
+            <div class="store-news-meta">
+              <span class="store-news-author">${escapeHtml(news.authorNickname || "-")}</span>
+              <span class="store-news-date">${formatDate(news.createdAt)}</span>
+            </div>
           </div>
         `).join("")}</div>`;
     renderNewsCard(bodyHtml, newsPaginationHtml(pageData));
