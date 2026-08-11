@@ -92,6 +92,188 @@
     return `/pages/restaurant/detail.html?${params.toString()}`;
   }
 
+  function restaurantInfoPath(post) {
+    const target = newsSource(post);
+    if (!target) return null;
+    const params = new URLSearchParams({
+      source: target.source,
+      id: String(target.id),
+      tab: "info",
+    });
+    return `/pages/restaurant/detail.html?${params.toString()}`;
+  }
+
+  function newsRestaurantApiPath(post) {
+    const target = newsSource(post);
+    if (!target) return null;
+    const restaurantId = encodeURIComponent(target.id);
+    return target.source === "public"
+      ? `/public/map/restaurants/${restaurantId}`
+      : `/public/restaurants/${restaurantId}`;
+  }
+
+  function newsRestaurantFallback(post) {
+    const target = newsSource(post);
+    if (!target) return null;
+    if (target.source === "owned" && post?.restaurant) {
+      return {
+        name: post.restaurant.name || "등록 식당",
+        category: null,
+        address: post.restaurant.address || "주소 정보 없음",
+        phone: null,
+        openingHours: null,
+        sourceLabel: "푸드덕 등록 식당",
+      };
+    }
+    return {
+      name: "연결된 가게",
+      category: null,
+      address: "가게 정보를 불러오지 못했습니다.",
+      phone: null,
+      openingHours: null,
+      sourceLabel: "공공데이터 식당",
+    };
+  }
+
+  function normalizeNewsRestaurant(post, restaurant) {
+    const target = newsSource(post);
+    if (!target || !restaurant) return newsRestaurantFallback(post);
+
+    if (target.source === "public") {
+      return {
+        name: restaurant.name || "연결된 가게",
+        category:
+          restaurant.categorySmallName ||
+          restaurant.categoryMediumName ||
+          restaurant.categoryLargeName ||
+          null,
+        address: restaurant.roadAddress || restaurant.lotAddress || "주소 정보 없음",
+        phone: null,
+        openingHours: null,
+        sourceLabel: "공공데이터 식당",
+      };
+    }
+
+    const fullAddress = [restaurant.address, restaurant.addressDetail]
+      .filter(Boolean)
+      .join(" ");
+    return {
+      name: restaurant.name || post?.restaurant?.name || "연결된 가게",
+      category: restaurant.categoryName || null,
+      address: fullAddress || post?.restaurant?.address || "주소 정보 없음",
+      phone: restaurant.phone || null,
+      openingHours: restaurant.openingHours || null,
+      sourceLabel: "푸드덕 등록 식당",
+    };
+  }
+
+  function renderNewsRestaurantCardContent(card, post, restaurant, options = {}) {
+    const infoPath = restaurantInfoPath(post);
+    const source = newsSource(post);
+    const data = restaurant || newsRestaurantFallback(post);
+    if (!card || !data || !source) return;
+
+    card.classList.toggle("is-loading", options.loading === true);
+    card.classList.toggle("has-error", options.error === true);
+    card.replaceChildren();
+
+    const copy = element("div", "news-restaurant-card__copy");
+    const eyebrow = element("div", "news-restaurant-card__eyebrow");
+    const icon = element("span", "material-symbols-rounded", "storefront");
+    icon.setAttribute("aria-hidden", "true");
+    eyebrow.append(icon, document.createTextNode(" 이 소식의 가게"));
+
+    const headingRow = element("div", "news-restaurant-card__heading");
+    headingRow.append(
+      element("strong", "news-restaurant-card__name", data.name),
+      element("span", "news-restaurant-card__source", data.sourceLabel),
+    );
+    copy.append(eyebrow, headingRow);
+
+    const details = element("div", "news-restaurant-card__details");
+    if (data.category) {
+      const category = element("span", "news-restaurant-card__detail");
+      const categoryIcon = element("span", "material-symbols-rounded", "restaurant");
+      categoryIcon.setAttribute("aria-hidden", "true");
+      category.append(categoryIcon, document.createTextNode(data.category));
+      details.append(category);
+    }
+    const address = element("span", "news-restaurant-card__detail");
+    const addressIcon = element("span", "material-symbols-rounded", "location_on");
+    addressIcon.setAttribute("aria-hidden", "true");
+    address.append(addressIcon, document.createTextNode(data.address));
+    details.append(address);
+    if (data.phone) {
+      const phone = element("span", "news-restaurant-card__detail");
+      const phoneIcon = element("span", "material-symbols-rounded", "call");
+      phoneIcon.setAttribute("aria-hidden", "true");
+      phone.append(phoneIcon, document.createTextNode(data.phone));
+      details.append(phone);
+    }
+    if (data.openingHours) {
+      const hours = element("span", "news-restaurant-card__detail");
+      const hoursIcon = element("span", "material-symbols-rounded", "schedule");
+      hoursIcon.setAttribute("aria-hidden", "true");
+      hours.append(hoursIcon, document.createTextNode(data.openingHours));
+      details.append(hours);
+    }
+    copy.append(details);
+
+    const action = element("a", "button button-sm button-secondary news-restaurant-card__action", "가게 정보 보기");
+    action.href = infoPath || restaurantNewsPath(post) || "#";
+    const arrow = element("span", "material-symbols-rounded", "arrow_forward");
+    arrow.setAttribute("aria-hidden", "true");
+    action.append(document.createTextNode(" "), arrow);
+
+    card.append(copy, action);
+    window.FooduckIcons?.enhance(card);
+  }
+
+  function renderNewsRestaurantCard(post) {
+    const target = newsSource(post);
+    if (!target) return null;
+
+    const card = element("section", "news-restaurant-card is-loading");
+    card.setAttribute("aria-label", "이 소식의 가게 정보");
+    renderNewsRestaurantCardContent(
+      card,
+      post,
+      target.source === "owned" ? newsRestaurantFallback(post) : {
+        name: "가게 정보를 불러오는 중입니다.",
+        category: null,
+        address: "잠시만 기다려 주세요.",
+        phone: null,
+        openingHours: null,
+        sourceLabel: target.source === "public" ? "공공데이터 식당" : "푸드덕 등록 식당",
+      },
+      { loading: true },
+    );
+
+    const path = newsRestaurantApiPath(post);
+    if (!path) return card;
+
+    Api.get(path, { auth: false })
+      .then((payload) => {
+        if (!card.isConnected || state.post?.postId !== post.postId) return;
+        renderNewsRestaurantCardContent(
+          card,
+          post,
+          normalizeNewsRestaurant(post, payload?.data),
+        );
+      })
+      .catch(() => {
+        if (!card.isConnected || state.post?.postId !== post.postId) return;
+        renderNewsRestaurantCardContent(
+          card,
+          post,
+          newsRestaurantFallback(post),
+          { error: true },
+        );
+      });
+
+    return card;
+  }
+
   function newsWritePath(post) {
     const params = new URLSearchParams({
       postId: String(post.postId),
@@ -885,7 +1067,10 @@
     heading.append(meta);
     detailContent.append(heading);
 
-    if (post.restaurant) {
+    if (newsPost) {
+      const newsRestaurantCard = renderNewsRestaurantCard(post);
+      if (newsRestaurantCard) detailContent.append(newsRestaurantCard);
+    } else if (post.restaurant) {
       const restaurant = element("div", "detail-restaurant");
       const copy = element("span");
       copy.append(
@@ -926,7 +1111,7 @@
       );
     }
     if (actions.childElementCount) detailContent.append(actions);
-    renderRestaurantSide(post.restaurant);
+    renderRestaurantSide(newsPost ? null : post.restaurant);
     window.FooduckIcons?.enhance(detailContent);
   }
 
