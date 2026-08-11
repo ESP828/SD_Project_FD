@@ -192,12 +192,8 @@
 
 .store-tabs-inner {
   display: flex;
-  min-width: 0;
-  max-width: 100%;
   gap: 6px;
   overflow-x: auto;
-  overscroll-behavior-inline: contain;
-  scrollbar-width: thin;
 }
 
 .store-tab {
