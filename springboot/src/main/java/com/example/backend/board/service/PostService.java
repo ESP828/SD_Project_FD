@@ -251,6 +251,39 @@ public class PostService {
     }
 
     @Transactional
+    public PostDetailResponse updatePublicRestaurantNews(
+            Long publicRestaurantId,
+            Long postId,
+            String title,
+            String content,
+            Long currentAccountId
+    ) {
+        validateId(postId, "게시글");
+        Account currentAccount = boardUserService.require(currentAccountId);
+        accessPolicy.assertCanWritePublicRestaurantNews(
+                publicRestaurantId,
+                currentAccount
+        );
+        Post post = postRepository.findPublicRestaurantNewsForUpdate(
+                        postId,
+                        publicRestaurantId,
+                        BoardType.GENERAL,
+                        PostCategory.NEWS,
+                        PostStatus.ACTIVE
+                )
+                .orElseThrow(this::newsNotFound);
+        post.update(
+                null,
+                publicRestaurantId,
+                BoardType.GENERAL,
+                PostCategory.NEWS,
+                normalizeNewsTitle(title),
+                normalizeNewsContent(content)
+        );
+        return responseMapper.toDetail(post, currentAccount);
+    }
+
+    @Transactional
     public void deletePublicRestaurantNews(
             Long publicRestaurantId,
             Long postId,
@@ -314,6 +347,39 @@ public class PostService {
                 title,
                 content
         );
+    }
+
+    @Transactional
+    public PostDetailResponse updateOwnedRestaurantNews(
+            Long restaurantId,
+            Long postId,
+            String title,
+            String content,
+            Long currentAccountId
+    ) {
+        validateId(postId, "게시글");
+        Account currentAccount = boardUserService.require(currentAccountId);
+        accessPolicy.assertCanWriteOwnedRestaurantNews(
+                restaurantId,
+                currentAccount
+        );
+        Post post = postRepository.findOwnedRestaurantNewsForUpdate(
+                        postId,
+                        restaurantId,
+                        BoardType.GENERAL,
+                        PostCategory.NEWS,
+                        PostStatus.ACTIVE
+                )
+                .orElseThrow(this::newsNotFound);
+        post.update(
+                restaurantId,
+                null,
+                BoardType.GENERAL,
+                PostCategory.NEWS,
+                normalizeNewsTitle(title),
+                normalizeNewsContent(content)
+        );
+        return responseMapper.toDetail(post, currentAccount);
     }
 
     @Transactional
@@ -623,7 +689,7 @@ public class PostService {
     @Transactional(readOnly = true)
     public PostDetailResponse getPost(Long postId, Long currentAccountId) {
         Account currentAccount = boardUserService.findOptional(currentAccountId);
-        Post post = getExistingPost(postId);
+        Post post = getExistingActivePost(postId);
         accessPolicy.assertCanRead(post.getBoardType(), currentAccount);
 
         long viewCount = referenceRepository.increasePostViewCountImmediately(postId);
@@ -730,8 +796,8 @@ public class PostService {
             Long currentAccountId
     ) {
         Account currentAccount = boardUserService.require(currentAccountId);
-        Post post = getExistingPostForUpdate(postId);
-        assertOwnerOrAdmin(post, currentAccount);
+        Post post = getExistingActivePostForUpdate(postId);
+        assertCanManageMedia(post, currentAccount);
 
         if (mediaData == null || mediaData.length == 0) {
             throw badRequest("비어 있는 파일은 첨부할 수 없습니다.");
@@ -832,7 +898,7 @@ public class PostService {
             Long currentAccountId
     ) {
         Account currentAccount = boardUserService.findOptional(currentAccountId);
-        Post post = getExistingPost(postId);
+        Post post = getExistingActivePost(postId);
         accessPolicy.assertCanRead(post.getBoardType(), currentAccount);
 
         return responseMapper.toMediaResponses(
@@ -992,8 +1058,8 @@ public class PostService {
     ) {
         validateId(postMediaId, "첨부파일");
         Account currentAccount = boardUserService.require(currentAccountId);
-        Post post = getExistingPostForUpdate(postId);
-        assertOwnerOrAdmin(post, currentAccount);
+        Post post = getExistingActivePostForUpdate(postId);
+        assertCanManageMedia(post, currentAccount);
 
         PostMediaFileReference media = referenceRepository
                 .findPostMediaFile(postMediaId)
@@ -1019,7 +1085,7 @@ public class PostService {
                 .orElseThrow(() -> notFound("첨부파일을 찾을 수 없습니다."));
 
         Account currentAccount = boardUserService.findOptional(currentAccountId);
-        Post post = getExistingPost(media.postId());
+        Post post = getExistingActivePost(media.postId());
         accessPolicy.assertCanRead(post.getBoardType(), currentAccount);
 
         if (BoardReferenceQueryRepository.MEDIA_URL_PROCESSING.equals(
@@ -1159,6 +1225,7 @@ public class PostService {
                 post.getPostId(),
                 post.getTitle(),
                 post.getContent(),
+                post.getAuthor().getAccountId(),
                 post.getAuthor().getNickname(),
                 post.getCreatedAt()
         );
@@ -1191,29 +1258,39 @@ public class PostService {
     }
 
     private Post getExistingPost(Long postId) {
-        validateId(postId, "게시글");
-        Post post = postRepository.findByPostIdAndStatus(
-                        postId,
-                        PostStatus.ACTIVE
-                )
-                .orElseThrow(() -> notFound("게시글을 찾을 수 없습니다."));
-        if (post.getCategory() == PostCategory.NEWS) {
-            throw notFound("게시글을 찾을 수 없습니다.");
-        }
+        Post post = getExistingActivePost(postId);
+        assertCommunityPost(post);
         return post;
     }
 
-    private Post getExistingPostForUpdate(Long postId) {
+    private Post getExistingActivePost(Long postId) {
         validateId(postId, "게시글");
-        Post post = postRepository.findByPostIdAndStatusForUpdate(
+        return postRepository.findByPostIdAndStatus(
                         postId,
                         PostStatus.ACTIVE
                 )
                 .orElseThrow(() -> notFound("게시글을 찾을 수 없습니다."));
+    }
+
+    private Post getExistingPostForUpdate(Long postId) {
+        Post post = getExistingActivePostForUpdate(postId);
+        assertCommunityPost(post);
+        return post;
+    }
+
+    private Post getExistingActivePostForUpdate(Long postId) {
+        validateId(postId, "게시글");
+        return postRepository.findByPostIdAndStatusForUpdate(
+                        postId,
+                        PostStatus.ACTIVE
+                )
+                .orElseThrow(() -> notFound("게시글을 찾을 수 없습니다."));
+    }
+
+    private void assertCommunityPost(Post post) {
         if (post.getCategory() == PostCategory.NEWS) {
             throw notFound("게시글을 찾을 수 없습니다.");
         }
-        return post;
     }
 
     private void assertOwnerOrAdmin(Post post, Account account) {
@@ -1225,6 +1302,27 @@ public class PostService {
                     "게시글 작성자 또는 관리자만 수정·삭제할 수 있습니다."
             );
         }
+    }
+
+    private void assertCanManageMedia(Post post, Account account) {
+        if (post.getCategory() != PostCategory.NEWS) {
+            assertOwnerOrAdmin(post, account);
+            return;
+        }
+
+        Long restaurantId = post.getRestaurantId();
+        Long publicRestaurantId = post.getPublicRestaurantId();
+        if ((restaurantId == null) == (publicRestaurantId == null)) {
+            throw notFound("게시글을 찾을 수 없습니다.");
+        }
+        if (publicRestaurantId != null) {
+            accessPolicy.assertCanWritePublicRestaurantNews(
+                    publicRestaurantId,
+                    account
+            );
+            return;
+        }
+        accessPolicy.assertCanWriteOwnedRestaurantNews(restaurantId, account);
     }
 
     private String normalizeOriginalName(String encodedOriginalName) {
@@ -1767,6 +1865,7 @@ public class PostService {
             Long postId,
             String title,
             String content,
+            Long authorAccountId,
             String authorNickname,
             LocalDateTime createdAt
     ) {

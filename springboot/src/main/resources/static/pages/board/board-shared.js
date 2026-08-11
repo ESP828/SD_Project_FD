@@ -5,6 +5,7 @@
   const categoryLabels = {
     GENERAL: "자유 이야기",
     NOTICE: "공지",
+    NEWS: "가게 소식",
     RECOMMENDATION: "맛집 추천",
     REVIEW: "방문 후기",
     QUESTION: "질문",

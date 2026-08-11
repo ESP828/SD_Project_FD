@@ -349,7 +349,6 @@ public interface PostRepository extends JpaRepository<Post, Long> {
             join fetch p.author
             where p.postId = :postId
               and p.status = :status
-              and p.category <> com.example.backend.board.domain.type.PostCategory.NEWS
             """)
     Optional<Post> findByPostIdAndStatus(
             @Param("postId") Long postId,
@@ -363,7 +362,6 @@ public interface PostRepository extends JpaRepository<Post, Long> {
             join fetch p.author
             where p.postId = :postId
               and p.status = :status
-              and p.category <> com.example.backend.board.domain.type.PostCategory.NEWS
             """)
     Optional<Post> findByPostIdAndStatusForUpdate(
             @Param("postId") Long postId,

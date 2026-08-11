@@ -8,6 +8,7 @@
   const params = new URLSearchParams(window.location.search);
   const source = params.get("source") === "public" ? "public" : "owned";
   const id = params.get("id");
+  const requestedTab = params.get("tab");
 
   if (!id) {
     showError("가게 정보를 찾을 수 없습니다.");
@@ -246,6 +247,34 @@
     return `${newsApiPath()}/${encodeURIComponent(postId)}`;
   }
 
+  function newsBoardPath(pageName, postId) {
+    const query = new URLSearchParams({
+      postId: String(postId),
+      from: "NEWS",
+    });
+    return `/pages/board/${pageName}.html?${query.toString()}`;
+  }
+
+  function newsTitleHtml(news) {
+    const title = escapeHtml(news.title);
+    if (news.postId == null) return title;
+    return `<a class="store-news-title-link"
+               href="${escapeHtml(newsBoardPath("detail", news.postId))}">${title}</a>`;
+  }
+
+  function newsManageActionsHtml(news, itemCount) {
+    if (!canWriteNews() || news.postId == null) return "";
+    return `
+      <div class="store-news-actions">
+        <a class="button button-secondary button-sm"
+           href="${escapeHtml(newsBoardPath("write", news.postId))}">수정·첨부</a>
+        <button type="button" class="button button-secondary button-sm store-news-delete"
+                data-news-delete="${escapeHtml(news.postId)}"
+                data-news-item-count="${itemCount}">삭제</button>
+      </div>
+    `;
+  }
+
   function newsWriteButtonHtml() {
     if (!canWriteNews()) return "";
     return `
@@ -355,6 +384,21 @@
     });
   }
 
+  function bindNewsAuthors(items) {
+    const board = window.FooduckBoard;
+    if (!board?.authorIdentity) return;
+
+    panels.news.querySelectorAll("[data-news-author-index]").forEach((host) => {
+      const index = Number(host.dataset.newsAuthorIndex);
+      const news = Number.isInteger(index) ? items[index] : null;
+      if (!news?.authorAccountId || !news.authorNickname) return;
+      host.replaceChildren(board.authorIdentity(news, {
+        showNickname: true,
+        showAuthorMenu: true,
+      }));
+    });
+  }
+
   function renderNewsCard(bodyHtml, paginationHtml = "") {
     panels.news.innerHTML = `
       <div class="store-section-card">
@@ -374,24 +418,21 @@
     const items = Array.isArray(pageData.content) ? pageData.content : [];
     const bodyHtml = items.length === 0
       ? '<div class="store-empty">아직 등록된 소식이 없습니다.</div>'
-      : `<div class="store-news-list">${items.map((news) => `
+      : `<div class="store-news-list">${items.map((news, index) => `
           <div class="store-news-item">
             <div class="store-news-item-head">
-              <p class="store-news-title">${escapeHtml(news.title)}</p>
-              ${canWriteNews() && news.postId != null ? `
-                <button type="button" class="button button-secondary button-sm store-news-delete"
-                        data-news-delete="${escapeHtml(news.postId)}"
-                        data-news-item-count="${items.length}">삭제</button>
-              ` : ""}
+              <p class="store-news-title">${newsTitleHtml(news)}</p>
+              ${newsManageActionsHtml(news, items.length)}
             </div>
             <p class="store-news-content">${escapeHtml(news.content)}</p>
             <div class="store-news-meta">
-              <span class="store-news-author">${escapeHtml(news.authorNickname || "-")}</span>
+              <span class="store-news-author" data-news-author-index="${index}">${escapeHtml(news.authorNickname || "-")}</span>
               <span class="store-news-date">${formatDate(news.createdAt)}</span>
             </div>
           </div>
         `).join("")}</div>`;
     renderNewsCard(bodyHtml, newsPaginationHtml(pageData));
+    bindNewsAuthors(items);
   }
 
   function renderNewsError(error) {
@@ -497,7 +538,7 @@
     sourceNote.textContent = "가게 기본정보 출처: 사업자 직접 등록";
 
     renderTabs(["menu", "news", "review", "info"]);
-    activateTab("menu");
+    activateTab(tabOrder.includes(requestedTab) ? requestedTab : "menu");
   }
 
   function renderPublicDetail(store) {
@@ -552,7 +593,7 @@
     sourceNote.textContent = `가게 기본정보 출처: 공공데이터 · ${formatDataYm(store.dataYm)} 기준`;
 
     renderTabs(["menu", "news", "review", "info"]);
-    activateTab("menu");
+    activateTab(tabOrder.includes(requestedTab) ? requestedTab : "menu");
   }
 
   async function init() {

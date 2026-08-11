@@ -68,6 +68,55 @@
     return item?.edited === true;
   }
 
+  function isNewsPost(post = state.post) {
+    return post?.category === "NEWS";
+  }
+
+  function newsSource(post) {
+    const hasPublicRestaurant = post?.publicRestaurantId != null;
+    const hasOwnedRestaurant = post?.restaurantId != null;
+    if (hasPublicRestaurant === hasOwnedRestaurant) return null;
+    return hasPublicRestaurant
+      ? { source: "public", id: post.publicRestaurantId }
+      : { source: "owned", id: post.restaurantId };
+  }
+
+  function restaurantNewsPath(post) {
+    const target = newsSource(post);
+    if (!target) return null;
+    const params = new URLSearchParams({
+      source: target.source,
+      id: String(target.id),
+      tab: "news",
+    });
+    return `/pages/restaurant/detail.html?${params.toString()}`;
+  }
+
+  function newsWritePath(post) {
+    const params = new URLSearchParams({
+      postId: String(post.postId),
+      from: "NEWS",
+    });
+    return `/pages/board/write.html?${params.toString()}`;
+  }
+
+  function newsDeletePath(post) {
+    const target = newsSource(post);
+    if (!target) return null;
+    const restaurantId = encodeURIComponent(target.id);
+    const targetPostId = encodeURIComponent(post.postId);
+    return target.source === "public"
+      ? `/board/posts/restaurants/public/${restaurantId}/news/${targetPostId}`
+      : `/board/posts/restaurants/${restaurantId}/news/${targetPostId}`;
+  }
+
+  function setBackLink(href, label) {
+    listLink.href = href;
+    const icon = element("span", "material-symbols-rounded", "arrow_back");
+    icon.setAttribute("aria-hidden", "true");
+    listLink.replaceChildren(icon, document.createTextNode(` ${label}`));
+  }
+
   let selectedCommentImage = null;
   let commentImagePreviewUrl = null;
   let activeReplyForm = null;
@@ -790,19 +839,31 @@
 
   function renderPost(post) {
     state.post = post;
+    const newsPost = isNewsPost(post);
+    const newsTarget = newsPost ? newsSource(post) : null;
+    const newsReturnPath = newsPost ? restaurantNewsPath(post) : null;
     document.title = `${post.title} · 푸드덕`;
-    listLink.href = fromBest
-      ? "/pages/board/index.html?boardType=BEST"
-      : fromPopular
-        ? "/pages/board/index.html?boardType=POPULAR"
-        : board.listPath(post.boardType);
+    setBackLink(
+      newsReturnPath || (fromBest
+        ? "/pages/board/index.html?boardType=BEST"
+        : fromPopular
+          ? "/pages/board/index.html?boardType=POPULAR"
+          : board.listPath(post.boardType)),
+      newsReturnPath ? "가게 소식으로 돌아가기" : "커뮤니티 목록",
+    );
     detailContent.replaceChildren();
 
     const badges = element("div", "detail-badges");
     badges.append(detailBadge(categoryLabel(post.category)));
     badges.append(
       detailBadge(
-        post.boardType === "BUSINESS" ? "사업자 커뮤니티" : "일반 커뮤니티",
+        newsPost
+          ? newsTarget?.source === "public"
+            ? "공공데이터 식당 소식"
+            : "등록 식당 소식"
+          : post.boardType === "BUSINESS"
+            ? "사업자 커뮤니티"
+            : "일반 커뮤니티",
         "post-board-badge",
       ),
     );
@@ -819,8 +880,10 @@
         `${formatDate(post.createdAt)}${isEdited(post) ? " · 수정됨" : ""}`,
       ),
       element("span", "", `조회 ${post.viewCount || 0}`),
-      element("span", "", `추천 ${post.likeCount || 0}`),
     );
+    if (!newsPost) {
+      meta.append(element("span", "", `추천 ${post.likeCount || 0}`));
+    }
     heading.append(meta);
     detailContent.append(heading);
 
@@ -843,23 +906,30 @@
     startMediaStatusPolling(post.media);
 
     const actions = element("div", "detail-actions");
-    const likeButton = actionButton(
-      `${post.likedByCurrentUser ? "추천 취소" : "추천"} · ${post.likeCount || 0}`,
-      post.likedByCurrentUser
-        ? "button button-sm button-primary"
-        : "button button-sm button-secondary",
-      toggleLike,
-    );
-    actions.append(likeButton);
-    if ((!fromBest && post.ownedByCurrentUser) || session.isAdmin) {
+    if (!newsPost) {
+      const likeButton = actionButton(
+        `${post.likedByCurrentUser ? "추천 취소" : "추천"} · ${post.likeCount || 0}`,
+        post.likedByCurrentUser
+          ? "button button-sm button-primary"
+          : "button button-sm button-secondary",
+        toggleLike,
+      );
+      actions.append(likeButton);
+    }
+    const canManage = newsPost
+      ? post.newsManageableByCurrentUser === true && Boolean(newsTarget)
+      : (!fromBest && post.ownedByCurrentUser) || session.isAdmin;
+    if (canManage) {
       const editLink = element("a", "button button-sm button-secondary", "수정");
-      editLink.href = board.writePath(post.boardType, post.postId);
+      editLink.href = newsPost
+        ? newsWritePath(post)
+        : board.writePath(post.boardType, post.postId);
       actions.append(
         editLink,
         actionButton("삭제", "button button-sm button-danger", deletePost),
       );
     }
-    detailContent.append(actions);
+    if (actions.childElementCount) detailContent.append(actions);
     renderRestaurantSide(post.restaurant);
     window.FooduckIcons?.enhance(detailContent);
   }
@@ -933,12 +1003,24 @@
   }
 
   async function deletePost() {
-    if (!window.confirm("게시글과 연결된 댓글·추천을 삭제하시겠습니까?")) return;
+    const newsPost = isNewsPost();
+    const deletePath = newsPost ? newsDeletePath(state.post) : `/board/posts/${postId}`;
+    const returnPath = newsPost
+      ? restaurantNewsPath(state.post)
+      : board.listPath(state.post.boardType);
+    if (!deletePath || !returnPath) {
+      showToast(toast, "가게 소식의 식당 정보를 확인할 수 없습니다.", true);
+      return;
+    }
+    const message = newsPost
+      ? "이 가게 소식과 연결된 댓글을 삭제하시겠습니까?"
+      : "게시글과 연결된 댓글·추천을 삭제하시겠습니까?";
+    if (!window.confirm(message)) return;
     try {
-      const payload = await Api.delete(`/board/posts/${postId}`);
+      const payload = await Api.delete(deletePath);
       invalidateBoardCache();
       window.alert(payload.message);
-      window.location.assign(board.listPath(state.post.boardType));
+      window.location.assign(returnPath);
     } catch (error) {
       showToast(toast, error.message, true);
     }
@@ -1437,7 +1519,13 @@
       await Promise.all([
         postPromise,
         loadComments(),
-        loadRelatedPosts(),
+        postPromise.then(() => {
+          if (isNewsPost()) {
+            renderRelatedPosts([]);
+            return;
+          }
+          return loadRelatedPosts();
+        }),
         postPromise.then(loadUnansweredPosts),
       ]);
     } catch (error) {

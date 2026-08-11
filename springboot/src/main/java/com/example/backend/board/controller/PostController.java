@@ -104,6 +104,25 @@ public class PostController {
         );
     }
 
+    @PutMapping("/restaurants/public/{publicRestaurantId}/news/{postId}")
+    public ApiResponse<PostDetailResponse> updatePublicRestaurantNews(
+            @PathVariable Long publicRestaurantId,
+            @PathVariable Long postId,
+            @Valid @RequestBody NewsCreateRequest request,
+            Authentication authentication
+    ) {
+        return ApiResponse.success(
+                "식당 소식이 수정되었습니다.",
+                postService.updatePublicRestaurantNews(
+                        publicRestaurantId,
+                        postId,
+                        request.title(),
+                        request.content(),
+                        BoardAuthentication.accountId(authentication)
+                )
+        );
+    }
+
     @DeleteMapping("/restaurants/public/{publicRestaurantId}/news/{postId}")
     public ApiResponse<Void> deletePublicRestaurantNews(
             @PathVariable Long publicRestaurantId,
@@ -144,6 +163,25 @@ public class PostController {
                 "식당 소식이 등록되었습니다.",
                 postService.createOwnedRestaurantNews(
                         restaurantId,
+                        request.title(),
+                        request.content(),
+                        BoardAuthentication.accountId(authentication)
+                )
+        );
+    }
+
+    @PutMapping("/restaurants/{restaurantId}/news/{postId}")
+    public ApiResponse<PostDetailResponse> updateOwnedRestaurantNews(
+            @PathVariable Long restaurantId,
+            @PathVariable Long postId,
+            @Valid @RequestBody NewsCreateRequest request,
+            Authentication authentication
+    ) {
+        return ApiResponse.success(
+                "식당 소식이 수정되었습니다.",
+                postService.updateOwnedRestaurantNews(
+                        restaurantId,
+                        postId,
                         request.title(),
                         request.content(),
                         BoardAuthentication.accountId(authentication)
