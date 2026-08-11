@@ -743,7 +743,7 @@ CREATE TABLE `preset_favorite` (
         FOREIGN KEY (`account_id`) REFERENCES `account` (`account_id`) ON DELETE CASCADE,
     CONSTRAINT `fk_preset_favorite_preset`
         FOREIGN KEY (`preset_id`) REFERENCES `preset` (`preset_id`) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='사용자별 프리셋 저장';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='사용자별 프리셋 찜';
 
 -- ------------------------------------------------------------
 -- 35. preset_tag (V9, 원래 파일명은 V7 — 기존 운영 DB엔 아직 미반영)

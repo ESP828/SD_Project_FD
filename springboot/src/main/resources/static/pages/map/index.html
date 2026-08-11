@@ -8,12 +8,23 @@
   <link rel="icon" href="/images/favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/css/common.css">
   <link rel="stylesheet" href="/pages/map/map.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"
+        integrity="sha512-SnH5WK+bZxgPHs44uWIX+LLJAJ9/2PkPKZ5QiAj6Ta86w+fsb2TkcmfRyVX3pBnMFcV7oQPJkl9QevSCWr3W6A=="
+        crossorigin="anonymous" referrerpolicy="no-referrer">
 </head>
 <body>
   <div data-site-header data-active-nav="map"></div>
 
   <main class="map-page">
     <aside class="map-sidebar" aria-label="맛집 검색과 결과">
+      <nav id="preset-map-breadcrumb" class="preset-breadcrumb" hidden>
+        <a href="/">홈</a>
+        <span aria-hidden="true">›</span>
+        <span>맛집 추천</span>
+        <span aria-hidden="true">›</span>
+        <span aria-current="page">presset에서 가져온 맛집</span>
+      </nav>
+
       <div class="map-sidebar-heading">
         <div>
           <p class="eyebrow">Kakao restaurant map</p>
@@ -21,11 +32,6 @@
         </div>
         <img src="/images/characters/map-256.png" alt="" aria-hidden="true">
       </div>
-
-      <section id="preset-map-context" class="preset-map-context" hidden>
-        <a id="preset-map-back" href="/pages/presset/index.html">← Presset 상세로</a>
-        <p id="preset-map-summary"></p>
-      </section>
 
       <form id="place-search-form" class="map-search" role="search">
         <label class="sr-only" for="place-keyword">장소 검색어</label>

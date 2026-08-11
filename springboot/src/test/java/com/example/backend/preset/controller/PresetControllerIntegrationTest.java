@@ -20,6 +20,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Base64;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -28,6 +29,7 @@ import static org.hamcrest.Matchers.not;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -144,13 +146,16 @@ class PresetControllerIntegrationTest {
                 "select is_public from preset where preset_id = ?", Boolean.class, createdId));
         assertEquals(0, jdbcTemplate.queryForObject(
                 "select count(*) from preset_image where preset_id = ?", Integer.class, createdId));
+        assertNull(jdbcTemplate.queryForObject(
+                "select preset_image_id from preset where preset_id = ?", Long.class, createdId));
 
         mockMvc.perform(get("/api/presets/{presetId}", createdId))
                 .andExpect(status().isNotFound());
         mockMvc.perform(get("/api/presets/{presetId}", createdId)
                         .header("Authorization", "Bearer " + accessToken))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.presetId").value(createdId));
+                .andExpect(jsonPath("$.data.presetId").value(createdId))
+                .andExpect(jsonPath("$.data.imageUrl").doesNotExist());
     }
 
     @Test
@@ -185,13 +190,24 @@ class PresetControllerIntegrationTest {
                 "이미지 포함 데이트 코스"
         );
         Map<String, Object> metadata = jdbcTemplate.queryForMap("""
-                select preset_id, stored_filename, original_filename,
+                select preset_image_id, preset_id, stored_filename, original_filename,
                        content_type, file_size, created_at
                   from preset_image
                  where preset_id = ?
                 """, createdId);
 
+        Long presetImageId = ((Number) metadata.get("preset_image_id")).longValue();
         assertEquals(createdId, ((Number) metadata.get("preset_id")).longValue());
+        assertEquals(presetImageId, jdbcTemplate.queryForObject(
+                "select preset_image_id from preset where preset_id = ?", Long.class, createdId));
+        assertEquals(1, jdbcTemplate.queryForObject("""
+                select count(*)
+                  from preset p
+                  join preset_image pi
+                    on pi.preset_image_id = p.preset_image_id
+                   and pi.preset_id = p.preset_id
+                 where p.preset_id = ?
+                """, Integer.class, createdId));
         assertEquals("cover.png", metadata.get("original_filename"));
         assertEquals(MediaType.IMAGE_PNG_VALUE, metadata.get("content_type"));
         assertEquals(imageBytes.length, ((Number) metadata.get("file_size")).longValue());
@@ -215,6 +231,10 @@ class PresetControllerIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.content[0].presetId").value(createdId))
                 .andExpect(jsonPath("$.data.content[0].imageUrl").value(imageUrl));
+        mockMvc.perform(get(imageUrl))
+                .andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.IMAGE_PNG))
+                .andExpect(content().bytes(imageBytes));
     }
 
     @Test
@@ -251,8 +271,116 @@ class PresetControllerIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.presetId").value(presetId))
                 .andExpect(jsonPath("$.data.viewCount").value(13))
+                .andExpect(jsonPath("$.data.restaurantCount").value(1))
+                .andExpect(jsonPath("$.data.restaurantLimit").value(15))
+                .andExpect(jsonPath("$.data.restaurantOptions").isArray())
                 .andExpect(jsonPath("$.data.restaurants[0].restaurantId").value(restaurantId))
                 .andExpect(jsonPath("$.data.restaurants[0].presetDescription").value("데이트 분위기가 좋은 곳"));
+    }
+
+    @Test
+    @DisplayName("Presset별 최대 15개와 중복을 막고 삭제 후 다시 추가한다")
+    void managesRestaurantsWithinPerPresetLimit() throws Exception {
+        Long limitedPresetId = createPreset("15개 제한 Presset", accountId);
+        List<Long> restaurants = new ArrayList<>();
+        for (int index = 1; index <= 16; index++) {
+            restaurants.add(createRestaurant("제한 테스트 맛집 " + index));
+        }
+        for (int index = 0; index < 14; index++) {
+            connectRestaurant(limitedPresetId, restaurants.get(index), index);
+        }
+
+        mockMvc.perform(post(
+                        "/api/presets/{presetId}/restaurants/{restaurantId}",
+                        limitedPresetId,
+                        restaurants.get(14)
+                ).header("Authorization", "Bearer " + accessToken))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.restaurantCount").value(15))
+                .andExpect(jsonPath("$.data.restaurantLimit").value(15));
+
+        mockMvc.perform(post(
+                        "/api/presets/{presetId}/restaurants/{restaurantId}",
+                        limitedPresetId,
+                        restaurants.get(15)
+                ).header("Authorization", "Bearer " + accessToken))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("PRESET_RESTAURANT_LIMIT_EXCEEDED"))
+                .andExpect(jsonPath("$.message").value("한 프리셋에는 최대 15개의 맛집만 담을 수 있습니다."));
+
+        mockMvc.perform(post(
+                        "/api/presets/{presetId}/restaurants/{restaurantId}",
+                        limitedPresetId,
+                        restaurants.get(14)
+                ).header("Authorization", "Bearer " + accessToken))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("PRESET_RESTAURANT_DUPLICATE"));
+
+        mockMvc.perform(delete(
+                        "/api/presets/{presetId}/restaurants/{restaurantId}",
+                        limitedPresetId,
+                        restaurants.get(0)
+                ).header("Authorization", "Bearer " + accessToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.restaurantCount").value(14));
+        mockMvc.perform(post(
+                        "/api/presets/{presetId}/restaurants/{restaurantId}",
+                        limitedPresetId,
+                        restaurants.get(15)
+                ).header("Authorization", "Bearer " + accessToken))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.restaurantCount").value(15));
+
+        assertEquals(15, countPresetRestaurants(limitedPresetId));
+        mockMvc.perform(get("/api/presets/{presetId}", limitedPresetId)
+                        .header("Authorization", "Bearer " + accessToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.restaurantCount").value(15))
+                .andExpect(jsonPath("$.data.restaurants.length()").value(15));
+
+        Long independentPresetId = createPreset("독립 제한 Presset", accountId);
+        for (int index = 0; index < 5; index++) {
+            connectRestaurant(independentPresetId, restaurants.get(index), index);
+        }
+        mockMvc.perform(post(
+                        "/api/presets/{presetId}/restaurants/{restaurantId}",
+                        independentPresetId,
+                        restaurants.get(5)
+                ).header("Authorization", "Bearer " + accessToken))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.restaurantCount").value(6));
+        assertEquals(6, countPresetRestaurants(independentPresetId));
+        assertEquals(15, countPresetRestaurants(limitedPresetId));
+    }
+
+    @Test
+    @DisplayName("Presset 맛집 변경은 작성자에게만 허용한다")
+    void protectsPresetRestaurantMutationByOwner() throws Exception {
+        jdbcTemplate.update("""
+                insert into account (
+                    login_id, email, nickname, gender, email_verified,
+                    profile_completed, status, created_at, updated_at
+                ) values (?, ?, ?, ?, ?, ?, ?, current_timestamp, current_timestamp)
+                """,
+                "preset-other", "preset-other@example.com", "다른사용자",
+                "UNSPECIFIED", true, true, "ACTIVE");
+        Long otherAccountId = jdbcTemplate.queryForObject(
+                "select max(account_id) from account", Long.class);
+        String otherToken = jwtProvider.createAccessToken(
+                otherAccountId, "preset-other", List.of("ROLE_USER"));
+        Long candidateId = createRestaurant("권한 확인 맛집");
+
+        mockMvc.perform(post(
+                        "/api/presets/{presetId}/restaurants/{restaurantId}",
+                        presetId,
+                        candidateId
+                ).header("Authorization", "Bearer " + otherToken))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("PRESET_OWNER_REQUIRED"));
+        mockMvc.perform(post(
+                "/api/presets/{presetId}/restaurants/{restaurantId}", presetId, candidateId))
+                .andExpect(status().isUnauthorized());
+        assertEquals(1, countPresetRestaurants(presetId));
     }
 
     @Test
@@ -328,5 +456,41 @@ class PresetControllerIntegrationTest {
                 .andExpect(status().isOk()).andExpect(content().string(containsString("preset-detail")));
         mockMvc.perform(get("/pages/admin/presets.html"))
                 .andExpect(status().isOk()).andExpect(content().string(containsString("preset-admin-dashboard")));
+    }
+
+    private Long createPreset(String title, Long ownerAccountId) {
+        jdbcTemplate.update("""
+                insert into preset (
+                    title, category, view_count, display_order,
+                    status, account_id, is_public
+                ) values (?, ?, 0, 0, 'ACTIVE', ?, true)
+                """, title, "테스트", ownerAccountId);
+        return jdbcTemplate.queryForObject("select max(preset_id) from preset", Long.class);
+    }
+
+    private Long createRestaurant(String name) {
+        jdbcTemplate.update("""
+                insert into restaurant (
+                    owner_account_id, name, address, description,
+                    status, created_at, updated_at
+                ) values (?, ?, ?, ?, 'ACTIVE', current_timestamp, current_timestamp)
+                """, accountId, name, "서울 테스트로", "Presset 제한 테스트용 맛집");
+        return jdbcTemplate.queryForObject("select max(restaurant_id) from restaurant", Long.class);
+    }
+
+    private void connectRestaurant(Long targetPresetId, Long targetRestaurantId, int displayOrder) {
+        jdbcTemplate.update("""
+                insert into preset_restaurant (
+                    preset_id, restaurant_id, display_order, description
+                ) values (?, ?, ?, null)
+                """, targetPresetId, targetRestaurantId, displayOrder);
+    }
+
+    private int countPresetRestaurants(Long targetPresetId) {
+        return jdbcTemplate.queryForObject(
+                "select count(*) from preset_restaurant where preset_id = ?",
+                Integer.class,
+                targetPresetId
+        );
     }
 }

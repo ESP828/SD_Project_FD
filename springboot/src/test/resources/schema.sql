@@ -87,7 +87,8 @@ CREATE TABLE IF NOT EXISTS preset (
     deleted_at TIMESTAMP,
     account_id BIGINT NOT NULL,
     name VARCHAR(100),
-    is_public BOOLEAN DEFAULT TRUE
+    is_public BOOLEAN DEFAULT TRUE,
+    preset_image_id BIGINT UNIQUE
 );
 
 CREATE TABLE IF NOT EXISTS preset_image (
@@ -99,6 +100,14 @@ CREATE TABLE IF NOT EXISTS preset_image (
     file_size BIGINT NOT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+
+ALTER TABLE preset_image
+    ADD CONSTRAINT IF NOT EXISTS fk_preset_image_preset
+        FOREIGN KEY (preset_id) REFERENCES preset (preset_id) ON DELETE CASCADE;
+
+ALTER TABLE preset
+    ADD CONSTRAINT IF NOT EXISTS fk_preset_preset_image
+        FOREIGN KEY (preset_image_id) REFERENCES preset_image (preset_image_id) ON DELETE SET NULL;
 
 CREATE TABLE IF NOT EXISTS preset_restaurant (
     preset_id BIGINT NOT NULL,

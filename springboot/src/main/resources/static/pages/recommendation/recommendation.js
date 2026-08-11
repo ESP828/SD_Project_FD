@@ -141,12 +141,23 @@
     const card = element("article", "preset-ranking-card");
     const image = element("div", "preset-ranking-card-image");
     image.append(element("span", "preset-ranking-rank", String(rank)));
-    const img = new Image();
-    img.alt = "";
-    img.loading = "lazy";
-    img.src = preset.imageUrl || preset.thumbnailImageUrls?.[0] || fallbackImage;
-    img.addEventListener("error", () => { img.src = fallbackImage; }, { once: true });
-    image.append(img);
+    const imagePlaceholder = () => {
+      const placeholder = element("span", "preset-ranking-image-placeholder", "이미지 없음");
+      placeholder.setAttribute("aria-label", "등록 이미지 없음");
+      return placeholder;
+    };
+    if (preset.imageUrl) {
+      const img = new Image();
+      img.alt = `${preset.title || "Presset"} 대표 이미지`;
+      img.loading = "lazy";
+      img.src = preset.imageUrl;
+      img.addEventListener("error", () => {
+        img.replaceWith(imagePlaceholder());
+      }, { once: true });
+      image.append(img);
+    } else {
+      image.append(imagePlaceholder());
+    }
 
     const body = element("div", "preset-ranking-card-body");
     body.append(
@@ -217,6 +228,7 @@
 
     const rankingSortLabel = element("label", "ranking-sort-label");
     rankingSortLabel.htmlFor = "ranking-sort-select";
+    rankingSortLabel.append(document.createTextNode("정렬"));
     const rankingSortSelect = document.createElement("select");
     rankingSortSelect.id = "ranking-sort-select";
     [["rating", "평점순"], ["review", "리뷰순"], ["favorite", "찜순"]].forEach(([value, label]) => {
