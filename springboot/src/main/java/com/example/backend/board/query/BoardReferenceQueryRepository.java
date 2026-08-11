@@ -158,21 +158,9 @@ public class BoardReferenceQueryRepository {
         Long count = jdbcTemplate.queryForObject(
                 """
                 select count(*)
-                  from review rv
-                  left join restaurant r
-                    on r.restaurant_id = rv.restaurant_id
-                  left join public_restaurant p
-                    on p.public_restaurant_id = rv.public_restaurant_id
-                 where rv.account_id = :accountId
-                   and rv.status = 'ACTIVE'
-                   and (
-                        (rv.restaurant_id is not null
-                         and r.restaurant_id is not null
-                         and r.status <> 'DELETED')
-                        or
-                        (rv.public_restaurant_id is not null
-                         and p.public_restaurant_id is not null)
-                   )
+                  from review
+                 where account_id = :accountId
+                   and status = 'ACTIVE'
                 """,
                 Map.of("accountId", accountId),
                 Long.class
@@ -184,36 +172,48 @@ public class BoardReferenceQueryRepository {
             Long accountId,
             int limit
     ) {
+        int safeLimit = Math.max(1, Math.min(limit, 20));
+        String sql = """
+                select review_id,
+                       restaurant_id,
+                       public_restaurant_id,
+                       restaurant_name,
+                       rating,
+                       content,
+                       created_at
+                  from (
+                        select rv.review_id as review_id,
+                               rv.restaurant_id as restaurant_id,
+                               null as public_restaurant_id,
+                               r.name as restaurant_name,
+                               rv.rating as rating,
+                               rv.content as content,
+                               rv.created_at as created_at
+                          from review rv
+                          join restaurant r
+                            on r.restaurant_id = rv.restaurant_id
+                         where rv.account_id = :accountId
+                           and rv.status = 'ACTIVE'
+                        union all
+                        select rv.review_id as review_id,
+                               null as restaurant_id,
+                               rv.public_restaurant_id as public_restaurant_id,
+                               p.name as restaurant_name,
+                               rv.rating as rating,
+                               rv.content as content,
+                               rv.created_at as created_at
+                          from review rv
+                          join public_restaurant p
+                            on p.public_restaurant_id = rv.public_restaurant_id
+                         where rv.account_id = :accountId
+                           and rv.status = 'ACTIVE'
+                       ) combined
+                 order by created_at desc
+                 limit %d
+                """.formatted(safeLimit);
         return jdbcTemplate.query(
-                """
-                select rv.review_id,
-                       rv.restaurant_id,
-                       rv.public_restaurant_id,
-                       coalesce(r.name, p.name) as restaurant_name,
-                       rv.rating,
-                       rv.content,
-                       rv.created_at
-                  from review rv
-                  left join restaurant r
-                    on r.restaurant_id = rv.restaurant_id
-                  left join public_restaurant p
-                    on p.public_restaurant_id = rv.public_restaurant_id
-                 where rv.account_id = :accountId
-                   and rv.status = 'ACTIVE'
-                   and (
-                        (rv.restaurant_id is not null
-                         and r.restaurant_id is not null
-                         and r.status <> 'DELETED')
-                        or
-                        (rv.public_restaurant_id is not null
-                         and p.public_restaurant_id is not null)
-                   )
-                 order by rv.created_at desc
-                 limit :limit
-                """,
-                new MapSqlParameterSource()
-                        .addValue("accountId", accountId)
-                        .addValue("limit", limit),
+                sql,
+                Map.of("accountId", accountId),
                 (resultSet, rowNumber) -> new AuthorReviewReference(
                         resultSet.getLong("review_id"),
                         (Long) resultSet.getObject("restaurant_id"),
