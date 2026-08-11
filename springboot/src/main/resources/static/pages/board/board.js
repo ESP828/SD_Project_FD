@@ -2,10 +2,10 @@
   const session = window.FooduckSession;
   const board = window.FooduckBoard;
   const requestedValue = new URLSearchParams(window.location.search).get("boardType");
-  const requestedBoardType = ["BUSINESS", "BEST", "POPULAR", "NEWS"].includes(requestedValue)
+  const requestedBoardType = ["BUSINESS", "BEST", "POPULAR"].includes(requestedValue)
     ? requestedValue
     : "GENERAL";
-  const initialBoardType = ["BUSINESS", "NEWS"].includes(requestedBoardType)
+  const initialBoardType = requestedBoardType === "BUSINESS"
     ? "GENERAL"
     : requestedBoardType;
   let businessAccessAllowed = Boolean(session?.canManageBusiness);
@@ -26,14 +26,8 @@
   const bestPostList = document.getElementById("best-post-list");
   const unansweredPostList = document.getElementById("unanswered-post-list");
   const boardHeading = document.getElementById("board-heading");
-  const totalLabel = document.getElementById("board-total-label");
   const businessTab = document.getElementById("business-board-tab");
-  const newsAdminTab = document.getElementById("news-admin-board-tab");
-  const newsAdminNotice = document.getElementById("news-admin-notice");
-  const boardLayout = document.querySelector(".board-layout");
-  const boardSideStack = document.getElementById("board-side-stack");
   const searchForm = document.getElementById("board-search-form");
-  const categoryFilter = document.getElementById("board-category-filter");
   const categorySelect = document.getElementById("board-category");
   const keywordInput = document.getElementById("board-keyword");
   const sortSelect = document.getElementById("board-sort");
@@ -91,9 +85,7 @@
       ? `${detailPath(post.postId)}&from=BEST`
       : state.boardType === "POPULAR"
         ? `${detailPath(post.postId)}&from=POPULAR`
-        : state.boardType === "NEWS"
-          ? `${detailPath(post.postId)}&from=NEWS_ADMIN`
-          : detailPath(post.postId);
+        : detailPath(post.postId);
     article.setAttribute("aria-label", `${post.title} 상세 보기`);
 
     const main = element("div", "post-row-main");
@@ -108,29 +100,11 @@
     badges.append(
       element(
         "span",
-        isNotice
-          ? "post-badge post-badge--notice"
-          : state.boardType === "NEWS"
-            ? "post-badge post-badge--news-admin"
-            : "post-badge",
+        isNotice ? "post-badge post-badge--notice" : "post-badge",
         isNotice ? "공지 · 상단 고정" : categoryLabel(post.category),
       ),
     );
-    if (state.boardType === "NEWS") {
-      const isPublicNews = post.publicRestaurantId != null;
-      const restaurantName = isPublicNews
-        ? post.publicRestaurantName
-        : post.restaurant?.name;
-      const sourceLabel = isPublicNews ? "식당" : "푸드덕 등록 식당";
-      const fallbackId = isPublicNews ? post.publicRestaurantId : post.restaurantId;
-      badges.append(
-        element(
-          "span",
-          "post-board-badge post-board-badge--news-source",
-          `${sourceLabel} · ${restaurantName || `#${fallbackId || "-"}`}`,
-        ),
-      );
-    } else if (["BEST", "POPULAR"].includes(state.boardType) || post.boardType === "BUSINESS") {
+    if (["BEST", "POPULAR"].includes(state.boardType) || post.boardType === "BUSINESS") {
       badges.append(
         element(
           "span",
@@ -158,7 +132,7 @@
         }${isEdited(post) ? " · 수정됨" : ""}`,
       ),
     );
-    if (state.boardType !== "NEWS" && post.restaurant?.name) {
+    if (post.restaurant?.name) {
       meta.append(element("span", "", `관련 맛집 · ${post.restaurant.name}`));
     }
     main.append(meta);
@@ -194,9 +168,7 @@
             ? "아직 베스트 게시글이 없습니다."
             : state.boardType === "POPULAR"
               ? "아직 인기 이야기가 없습니다."
-              : state.boardType === "NEWS"
-                ? "등록된 가게 소식이 없습니다."
-                : "아직 등록된 이야기가 없습니다.",
+              : "아직 등록된 이야기가 없습니다.",
         ),
         element(
           "span",
@@ -205,9 +177,7 @@
             ? "최근 7일 안에 추천을 3개 이상 받은 글이 여기에 표시됩니다."
             : state.boardType === "POPULAR"
               ? "추천이 쌓인 이야기가 순위에 따라 여기에 표시됩니다."
-              : state.boardType === "NEWS"
-                ? "가게 상세의 소식 탭에서 작성된 글이 이 관리자 전용 목록에 모입니다."
-                : "첫 번째 맛집 이야기를 함께 나눠 보세요.",
+              : "첫 번째 맛집 이야기를 함께 나눠 보세요.",
         ),
       );
       boardList.append(empty);
@@ -276,7 +246,6 @@
   async function loadPosts() {
     const isBest = state.boardType === "BEST";
     const isPopular = state.boardType === "POPULAR";
-    const isNewsAdmin = state.boardType === "NEWS";
     const params = new URLSearchParams();
 
     if (isPopular) {
@@ -285,12 +254,10 @@
       params.set("page", String(state.page));
       params.set("size", String(state.size));
       if (!isBest) {
+        params.set("boardType", state.boardType);
         params.set("sort", state.sort);
+        if (state.category) params.set("category", state.category);
         if (state.keyword) params.set("keyword", state.keyword);
-        if (!isNewsAdmin) {
-          params.set("boardType", state.boardType);
-          if (state.category) params.set("category", state.category);
-        }
       }
     }
 
@@ -298,9 +265,7 @@
       ? `/board/posts/popular?${params.toString()}`
       : isBest
         ? `/board/posts/best/community?${params.toString()}`
-        : isNewsAdmin
-          ? `/board/posts/admin/news?${params.toString()}`
-          : `/board/posts?${params.toString()}`;
+        : `/board/posts?${params.toString()}`;
     const cached = readBoardCache(path);
     if (cached) {
       renderPosts(normalizePostPage(cached.data));
@@ -346,9 +311,9 @@
   }
 
   async function loadBestPosts() {
-    const hideAuxiliary = ["BEST", "POPULAR", "NEWS"].includes(state.boardType);
-    if (bestPostPanel) bestPostPanel.hidden = hideAuxiliary;
-    if (hideAuxiliary) return;
+    const isRankedView = ["BEST", "POPULAR"].includes(state.boardType);
+    if (bestPostPanel) bestPostPanel.hidden = isRankedView;
+    if (isRankedView) return;
     const params = new URLSearchParams({
       boardType: state.boardType,
       size: "3",
@@ -418,7 +383,7 @@
   }
 
   async function loadUnansweredPosts() {
-    if (!unansweredPostList || state.boardType === "NEWS") return;
+    if (!unansweredPostList) return;
     const params = new URLSearchParams({
       boardType: ["BEST", "POPULAR"].includes(state.boardType)
         ? state.lastBoardType
@@ -487,7 +452,6 @@
   function syncBoardNavigation() {
     const isBest = state.boardType === "BEST";
     const isPopular = state.boardType === "POPULAR";
-    const isNewsAdmin = state.boardType === "NEWS";
     const isRankedView = isBest || isPopular;
     document.querySelectorAll("[data-board-type]").forEach((tab) => {
       const active = tab.dataset.boardType === state.boardType;
@@ -498,20 +462,12 @@
       ? "베스트 커뮤니티"
       : isPopular
         ? "인기 이야기"
-        : isNewsAdmin
-          ? "가게 소식 관리"
-          : state.boardType === "BUSINESS"
-            ? "사업자 커뮤니티"
-            : "일반 커뮤니티";
-    if (totalLabel) totalLabel.textContent = isNewsAdmin ? "개의 가게 소식" : "개의 이야기";
-    if (newsAdminNotice) newsAdminNotice.hidden = !isNewsAdmin;
-    if (categoryFilter) categoryFilter.hidden = isNewsAdmin;
+        : state.boardType === "BUSINESS"
+          ? "사업자 커뮤니티"
+          : "일반 커뮤니티";
     searchForm.hidden = isRankedView;
-    searchForm.classList.toggle("is-news-admin", isNewsAdmin);
-    boardLayout?.classList.toggle("is-news-admin", isNewsAdmin);
-    if (boardSideStack) boardSideStack.hidden = isNewsAdmin;
     writeLinks.forEach((link) => {
-      link.hidden = isRankedView || isNewsAdmin;
+      link.hidden = isRankedView;
       link.href = board.writePath(state.lastBoardType);
     });
     window.history.replaceState(
@@ -521,18 +477,15 @@
         ? "/pages/board/index.html?boardType=BEST"
         : isPopular
           ? "/pages/board/index.html?boardType=POPULAR"
-          : isNewsAdmin
-            ? "/pages/board/index.html?boardType=NEWS"
-            : state.boardType === "BUSINESS"
-              ? "/pages/board/index.html?boardType=BUSINESS"
-              : "/pages/board/index.html",
+          : state.boardType === "BUSINESS"
+            ? "/pages/board/index.html?boardType=BUSINESS"
+            : "/pages/board/index.html",
     );
   }
 
   function switchBoard(boardType) {
-    if (!["GENERAL", "BUSINESS", "BEST", "POPULAR", "NEWS"].includes(boardType)) return;
+    if (!["GENERAL", "BUSINESS", "BEST", "POPULAR"].includes(boardType)) return;
     if (boardType === "BUSINESS" && !businessAccessAllowed) return;
-    if (boardType === "NEWS" && !session.isAdmin) return;
     state.boardType = boardType;
     if (["GENERAL", "BUSINESS"].includes(boardType)) {
       state.lastBoardType = boardType;
@@ -606,17 +559,13 @@
   }
 
   async function initializeBoard() {
-    if (newsAdminTab) newsAdminTab.hidden = !session.isAdmin;
-
     const businessAccessPromise = board.canUseBusinessBoard().then((allowed) => {
       businessAccessAllowed = allowed;
       if (businessTab) businessTab.hidden = !businessAccessAllowed;
       return allowed;
     });
 
-    if (requestedBoardType === "NEWS" && session.isAdmin) {
-      state.boardType = "NEWS";
-    } else if (requestedBoardType === "BUSINESS" && await businessAccessPromise) {
+    if (requestedBoardType === "BUSINESS" && await businessAccessPromise) {
       state.boardType = "BUSINESS";
       state.lastBoardType = "BUSINESS";
     }

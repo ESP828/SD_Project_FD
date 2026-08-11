@@ -67,13 +67,6 @@ public class BoardResponseMapper {
                                 .filter(Objects::nonNull)
                                 .collect(Collectors.toSet())
                 );
-        Map<Long, String> publicRestaurantNames =
-                referenceRepository.findPublicRestaurantNames(
-                        posts.stream()
-                                .map(Post::getPublicRestaurantId)
-                                .filter(Objects::nonNull)
-                                .collect(Collectors.toSet())
-                );
 
         Set<Long> authorIds = posts.stream()
                 .map(post -> post.getAuthor().getAccountId())
@@ -98,10 +91,6 @@ public class BoardResponseMapper {
                     post.getBoardType(),
                     post.getCategory(),
                     restaurantId,
-                    post.getPublicRestaurantId(),
-                    post.getPublicRestaurantId() == null
-                            ? null
-                            : publicRestaurantNames.get(post.getPublicRestaurantId()),
                     restaurant,
                     post.getViewCount(),
                     commentCounts.getOrDefault(post.getPostId(), 0L),

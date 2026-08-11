@@ -71,23 +71,6 @@ public class PostController {
         ));
     }
 
-    @GetMapping("/admin/news")
-    public ApiResponse<PostPageResponse> getAdminNewsPosts(
-            @RequestParam(required = false) String keyword,
-            @RequestParam(defaultValue = "LATEST") String sort,
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "10") int size,
-            Authentication authentication
-    ) {
-        return ApiResponse.success(postService.getAdminNewsPosts(
-                keyword,
-                sort,
-                page,
-                size,
-                BoardAuthentication.accountId(authentication)
-        ));
-    }
-
     @GetMapping("/restaurants/public/{publicRestaurantId}/news")
     public ApiResponse<PostService.RestaurantNewsPageResponse>
     getPublicRestaurantNews(
