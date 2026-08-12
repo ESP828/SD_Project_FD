@@ -33,11 +33,22 @@
 
         <section class="comment-section board-comments-card" aria-labelledby="comment-heading">
           <div class="comment-heading-row">
-            <div>
-              <h2 id="comment-heading">댓글 <span id="detail-comment-count">0</span></h2>
-            </div>
+            <h2 id="comment-heading">댓글 <span id="detail-comment-count">0</span></h2>
+            <button id="comment-write-shortcut" class="comment-write-shortcut" type="button">
+              <span class="material-symbols-rounded" aria-hidden="true">edit</span>
+              댓글 쓰기
+            </button>
           </div>
-          <form id="comment-form" class="comment-form">
+
+          <div id="comment-list" class="comment-list" aria-live="off"></div>
+          <nav id="comment-pagination" class="comment-pagination" aria-label="댓글 페이지" hidden></nav>
+          <p id="comment-load-status" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></p>
+
+          <form id="comment-form" class="comment-form comment-form--bottom">
+            <div class="comment-form-heading">
+              <strong>댓글 작성</strong>
+              <span>이야기를 읽고 의견을 남겨 보세요.</span>
+            </div>
             <label class="sr-only" for="comment-content">댓글 내용</label>
             <textarea id="comment-content" maxlength="1000" rows="4"
                       aria-describedby="comment-input-hint"
@@ -69,13 +80,6 @@
               <button class="button button-sm button-primary" type="submit">댓글 등록</button>
             </div>
           </form>
-          <div id="comment-list" class="comment-list" aria-live="off"></div>
-          <p id="comment-load-status" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></p>
-          <div class="comment-pagination" hidden>
-            <button id="comment-load-more" class="comment-load-more" type="button" hidden>
-              댓글 더 보기
-            </button>
-          </div>
         </section>
       </div>
 

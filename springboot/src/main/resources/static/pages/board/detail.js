@@ -10,6 +10,7 @@
   const MEDIA_POLL_MAX_DELAY = 15000;
   const MEDIA_POLL_MAX_FAILURES = 5;
   const COMMENT_IMAGE_MAX_BYTES = 5 * 1024 * 1024;
+  const COMMENT_PAGE_SIZE = 7;
   const COMMENT_IMAGE_TYPES = new Set([
     "image/jpeg",
     "image/png",
@@ -35,7 +36,8 @@
   const commentContent = document.getElementById("comment-content");
   const commentLoginNote = document.getElementById("comment-login-note");
   const commentList = document.getElementById("comment-list");
-  const commentLoadMore = document.getElementById("comment-load-more");
+  const commentPagination = document.getElementById("comment-pagination");
+  const commentWriteShortcut = document.getElementById("comment-write-shortcut");
   const commentLoadStatus = document.getElementById("comment-load-status");
   const commentCharacterCount = document.getElementById("comment-character-count");
   const commentImageInput = document.getElementById("comment-image-input");
@@ -388,9 +390,8 @@
   let activeReplyPreviewUrl = null;
   let activeCommentEditForm = null;
   let replyDiscardPromptOpen = false;
-  let commentPagesLoaded = 0;
-  let commentNextPage = 0;
-  let commentHasMore = false;
+  let currentCommentPage = 0;
+  let totalCommentPages = 0;
   let commentPageLoading = false;
 
   function clearCommentImageSelection() {
@@ -1220,10 +1221,11 @@
     commentForm.hidden = true;
     commentList.replaceChildren();
     commentCount.textContent = "0";
-    if (commentLoadMore) {
-      commentLoadMore.hidden = true;
-      if (commentLoadMore.parentElement) commentLoadMore.parentElement.hidden = true;
+    if (commentPagination) {
+      commentPagination.hidden = true;
+      commentPagination.replaceChildren();
     }
+    if (commentWriteShortcut) commentWriteShortcut.hidden = true;
     detailContent.replaceChildren();
     const wrapper = element("div", "board-error");
     const image = new Image();
@@ -1582,7 +1584,10 @@
             imageFile ? "답글과 사진이 등록되었습니다." : "답글이 등록되었습니다.",
           );
         }
-        await loadComments();
+        await loadCommentPage(currentCommentPage, {
+          highlightCommentId: createdCommentId,
+          scrollToHighlight: true,
+        });
       } catch (error) {
         showToast(toast, error.message, true);
       } finally {
@@ -1697,55 +1702,171 @@
       });
   }
 
-  function syncCommentLoadMore(pageData = null) {
-    if (!commentLoadMore) return;
+  function prefersReducedMotion() {
+    return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  }
+
+  function commentPageTokens(page, totalPages) {
+    if (totalPages <= 7) {
+      return Array.from({ length: totalPages }, (_, index) => index);
+    }
+
+    const pages = new Set([0, totalPages - 1]);
+    for (let offset = -2; offset <= 2; offset += 1) {
+      const candidate = page + offset;
+      if (candidate >= 0 && candidate < totalPages) pages.add(candidate);
+    }
+
+    const sorted = [...pages].sort((a, b) => a - b);
+    const tokens = [];
+    sorted.forEach((value, index) => {
+      if (index > 0 && value - sorted[index - 1] > 1) tokens.push("ellipsis");
+      tokens.push(value);
+    });
+    return tokens;
+  }
+
+  function setCommentPaginationBusy(busy) {
+    if (!commentPagination) return;
+    commentPagination.setAttribute("aria-busy", busy ? "true" : "false");
+    commentPagination.querySelectorAll("button").forEach((button) => {
+      button.disabled = busy;
+    });
+  }
+
+  function renderCommentPagination(pageData = null) {
+    if (!commentPagination) return;
+
     if (pageData) {
-      const page = Number(pageData.page) || 0;
-      const totalPages = Math.max(0, Number(pageData.totalPages) || 0);
-      commentNextPage = page + 1;
-      commentHasMore = pageData.last === false && (
-        totalPages === 0 || commentNextPage < totalPages
+      currentCommentPage = Math.max(0, Number(pageData.page) || 0);
+      totalCommentPages = Math.max(0, Number(pageData.totalPages) || 0);
+    }
+
+    commentPagination.replaceChildren();
+    if (totalCommentPages <= 1) {
+      commentPagination.hidden = true;
+      return;
+    }
+
+    const makeButton = (label, page, options = {}) => {
+      const button = element(
+        "button",
+        options.direction
+          ? "comment-page-button comment-page-button--direction"
+          : "comment-page-button",
+        label,
       );
-    }
-    commentLoadMore.hidden = !commentHasMore;
-    if (commentLoadMore.parentElement) {
-      commentLoadMore.parentElement.hidden = !commentHasMore;
-    }
-    commentLoadMore.disabled = commentPageLoading;
-    commentLoadMore.textContent = commentPageLoading ? "불러오는 중..." : "댓글 더 보기";
-    commentLoadMore.setAttribute("aria-busy", commentPageLoading ? "true" : "false");
+      button.type = "button";
+      button.dataset.page = String(page);
+      if (options.current) {
+        button.classList.add("is-current");
+        button.setAttribute("aria-current", "page");
+      }
+      if (options.label) button.setAttribute("aria-label", options.label);
+      if (options.disabled || options.current) button.disabled = true;
+      button.addEventListener("click", () => goToCommentPage(page));
+      return button;
+    };
+
+    const previous = makeButton("이전", currentCommentPage - 1, {
+      direction: true,
+      disabled: currentCommentPage <= 0,
+      label: "이전 댓글 페이지",
+    });
+    commentPagination.append(previous);
+
+    commentPageTokens(currentCommentPage, totalCommentPages).forEach((token) => {
+      if (token === "ellipsis") {
+        const ellipsis = element("span", "comment-page-ellipsis", "…");
+        ellipsis.setAttribute("aria-hidden", "true");
+        commentPagination.append(ellipsis);
+        return;
+      }
+      commentPagination.append(
+        makeButton(String(token + 1), token, {
+          current: token === currentCommentPage,
+          label: `${token + 1}번째 댓글 페이지`,
+        }),
+      );
+    });
+
+    const next = makeButton("다음", currentCommentPage + 1, {
+      direction: true,
+      disabled: currentCommentPage >= totalCommentPages - 1,
+      label: "다음 댓글 페이지",
+    });
+    commentPagination.append(next);
+    commentPagination.hidden = false;
+    setCommentPaginationBusy(commentPageLoading);
+  }
+
+  function announceCommentStatus(message) {
+    if (!commentLoadStatus) return;
+    commentLoadStatus.textContent = "";
+    window.requestAnimationFrame(() => {
+      commentLoadStatus.textContent = message || "";
+    });
+  }
+
+  function scrollToCommentHeading() {
+    const heading = document.getElementById("comment-heading");
+    const target = heading?.closest(".comment-heading-row") || heading;
+    target?.scrollIntoView({
+      behavior: prefersReducedMotion() ? "auto" : "smooth",
+      block: "start",
+    });
+  }
+
+  function highlightComment(commentId, options = {}) {
+    if (!commentId) return;
+    window.requestAnimationFrame(() => {
+      const target = document.getElementById(`comment-${commentId}`);
+      if (!target) return;
+      target.classList.remove("comment-item--new");
+      void target.offsetWidth;
+      target.classList.add("comment-item--new");
+      if (options.scroll !== false) {
+        target.scrollIntoView({
+          behavior: prefersReducedMotion() ? "auto" : "smooth",
+          block: "center",
+        });
+      }
+      window.setTimeout(() => target.classList.remove("comment-item--new"), 1800);
+    });
   }
 
   function renderComments(pageData, options = {}) {
-    const { append = false } = options;
     const comments = pageData.content || [];
-    const page = Number(pageData.page) || 0;
 
+    currentCommentPage = Math.max(0, Number(pageData.page) || 0);
+    totalCommentPages = Math.max(0, Number(pageData.totalPages) || 0);
     commentCount.textContent = String(
       pageData.totalCommentCount ?? pageData.totalElements ?? 0,
     );
 
-    if (!append) {
-      closeReplyComposer();
-      closeCommentEditor();
-      commentList.replaceChildren();
-      commentPagesLoaded = 0;
-    }
+    closeReplyComposer();
+    closeCommentEditor();
+    commentList.replaceChildren();
 
-    if (!comments.length && !append) {
+    if (!comments.length) {
       commentList.append(
         element("p", "comment-empty", "첫 댓글을 함께 남겨 보세요."),
       );
-    } else if (comments.length) {
+    } else {
       appendCommentThreads(comments);
     }
 
-    commentPagesLoaded = Math.max(commentPagesLoaded, page + 1);
-    syncCommentLoadMore(pageData);
+    renderCommentPagination(pageData);
+    if (options.highlightCommentId) {
+      highlightComment(options.highlightCommentId, {
+        scroll: options.scrollToHighlight !== false,
+      });
+    }
   }
 
   async function fetchCommentPage(page) {
-    const path = `/board/posts/${postId}/comments?page=${page}&size=30`;
+    const normalizedPage = Math.max(0, Number(page) || 0);
+    const path = `/board/posts/${postId}/comments?page=${normalizedPage}&size=${COMMENT_PAGE_SIZE}`;
     const cached = readBoardCache(path);
     if (cached?.fresh) return cached.data || {};
 
@@ -1760,48 +1881,72 @@
     }
   }
 
-  async function loadComments(options = {}) {
-    const requestedPages = Math.max(
-      1,
-      Number(options.pages ?? Math.max(commentPagesLoaded, 1)) || 1,
-    );
-    if (commentPageLoading) return;
+  async function loadCommentPage(page = currentCommentPage, options = {}) {
+    if (commentPageLoading) return null;
 
     commentPageLoading = true;
-    commentHasMore = false;
-    syncCommentLoadMore();
+    setCommentPaginationBusy(true);
+    commentList.setAttribute("aria-busy", "true");
     try {
-      for (let page = 0; page < requestedPages; page += 1) {
-        const pageData = await fetchCommentPage(page);
-        renderComments(pageData, { append: page > 0 });
-        if (pageData.last !== false) break;
+      let requestedPage = Math.max(0, Number(page) || 0);
+      let pageData = await fetchCommentPage(requestedPage);
+      const pageCount = Math.max(0, Number(pageData.totalPages) || 0);
+
+      if (pageCount > 0 && requestedPage >= pageCount) {
+        requestedPage = pageCount - 1;
+        pageData = await fetchCommentPage(requestedPage);
       }
+
+      renderComments(pageData, options);
+      if (options.announce) announceCommentStatus(options.announce);
+      if (options.scrollToHeading) scrollToCommentHeading();
+      return pageData;
     } finally {
       commentPageLoading = false;
-      syncCommentLoadMore();
+      commentList.setAttribute("aria-busy", "false");
+      renderCommentPagination();
     }
   }
 
-  async function loadMoreComments() {
-    if (commentPageLoading || !commentHasMore) return;
-    const page = commentNextPage;
-    if (commentLoadStatus) commentLoadStatus.textContent = "";
-    commentPageLoading = true;
-    syncCommentLoadMore();
+  async function goToCommentPage(page) {
+    const targetPage = Math.max(0, Math.min(Number(page) || 0, totalCommentPages - 1));
+    if (commentPageLoading || targetPage === currentCommentPage) return;
+    if (!(await confirmReplyComposerDiscard(null))) return;
+
     try {
-      const pageData = await fetchCommentPage(page);
-      renderComments(pageData, { append: true });
-      if (commentLoadStatus) {
-        const loadedCount = Array.isArray(pageData.content) ? pageData.content.length : 0;
-        commentLoadStatus.textContent = loadedCount > 0
-          ? `댓글 ${loadedCount}개를 더 불러왔습니다.`
-          : "더 불러올 댓글이 없습니다.";
-      }
+      await loadCommentPage(targetPage, {
+        announce: `댓글 ${targetPage + 1}페이지를 불러왔습니다.`,
+        scrollToHeading: true,
+      });
     } catch (error) {
       showToast(toast, error.message, true);
+    }
+  }
+
+  async function loadNewestRootComment(commentId) {
+    if (commentPageLoading) return;
+
+    commentPageLoading = true;
+    setCommentPaginationBusy(true);
+    commentList.setAttribute("aria-busy", "true");
+    try {
+      const firstPage = await fetchCommentPage(0);
+      const pageCount = Math.max(0, Number(firstPage.totalPages) || 0);
+      const lastPage = Math.max(0, pageCount - 1);
+      const pageData = lastPage === 0 ? firstPage : await fetchCommentPage(lastPage);
+      renderComments(pageData, {
+        highlightCommentId: commentId,
+        scrollToHighlight: true,
+      });
+      announceCommentStatus(
+        pageCount > 1
+          ? `댓글이 등록되어 마지막 ${lastPage + 1}페이지로 이동했습니다.`
+          : "댓글이 등록되었습니다.",
+      );
     } finally {
       commentPageLoading = false;
-      syncCommentLoadMore();
+      commentList.setAttribute("aria-busy", "false");
+      renderCommentPagination();
     }
   }
 
@@ -1923,7 +2068,7 @@
       const payload = await Api.delete(`/board/comments/${comment.commentId}`);
       invalidateBoardCache();
       showToast(toast, payload.message);
-      await loadComments();
+      await loadCommentPage(currentCommentPage);
     } catch (error) {
       showToast(toast, error.message, true);
     }
@@ -1946,7 +2091,14 @@
     updateCharacterCount(commentContent, commentCharacterCount);
   });
 
-  commentLoadMore?.addEventListener("click", loadMoreComments);
+  commentWriteShortcut?.addEventListener("click", () => {
+    if (commentForm.hidden) return;
+    commentForm.scrollIntoView({
+      behavior: prefersReducedMotion() ? "auto" : "smooth",
+      block: "center",
+    });
+    commentContent.focus({ preventScroll: true });
+  });
 
   commentContent.addEventListener("keydown", (event) => {
     if (!isCommentSubmitEnter(event)) return;
@@ -1995,7 +2147,7 @@
           imageFile ? "댓글과 사진이 등록되었습니다." : payload.message,
         );
       }
-      await loadComments();
+      await loadNewestRootComment(createdCommentId);
     } catch (error) {
       showToast(toast, error.message, true);
     } finally {
@@ -2049,13 +2201,14 @@
       renderRelatedPosts([]);
       renderUnansweredPosts([]);
       commentForm.hidden = true;
+      if (commentWriteShortcut) commentWriteShortcut.hidden = true;
       return;
     }
     try {
       const postPromise = loadPost();
       await Promise.all([
         postPromise,
-        loadComments(),
+        loadCommentPage(0),
         postPromise.then(() => {
           if (isNewsPost()) {
             renderRelatedPosts([]);
@@ -2068,6 +2221,7 @@
     } catch (error) {
       renderPostError(error.message);
       commentForm.hidden = true;
+      if (commentWriteShortcut) commentWriteShortcut.hidden = true;
     }
   }
 
