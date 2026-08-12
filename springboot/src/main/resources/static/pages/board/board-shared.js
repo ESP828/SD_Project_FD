@@ -395,13 +395,13 @@
 
   function authorMenuRecentPostSection(posts) {
     const section = element("section", "author-menu-recent");
-    section.append(element("strong", "author-menu-recent-title", "이전글"));
+    section.append(element("strong", "author-menu-recent-title", "최근 글"));
     const items = Array.isArray(posts) ? posts : [];
     if (items.length === 0) {
       section.append(authorMenuEmptyState(
         "article",
-        "아직 표시할 글이 없습니다",
-        "현재 확인할 수 있는 공개 게시글이 생기면 여기에 표시됩니다.",
+        "아직 작성한 글이 없습니다",
+        "작성자가 남긴 공개 게시글이 생기면 여기에 표시됩니다.",
       ));
       return section;
     }
@@ -429,13 +429,13 @@
 
   function authorMenuRecentCommentSection(comments) {
     const section = element("section", "author-menu-recent");
-    section.append(element("strong", "author-menu-recent-title", "이전댓글"));
+    section.append(element("strong", "author-menu-recent-title", "최근 댓글"));
     const items = Array.isArray(comments) ? comments : [];
     if (items.length === 0) {
       section.append(authorMenuEmptyState(
         "chat_bubble",
-        "아직 표시할 댓글이 없습니다",
-        "현재 확인할 수 있는 공개 댓글이 생기면 여기에 표시됩니다.",
+        "아직 작성한 댓글이 없습니다",
+        "작성자가 남긴 공개 댓글이 생기면 여기에 표시됩니다.",
       ));
       return section;
     }
@@ -467,7 +467,7 @@
 
   function authorMenuRecentReviewSection(reviews) {
     const section = element("section", "author-menu-recent");
-    section.append(element("strong", "author-menu-recent-title", "리뷰"));
+    section.append(element("strong", "author-menu-recent-title", "최근 리뷰"));
     const items = Array.isArray(reviews) ? reviews : [];
     if (items.length === 0) {
       section.append(authorMenuEmptyState(
@@ -641,14 +641,8 @@
 
     const accountId = Number(author.authorAccountId);
     try {
-      const params = new URLSearchParams();
-      const excludePostId = Number(author.postId);
-      if (Number.isSafeInteger(excludePostId) && excludePostId > 0) {
-        params.set("excludePostId", String(excludePostId));
-      }
-      const query = params.size > 0 ? `?${params.toString()}` : "";
       const payload = await Api.get(
-        `/board/posts/authors/${encodeURIComponent(accountId)}/summary${query}`,
+        `/board/posts/authors/${encodeURIComponent(accountId)}/summary`,
       );
       const summary = payload.data;
       if (activeAuthorTrigger !== trigger || menu.hidden) return;
