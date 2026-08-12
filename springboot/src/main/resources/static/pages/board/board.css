@@ -849,6 +849,110 @@
   font-size: 0.68rem;
 }
 
+
+.author-menu-last-activity {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 0;
+  padding: 11px 0 10px;
+  color: var(--color-subtle);
+  font-size: 0.66rem;
+}
+
+.author-menu-last-activity-label {
+  flex: 0 0 auto;
+}
+
+.author-menu-last-activity-time {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--color-muted);
+  font-size: 0.68rem;
+  font-weight: 750;
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.author-menu-tabs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+  padding-bottom: 10px;
+}
+
+.author-menu-tab {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  min-height: 48px;
+  padding: 7px 6px;
+  border: 1px solid var(--color-line);
+  border-radius: 10px;
+  color: var(--color-muted);
+  background: #f7f9fb;
+  font: inherit;
+  cursor: pointer;
+}
+
+.author-menu-tab:hover,
+.author-menu-tab:focus-visible {
+  border-color: rgba(27, 43, 61, 0.28);
+  background: #f1f5f8;
+  outline: none;
+}
+
+.author-menu-tab.is-active {
+  border-color: rgba(27, 43, 61, 0.35);
+  color: var(--color-navy);
+  background: #eef3f8;
+}
+
+.author-menu-tab-label {
+  font-size: 0.66rem;
+}
+
+.author-menu-tab-count {
+  overflow: hidden;
+  font-size: 0.82rem;
+  text-overflow: ellipsis;
+}
+
+.author-menu-activity-panel {
+  min-height: 80px;
+}
+
+.author-menu-recent-title-row {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 6px;
+}
+
+.author-menu-source {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  min-height: 18px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  color: var(--color-muted);
+  background: #edf1f4;
+  font-size: 0.58rem;
+  font-weight: 800;
+}
+
+.author-menu-source--news {
+  color: var(--color-orange-dark, #c85d00);
+  background: var(--color-orange-soft);
+}
+
+.author-menu-review-content {
+  font-weight: 650;
+}
+
 .author-menu-context-note {
   display: grid;
   gap: 4px;
@@ -968,6 +1072,8 @@
 
 .author-menu-recent-post-title,
 .author-menu-recent-content {
+  flex: 1 1 auto;
+  min-width: 0;
   overflow: hidden;
   color: var(--color-navy);
   font-size: 0.75rem;
