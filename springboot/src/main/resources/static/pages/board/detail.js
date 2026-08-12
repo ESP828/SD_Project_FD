@@ -10,7 +10,7 @@
   const MEDIA_POLL_MAX_DELAY = 15000;
   const MEDIA_POLL_MAX_FAILURES = 5;
   const COMMENT_IMAGE_MAX_BYTES = 5 * 1024 * 1024;
-  const COMMENT_PAGE_SIZE = 7;
+  const COMMENT_PAGE_SIZE = 3;
   const COMMENT_IMAGE_TYPES = new Set([
     "image/jpeg",
     "image/png",
