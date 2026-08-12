@@ -575,6 +575,26 @@
 
     let authorActivitySwitchId = 0;
 
+    function stabilizeAuthorActivityPanelHeight() {
+      const activeKey = activityPanel.dataset.activeAuthorActivityTab || "posts";
+      const activeSection = sections[activeKey] || sections.posts;
+      let maxHeight = 0;
+
+      activityPanel.style.visibility = "hidden";
+      activityPanel.style.minHeight = "";
+
+      Object.values(sections).forEach((section) => {
+        activityPanel.replaceChildren(section);
+        maxHeight = Math.max(maxHeight, activityPanel.getBoundingClientRect().height);
+      });
+
+      activityPanel.replaceChildren(activeSection);
+      if (maxHeight > 0) {
+        activityPanel.style.minHeight = `${Math.ceil(maxHeight)}px`;
+      }
+      activityPanel.style.visibility = "";
+    }
+
     async function switchAuthorActivityPanel(key) {
       const nextSection = sections[key];
       if (!nextSection) return;
@@ -587,26 +607,19 @@
 
       if (reduceMotion || typeof activityPanel.animate !== "function") {
         activityPanel.replaceChildren(nextSection);
-        if (activeAuthorTrigger && !menu.hidden) {
-          positionAuthorMenu(activeAuthorTrigger);
-        }
         return;
       }
 
       const currentSection = activityPanel.firstElementChild;
-      const startHeight = activityPanel.getBoundingClientRect().height;
-      activityPanel.classList.add("is-switching");
-      activityPanel.style.height = `${startHeight}px`;
-
       if (currentSection) {
         const exitAnimation = currentSection.animate(
           [
-            { opacity: 1, transform: "translateY(0)" },
-            { opacity: 0, transform: "translateY(-2px)" },
+            { opacity: 1 },
+            { opacity: 0 },
           ],
           {
-            duration: 90,
-            easing: "cubic-bezier(0.4, 0, 1, 1)",
+            duration: 70,
+            easing: "ease-out",
             fill: "forwards",
           },
         );
@@ -620,47 +633,26 @@
       if (switchId !== authorActivitySwitchId) return;
 
       activityPanel.replaceChildren(nextSection);
-
-      activityPanel.style.height = "auto";
-      const targetHeight = activityPanel.getBoundingClientRect().height;
-      activityPanel.style.height = `${startHeight}px`;
-      if (activeAuthorTrigger && !menu.hidden) {
-        positionAuthorMenu(activeAuthorTrigger);
-      }
-
-      const heightAnimation = activityPanel.animate(
-        [
-          { height: `${startHeight}px` },
-          { height: `${targetHeight}px` },
-        ],
-        {
-          duration: 180,
-          easing: "cubic-bezier(0.16, 1, 0.3, 1)",
-          fill: "forwards",
-        },
-      );
       const enterAnimation = nextSection.animate(
         [
-          { opacity: 0, transform: "translateY(4px)" },
-          { opacity: 1, transform: "translateY(0)" },
+          { opacity: 0 },
+          { opacity: 1 },
         ],
         {
-          duration: 170,
+          duration: 140,
           easing: "cubic-bezier(0.16, 1, 0.3, 1)",
           fill: "both",
         },
       );
 
-      await Promise.allSettled([heightAnimation.finished, enterAnimation.finished]);
+      try {
+        await enterAnimation.finished;
+      } catch (_) {
+        return;
+      }
       if (switchId !== authorActivitySwitchId) return;
 
-      heightAnimation.cancel();
       enterAnimation.cancel();
-      activityPanel.style.height = "";
-      activityPanel.classList.remove("is-switching");
-      if (activeAuthorTrigger && !menu.hidden) {
-        positionAuthorMenu(activeAuthorTrigger);
-      }
     }
 
     tabs.addEventListener("click", (event) => {
@@ -697,6 +689,7 @@
     }
 
     menu.replaceChildren(header, lastActivity, tabs, activityPanel, footer);
+    stabilizeAuthorActivityPanelHeight();
   }
 
   function renderAuthorMenuError(message) {
