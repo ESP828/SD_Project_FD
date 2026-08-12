@@ -440,6 +440,59 @@
   font-size: 1.35rem;
 }
 
+.comment-confirm-dialog {
+  width: min(430px, calc(100% - 28px));
+}
+
+.comment-confirm-shell {
+  padding: 26px;
+}
+
+.comment-confirm-heading {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: 14px;
+}
+
+.comment-confirm-icon {
+  display: grid;
+  width: 42px;
+  height: 42px;
+  place-items: center;
+  border-radius: 12px;
+  color: var(--color-danger);
+  background: #fff1f1;
+}
+
+.comment-confirm-icon .material-symbols-rounded {
+  width: 20px;
+  height: 20px;
+}
+
+.comment-confirm-copy h2 {
+  margin: 1px 0 7px;
+  font-size: 1.05rem;
+}
+
+.comment-confirm-copy p {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 0.78rem;
+  line-height: 1.6;
+}
+
+.comment-confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 24px;
+}
+
+.comment-confirm-actions .button-danger {
+  background: #fff7f7;
+}
+
 .detail-badges {
   display: flex;
   flex-wrap: wrap;
@@ -569,8 +622,11 @@
 
 .comment-top {
   display: flex;
+  flex-wrap: wrap;
+  align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  row-gap: 8px;
+  column-gap: 12px;
   margin-bottom: 6px;
 }
 
@@ -580,8 +636,14 @@
 }
 
 .comment-date {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  min-height: 24px;
+  margin-left: auto;
   color: var(--color-subtle);
   font-size: 0.7rem;
+  line-height: 1;
 }
 
 .comment-content {
@@ -1871,7 +1933,7 @@
 }
 
 .comment-heading-row h2 {
-  margin: 4px 0 18px;
+  margin: 0 0 18px;
   font-size: 1.3rem;
 }
 
@@ -1888,6 +1950,30 @@
   border: 0;
   background: transparent;
   box-shadow: none;
+}
+
+.comment-input-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--color-subtle);
+  font-size: 0.68rem;
+  line-height: 1.4;
+}
+
+.comment-input-meta--compact {
+  font-size: 0.66rem;
+}
+
+.comment-character-count {
+  flex: 0 0 auto;
+  font-variant-numeric: tabular-nums;
+  font-weight: 750;
+}
+
+.comment-character-count.is-near-limit {
+  color: var(--color-orange);
 }
 
 .comment-image-tools {
@@ -2064,6 +2150,40 @@
   box-shadow: 0 0 0 3px rgba(255, 152, 0, 0.12);
 }
 
+.comment-edit-form {
+  display: grid;
+  gap: 10px;
+  margin: 8px 0 10px;
+  padding: 12px;
+  border: 1px solid var(--color-line);
+  border-radius: 12px;
+  background: #f9fbfd;
+}
+
+.comment-edit-textarea {
+  width: 100%;
+  min-height: 86px;
+  resize: vertical;
+  border: 1px solid var(--color-line);
+  border-radius: 10px;
+  padding: 10px 12px;
+  outline: 0;
+  background: #fff;
+  color: var(--color-text);
+  font: inherit;
+}
+
+.comment-edit-textarea:focus {
+  border-color: var(--color-orange);
+  box-shadow: 0 0 0 3px rgba(255, 152, 0, 0.12);
+}
+
+.comment-edit-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
 .comment-reply-submit-row {
   display: flex;
   justify-content: flex-end;
@@ -2089,6 +2209,37 @@
   padding: 28px 0;
   color: var(--color-muted);
   text-align: center;
+}
+
+.comment-pagination {
+  padding-top: 14px;
+}
+
+.comment-load-more {
+  width: 100%;
+  min-height: 42px;
+  border: 1px solid var(--color-line);
+  border-radius: 12px;
+  color: var(--color-muted);
+  background: #fff;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.76rem;
+  font-weight: 800;
+  transition: border-color 150ms ease, color 150ms ease, background-color 150ms ease;
+}
+
+.comment-load-more:hover,
+.comment-load-more:focus-visible {
+  border-color: rgba(255, 152, 0, 0.45);
+  outline: 0;
+  color: var(--color-orange);
+  background: rgba(255, 152, 0, 0.05);
+}
+
+.comment-load-more:disabled {
+  cursor: wait;
+  opacity: 0.62;
 }
 
 .comment-top .author-identity {
@@ -2206,7 +2357,25 @@
     align-items: stretch;
     flex-direction: column;
   }
+
+  .comment-input-meta {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 3px;
+  }
+
+  .comment-edit-actions,
+  .comment-confirm-actions {
+    align-items: stretch;
+    flex-direction: column-reverse;
+  }
+
+  .comment-edit-actions .button,
+  .comment-confirm-actions .button {
+    width: 100%;
+  }
 }
+
 
 /* 게시글 사진·동영상 첨부 기능 전용 */
 .board-form-card.is-unavailable .board-write-media {

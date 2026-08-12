@@ -34,14 +34,18 @@
         <section class="comment-section board-comments-card" aria-labelledby="comment-heading">
           <div class="comment-heading-row">
             <div>
-              <span class="board-step-label">Conversation</span>
               <h2 id="comment-heading">댓글 <span id="detail-comment-count">0</span></h2>
             </div>
           </div>
           <form id="comment-form" class="comment-form">
             <label class="sr-only" for="comment-content">댓글 내용</label>
             <textarea id="comment-content" maxlength="1000" rows="4"
+                      aria-describedby="comment-input-hint"
                       placeholder="맛있는 이야기에 댓글을 남겨 보세요."></textarea>
+            <div id="comment-input-hint" class="comment-input-meta">
+              <span>Enter로 등록 · Shift + Enter로 줄바꿈</span>
+              <span id="comment-character-count" class="comment-character-count">0 / 1000</span>
+            </div>
             <div class="comment-image-tools">
               <input id="comment-image-input" class="sr-only" type="file"
                      accept=".jpg,.jpeg,.png,.gif,.webp,image/jpeg,image/png,image/gif,image/webp">
@@ -66,6 +70,11 @@
             </div>
           </form>
           <div id="comment-list" class="comment-list" aria-live="polite"></div>
+          <div class="comment-pagination" hidden>
+            <button id="comment-load-more" class="comment-load-more" type="button" hidden>
+              댓글 더 보기
+            </button>
+          </div>
         </section>
       </div>
 

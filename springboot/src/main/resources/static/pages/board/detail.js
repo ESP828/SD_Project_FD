@@ -35,6 +35,8 @@
   const commentContent = document.getElementById("comment-content");
   const commentLoginNote = document.getElementById("comment-login-note");
   const commentList = document.getElementById("comment-list");
+  const commentLoadMore = document.getElementById("comment-load-more");
+  const commentCharacterCount = document.getElementById("comment-character-count");
   const commentImageInput = document.getElementById("comment-image-input");
   const commentImageSelect = document.getElementById("comment-image-select");
   const commentImagePreview = document.getElementById("comment-image-preview");
@@ -75,6 +77,71 @@
       !event.isComposing &&
       event.keyCode !== 229
     );
+  }
+
+  function updateCharacterCount(target, counter) {
+    if (!target || !counter) return;
+    const maxLength = Number(target.maxLength) > 0 ? Number(target.maxLength) : 1000;
+    const length = target.value.length;
+    counter.textContent = `${length} / ${maxLength}`;
+    counter.classList.toggle("is-near-limit", length >= Math.floor(maxLength * 0.8));
+  }
+
+  function confirmBoardAction({ title, message, confirmLabel = "삭제", danger = true }) {
+    return new Promise((resolve) => {
+      const dialog = document.createElement("dialog");
+      dialog.className = "board-dialog comment-confirm-dialog";
+
+      const shell = element("div", "dialog-shell comment-confirm-shell");
+      const heading = element("div", "comment-confirm-heading");
+      const iconWrap = element("span", "comment-confirm-icon");
+      const warningIcon = element("span", "material-symbols-rounded", "delete");
+      warningIcon.setAttribute("aria-hidden", "true");
+      iconWrap.append(warningIcon);
+      const copy = element("div", "comment-confirm-copy");
+      copy.append(
+        element("h2", "", title),
+        element("p", "", message),
+      );
+      heading.append(iconWrap, copy);
+
+      const actions = element("div", "comment-confirm-actions");
+      const cancel = element("button", "button button-sm button-secondary", "취소");
+      cancel.type = "button";
+      const confirm = element(
+        "button",
+        danger ? "button button-sm button-danger" : "button button-sm button-primary",
+        confirmLabel,
+      );
+      confirm.type = "button";
+      actions.append(cancel, confirm);
+      shell.append(heading, actions);
+      dialog.append(shell);
+      document.body.append(dialog);
+      window.FooduckIcons?.enhance(dialog);
+
+      let settled = false;
+      const finish = (result) => {
+        if (settled) return;
+        settled = true;
+        dialog.close();
+        dialog.remove();
+        resolve(result);
+      };
+
+      cancel.addEventListener("click", () => finish(false));
+      confirm.addEventListener("click", () => finish(true));
+      dialog.addEventListener("cancel", (event) => {
+        event.preventDefault();
+        finish(false);
+      });
+      dialog.addEventListener("click", (event) => {
+        if (event.target === dialog) finish(false);
+      });
+
+      dialog.showModal();
+      cancel.focus();
+    });
   }
 
   function isNewsPost(post = state.post) {
@@ -312,6 +379,11 @@
   let commentImagePreviewUrl = null;
   let activeReplyForm = null;
   let activeReplyPreviewUrl = null;
+  let activeCommentEditForm = null;
+  let commentPagesLoaded = 0;
+  let commentNextPage = 0;
+  let commentHasMore = false;
+  let commentPageLoading = false;
 
   function clearCommentImageSelection() {
     selectedCommentImage = null;
@@ -1140,6 +1212,10 @@
     commentForm.hidden = true;
     commentList.replaceChildren();
     commentCount.textContent = "0";
+    if (commentLoadMore) {
+      commentLoadMore.hidden = true;
+      if (commentLoadMore.parentElement) commentLoadMore.parentElement.hidden = true;
+    }
     detailContent.replaceChildren();
     const wrapper = element("div", "board-error");
     const image = new Image();
@@ -1207,9 +1283,14 @@
       return;
     }
     const message = newsPost
-      ? "이 가게 소식과 연결된 댓글·추천을 삭제하시겠습니까?"
-      : "게시글과 연결된 댓글·추천을 삭제하시겠습니까?";
-    if (!window.confirm(message)) return;
+      ? "이 가게 소식과 연결된 댓글과 추천도 함께 삭제됩니다."
+      : "이 게시글과 연결된 댓글과 추천도 함께 삭제됩니다.";
+    const confirmed = await confirmBoardAction({
+      title: newsPost ? "가게 소식을 삭제할까요?" : "게시글을 삭제할까요?",
+      message,
+      confirmLabel: newsPost ? "가게 소식 삭제" : "게시글 삭제",
+    });
+    if (!confirmed) return;
     try {
       const payload = await Api.delete(deletePath);
       invalidateBoardCache();
@@ -1227,6 +1308,17 @@
     }
     activeReplyForm?.remove();
     activeReplyForm = null;
+  }
+
+  function closeCommentEditor() {
+    if (!activeCommentEditForm) return;
+    const item = activeCommentEditForm.closest(".comment-item");
+    const content = item?.querySelector(":scope > .comment-content");
+    const actions = item?.querySelector(":scope > .comment-actions");
+    if (content) content.hidden = false;
+    if (actions) actions.hidden = false;
+    activeCommentEditForm.remove();
+    activeCommentEditForm = null;
   }
 
   function commentImageNode(comment) {
@@ -1293,6 +1385,7 @@
 
   function openReplyComposer(comment, mountTarget) {
     if (!board.requireLogin(window.location.pathname + window.location.search)) return;
+    closeCommentEditor();
     closeReplyComposer();
 
     const rootParentId = comment.parentCommentId || comment.commentId;
@@ -1311,6 +1404,12 @@
     textarea.rows = 3;
     textarea.setAttribute("aria-label", `${targetName}님에게 답글`);
     textarea.value = `@${targetName} `;
+
+    const inputMeta = element("div", "comment-input-meta comment-input-meta--compact");
+    inputMeta.append(element("span", "", "Enter로 등록 · Shift + Enter로 줄바꿈"));
+    const characterCount = element("span", "comment-character-count");
+    inputMeta.append(characterCount);
+    updateCharacterCount(textarea, characterCount);
 
     const tools = element("div", "comment-image-tools");
     const fileInput = document.createElement("input");
@@ -1380,7 +1479,10 @@
     });
     removeImage.addEventListener("click", clearReplyImage);
     cancel.addEventListener("click", closeReplyComposer);
-    textarea.addEventListener("input", syncReplySubmitState);
+    textarea.addEventListener("input", () => {
+      syncReplySubmitState();
+      updateCharacterCount(textarea, characterCount);
+    });
     textarea.addEventListener("keydown", (event) => {
       if (!isCommentSubmitEnter(event)) return;
       event.preventDefault();
@@ -1439,7 +1541,7 @@
       }
     });
 
-    form.append(label, textarea, tools, preview, submitRow);
+    form.append(label, textarea, inputMeta, tools, preview, submitRow);
     mountTarget.append(form);
     activeReplyForm = form;
     textarea.focus();
@@ -1451,7 +1553,7 @@
     if (!(target instanceof Element)) return true;
 
     if (target.closest(
-      "button, a, input, textarea, select, label, [role='button'], .comment-actions, .comment-reply-form",
+      "button, a, input, textarea, select, label, [role='button'], .comment-actions, .comment-reply-form, .comment-edit-form",
     )) {
       return true;
     }
@@ -1500,7 +1602,7 @@
     );
     if (comment.ownedByCurrentUser || session.isAdmin) {
       actions.append(
-        actionButton("수정", "comment-action", () => editComment(comment)),
+        actionButton("수정", "comment-action", () => editComment(comment, item)),
         actionButton(
           "삭제",
           "comment-action",
@@ -1518,20 +1620,7 @@
     return item;
   }
 
-  function renderComments(pageData) {
-    closeReplyComposer();
-    const comments = pageData.content || [];
-    commentCount.textContent = String(
-      pageData.totalCommentCount ?? pageData.totalElements ?? 0,
-    );
-    commentList.replaceChildren();
-    if (!comments.length) {
-      commentList.append(
-        element("p", "comment-empty", "첫 댓글을 함께 남겨 보세요."),
-      );
-      return;
-    }
-
+  function appendCommentThreads(comments) {
     const repliesByParent = new Map();
     comments.forEach((comment) => {
       if (!comment.parentCommentId) return;
@@ -1558,48 +1647,221 @@
       });
   }
 
-  async function loadComments() {
-    const path = `/board/posts/${postId}/comments?page=0&size=30`;
-    const cached = readBoardCache(path);
-    if (cached) {
-      renderComments(cached.data || {});
-      if (cached.fresh) return;
+  function syncCommentLoadMore(pageData = null) {
+    if (!commentLoadMore) return;
+    if (pageData) {
+      const page = Number(pageData.page) || 0;
+      const totalPages = Math.max(0, Number(pageData.totalPages) || 0);
+      commentNextPage = page + 1;
+      commentHasMore = pageData.last === false && (
+        totalPages === 0 || commentNextPage < totalPages
+      );
     }
+    commentLoadMore.hidden = !commentHasMore;
+    if (commentLoadMore.parentElement) {
+      commentLoadMore.parentElement.hidden = !commentHasMore;
+    }
+    commentLoadMore.disabled = commentPageLoading;
+    commentLoadMore.textContent = commentPageLoading ? "불러오는 중..." : "댓글 더 보기";
+    commentLoadMore.setAttribute("aria-busy", commentPageLoading ? "true" : "false");
+  }
+
+  function renderComments(pageData, options = {}) {
+    const { append = false } = options;
+    const comments = pageData.content || [];
+    const page = Number(pageData.page) || 0;
+
+    commentCount.textContent = String(
+      pageData.totalCommentCount ?? pageData.totalElements ?? 0,
+    );
+
+    if (!append) {
+      closeReplyComposer();
+      closeCommentEditor();
+      commentList.replaceChildren();
+      commentPagesLoaded = 0;
+    }
+
+    if (!comments.length && !append) {
+      commentList.append(
+        element("p", "comment-empty", "첫 댓글을 함께 남겨 보세요."),
+      );
+    } else if (comments.length) {
+      appendCommentThreads(comments);
+    }
+
+    commentPagesLoaded = Math.max(commentPagesLoaded, page + 1);
+    syncCommentLoadMore(pageData);
+  }
+
+  async function fetchCommentPage(page) {
+    const path = `/board/posts/${postId}/comments?page=${page}&size=30`;
+    const cached = readBoardCache(path);
+    if (cached?.fresh) return cached.data || {};
 
     try {
       const payload = await Api.get(path);
       const pageData = payload.data || {};
       writeBoardCache(path, pageData);
-      renderComments(pageData);
+      return pageData;
     } catch (error) {
-      if (!cached) throw error;
+      if (cached) return cached.data || {};
+      throw error;
     }
   }
 
-  async function editComment(comment) {
-    const content = window.prompt("수정할 댓글을 입력해 주세요.", comment.content);
-    if (content === null) return;
-    if (!content.trim()) {
-      showToast(toast, "댓글 내용을 입력해 주세요.", true);
-      return;
-    }
+  async function loadComments(options = {}) {
+    const requestedPages = Math.max(
+      1,
+      Number(options.pages ?? Math.max(commentPagesLoaded, 1)) || 1,
+    );
+    if (commentPageLoading) return;
+
+    commentPageLoading = true;
+    commentHasMore = false;
+    syncCommentLoadMore();
     try {
-      const payload = await Api.put(`/board/comments/${comment.commentId}`, {
-        content: content.trim(),
-      });
-      invalidateBoardCache();
-      showToast(toast, payload.message);
-      await loadComments();
+      for (let page = 0; page < requestedPages; page += 1) {
+        const pageData = await fetchCommentPage(page);
+        renderComments(pageData, { append: page > 0 });
+        if (pageData.last !== false) break;
+      }
+    } finally {
+      commentPageLoading = false;
+      syncCommentLoadMore();
+    }
+  }
+
+  async function loadMoreComments() {
+    if (commentPageLoading || !commentHasMore) return;
+    const page = commentNextPage;
+    commentPageLoading = true;
+    syncCommentLoadMore();
+    try {
+      const pageData = await fetchCommentPage(page);
+      renderComments(pageData, { append: true });
     } catch (error) {
       showToast(toast, error.message, true);
+    } finally {
+      commentPageLoading = false;
+      syncCommentLoadMore();
     }
+  }
+
+  function editComment(comment, item) {
+    if (!item) return;
+    closeReplyComposer();
+    closeCommentEditor();
+
+    const contentNode = item.querySelector(":scope > .comment-content");
+    const actionsNode = item.querySelector(":scope > .comment-actions");
+    const dateNode = item.querySelector(":scope > .comment-top .comment-date");
+    if (!contentNode || !actionsNode) return;
+
+    const form = element("form", "comment-edit-form");
+    const textarea = document.createElement("textarea");
+    const inputId = `comment-edit-${comment.commentId}`;
+    textarea.id = inputId;
+    textarea.className = "comment-edit-textarea";
+    textarea.maxLength = 1000;
+    textarea.rows = 3;
+    textarea.value = comment.content || "";
+    textarea.setAttribute("aria-label", "댓글 수정 내용");
+
+    const inputMeta = element("div", "comment-input-meta comment-input-meta--compact");
+    inputMeta.append(element("span", "", "Enter로 수정 · Shift + Enter로 줄바꿈"));
+    const characterCount = element("span", "comment-character-count");
+    inputMeta.append(characterCount);
+    updateCharacterCount(textarea, characterCount);
+
+    const actions = element("div", "comment-edit-actions");
+    const cancel = element("button", "button button-sm button-secondary", "취소");
+    cancel.type = "button";
+    const save = element("button", "button button-sm button-primary", "수정 완료");
+    save.type = "submit";
+    actions.append(cancel, save);
+    form.append(textarea, inputMeta, actions);
+
+    const syncEditState = () => {
+      const value = textarea.value.trim();
+      const original = String(comment.content || "").trim();
+      save.disabled = !value || value === original;
+      updateCharacterCount(textarea, characterCount);
+    };
+
+    contentNode.hidden = true;
+    actionsNode.hidden = true;
+    contentNode.after(form);
+    activeCommentEditForm = form;
+    syncEditState();
+
+    form.addEventListener("click", (event) => event.stopPropagation());
+    cancel.addEventListener("click", closeCommentEditor);
+    textarea.addEventListener("input", syncEditState);
+    textarea.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        closeCommentEditor();
+        return;
+      }
+      if (!isCommentSubmitEnter(event)) return;
+      event.preventDefault();
+      if (save.disabled) return;
+      form.requestSubmit();
+    });
+
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const content = textarea.value.trim();
+      if (!content) {
+        showToast(toast, "댓글 내용을 입력해 주세요.", true);
+        return;
+      }
+      if (content === String(comment.content || "").trim()) {
+        closeCommentEditor();
+        return;
+      }
+
+      save.disabled = true;
+      cancel.disabled = true;
+      textarea.disabled = true;
+      try {
+        const payload = await Api.put(`/board/comments/${comment.commentId}`, { content });
+        invalidateBoardCache();
+        const updated = payload.data || {};
+        Object.assign(comment, updated, {
+          content: updated.content ?? content,
+          edited: updated.edited ?? true,
+        });
+        contentNode.textContent = comment.content;
+        if (dateNode) {
+          dateNode.textContent = `${formatDate(comment.createdAt)} · 수정됨`;
+        }
+        closeCommentEditor();
+        showToast(toast, payload.message || "댓글이 수정되었습니다.");
+      } catch (error) {
+        showToast(toast, error.message, true);
+        save.disabled = false;
+        cancel.disabled = false;
+        textarea.disabled = false;
+        syncEditState();
+      }
+    });
+
+    textarea.focus();
+    textarea.setSelectionRange(textarea.value.length, textarea.value.length);
   }
 
   async function deleteComment(comment, hasReplies = false) {
-    const message = hasReplies
-      ? "댓글을 삭제하면 연결된 답글도 함께 삭제됩니다. 삭제하시겠습니까?"
-      : "댓글을 삭제하시겠습니까?";
-    if (!window.confirm(message)) return;
+    const confirmed = await confirmBoardAction({
+      title: "댓글을 삭제할까요?",
+      message: hasReplies
+        ? "이 댓글에 달린 답글도 함께 삭제되며, 삭제한 내용은 되돌릴 수 없습니다."
+        : "삭제한 댓글은 되돌릴 수 없습니다.",
+      confirmLabel: "댓글 삭제",
+    });
+    if (!confirmed) return;
+
     try {
       const payload = await Api.delete(`/board/comments/${comment.commentId}`);
       invalidateBoardCache();
@@ -1621,6 +1883,13 @@
   commentImageRemove?.addEventListener("click", () => {
     clearCommentImageSelection();
   });
+
+  updateCharacterCount(commentContent, commentCharacterCount);
+  commentContent.addEventListener("input", () => {
+    updateCharacterCount(commentContent, commentCharacterCount);
+  });
+
+  commentLoadMore?.addEventListener("click", loadMoreComments);
 
   commentContent.addEventListener("keydown", (event) => {
     if (!isCommentSubmitEnter(event)) return;
@@ -1655,6 +1924,7 @@
 
       invalidateBoardCache();
       commentContent.value = "";
+      updateCharacterCount(commentContent, commentCharacterCount);
       clearCommentImageSelection();
       if (imageUploadError) {
         showToast(
