@@ -1043,7 +1043,7 @@
             <div class="store-news-meta">
               <div class="store-news-meta-copy">
                 <span class="store-news-author" data-news-author-index="${index}">${escapeHtml(news.authorNickname || "-")}</span>
-                <span class="store-news-date">${formatDate(news.createdAt)}</span>
+                <span class="store-news-date">${formatDate(news.createdAt)}${news.edited ? " · 수정됨" : ""} · 조회 ${Number(news.viewCount || 0).toLocaleString("ko-KR")}</span>
               </div>
               ${newsLikeButtonHtml(news)}
             </div>

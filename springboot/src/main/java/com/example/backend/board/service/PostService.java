@@ -1280,6 +1280,8 @@ public class PostService {
                 post.getAuthor().getNickname(),
                 post.getLikeCount(),
                 likedByCurrentUser,
+                post.getViewCount(),
+                post.isEdited(),
                 post.getCreatedAt()
         );
     }
@@ -1950,6 +1952,8 @@ public class PostService {
             String authorNickname,
             long likeCount,
             boolean likedByCurrentUser,
+            long viewCount,
+            boolean edited,
             LocalDateTime createdAt
     ) {
     }
