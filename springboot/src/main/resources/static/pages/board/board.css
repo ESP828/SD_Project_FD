@@ -667,12 +667,30 @@
 }
 
 .comment-action {
-  padding: 0;
+  display: inline-flex;
+  min-height: 34px;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 5px;
   border: 0;
+  border-radius: 7px;
   color: var(--color-muted);
   background: transparent;
   font-size: 0.7rem;
   font-weight: 750;
+  cursor: pointer;
+  transition: color 140ms ease, background-color 140ms ease;
+}
+
+.comment-action:hover,
+.comment-action:focus-visible {
+  color: var(--color-navy);
+  background: #f3f6f8;
+  outline: none;
+}
+
+.comment-action:focus-visible {
+  box-shadow: 0 0 0 2px rgba(255, 152, 0, 0.18);
 }
 
 .editor-heading {
@@ -1167,6 +1185,125 @@
   display: none;
 }
 
+.author-menu:focus {
+  outline: none;
+}
+
+.author-menu-skeleton {
+  display: grid;
+  gap: 11px;
+  min-height: 330px;
+}
+
+.author-menu-skeleton-header {
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr) 54px;
+  align-items: center;
+  gap: 10px;
+  min-height: 42px;
+}
+
+.author-menu-skeleton-avatar,
+.author-menu-skeleton-line,
+.author-menu-skeleton-badge,
+.author-menu-skeleton-dot,
+.author-menu-skeleton-tab,
+.author-menu-skeleton-card,
+.author-menu-skeleton-footer {
+  display: block;
+  background: linear-gradient(90deg, #edf1f4 25%, #f7f9fb 50%, #edf1f4 75%);
+  background-size: 200% 100%;
+  animation: author-menu-skeleton-shimmer 1.35s ease-in-out infinite;
+}
+
+.author-menu-skeleton-avatar {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+}
+
+.author-menu-skeleton-line {
+  height: 10px;
+  border-radius: 999px;
+}
+
+.author-menu-skeleton-line--name {
+  width: 58%;
+}
+
+.author-menu-skeleton-badge {
+  width: 54px;
+  height: 24px;
+  border-radius: 999px;
+}
+
+.author-menu-skeleton-status {
+  display: grid;
+  grid-template-columns: 7px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  min-height: 39px;
+  padding: 9px 10px;
+  border: 1px solid rgba(27, 43, 61, 0.06);
+  border-radius: 11px;
+  background: #f8fafc;
+}
+
+.author-menu-skeleton-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+}
+
+.author-menu-skeleton-line--status {
+  width: 72%;
+}
+
+.author-menu-skeleton-tabs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 3px;
+  padding: 4px;
+  border-radius: 13px;
+  background: #f5f7f9;
+}
+
+.author-menu-skeleton-tab {
+  height: 54px;
+  border-radius: 9px;
+}
+
+.author-menu-skeleton-activity {
+  display: grid;
+  gap: 8px;
+  min-height: 125px;
+}
+
+.author-menu-skeleton-line--title {
+  width: 22%;
+  height: 9px;
+}
+
+.author-menu-skeleton-card {
+  height: 38px;
+  border-radius: 10px;
+}
+
+.author-menu-skeleton-card--short {
+  width: 82%;
+}
+
+.author-menu-skeleton-footer {
+  height: 36px;
+  margin-top: auto;
+  border-radius: 10px;
+}
+
+@keyframes author-menu-skeleton-shimmer {
+  from { background-position: 100% 0; }
+  to { background-position: -100% 0; }
+}
+
 .author-menu-header {
   display: flex;
   align-items: center;
@@ -1354,6 +1491,16 @@
   .author-menu-tab {
     transition: none;
   }
+
+  .author-menu-skeleton-avatar,
+  .author-menu-skeleton-line,
+  .author-menu-skeleton-badge,
+  .author-menu-skeleton-dot,
+  .author-menu-skeleton-tab,
+  .author-menu-skeleton-card,
+  .author-menu-skeleton-footer {
+    animation: none;
+  }
 }
 
 .author-menu-recent-title-row {
@@ -1383,88 +1530,6 @@
 
 .author-menu-review-content {
   font-weight: 650;
-}
-
-.author-menu-context-note {
-  display: grid;
-  gap: 4px;
-  margin-top: 12px;
-  padding: 11px 12px;
-  border: 1px solid rgba(255, 152, 0, 0.25);
-  border-radius: 11px;
-  background: var(--color-orange-soft);
-}
-
-.author-menu-context-title {
-  color: var(--color-navy);
-  font-size: 0.72rem;
-  line-height: 1.45;
-}
-
-.author-menu-context-copy {
-  margin: 0;
-  color: var(--color-muted);
-  font-size: 0.66rem;
-  line-height: 1.5;
-}
-
-.author-menu-group-heading {
-  display: grid;
-  gap: 3px;
-  padding: 14px 0 2px;
-}
-
-.author-menu-group-title {
-  color: var(--color-navy);
-  font-size: 0.78rem;
-}
-
-.author-menu-group-copy {
-  color: var(--color-subtle);
-  font-size: 0.64rem;
-  line-height: 1.45;
-}
-
-.author-menu-news-group {
-  margin-top: 4px;
-  padding-top: 2px;
-  border-top: 2px solid rgba(255, 152, 0, 0.2);
-}
-
-.author-menu-group-heading--news .author-menu-group-title {
-  color: var(--color-orange-dark, #c85d00);
-}
-
-.author-menu-stats--news {
-  padding-top: 8px;
-}
-
-.author-menu-news-group .author-menu-stat {
-  background: rgba(255, 152, 0, 0.08);
-}
-
-.author-menu-stats {
-  display: grid;
-  gap: 8px;
-  padding: 12px 0;
-}
-
-.author-menu-stat {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  min-height: 34px;
-  padding: 0 10px;
-  border-radius: 10px;
-  background: #f7f9fb;
-  color: var(--color-muted);
-  font-size: 0.76rem;
-}
-
-.author-menu-stat strong {
-  color: var(--color-navy);
-  font-size: 0.82rem;
 }
 
 .author-menu-recent {
@@ -1598,7 +1663,6 @@
 }
 
 .author-menu-note,
-.author-menu-loading,
 .author-menu-error {
   margin: 0;
   color: var(--color-subtle);
@@ -1607,13 +1671,58 @@
   text-align: center;
 }
 
-.author-menu-loading,
-.author-menu-error {
-  padding-top: 10px;
-}
-
 .author-menu-error {
   color: #b42318;
+}
+
+
+.author-menu-error-state {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  min-height: 250px;
+  align-content: center;
+  padding: 24px 18px;
+  text-align: center;
+}
+
+.author-menu-error-icon {
+  display: inline-flex;
+  width: 38px;
+  height: 38px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  color: #b42318;
+  background: #fff0ee;
+  font-size: 20px !important;
+}
+
+.author-menu-error-title {
+  color: var(--color-navy);
+  font-size: 0.78rem;
+  font-weight: 850;
+}
+
+.author-menu-retry {
+  min-height: 34px;
+  margin-top: 4px;
+  padding: 6px 12px;
+  border: 1px solid rgba(229, 111, 0, 0.25);
+  border-radius: 9px;
+  color: var(--color-orange-dark);
+  background: var(--color-orange-soft);
+  font: inherit;
+  font-size: 0.7rem;
+  font-weight: 850;
+  cursor: pointer;
+}
+
+.author-menu-retry:hover,
+.author-menu-retry:focus-visible {
+  border-color: rgba(229, 111, 0, 0.45);
+  background: #fff3df;
+  outline: none;
 }
 
 @media (max-width: 480px) {

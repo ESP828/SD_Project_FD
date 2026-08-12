@@ -296,14 +296,19 @@
     }, 700);
   }
 
-  function closeAuthorMenu() {
+  function closeAuthorMenu({ restoreFocus = false } = {}) {
     if (!authorMenu || authorMenu.hidden) return;
+    const returnTarget = activeAuthorTrigger;
     authorMenu.hidden = true;
+    authorMenu.removeAttribute("aria-busy");
     authorMenu.replaceChildren();
-    if (activeAuthorTrigger) {
-      activeAuthorTrigger.setAttribute("aria-expanded", "false");
+    if (returnTarget) {
+      returnTarget.setAttribute("aria-expanded", "false");
     }
     activeAuthorTrigger = null;
+    if (restoreFocus && returnTarget?.isConnected) {
+      returnTarget.focus({ preventScroll: true });
+    }
   }
 
   function ensureAuthorMenu() {
@@ -314,6 +319,7 @@
     authorMenu.hidden = true;
     authorMenu.setAttribute("role", "dialog");
     authorMenu.setAttribute("aria-label", "작성자 프로필");
+    authorMenu.tabIndex = -1;
     document.body.append(authorMenu);
 
     document.addEventListener("click", (event) => {
@@ -323,7 +329,9 @@
       closeAuthorMenu();
     });
     document.addEventListener("keydown", (event) => {
-      if (event.key === "Escape") closeAuthorMenu();
+      if (event.key !== "Escape" || authorMenu.hidden) return;
+      event.preventDefault();
+      closeAuthorMenu({ restoreFocus: true });
     });
     window.addEventListener("resize", closeAuthorMenu);
     window.addEventListener("scroll", (event) => {
@@ -375,10 +383,44 @@
 
   function renderAuthorMenuLoading(author) {
     const menu = ensureAuthorMenu();
-    menu.replaceChildren(
-      element("strong", "author-menu-nickname", author.authorNickname || "작성자"),
-      element("p", "author-menu-loading", "프로필을 불러오는 중입니다."),
+    const skeleton = element("div", "author-menu-skeleton");
+    skeleton.setAttribute("aria-hidden", "true");
+
+    const header = element("div", "author-menu-skeleton-header");
+    header.append(
+      element("span", "author-menu-skeleton-avatar"),
+      element("span", "author-menu-skeleton-line author-menu-skeleton-line--name"),
+      element("span", "author-menu-skeleton-badge"),
     );
+
+    const status = element("div", "author-menu-skeleton-status");
+    status.append(
+      element("span", "author-menu-skeleton-dot"),
+      element("span", "author-menu-skeleton-line author-menu-skeleton-line--status"),
+    );
+
+    const tabs = element("div", "author-menu-skeleton-tabs");
+    for (let index = 0; index < 3; index += 1) {
+      tabs.append(element("span", "author-menu-skeleton-tab"));
+    }
+
+    const activity = element("div", "author-menu-skeleton-activity");
+    activity.append(
+      element("span", "author-menu-skeleton-line author-menu-skeleton-line--title"),
+      element("span", "author-menu-skeleton-card"),
+      element("span", "author-menu-skeleton-card"),
+      element("span", "author-menu-skeleton-card author-menu-skeleton-card--short"),
+    );
+
+    skeleton.append(header, status, tabs, activity, element("span", "author-menu-skeleton-footer"));
+    const liveStatus = element(
+      "p",
+      "sr-only author-menu-loading-status",
+      `${author.authorNickname || "작성자"} 프로필을 불러오는 중입니다.`,
+    );
+    liveStatus.setAttribute("role", "status");
+    liveStatus.setAttribute("aria-live", "polite");
+    menu.replaceChildren(skeleton, liveStatus);
   }
 
   function authorMenuEmptyState(iconName, title, description) {
@@ -507,9 +549,12 @@
   function authorMenuTab(label, count, key, active) {
     const button = element("button", `author-menu-tab${active ? " is-active" : ""}`);
     button.type = "button";
+    button.id = `board-author-menu-tab-${key}`;
     button.dataset.authorActivityTab = key;
     button.setAttribute("role", "tab");
+    button.setAttribute("aria-controls", "board-author-menu-panel");
     button.setAttribute("aria-selected", active ? "true" : "false");
+    button.tabIndex = active ? 0 : -1;
     button.append(
       element("strong", "author-menu-tab-count", String(count || 0)),
       element("span", "author-menu-tab-label", label),
@@ -564,7 +609,9 @@
     });
 
     const activityPanel = element("div", "author-menu-activity-panel");
+    activityPanel.id = "board-author-menu-panel";
     activityPanel.setAttribute("role", "tabpanel");
+    activityPanel.setAttribute("aria-labelledby", "board-author-menu-tab-posts");
     const sections = {
       posts: authorMenuRecentPostSection(summary.recentPosts),
       comments: authorMenuRecentCommentSection(summary.recentComments),
@@ -655,17 +702,42 @@
       enterAnimation.cancel();
     }
 
-    tabs.addEventListener("click", (event) => {
-      const button = event.target.closest("[data-author-activity-tab]");
+    function activateAuthorMenuTab(button, { moveFocus = false } = {}) {
       if (!button || !tabs.contains(button)) return;
       const key = button.dataset.authorActivityTab;
-      if (!sections[key] || activityPanel.dataset.activeAuthorActivityTab === key) return;
+      if (!sections[key]) return;
+
       tabs.querySelectorAll("[data-author-activity-tab]").forEach((tab) => {
         const active = tab === button;
         tab.classList.toggle("is-active", active);
         tab.setAttribute("aria-selected", active ? "true" : "false");
+        tab.tabIndex = active ? 0 : -1;
       });
+      activityPanel.setAttribute("aria-labelledby", button.id);
+      if (moveFocus) button.focus({ preventScroll: true });
       switchAuthorActivityPanel(key);
+    }
+
+    tabs.addEventListener("click", (event) => {
+      const button = event.target.closest("[data-author-activity-tab]");
+      activateAuthorMenuTab(button);
+    });
+
+    tabs.addEventListener("keydown", (event) => {
+      const current = event.target.closest("[data-author-activity-tab]");
+      if (!current || !tabs.contains(current)) return;
+      const buttons = [...tabs.querySelectorAll("[data-author-activity-tab]")];
+      const currentIndex = buttons.indexOf(current);
+      let nextIndex = currentIndex;
+
+      if (event.key === "ArrowRight") nextIndex = (currentIndex + 1) % buttons.length;
+      else if (event.key === "ArrowLeft") nextIndex = (currentIndex - 1 + buttons.length) % buttons.length;
+      else if (event.key === "Home") nextIndex = 0;
+      else if (event.key === "End") nextIndex = buttons.length - 1;
+      else return;
+
+      event.preventDefault();
+      activateAuthorMenuTab(buttons[nextIndex], { moveFocus: true });
     });
 
     const footer = element("div", "author-menu-footer");
@@ -692,12 +764,50 @@
     stabilizeAuthorActivityPanelHeight();
   }
 
-  function renderAuthorMenuError(message) {
+  function renderAuthorMenuError(message, onRetry) {
     const menu = ensureAuthorMenu();
-    menu.replaceChildren(
-      element("strong", "author-menu-nickname", "작성자 프로필"),
-      element("p", "author-menu-error", message || "프로필 정보를 불러오지 못했습니다."),
+    const error = element("div", "author-menu-error-state");
+    const errorIcon = icon("error");
+    errorIcon.classList.add("author-menu-error-icon");
+    error.append(
+      errorIcon,
+      element("strong", "author-menu-error-title", "프로필을 불러오지 못했습니다"),
+      element("p", "author-menu-error", message || "잠시 후 다시 시도해 주세요."),
     );
+    if (typeof onRetry === "function") {
+      const retry = element("button", "author-menu-retry", "다시 시도");
+      retry.type = "button";
+      retry.addEventListener("click", onRetry);
+      error.append(retry);
+    }
+    menu.replaceChildren(error);
+  }
+
+  async function loadAuthorMenuSummary(author, trigger, context = "COMMUNITY") {
+    const menu = ensureAuthorMenu();
+    menu.setAttribute("aria-busy", "true");
+    renderAuthorMenuLoading(author);
+    positionAuthorMenu(trigger);
+
+    const accountId = Number(author.authorAccountId);
+    try {
+      const payload = await Api.get(
+        `/board/posts/authors/${encodeURIComponent(accountId)}/summary`,
+      );
+      const summary = payload.data;
+      if (activeAuthorTrigger !== trigger || menu.hidden) return;
+      renderAuthorMenuSummary(summary);
+      menu.setAttribute("aria-busy", "false");
+      positionAuthorMenu(trigger);
+    } catch (error) {
+      if (activeAuthorTrigger !== trigger || menu.hidden) return;
+      menu.setAttribute("aria-busy", "false");
+      renderAuthorMenuError(error.message, () => {
+        if (activeAuthorTrigger !== trigger || menu.hidden) return;
+        loadAuthorMenuSummary(author, trigger, context);
+      });
+      positionAuthorMenu(trigger);
+    }
   }
 
   async function openAuthorMenu(author, trigger, event, context = "COMMUNITY") {
@@ -721,21 +831,12 @@
     renderAuthorMenuLoading(author);
     menu.hidden = false;
     positionAuthorMenu(trigger);
-
-    const accountId = Number(author.authorAccountId);
-    try {
-      const payload = await Api.get(
-        `/board/posts/authors/${encodeURIComponent(accountId)}/summary`,
-      );
-      const summary = payload.data;
-      if (activeAuthorTrigger !== trigger || menu.hidden) return;
-      renderAuthorMenuSummary(summary);
-      positionAuthorMenu(trigger);
-    } catch (error) {
-      if (activeAuthorTrigger !== trigger || menu.hidden) return;
-      renderAuthorMenuError(error.message);
-      positionAuthorMenu(trigger);
-    }
+    requestAnimationFrame(() => {
+      if (!menu.hidden && activeAuthorTrigger === trigger) {
+        menu.focus({ preventScroll: true });
+      }
+    });
+    await loadAuthorMenuSummary(author, trigger, context);
   }
 
   function enableAuthorMenu(trigger, author, context = "COMMUNITY") {

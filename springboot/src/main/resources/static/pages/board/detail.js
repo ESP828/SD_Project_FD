@@ -36,6 +36,7 @@
   const commentLoginNote = document.getElementById("comment-login-note");
   const commentList = document.getElementById("comment-list");
   const commentLoadMore = document.getElementById("comment-load-more");
+  const commentLoadStatus = document.getElementById("comment-load-status");
   const commentCharacterCount = document.getElementById("comment-character-count");
   const commentImageInput = document.getElementById("comment-image-input");
   const commentImageSelect = document.getElementById("comment-image-select");
@@ -87,7 +88,13 @@
     counter.classList.toggle("is-near-limit", length >= Math.floor(maxLength * 0.8));
   }
 
-  function confirmBoardAction({ title, message, confirmLabel = "삭제", danger = true }) {
+  function confirmBoardAction({
+    title,
+    message,
+    confirmLabel = "삭제",
+    danger = true,
+    iconName = danger ? "delete" : "edit_note",
+  }) {
     return new Promise((resolve) => {
       const dialog = document.createElement("dialog");
       dialog.className = "board-dialog comment-confirm-dialog";
@@ -95,7 +102,7 @@
       const shell = element("div", "dialog-shell comment-confirm-shell");
       const heading = element("div", "comment-confirm-heading");
       const iconWrap = element("span", "comment-confirm-icon");
-      const warningIcon = element("span", "material-symbols-rounded", "delete");
+      const warningIcon = element("span", "material-symbols-rounded", iconName);
       warningIcon.setAttribute("aria-hidden", "true");
       iconWrap.append(warningIcon);
       const copy = element("div", "comment-confirm-copy");
@@ -380,6 +387,7 @@
   let activeReplyForm = null;
   let activeReplyPreviewUrl = null;
   let activeCommentEditForm = null;
+  let replyDiscardPromptOpen = false;
   let commentPagesLoaded = 0;
   let commentNextPage = 0;
   let commentHasMore = false;
@@ -1301,6 +1309,16 @@
     }
   }
 
+  function replyComposerHasDraft(form = activeReplyForm) {
+    if (!form) return false;
+    const textarea = form.querySelector(".comment-reply-textarea");
+    const initialValue = form.dataset.initialValue || "";
+    const hasText = Boolean(textarea && textarea.value.trim() !== initialValue.trim());
+    const preview = form.querySelector(".comment-image-preview");
+    const hasImage = Boolean(preview && !preview.hidden);
+    return hasText || hasImage;
+  }
+
   function closeReplyComposer() {
     if (activeReplyPreviewUrl) {
       URL.revokeObjectURL(activeReplyPreviewUrl);
@@ -1308,6 +1326,36 @@
     }
     activeReplyForm?.remove();
     activeReplyForm = null;
+  }
+
+  async function confirmReplyComposerDiscard(nextCommentId) {
+    if (!activeReplyForm) return true;
+    if (String(activeReplyForm.dataset.replyCommentId || "") === String(nextCommentId || "")) {
+      activeReplyForm.querySelector(".comment-reply-textarea")?.focus({ preventScroll: true });
+      return false;
+    }
+    if (!replyComposerHasDraft(activeReplyForm)) {
+      closeReplyComposer();
+      return true;
+    }
+    if (replyDiscardPromptOpen) return false;
+
+    const currentForm = activeReplyForm;
+    replyDiscardPromptOpen = true;
+    try {
+      const discard = await confirmBoardAction({
+        title: "작성 중인 답글을 버릴까요?",
+        message: "입력한 내용과 첨부한 사진은 저장되지 않습니다.",
+        confirmLabel: "내용 버리기",
+        danger: false,
+        iconName: "edit_note",
+      });
+      if (!discard || activeReplyForm !== currentForm) return false;
+      closeReplyComposer();
+      return true;
+    } finally {
+      replyDiscardPromptOpen = false;
+    }
   }
 
   function closeCommentEditor() {
@@ -1383,16 +1431,17 @@
     return null;
   }
 
-  function openReplyComposer(comment, mountTarget) {
+  async function openReplyComposer(comment, mountTarget) {
     if (!board.requireLogin(window.location.pathname + window.location.search)) return;
     closeCommentEditor();
-    closeReplyComposer();
+    if (!(await confirmReplyComposerDiscard(comment.commentId))) return;
 
     const rootParentId = comment.parentCommentId || comment.commentId;
     const targetName = replyTargetName(comment);
     let selectedReplyImage = null;
 
     const form = element("form", "comment-reply-form");
+    form.dataset.replyCommentId = String(comment.commentId);
     const label = element(
       "div",
       "comment-reply-target",
@@ -1404,6 +1453,7 @@
     textarea.rows = 3;
     textarea.setAttribute("aria-label", `${targetName}님에게 답글`);
     textarea.value = `@${targetName} `;
+    form.dataset.initialValue = textarea.value;
 
     const inputMeta = element("div", "comment-input-meta comment-input-meta--compact");
     inputMeta.append(element("span", "", "Enter로 등록 · Shift + Enter로 줄바꿈"));
@@ -1735,11 +1785,18 @@
   async function loadMoreComments() {
     if (commentPageLoading || !commentHasMore) return;
     const page = commentNextPage;
+    if (commentLoadStatus) commentLoadStatus.textContent = "";
     commentPageLoading = true;
     syncCommentLoadMore();
     try {
       const pageData = await fetchCommentPage(page);
       renderComments(pageData, { append: true });
+      if (commentLoadStatus) {
+        const loadedCount = Array.isArray(pageData.content) ? pageData.content.length : 0;
+        commentLoadStatus.textContent = loadedCount > 0
+          ? `댓글 ${loadedCount}개를 더 불러왔습니다.`
+          : "더 불러올 댓글이 없습니다.";
+      }
     } catch (error) {
       showToast(toast, error.message, true);
     } finally {
