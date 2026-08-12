@@ -68,6 +68,15 @@
     return item?.edited === true;
   }
 
+  function isCommentSubmitEnter(event) {
+    return (
+      event.key === "Enter" &&
+      !event.shiftKey &&
+      !event.isComposing &&
+      event.keyCode !== 229
+    );
+  }
+
   function isNewsPost(post = state.post) {
     return post?.category === "NEWS";
   }
@@ -1372,6 +1381,12 @@
     removeImage.addEventListener("click", clearReplyImage);
     cancel.addEventListener("click", closeReplyComposer);
     textarea.addEventListener("input", syncReplySubmitState);
+    textarea.addEventListener("keydown", (event) => {
+      if (!isCommentSubmitEnter(event)) return;
+      event.preventDefault();
+      if (submit.disabled || !hasReplyBody(textarea.value, targetName)) return;
+      form.requestSubmit();
+    });
 
     form.addEventListener("submit", async (event) => {
       event.preventDefault();
@@ -1605,6 +1620,13 @@
 
   commentImageRemove?.addEventListener("click", () => {
     clearCommentImageSelection();
+  });
+
+  commentContent.addEventListener("keydown", (event) => {
+    if (!isCommentSubmitEnter(event)) return;
+    event.preventDefault();
+    if (commentSubmitButton?.disabled || !commentContent.value.trim()) return;
+    commentForm.requestSubmit();
   });
 
   commentForm.addEventListener("submit", async (event) => {
