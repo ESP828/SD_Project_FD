@@ -13,6 +13,7 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.sql.Types;
+import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -56,6 +57,96 @@ public class BoardReferenceQueryRepository {
                 Integer.class
         );
         return count != null && count > 0;
+    }
+
+    public long countActiveReviewsByAuthor(Long accountId) {
+        Long count = jdbcTemplate.queryForObject(
+                """
+                select count(*)
+                  from review
+                 where account_id = :accountId
+                   and status = 'ACTIVE'
+                """,
+                Map.of("accountId", accountId),
+                Long.class
+        );
+        return count == null ? 0L : count;
+    }
+
+    public List<AuthorReviewReference> findRecentActiveReviewsByAuthor(
+            Long accountId,
+            int limit
+    ) {
+        return jdbcTemplate.query(
+                """
+                select r.review_id,
+                       case
+                           when r.public_restaurant_id is not null then 'public'
+                           else 'owned'
+                       end as restaurant_source,
+                       coalesce(r.public_restaurant_id, r.restaurant_id) as store_id,
+                       coalesce(pr.name, rt.name, '가게 정보 없음') as restaurant_name,
+                       r.rating,
+                       r.content,
+                       r.created_at
+                  from review r
+                  left join restaurant rt
+                    on rt.restaurant_id = r.restaurant_id
+                  left join public_restaurant pr
+                    on pr.public_restaurant_id = r.public_restaurant_id
+                 where r.account_id = :accountId
+                   and r.status = 'ACTIVE'
+                 order by r.created_at desc, r.review_id desc
+                 limit :limit
+                """,
+                new MapSqlParameterSource()
+                        .addValue("accountId", accountId)
+                        .addValue("limit", limit),
+                (resultSet, rowNumber) -> new AuthorReviewReference(
+                        resultSet.getLong("review_id"),
+                        resultSet.getString("restaurant_source"),
+                        resultSet.getLong("store_id"),
+                        resultSet.getString("restaurant_name"),
+                        resultSet.getByte("rating"),
+                        resultSet.getString("content"),
+                        resultSet.getObject("created_at", LocalDateTime.class)
+                )
+        );
+    }
+
+    public LocalDateTime findLastPublicActivityAt(
+            Long accountId,
+            boolean canReadBusiness
+    ) {
+        return jdbcTemplate.queryForObject(
+                """
+                select max(activity_at)
+                  from (
+                        select max(p.created_at) as activity_at
+                          from post p
+                         where p.account_id = :accountId
+                           and p.status = 'ACTIVE'
+                           and (:canReadBusiness = 1 or p.board_type = 'GENERAL')
+                        union all
+                        select max(c.created_at) as activity_at
+                          from post_comment c
+                          join post p on p.post_id = c.post_id
+                         where c.account_id = :accountId
+                           and c.status = 'ACTIVE'
+                           and p.status = 'ACTIVE'
+                           and (:canReadBusiness = 1 or p.board_type = 'GENERAL')
+                        union all
+                        select max(r.created_at) as activity_at
+                          from review r
+                         where r.account_id = :accountId
+                           and r.status = 'ACTIVE'
+                       ) public_activity
+                """,
+                new MapSqlParameterSource()
+                        .addValue("accountId", accountId)
+                        .addValue("canReadBusiness", canReadBusiness ? 1 : 0),
+                LocalDateTime.class
+        );
     }
 
     public boolean hasBusinessProfile(Long accountId) {
@@ -629,6 +720,17 @@ public class BoardReferenceQueryRepository {
         }
     }
 
+
+    public record AuthorReviewReference(
+            Long reviewId,
+            String restaurantSource,
+            Long storeId,
+            String restaurantName,
+            byte rating,
+            String content,
+            LocalDateTime createdAt
+    ) {
+    }
 
     public record PostMediaReference(
             Long postMediaId,

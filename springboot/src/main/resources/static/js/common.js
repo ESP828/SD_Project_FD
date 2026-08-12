@@ -167,13 +167,43 @@
       "M4 5h16v11H9l-5 4V5z",
     ],
     add: ["M12 5v14", "M5 12h14"],
+    error: [
+      "M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20z",
+      "M12 7v6",
+      "M12 17h.01",
+    ],
+    movie: [
+      "M3 5h18v14H3z",
+      "M3 9h18",
+      "M7 5l2 4",
+      "M13 5l2 4",
+      "M17 5l2 4",
+    ],
+    store: [
+      "M4 10h16v10H4z",
+      "M3 10l2-6h14l2 6",
+      "M8 20v-6h5v6",
+      "M4 10c0 1.1.9 2 2 2s2-.9 2-2c0 1.1.9 2 2 2s2-.9 2-2c0 1.1.9 2 2 2s2-.9 2-2c0 1.1.9 2 2 2s2-.9 2-2",
+    ],
+    campaign: [
+      "M4 10v4",
+      "M7 9h4l7-4v14l-7-4H7z",
+      "M7 15l1.5 5h3L10 15",
+      "M20 9v6",
+    ],
   };
 
   function setIcon(element, iconName) {
-    const paths = ICON_PATHS[iconName];
-    if (!element || !paths) {
+    if (!element) {
       return;
     }
+    const paths = ICON_PATHS[iconName];
+    if (!paths) {
+      element.dataset.iconError = iconName || "unknown";
+      console.warn(`[FooduckIcons] 등록되지 않은 아이콘: ${iconName}`);
+      return;
+    }
+    delete element.dataset.iconError;
     const svg = document.createElementNS(SVG_NAMESPACE, "svg");
     svg.setAttribute("viewBox", "0 0 24 24");
     svg.setAttribute("aria-hidden", "true");

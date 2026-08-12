@@ -261,13 +261,11 @@ public class PostController {
     public ApiResponse<PostService.AuthorSummaryResponse> getAuthorSummary(
             @PathVariable Long authorAccountId,
             @RequestParam(required = false) Long excludePostId,
-            @RequestParam(defaultValue = "false") boolean includeNewsActivity,
             Authentication authentication
     ) {
         return ApiResponse.success(postService.getAuthorSummary(
                 authorAccountId,
                 excludePostId,
-                includeNewsActivity,
                 BoardAuthentication.accountId(authentication)
         ));
     }

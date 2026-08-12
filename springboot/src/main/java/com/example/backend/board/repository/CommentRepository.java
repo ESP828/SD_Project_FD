@@ -26,7 +26,6 @@ public interface CommentRepository extends JpaRepository<Comment, Long> {
               and c.status = :commentStatus
               and c.post.status = :postStatus
               and (:boardType is null or c.post.boardType = :boardType)
-              and c.post.category <> com.example.backend.board.domain.type.PostCategory.NEWS
             """)
     long countActiveCommentsByAuthor(
             @Param("accountId") Long accountId,
@@ -44,7 +43,6 @@ public interface CommentRepository extends JpaRepository<Comment, Long> {
               and p.status = :postStatus
               and (:boardType is null or p.boardType = :boardType)
               and (:excludedPostId is null or p.postId <> :excludedPostId)
-              and p.category <> com.example.backend.board.domain.type.PostCategory.NEWS
             order by c.createdAt desc, c.commentId desc
             """)
     List<Comment> findRecentActiveCommentsByAuthor(
@@ -52,39 +50,6 @@ public interface CommentRepository extends JpaRepository<Comment, Long> {
             @Param("commentStatus") CommentStatus commentStatus,
             @Param("postStatus") PostStatus postStatus,
             @Param("boardType") BoardType boardType,
-            @Param("excludedPostId") Long excludedPostId,
-            Pageable pageable
-    );
-
-    @Query("""
-            select count(c)
-            from Comment c
-            where c.author.accountId = :accountId
-              and c.status = :commentStatus
-              and c.post.status = :postStatus
-              and c.post.category = com.example.backend.board.domain.type.PostCategory.NEWS
-            """)
-    long countActiveNewsCommentsByAuthor(
-            @Param("accountId") Long accountId,
-            @Param("commentStatus") CommentStatus commentStatus,
-            @Param("postStatus") PostStatus postStatus
-    );
-
-    @Query("""
-            select c
-            from Comment c
-            join fetch c.post p
-            where c.author.accountId = :accountId
-              and c.status = :commentStatus
-              and p.status = :postStatus
-              and p.category = com.example.backend.board.domain.type.PostCategory.NEWS
-              and (:excludedPostId is null or p.postId <> :excludedPostId)
-            order by c.createdAt desc, c.commentId desc
-            """)
-    List<Comment> findRecentActiveNewsCommentsByAuthor(
-            @Param("accountId") Long accountId,
-            @Param("commentStatus") CommentStatus commentStatus,
-            @Param("postStatus") PostStatus postStatus,
             @Param("excludedPostId") Long excludedPostId,
             Pageable pageable
     );

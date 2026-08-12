@@ -21,6 +21,13 @@
   let authorMenu = null;
   let activeAuthorTrigger = null;
   let businessAccessPromise = null;
+  let authorActivityHint = null;
+  let authorActivityHintTarget = null;
+  let authorActivityHintShownInSession = false;
+  let authorActivityHintTimer = null;
+  let authorActivityTooltip = null;
+  let authorActivityTooltipTarget = null;
+  const AUTHOR_ACTIVITY_HINT_KEY = "fooduck:author-profile-hint:v1";
 
   function cacheScope() {
     const session = window.FooduckSession;
@@ -173,14 +180,135 @@
     return `post-role post-role--${normalized}`;
   }
 
-  function closeAuthorMenu() {
+  function hasSeenAuthorActivityHint() {
+    if (authorActivityHintShownInSession) return true;
+    try {
+      return window.localStorage.getItem(AUTHOR_ACTIVITY_HINT_KEY) === "1";
+    } catch (_error) {
+      return false;
+    }
+  }
+
+  function markAuthorActivityHintSeen() {
+    authorActivityHintShownInSession = true;
+    try {
+      window.localStorage.setItem(AUTHOR_ACTIVITY_HINT_KEY, "1");
+    } catch (_error) {
+      // localStorage를 사용할 수 없는 환경에서는 현재 페이지 세션에서만 다시 표시하지 않는다.
+    }
+  }
+
+  function closeAuthorActivityHint() {
+    if (authorActivityHintTimer) {
+      window.clearTimeout(authorActivityHintTimer);
+      authorActivityHintTimer = null;
+    }
+    if (authorActivityHintTarget) {
+      authorActivityHintTarget.classList.remove("is-onboarding-target");
+      authorActivityHintTarget = null;
+    }
+    if (!authorActivityHint) return;
+    authorActivityHint.remove();
+    authorActivityHint = null;
+  }
+
+  function positionFloatingPanel(panel, trigger, gap = 10) {
+    if (!panel || !trigger?.isConnected) return null;
+    const rect = trigger.getBoundingClientRect();
+    const panelRect = panel.getBoundingClientRect();
+    const viewportPadding = 12;
+    const canPlaceBelow = rect.bottom + gap + panelRect.height <= window.innerHeight - viewportPadding;
+    const top = canPlaceBelow
+      ? rect.bottom + gap
+      : Math.max(viewportPadding, rect.top - panelRect.height - gap);
+    const left = Math.min(
+      Math.max(viewportPadding, rect.left + rect.width / 2 - panelRect.width / 2),
+      window.innerWidth - panelRect.width - viewportPadding,
+    );
+    panel.dataset.placement = canPlaceBelow ? "below" : "above";
+    panel.style.top = `${top}px`;
+    panel.style.left = `${left}px`;
+    return canPlaceBelow ? "below" : "above";
+  }
+
+  function positionAuthorActivityHint(trigger) {
+    positionFloatingPanel(authorActivityHint, trigger, 10);
+  }
+
+  function closeAuthorActivityTooltip() {
+    if (authorActivityTooltip) {
+      authorActivityTooltip.remove();
+      authorActivityTooltip = null;
+    }
+    authorActivityTooltipTarget = null;
+  }
+
+  function showAuthorActivityTooltip(trigger) {
+    if (!trigger?.isConnected || authorActivityHint) return;
+    const message = trigger.dataset.authorActivityTooltip;
+    if (!message) return;
+    closeAuthorActivityTooltip();
+    const tooltip = element("div", "author-activity-tooltip", message);
+    tooltip.setAttribute("role", "tooltip");
+    document.body.append(tooltip);
+    authorActivityTooltip = tooltip;
+    authorActivityTooltipTarget = trigger;
+    positionFloatingPanel(tooltip, trigger, 8);
+  }
+
+  function maybeShowAuthorActivityHint(trigger) {
+    window.setTimeout(() => {
+      if (hasSeenAuthorActivityHint() || authorActivityHint || !trigger?.isConnected) return;
+      const rect = trigger.getBoundingClientRect();
+      const visible = rect.width > 0
+        && rect.height > 0
+        && rect.bottom >= 0
+        && rect.top <= window.innerHeight;
+      if (!visible) return;
+
+      closeAuthorActivityTooltip();
+      const hint = element("aside", "author-activity-onboarding");
+      hint.setAttribute("role", "status");
+      hint.setAttribute("aria-live", "polite");
+      const copy = element("div", "author-activity-onboarding-copy");
+      copy.append(
+        element("strong", "author-activity-onboarding-title", "작성자 프로필을 확인해보세요"),
+        element("span", "author-activity-onboarding-text", "닉네임이나 프로필 버튼을 눌러 글 · 댓글 · 리뷰를 볼 수 있어요."),
+      );
+      const close = element("button", "author-activity-onboarding-close", "×");
+      close.type = "button";
+      close.setAttribute("aria-label", "작성자 프로필 안내 닫기");
+      close.addEventListener("click", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        closeAuthorActivityHint();
+      });
+      hint.append(copy, close);
+      document.body.append(hint);
+      authorActivityHint = hint;
+      authorActivityHintTarget = trigger;
+      trigger.classList.add("is-onboarding-target");
+      markAuthorActivityHintSeen();
+      positionAuthorActivityHint(trigger);
+      window.addEventListener("resize", closeAuthorActivityHint, { once: true });
+      window.addEventListener("scroll", closeAuthorActivityHint, { once: true, capture: true });
+      authorActivityHintTimer = window.setTimeout(closeAuthorActivityHint, 7_000);
+    }, 700);
+  }
+
+  function closeAuthorMenu({ restoreFocus = false } = {}) {
     if (!authorMenu || authorMenu.hidden) return;
+    const returnTarget = activeAuthorTrigger;
     authorMenu.hidden = true;
+    authorMenu.removeAttribute("aria-busy");
     authorMenu.replaceChildren();
-    if (activeAuthorTrigger) {
-      activeAuthorTrigger.setAttribute("aria-expanded", "false");
+    if (returnTarget) {
+      returnTarget.setAttribute("aria-expanded", "false");
     }
     activeAuthorTrigger = null;
+    if (restoreFocus && returnTarget?.isConnected) {
+      returnTarget.focus({ preventScroll: true });
+    }
   }
 
   function ensureAuthorMenu() {
@@ -190,7 +318,8 @@
     authorMenu.id = "board-author-menu";
     authorMenu.hidden = true;
     authorMenu.setAttribute("role", "dialog");
-    authorMenu.setAttribute("aria-label", "작성자 활동 메뉴");
+    authorMenu.setAttribute("aria-label", "작성자 프로필");
+    authorMenu.tabIndex = -1;
     document.body.append(authorMenu);
 
     document.addEventListener("click", (event) => {
@@ -200,7 +329,9 @@
       closeAuthorMenu();
     });
     document.addEventListener("keydown", (event) => {
-      if (event.key === "Escape") closeAuthorMenu();
+      if (event.key !== "Escape" || authorMenu.hidden) return;
+      event.preventDefault();
+      closeAuthorMenu({ restoreFocus: true });
     });
     window.addEventListener("resize", closeAuthorMenu);
     window.addEventListener("scroll", (event) => {
@@ -231,43 +362,89 @@
     authorMenu.style.left = `${left}px`;
   }
 
-  function authorMenuStat(label, count) {
-    const item = element("div", "author-menu-stat");
-    item.append(
-      element("span", "", label),
-      element("strong", "", String(count || 0)),
-    );
-    return item;
+  function authorActivityType(post) {
+    if (post?.category === "NEWS") return "소식";
+    if (post?.boardType === "BUSINESS") return "사업자";
+    return "일반";
   }
 
-  function renderAuthorMenuLoading(author, context = "COMMUNITY") {
+  function authorActivityMeta(post) {
+    const type = authorActivityType(post);
+    if (post?.category === "NEWS") {
+      return `${type} · ${formatDate(post.createdAt)}`;
+    }
+    return `${type} · ${categoryLabel(post?.category)} · ${formatDate(post?.createdAt)}`;
+  }
+
+  function authorPostDetailHref(post) {
+    const path = detailPath(post.postId);
+    return post?.category === "NEWS" ? `${path}&from=NEWS` : path;
+  }
+
+  function renderAuthorMenuLoading(author) {
     const menu = ensureAuthorMenu();
-    menu.replaceChildren(
-      element("strong", "author-menu-nickname", author.authorNickname || "작성자"),
-      element(
-        "p",
-        "author-menu-loading",
-        context === "NEWS"
-          ? "커뮤니티와 가게 소식 활동을 불러오는 중입니다."
-          : "활동 정보를 불러오는 중입니다.",
-      ),
+    const skeleton = element("div", "author-menu-skeleton");
+    skeleton.setAttribute("aria-hidden", "true");
+
+    const header = element("div", "author-menu-skeleton-header");
+    header.append(
+      element("span", "author-menu-skeleton-avatar"),
+      element("span", "author-menu-skeleton-line author-menu-skeleton-line--name"),
+      element("span", "author-menu-skeleton-badge"),
     );
+
+    const status = element("div", "author-menu-skeleton-status");
+    status.append(
+      element("span", "author-menu-skeleton-dot"),
+      element("span", "author-menu-skeleton-line author-menu-skeleton-line--status"),
+    );
+
+    const tabs = element("div", "author-menu-skeleton-tabs");
+    for (let index = 0; index < 3; index += 1) {
+      tabs.append(element("span", "author-menu-skeleton-tab"));
+    }
+
+    const activity = element("div", "author-menu-skeleton-activity");
+    activity.append(
+      element("span", "author-menu-skeleton-line author-menu-skeleton-line--title"),
+      element("span", "author-menu-skeleton-card"),
+      element("span", "author-menu-skeleton-card"),
+      element("span", "author-menu-skeleton-card author-menu-skeleton-card--short"),
+    );
+
+    skeleton.append(header, status, tabs, activity, element("span", "author-menu-skeleton-footer"));
+    const liveStatus = element(
+      "p",
+      "sr-only author-menu-loading-status",
+      `${author.authorNickname || "작성자"} 프로필을 불러오는 중입니다.`,
+    );
+    liveStatus.setAttribute("role", "status");
+    liveStatus.setAttribute("aria-live", "polite");
+    menu.replaceChildren(skeleton, liveStatus);
   }
 
-  function authorMenuRecentPostSection(title, posts, { newsActivity = false } = {}) {
+  function authorMenuEmptyState(iconName, title, description) {
+    const empty = element("div", "author-menu-empty");
+    const emptyIcon = icon(iconName);
+    emptyIcon.classList.add("author-menu-empty-icon");
+    empty.append(
+      emptyIcon,
+      element("strong", "author-menu-empty-title", title),
+      element("p", "author-menu-empty-copy", description),
+    );
+    return empty;
+  }
+
+  function authorMenuRecentPostSection(posts) {
     const section = element("section", "author-menu-recent");
-    section.append(element("strong", "author-menu-recent-title", title));
+    section.append(element("strong", "author-menu-recent-title", "최근 글"));
     const items = Array.isArray(posts) ? posts : [];
     if (items.length === 0) {
-      section.append(
-        element(
-          "p",
-          "author-menu-recent-empty",
-          newsActivity
-            ? "표시할 이전 가게 소식이 없습니다."
-            : "표시할 이전 게시글이 없습니다.",
-        ),
-      );
+      section.append(authorMenuEmptyState(
+        "article",
+        "아직 작성한 글이 없습니다",
+        "작성자가 남긴 공개 게시글이 생기면 여기에 표시됩니다.",
+      ));
       return section;
     }
 
@@ -275,18 +452,15 @@
     items.forEach((post) => {
       const item = element("li", "author-menu-recent-item");
       const link = element("a", "author-menu-recent-link");
-      link.href = newsActivity
-        ? `${detailPath(post.postId)}&from=NEWS`
-        : detailPath(post.postId);
-      link.append(
+      link.href = authorPostDetailHref(post);
+      const titleRow = element("span", "author-menu-recent-title-row");
+      titleRow.append(
+        element("span", `author-menu-source author-menu-source--${authorActivityType(post) === "소식" ? "news" : "community"}`, authorActivityType(post)),
         element("span", "author-menu-recent-post-title", post.title || "제목 없음"),
-        element(
-          "small",
-          "author-menu-recent-meta",
-          newsActivity
-            ? `가게 소식 · 커뮤니티 외 · ${formatDate(post.createdAt)}`
-            : `${categoryLabel(post.category)} · ${formatDate(post.createdAt)}`,
-        ),
+      );
+      link.append(
+        titleRow,
+        element("small", "author-menu-recent-meta", authorActivityMeta(post)),
       );
       item.append(link);
       list.append(item);
@@ -295,20 +469,16 @@
     return section;
   }
 
-  function authorMenuRecentCommentSection(title, comments, { newsActivity = false } = {}) {
+  function authorMenuRecentCommentSection(comments) {
     const section = element("section", "author-menu-recent");
-    section.append(element("strong", "author-menu-recent-title", title));
+    section.append(element("strong", "author-menu-recent-title", "최근 댓글"));
     const items = Array.isArray(comments) ? comments : [];
     if (items.length === 0) {
-      section.append(
-        element(
-          "p",
-          "author-menu-recent-empty",
-          newsActivity
-            ? "표시할 이전 가게 소식 댓글이 없습니다."
-            : "표시할 이전 댓글이 없습니다.",
-        ),
-      );
+      section.append(authorMenuEmptyState(
+        "chat_bubble",
+        "아직 작성한 댓글이 없습니다",
+        "작성자가 남긴 공개 댓글이 생기면 여기에 표시됩니다.",
+      ));
       return section;
     }
 
@@ -316,21 +486,18 @@
     items.forEach((comment) => {
       const item = element("li", "author-menu-recent-item");
       const link = element("a", "author-menu-recent-link");
-      link.href = newsActivity
-        ? `${detailPath(comment.postId)}&from=NEWS`
-        : detailPath(comment.postId);
+      link.href = authorPostDetailHref(comment);
+      const contentRow = element("span", "author-menu-recent-title-row");
+      contentRow.append(
+        element("span", `author-menu-source author-menu-source--${authorActivityType(comment) === "소식" ? "news" : "community"}`, authorActivityType(comment)),
+        element("span", "author-menu-recent-content", comment.content || "댓글 내용 없음"),
+      );
       link.append(
-        element(
-          "span",
-          "author-menu-recent-content",
-          comment.content || "댓글 내용 없음",
-        ),
+        contentRow,
         element(
           "small",
           "author-menu-recent-meta",
-          newsActivity
-            ? `가게 소식 · ${comment.postTitle || "소식"} · ${formatDate(comment.createdAt)}`
-            : `${comment.postTitle || "게시글"} · ${formatDate(comment.createdAt)}`,
+          `${comment.postTitle || (comment.category === "NEWS" ? "가게 소식" : "게시글")} · ${formatDate(comment.createdAt)}`,
         ),
       );
       item.append(link);
@@ -340,108 +507,238 @@
     return section;
   }
 
-  function renderAuthorMenuSummary(summary, context = "COMMUNITY") {
+  function authorMenuRecentReviewSection(reviews) {
+    const section = element("section", "author-menu-recent");
+    section.append(element("strong", "author-menu-recent-title", "최근 리뷰"));
+    const items = Array.isArray(reviews) ? reviews : [];
+    if (items.length === 0) {
+      section.append(authorMenuEmptyState(
+        "rate_review",
+        "아직 작성한 리뷰가 없습니다",
+        "작성자가 남긴 공개 리뷰가 생기면 가게와 별점을 함께 확인할 수 있습니다.",
+      ));
+      return section;
+    }
+
+    const list = element("ul", "author-menu-recent-list");
+    items.forEach((review) => {
+      const item = element("li", "author-menu-recent-item");
+      const link = element("a", "author-menu-recent-link");
+      const source = review.restaurantSource === "public" ? "public" : "owned";
+      link.href = `/pages/restaurant/detail.html?source=${source}&id=${encodeURIComponent(review.storeId)}&tab=review`;
+      link.append(
+        element("span", "author-menu-recent-post-title", review.restaurantName || "가게 정보 없음"),
+        element(
+          "span",
+          "author-menu-recent-content author-menu-review-content",
+          review.content || "내용 없이 별점만 남긴 리뷰",
+        ),
+        element(
+          "small",
+          "author-menu-recent-meta",
+          `★ ${review.rating || 0} · ${formatDate(review.createdAt)}`,
+        ),
+      );
+      item.append(link);
+      list.append(item);
+    });
+    section.append(list);
+    return section;
+  }
+
+  function authorMenuTab(label, count, key, active) {
+    const button = element("button", `author-menu-tab${active ? " is-active" : ""}`);
+    button.type = "button";
+    button.id = `board-author-menu-tab-${key}`;
+    button.dataset.authorActivityTab = key;
+    button.setAttribute("role", "tab");
+    button.setAttribute("aria-controls", "board-author-menu-panel");
+    button.setAttribute("aria-selected", active ? "true" : "false");
+    button.tabIndex = active ? 0 : -1;
+    button.append(
+      element("strong", "author-menu-tab-count", String(count || 0)),
+      element("span", "author-menu-tab-label", label),
+    );
+    return button;
+  }
+
+  function renderAuthorMenuSummary(summary) {
     const menu = ensureAuthorMenu();
-    const newsContext = context === "NEWS";
+    const nickname = summary.nickname || "작성자";
     const header = element("header", "author-menu-header");
+    const profile = element("div", "author-menu-profile");
+    const avatar = element("span", "author-menu-avatar", Array.from(nickname)[0] || "?");
+    avatar.setAttribute("aria-hidden", "true");
     const identity = element("div", "author-menu-identity");
     identity.append(
-      element("strong", "author-menu-nickname", summary.nickname || "작성자"),
+      element("strong", "author-menu-nickname", nickname),
       element(
         "span",
         "author-menu-account-id",
-        `(${summary.accountLabel || "계정 정보 없음"})`,
+        summary.accountLabel || "계정 정보 없음",
       ),
     );
+    profile.append(avatar, identity);
     header.append(
-      identity,
+      profile,
+      element("span", "author-menu-caption", "프로필"),
+    );
+
+    const lastActivity = element("div", "author-menu-last-activity");
+    lastActivity.append(
+      element("span", "author-menu-last-activity-dot"),
+      element("span", "author-menu-last-activity-label", "마지막 공개 활동"),
       element(
-        "span",
-        "author-menu-caption",
-        newsContext ? "가게 소식 작성자" : "커뮤니티 활동",
+        "strong",
+        "author-menu-last-activity-time",
+        summary.lastPublicActivityAt
+          ? `${formatDate(summary.lastPublicActivityAt)}`
+          : "공개 활동 기록 없음",
       ),
     );
 
-    const contextNote = newsContext
-      ? element("div", "author-menu-context-note")
-      : null;
-    if (contextNote) {
-      contextNote.append(
-        element(
-          "strong",
-          "author-menu-context-title",
-          "현재 보고 있는 항목은 커뮤니티 게시글이 아닌 가게 소식입니다.",
-        ),
-        element(
-          "p",
-          "author-menu-context-copy",
-          "아래에서 이 작성자의 커뮤니티 활동과 가게 소식 활동을 구분해 표시합니다.",
-        ),
-      );
+    const tabs = element("div", "author-menu-tabs");
+    tabs.setAttribute("role", "tablist");
+    const tabDefinitions = [
+      ["글", summary.postCount, "posts"],
+      ["댓글", summary.commentCount, "comments"],
+      ["리뷰", summary.reviewCount, "reviews"],
+    ];
+    tabDefinitions.forEach(([label, count, key], index) => {
+      tabs.append(authorMenuTab(label, count, key, index === 0));
+    });
+
+    const activityPanel = element("div", "author-menu-activity-panel");
+    activityPanel.id = "board-author-menu-panel";
+    activityPanel.setAttribute("role", "tabpanel");
+    activityPanel.setAttribute("aria-labelledby", "board-author-menu-tab-posts");
+    const sections = {
+      posts: authorMenuRecentPostSection(summary.recentPosts),
+      comments: authorMenuRecentCommentSection(summary.recentComments),
+      reviews: authorMenuRecentReviewSection(summary.recentReviews),
+    };
+    activityPanel.dataset.activeAuthorActivityTab = "posts";
+    activityPanel.replaceChildren(sections.posts);
+
+    let authorActivitySwitchId = 0;
+
+    function stabilizeAuthorActivityPanelHeight() {
+      const activeKey = activityPanel.dataset.activeAuthorActivityTab || "posts";
+      const activeSection = sections[activeKey] || sections.posts;
+      let maxHeight = 0;
+
+      activityPanel.style.visibility = "hidden";
+      activityPanel.style.minHeight = "";
+
+      Object.values(sections).forEach((section) => {
+        activityPanel.replaceChildren(section);
+        maxHeight = Math.max(maxHeight, activityPanel.getBoundingClientRect().height);
+      });
+
+      activityPanel.replaceChildren(activeSection);
+      if (maxHeight > 0) {
+        activityPanel.style.minHeight = `${Math.ceil(maxHeight)}px`;
+      }
+      activityPanel.style.visibility = "";
     }
 
-    const stats = element("div", "author-menu-stats");
-    stats.append(
-      authorMenuStat(newsContext ? "커뮤니티 게시글" : "작성한 게시글", summary.postCount),
-      authorMenuStat(newsContext ? "커뮤니티 댓글" : "작성한 댓글", summary.commentCount),
-    );
+    async function switchAuthorActivityPanel(key) {
+      const nextSection = sections[key];
+      if (!nextSection) return;
+      if (activityPanel.dataset.activeAuthorActivityTab === key) return;
 
-    const communityHeading = newsContext
-      ? element("div", "author-menu-group-heading")
-      : null;
-    if (communityHeading) {
-      communityHeading.append(
-        element("strong", "author-menu-group-title", "커뮤니티 활동"),
-        element(
-          "small",
-          "author-menu-group-copy",
-          "현재 계정에서 열람 가능한 커뮤니티에 남긴 기록입니다.",
-        ),
+      const switchId = ++authorActivitySwitchId;
+      activityPanel.dataset.activeAuthorActivityTab = key;
+      const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
+      activityPanel.getAnimations({ subtree: true }).forEach((animation) => animation.cancel());
+
+      if (reduceMotion || typeof activityPanel.animate !== "function") {
+        activityPanel.replaceChildren(nextSection);
+        return;
+      }
+
+      const currentSection = activityPanel.firstElementChild;
+      if (currentSection) {
+        const exitAnimation = currentSection.animate(
+          [
+            { opacity: 1 },
+            { opacity: 0 },
+          ],
+          {
+            duration: 70,
+            easing: "ease-out",
+            fill: "forwards",
+          },
+        );
+        try {
+          await exitAnimation.finished;
+        } catch (_) {
+          return;
+        }
+      }
+
+      if (switchId !== authorActivitySwitchId) return;
+
+      activityPanel.replaceChildren(nextSection);
+      const enterAnimation = nextSection.animate(
+        [
+          { opacity: 0 },
+          { opacity: 1 },
+        ],
+        {
+          duration: 140,
+          easing: "cubic-bezier(0.16, 1, 0.3, 1)",
+          fill: "both",
+        },
       );
+
+      try {
+        await enterAnimation.finished;
+      } catch (_) {
+        return;
+      }
+      if (switchId !== authorActivitySwitchId) return;
+
+      enterAnimation.cancel();
     }
 
-    const recentSection = authorMenuRecentPostSection(
-      newsContext ? "커뮤니티 이전글" : "이전 작성글",
-      summary.recentPosts,
-    );
-    const recentCommentSection = authorMenuRecentCommentSection(
-      newsContext ? "커뮤니티 이전댓글" : "이전 댓글",
-      summary.recentComments,
-    );
+    function activateAuthorMenuTab(button, { moveFocus = false } = {}) {
+      if (!button || !tabs.contains(button)) return;
+      const key = button.dataset.authorActivityTab;
+      if (!sections[key]) return;
 
-    const newsGroup = newsContext
-      ? element("section", "author-menu-news-group")
-      : null;
-    if (newsGroup) {
-      const heading = element("div", "author-menu-group-heading author-menu-group-heading--news");
-      heading.append(
-        element("strong", "author-menu-group-title", "가게 소식 활동"),
-        element(
-          "small",
-          "author-menu-group-copy",
-          "커뮤니티 목록에는 노출되지 않는 가게 소식 글·댓글입니다.",
-        ),
-      );
-      const newsStats = element("div", "author-menu-stats author-menu-stats--news");
-      newsStats.append(
-        authorMenuStat("가게 소식 글", summary.newsPostCount),
-        authorMenuStat("가게 소식 댓글", summary.newsCommentCount),
-      );
-      newsGroup.append(
-        heading,
-        newsStats,
-        authorMenuRecentPostSection(
-          "가게 소식 이전글",
-          summary.recentNewsPosts,
-          { newsActivity: true },
-        ),
-        authorMenuRecentCommentSection(
-          "가게 소식 이전댓글",
-          summary.recentNewsComments,
-          { newsActivity: true },
-        ),
-      );
+      tabs.querySelectorAll("[data-author-activity-tab]").forEach((tab) => {
+        const active = tab === button;
+        tab.classList.toggle("is-active", active);
+        tab.setAttribute("aria-selected", active ? "true" : "false");
+        tab.tabIndex = active ? 0 : -1;
+      });
+      activityPanel.setAttribute("aria-labelledby", button.id);
+      if (moveFocus) button.focus({ preventScroll: true });
+      switchAuthorActivityPanel(key);
     }
+
+    tabs.addEventListener("click", (event) => {
+      const button = event.target.closest("[data-author-activity-tab]");
+      activateAuthorMenuTab(button);
+    });
+
+    tabs.addEventListener("keydown", (event) => {
+      const current = event.target.closest("[data-author-activity-tab]");
+      if (!current || !tabs.contains(current)) return;
+      const buttons = [...tabs.querySelectorAll("[data-author-activity-tab]")];
+      const currentIndex = buttons.indexOf(current);
+      let nextIndex = currentIndex;
+
+      if (event.key === "ArrowRight") nextIndex = (currentIndex + 1) % buttons.length;
+      else if (event.key === "ArrowLeft") nextIndex = (currentIndex - 1 + buttons.length) % buttons.length;
+      else if (event.key === "Home") nextIndex = 0;
+      else if (event.key === "End") nextIndex = buttons.length - 1;
+      else return;
+
+      event.preventDefault();
+      activateAuthorMenuTab(buttons[nextIndex], { moveFocus: true });
+    });
 
     const footer = element("div", "author-menu-footer");
     const isCurrentUser = Number(window.FooduckSession?.accountId)
@@ -463,26 +760,61 @@
       );
     }
 
-    const children = [header];
-    if (contextNote) children.push(contextNote);
-    if (communityHeading) children.push(communityHeading);
-    children.push(stats, recentSection, recentCommentSection);
-    if (newsGroup) children.push(newsGroup);
-    children.push(footer);
-    menu.replaceChildren(...children);
+    menu.replaceChildren(header, lastActivity, tabs, activityPanel, footer);
+    stabilizeAuthorActivityPanelHeight();
   }
 
-  function renderAuthorMenuError(message) {
+  function renderAuthorMenuError(message, onRetry) {
     const menu = ensureAuthorMenu();
-    menu.replaceChildren(
-      element("strong", "author-menu-nickname", "작성자 정보"),
-      element("p", "author-menu-error", message || "활동 정보를 불러오지 못했습니다."),
+    const error = element("div", "author-menu-error-state");
+    const errorIcon = icon("error");
+    errorIcon.classList.add("author-menu-error-icon");
+    error.append(
+      errorIcon,
+      element("strong", "author-menu-error-title", "프로필을 불러오지 못했습니다"),
+      element("p", "author-menu-error", message || "잠시 후 다시 시도해 주세요."),
     );
+    if (typeof onRetry === "function") {
+      const retry = element("button", "author-menu-retry", "다시 시도");
+      retry.type = "button";
+      retry.addEventListener("click", onRetry);
+      error.append(retry);
+    }
+    menu.replaceChildren(error);
+  }
+
+  async function loadAuthorMenuSummary(author, trigger, context = "COMMUNITY") {
+    const menu = ensureAuthorMenu();
+    menu.setAttribute("aria-busy", "true");
+    renderAuthorMenuLoading(author);
+    positionAuthorMenu(trigger);
+
+    const accountId = Number(author.authorAccountId);
+    try {
+      const payload = await Api.get(
+        `/board/posts/authors/${encodeURIComponent(accountId)}/summary`,
+      );
+      const summary = payload.data;
+      if (activeAuthorTrigger !== trigger || menu.hidden) return;
+      renderAuthorMenuSummary(summary);
+      menu.setAttribute("aria-busy", "false");
+      positionAuthorMenu(trigger);
+    } catch (error) {
+      if (activeAuthorTrigger !== trigger || menu.hidden) return;
+      menu.setAttribute("aria-busy", "false");
+      renderAuthorMenuError(error.message, () => {
+        if (activeAuthorTrigger !== trigger || menu.hidden) return;
+        loadAuthorMenuSummary(author, trigger, context);
+      });
+      positionAuthorMenu(trigger);
+    }
   }
 
   async function openAuthorMenu(author, trigger, event, context = "COMMUNITY") {
     event.preventDefault();
     event.stopPropagation();
+    markAuthorActivityHintSeen();
+    closeAuthorActivityHint();
     if (!author?.authorAccountId) return;
 
     const menu = ensureAuthorMenu();
@@ -496,33 +828,15 @@
     }
     activeAuthorTrigger = trigger;
     trigger.setAttribute("aria-expanded", "true");
-    renderAuthorMenuLoading(author, context);
+    renderAuthorMenuLoading(author);
     menu.hidden = false;
     positionAuthorMenu(trigger);
-
-    const accountId = Number(author.authorAccountId);
-    try {
-      const params = new URLSearchParams();
-      const excludePostId = Number(author.postId);
-      if (Number.isSafeInteger(excludePostId) && excludePostId > 0) {
-        params.set("excludePostId", String(excludePostId));
+    requestAnimationFrame(() => {
+      if (!menu.hidden && activeAuthorTrigger === trigger) {
+        menu.focus({ preventScroll: true });
       }
-      if (context === "NEWS") {
-        params.set("includeNewsActivity", "true");
-      }
-      const query = params.size > 0 ? `?${params.toString()}` : "";
-      const payload = await Api.get(
-        `/board/posts/authors/${encodeURIComponent(accountId)}/summary${query}`,
-      );
-      const summary = payload.data;
-      if (activeAuthorTrigger !== trigger || menu.hidden) return;
-      renderAuthorMenuSummary(summary, context);
-      positionAuthorMenu(trigger);
-    } catch (error) {
-      if (activeAuthorTrigger !== trigger || menu.hidden) return;
-      renderAuthorMenuError(error.message);
-      positionAuthorMenu(trigger);
-    }
+    });
+    await loadAuthorMenuSummary(author, trigger, context);
   }
 
   function enableAuthorMenu(trigger, author, context = "COMMUNITY") {
@@ -532,13 +846,47 @@
     trigger.setAttribute("aria-haspopup", "dialog");
     trigger.setAttribute("aria-controls", "board-author-menu");
     trigger.setAttribute("aria-expanded", "false");
+    trigger.setAttribute("aria-label", `${author.authorNickname || "작성자"} 프로필 보기`);
+    trigger.dataset.authorActivityTooltip = "작성자 프로필 보기 · 글 · 댓글 · 리뷰 확인";
+    trigger.addEventListener("mouseenter", () => showAuthorActivityTooltip(trigger));
+    trigger.addEventListener("mouseleave", closeAuthorActivityTooltip);
+    trigger.addEventListener("focus", () => showAuthorActivityTooltip(trigger));
+    trigger.addEventListener("blur", closeAuthorActivityTooltip);
     trigger.addEventListener("click", (event) => {
+      closeAuthorActivityTooltip();
       openAuthorMenu(author, trigger, event, context);
     });
     trigger.addEventListener("keydown", (event) => {
       if (event.key !== "Enter" && event.key !== " ") return;
+      closeAuthorActivityTooltip();
       openAuthorMenu(author, trigger, event, context);
     });
+    maybeShowAuthorActivityHint(trigger);
+  }
+
+  function authorActivityCue(mode = "compact") {
+    const normalized = mode === "full" ? "full" : "compact";
+    const cue = element(
+      "span",
+      `author-activity-cue author-activity-cue--${normalized}`,
+    );
+    cue.setAttribute("aria-hidden", "true");
+
+    const person = icon("person");
+    person.classList.add("author-activity-person");
+    cue.append(
+      person,
+      element(
+        "span",
+        "author-activity-cue-label",
+        normalized === "full" ? "프로필 보기" : "프로필",
+      ),
+    );
+
+    const arrow = icon("chevron_right");
+    arrow.classList.add("author-activity-arrow");
+    cue.append(arrow);
+    return cue;
   }
 
   function authorIdentity(
@@ -547,6 +895,7 @@
       showNickname = true,
       showAuthorMenu = false,
       authorMenuContext = "COMMUNITY",
+      authorActivityCueMode = "compact",
     } = {},
   ) {
     const wrapper = element("span", "author-identity");
@@ -556,13 +905,20 @@
     if (showNickname && author?.authorNickname) {
       const nickname = element("span", "author-nickname", author.authorNickname);
       if (showAuthorMenu && author.authorAccountId) {
+        const trigger = element(
+          "span",
+          `author-activity-trigger author-activity-trigger--${authorActivityCueMode === "full" ? "full" : "compact"}`,
+        );
+        trigger.append(nickname, authorActivityCue(authorActivityCueMode));
         enableAuthorMenu(
-          nickname,
+          trigger,
           author,
           authorMenuContext === "NEWS" ? "NEWS" : "COMMUNITY",
         );
+        wrapper.append(trigger);
+      } else {
+        wrapper.append(nickname);
       }
-      wrapper.append(nickname);
     }
     wrapper.append(
       element("span", roleClass(author?.authorRole), roleLabel(author?.authorRole)),
