@@ -95,7 +95,7 @@
     message,
     confirmLabel = "삭제",
     danger = true,
-    iconName = danger ? "delete" : "edit_note",
+    iconName = danger ? "delete" : "edit",
   }) {
     return new Promise((resolve) => {
       const dialog = document.createElement("dialog");
@@ -393,6 +393,7 @@
   let currentCommentPage = 0;
   let totalCommentPages = 0;
   let commentPageLoading = false;
+  const expandedReplyThreadIds = new Set();
 
   function clearCommentImageSelection() {
     selectedCommentImage = null;
@@ -1350,7 +1351,7 @@
         message: "입력한 내용과 첨부한 사진은 저장되지 않습니다.",
         confirmLabel: "내용 버리기",
         danger: false,
-        iconName: "edit_note",
+        iconName: "edit",
       });
       if (!discard || activeReplyForm !== currentForm) return false;
       closeReplyComposer();
@@ -1584,6 +1585,7 @@
             imageFile ? "답글과 사진이 등록되었습니다." : "답글이 등록되었습니다.",
           );
         }
+        expandedReplyThreadIds.add(String(rootParentId));
         await loadCommentPage(currentCommentPage, {
           highlightCommentId: createdCommentId,
           scrollToHighlight: true,
@@ -1688,15 +1690,44 @@
       .filter((comment) => !comment.parentCommentId)
       .forEach((comment) => {
         const replies = repliesByParent.get(comment.commentId) || [];
+        const threadId = String(comment.commentId);
         const thread = element("section", "comment-thread");
         thread.append(renderCommentItem(comment, { hasReplies: replies.length > 0 }));
 
         if (replies.length) {
+          const replyListId = `comment-replies-${comment.commentId}`;
+          const isExpanded = expandedReplyThreadIds.has(threadId);
+          const replyToggle = element(
+            "button",
+            "comment-replies-toggle",
+            isExpanded ? `답글 ${replies.length}개 숨기기` : `답글 ${replies.length}개 보기`,
+          );
+          replyToggle.type = "button";
+          replyToggle.setAttribute("aria-controls", replyListId);
+          replyToggle.setAttribute("aria-expanded", String(isExpanded));
+
           const replyList = element("div", "comment-replies");
+          replyList.id = replyListId;
+          replyList.hidden = !isExpanded;
           replies.forEach((reply) => {
             replyList.append(renderCommentItem(reply, { isReply: true }));
           });
-          thread.append(replyList);
+
+          replyToggle.addEventListener("click", () => {
+            const willExpand = replyList.hidden;
+            replyList.hidden = !willExpand;
+            replyToggle.setAttribute("aria-expanded", String(willExpand));
+            replyToggle.textContent = willExpand
+              ? `답글 ${replies.length}개 숨기기`
+              : `답글 ${replies.length}개 보기`;
+            if (willExpand) {
+              expandedReplyThreadIds.add(threadId);
+            } else {
+              expandedReplyThreadIds.delete(threadId);
+            }
+          });
+
+          thread.append(replyToggle, replyList);
         }
         commentList.append(thread);
       });
