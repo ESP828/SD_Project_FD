@@ -29,7 +29,6 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.math.BigDecimal;
 import java.util.List;
-import java.util.Map;
 
 /**
  * 지도 화면과 검색 화면에 표시할 음식점 정보를 공공데이터 기반 자체 DB에서 조회한다(카카오 장소검색 미사용).
@@ -40,19 +39,6 @@ public class MapRestaurantController {
 
     private static final int MAX_RESULTS = 30;
     private static final int MAX_SEARCH_PAGE_SIZE = 50;
-
-    /**
-     * 검색 화면의 음식 종류 필터(대분류)를 공공데이터 상권업종 중분류/소분류 명칭으로 매핑한다.
-     * 예) 검색 화면의 "카페"는 공공데이터의 중분류 "비알코올" 아래 소분류 "카페"로 적재되어 있다.
-     */
-    private static final Map<String, List<String>> CATEGORY_ALIASES = Map.of(
-            "한식", List.of("한식"),
-            "중식", List.of("중식"),
-            "일식", List.of("일식"),
-            "양식", List.of("서양식"),
-            "카페", List.of("카페"),
-            "디저트", List.of("빵/도넛", "떡/한과", "아이스크림/빙수")
-    );
 
     private final PublicRestaurantRepository publicRestaurantRepository;
     private final ReviewService reviewService;
@@ -123,7 +109,7 @@ public class MapRestaurantController {
             @RequestParam(defaultValue = "20") int size
     ) {
         List<String> categoryNames = StringUtils.hasText(category)
-                ? CATEGORY_ALIASES.get(category)
+                ? List.of(category)
                 : null;
         Specification<PublicRestaurant> spec = Specification
                 .where(PublicRestaurantSpecifications.nameContains(keyword))

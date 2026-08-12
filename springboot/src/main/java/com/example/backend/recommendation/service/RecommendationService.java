@@ -60,7 +60,9 @@ public class RecommendationService {
 
         for (PublicRestaurant restaurant : candidates) {
     // 1. 카테고리 텍스트 비중을 높여 문서(doc) 구성 (카테고리명 2회 반복 포함)
-    String categoryText = String.format("%s %s %s",
+    // category_group(8분류)을 우선 포함해야 "한식", "카페·디저트" 같은 검색어가 실제로 매칭된다.
+    String categoryText = String.format("%s %s %s %s",
+            restaurant.getCategoryGroup() != null ? restaurant.getCategoryGroup() : "",
             restaurant.getCategoryLargeName() != null ? restaurant.getCategoryLargeName() : "",
             restaurant.getCategoryMediumName() != null ? restaurant.getCategoryMediumName() : "",
             restaurant.getCategorySmallName() != null ? restaurant.getCategorySmallName() : ""
@@ -119,7 +121,8 @@ public class RecommendationService {
             "PUBLIC",
             restaurant.getPublicRestaurantId(),
             restaurant.getName(),
-            restaurant.getCategoryMediumName() != null ? restaurant.getCategoryMediumName() : restaurant.getCategoryLargeName(),
+            restaurant.getCategoryGroup() != null ? restaurant.getCategoryGroup()
+                    : restaurant.getCategoryMediumName() != null ? restaurant.getCategoryMediumName() : restaurant.getCategoryLargeName(),
             restaurant.getRoadAddress(),
             restaurant.getLatitude() != null ? restaurant.getLatitude().doubleValue() : null,
             restaurant.getLongitude() != null ? restaurant.getLongitude().doubleValue() : null,
