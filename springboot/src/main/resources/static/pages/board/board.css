@@ -1685,6 +1685,15 @@
   padding: 24px;
 }
 
+.detail-side-list-card {
+  overflow: hidden;
+  padding: 0;
+}
+
+.detail-side-list-card .board-panel-header p {
+  margin-bottom: 0;
+}
+
 .detail-side-card img {
   width: 104px;
   margin: 0 auto 14px;
