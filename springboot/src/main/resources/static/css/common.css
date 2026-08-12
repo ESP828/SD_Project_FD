@@ -107,6 +107,11 @@ h4 {
   vertical-align: -0.12em;
 }
 
+.material-symbols-rounded:not([data-icon-name]) {
+  color: transparent;
+  overflow: hidden;
+}
+
 .material-symbols-rounded svg {
   width: 100%;
   height: 100%;
