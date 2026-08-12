@@ -1,14 +1,20 @@
 package com.example.backend.recommendation.service;
 
+import com.example.backend.recommendation.ai.DocumentBuilder;
 import com.example.backend.recommendation.dto.request.NaturalLanguageRecommendationRequest;
 import com.example.backend.recommendation.dto.response.NaturalLanguageRecommendationResponse;
 import com.example.backend.recommendation.dto.response.NaturalLanguageRecommendationResponse.*;
+import com.example.backend.recommendation.dto.response.PersonalRecommendationResponse;
 import com.example.backend.recommendation.model.RecommendationModelStore;
 import com.example.backend.recommendation.query.PublicRecommendationQueryRepository;
+import com.example.backend.recommendation.query.RecommendationQueryRepository;
+import com.example.backend.recommendation.query.RecommendationQueryRepository.RestaurantCandidate;
 import com.example.backend.recommendation.score.RecommendationScoreCalculator;
 import com.example.backend.recommendation.text.ParsedRecommendationQuery;
 import com.example.backend.recommendation.text.RecommendationQueryParser;
 import com.example.backend.restaurant.domain.entity.PublicRestaurant;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -19,32 +25,48 @@ import java.util.*;
 @Transactional(readOnly = true)
 public class RecommendationService {
 
+    private static final Logger log = LoggerFactory.getLogger(RecommendationService.class);
+
     private final RecommendationQueryParser queryParser;
     private final RecommendationModelStore modelStore;
     private final RecommendationScoreCalculator scoreCalculator;
     private final PublicRecommendationQueryRepository publicQueryRepository;
+    private final RecommendationQueryRepository recommendationQueryRepository;
+    private final DocumentBuilder documentBuilder;
 
     public RecommendationService(RecommendationQueryParser queryParser,
-                                 RecommendationModelStore modelStore,
-                                 RecommendationScoreCalculator scoreCalculator,
-                                 PublicRecommendationQueryRepository publicQueryRepository) {
+                                  RecommendationModelStore modelStore,
+                                  RecommendationScoreCalculator scoreCalculator,
+                                  PublicRecommendationQueryRepository publicQueryRepository,
+                                  RecommendationQueryRepository recommendationQueryRepository,
+                                  DocumentBuilder documentBuilder) {
         this.queryParser = queryParser;
         this.modelStore = modelStore;
         this.scoreCalculator = scoreCalculator;
         this.publicQueryRepository = publicQueryRepository;
+        this.recommendationQueryRepository = recommendationQueryRepository;
+        this.documentBuilder = documentBuilder;
     }
 
+    /**
+     * 1. 자연어 키워드 검색 기반 추천
+     */
     public NaturalLanguageRecommendationResponse recommendByQuery(NaturalLanguageRecommendationRequest request) {
-        // 1. 자연어 검색어 파싱
         ParsedRecommendationQuery parsedQuery = queryParser.parse(request.query());
 
-        // 2. DB에서 음식점 후보 300건 조회 (위치 범위가 전달되었을 경우 반경 계산)
+        log.info("==================================================================================");
+        log.info("🤖 [AI 추천 검색 시작] 입력 검색어: '{}'", request.query());
+        log.info("🔍 [파싱 결과] 위치: '{}', 카테고리 토큰: {}, 분위기: {}, 좌표: ({}, {})",
+                parsedQuery.locationText(), parsedQuery.categoryTokens(), parsedQuery.atmosphereTokens(),
+                request.latitude(), request.longitude());
+        log.info("==================================================================================");
+
         Double centerLat = request.latitude();
         Double centerLng = request.longitude();
 
         Double minLat = null, maxLat = null, minLng = null, maxLng = null;
         if (centerLat != null && centerLng != null) {
-            double delta = request.radiusMeters() / 111000.0; // 약 1도 = 111km
+            double delta = request.radiusMeters() / 111000.0;
             minLat = centerLat - delta;
             maxLat = centerLat + delta;
             minLng = centerLng - delta;
@@ -55,88 +77,95 @@ public class RecommendationService {
                 minLat, maxLat, minLng, maxLng, PageRequest.of(0, 300)
         );
 
-        // 3. 각 후보 음식점별 점수 및 추천 이유 계산
+        log.info("📦 DB 범위 검색 결과 총 {}건의 후보 매장을 불러왔습니다.", candidates.size());
+
         List<RecommendedItemDto> scoredItems = new ArrayList<>();
+        int filteredOutCount = 0;
 
         for (PublicRestaurant restaurant : candidates) {
-    // 1. 카테고리 텍스트 비중을 높여 문서(doc) 구성 (카테고리명 2회 반복 포함)
-    // category_group(8분류)을 우선 포함해야 "한식", "카페·디저트" 같은 검색어가 실제로 매칭된다.
-    String categoryText = String.format("%s %s %s %s",
-            restaurant.getCategoryGroup() != null ? restaurant.getCategoryGroup() : "",
-            restaurant.getCategoryLargeName() != null ? restaurant.getCategoryLargeName() : "",
-            restaurant.getCategoryMediumName() != null ? restaurant.getCategoryMediumName() : "",
-            restaurant.getCategorySmallName() != null ? restaurant.getCategorySmallName() : ""
-    );
+            String name = restaurant.getName() != null ? restaurant.getName() : "";
+            String categoryGroup = restaurant.getCategoryGroup() != null ? restaurant.getCategoryGroup() : "";
+            String categoryMedium = restaurant.getCategoryMediumName() != null ? restaurant.getCategoryMediumName() : "";
+            String categorySmall = restaurant.getCategorySmallName() != null ? restaurant.getCategorySmallName() : "";
 
-    String doc = String.format("%s %s %s %s",
-            restaurant.getName() != null ? restaurant.getName() : "",
-            categoryText,
-            categoryText, // 카테고리 유사도 가중치를 위해 한 번 더 결합
-            restaurant.getRoadAddress() != null ? restaurant.getRoadAddress() : ""
-    );
-
-    // 2. TF-IDF 텍스트 유사도 계산
-    double textScore = scoreCalculator.calculateTextSimilarity(parsedQuery.normalizedTokens(), doc);
-
-    // 3. 카테고리 직매칭 가산점 (Category Direct Bonus) 계산
-    double categoryBonus = 0.0;
-    if (parsedQuery.categoryTokens() != null && !parsedQuery.categoryTokens().isEmpty()) {
-        for (String catToken : parsedQuery.categoryTokens()) {
-            if (doc.contains(catToken)) {
-                categoryBonus = 0.3; // 검색어의 카테고리가 매장 업종에 포함되면 +0.3 가산점!
-                break;
+            boolean isDirectCategoryMatch = false;
+            String matchedCategoryToken = "";
+            if (parsedQuery.categoryTokens() != null && !parsedQuery.categoryTokens().isEmpty()) {
+                for (String catToken : parsedQuery.categoryTokens()) {
+                    if (name.contains(catToken) || categoryGroup.contains(catToken) ||
+                        categoryMedium.contains(catToken) || categorySmall.contains(catToken)) {
+                        isDirectCategoryMatch = true;
+                        matchedCategoryToken = catToken;
+                        break;
+                    }
+                }
             }
+
+            String doc = documentBuilder.build(restaurant);
+
+            double textScore = scoreCalculator.calculateTextSimilarity(parsedQuery.normalizedTokens(), doc);
+
+            if (textScore == 0.0 && parsedQuery.normalizedTokens() != null) {
+                for (String token : parsedQuery.normalizedTokens()) {
+                    if (token.length() >= 2 && doc.contains(token)) {
+                        textScore += 0.2;
+                    }
+                }
+            }
+
+            boolean isFastfood = name.contains("맥도날드") || name.contains("버거킹") ||
+                                 name.contains("롯데리아") || name.contains("KFC") ||
+                                 categoryMedium.contains("패스트푸드");
+            if (isFastfood && !isDirectCategoryMatch) {
+                filteredOutCount++;
+                continue;
+            }
+
+            double categoryBonus = isDirectCategoryMatch ? 0.3 : 0.0;
+
+            double distanceMeters = 0.0;
+            double distanceScore = 1.0;
+            if (centerLat != null && centerLng != null && restaurant.getLatitude() != null && restaurant.getLongitude() != null) {
+                distanceMeters = calculateHaversineDistance(
+                        centerLat, centerLng,
+                        restaurant.getLatitude().doubleValue(),
+                        restaurant.getLongitude().doubleValue()
+                );
+                distanceScore = Math.max(0.0, 1.0 - (distanceMeters / request.radiusMeters()));
+            }
+
+            double textWeighted = textScore * 0.5;
+            double distanceWeighted = distanceScore * 0.2;
+            double finalScore = textWeighted + distanceWeighted + categoryBonus;
+
+            List<String> reasons = new ArrayList<>();
+            if (isDirectCategoryMatch) {
+                reasons.add("찾으시는 음식 종류(" + matchedCategoryToken + ")와 일치하는 매장입니다.");
+            } else if (textScore > 0.05) {
+                reasons.add("검색하신 키워드와 연관성이 높은 매장입니다.");
+            }
+            if (distanceScore > 0.5) {
+                reasons.add("선택하신 위치와 가까운 매장입니다.");
+            }
+
+            scoredItems.add(new RecommendedItemDto(
+                    "PUBLIC",
+                    restaurant.getPublicRestaurantId(),
+                    name,
+                    restaurant.getCategoryGroup() != null ? restaurant.getCategoryGroup()
+                            : restaurant.getCategoryMediumName() != null ? restaurant.getCategoryMediumName() : restaurant.getCategoryLargeName(),
+                    restaurant.getRoadAddress(),
+                    restaurant.getLatitude() != null ? restaurant.getLatitude().doubleValue() : null,
+                    restaurant.getLongitude() != null ? restaurant.getLongitude().doubleValue() : null,
+                    Math.round(distanceMeters * 10) / 10.0,
+                    Math.round(finalScore * 10000) / 10000.0,
+                    reasons
+            ));
         }
-    }
 
-    // 4. 하버사인 거리 및 거리 점수 계산
-    double distanceMeters = 0.0;
-    double distanceScore = 1.0;
-    if (centerLat != null && centerLng != null && restaurant.getLatitude() != null && restaurant.getLongitude() != null) {
-        distanceMeters = calculateHaversineDistance(
-                centerLat,
-                centerLng,
-                restaurant.getLatitude().doubleValue(),
-                restaurant.getLongitude().doubleValue()
-        );
-        distanceScore = Math.max(0.0, 1.0 - (distanceMeters / request.radiusMeters()));
-    }
-
-    // 5. 최종 점수 합산 (텍스트 50% + 거리 20% + 카테고리 가산점 30%)
-    double finalScore = (textScore * 0.5) + (distanceScore * 0.2) + categoryBonus;
-
-    // 6. 추천 이유(reasons) 명확하게 생성
-    List<String> reasons = new ArrayList<>();
-    if (categoryBonus > 0.0) {
-        reasons.add("찾으시는 음식 종류(" + parsedQuery.categoryTokens().get(0) + ")와 일치하는 매장입니다.");
-    }
-    if (textScore > 0.05) {
-        reasons.add("검색하신 키워드와 연관성이 높은 매장입니다.");
-    }
-    if (distanceScore > 0.5) {
-        reasons.add("선택하신 위치와 가까운 매장입니다.");
-    }
-
-    scoredItems.add(new RecommendedItemDto(
-            "PUBLIC",
-            restaurant.getPublicRestaurantId(),
-            restaurant.getName(),
-            restaurant.getCategoryGroup() != null ? restaurant.getCategoryGroup()
-                    : restaurant.getCategoryMediumName() != null ? restaurant.getCategoryMediumName() : restaurant.getCategoryLargeName(),
-            restaurant.getRoadAddress(),
-            restaurant.getLatitude() != null ? restaurant.getLatitude().doubleValue() : null,
-            restaurant.getLongitude() != null ? restaurant.getLongitude().doubleValue() : null,
-            Math.round(distanceMeters * 10) / 10.0,
-            Math.round(finalScore * 10000) / 10000.0,
-            reasons
-    ));
-}
-
-        // 4. 점수 기준 내림차순 정렬 및 개수(limit) 제한
         scoredItems.sort((a, b) -> Double.compare(b.score(), a.score()));
         List<RecommendedItemDto> finalItems = scoredItems.stream().limit(request.limit()).toList();
 
-        // 5. 응답 구성
         ParsedQueryDto parsedQueryDto = new ParsedQueryDto(
                 parsedQuery.locationText(),
                 parsedQuery.categoryTokens(),
@@ -158,9 +187,137 @@ public class RecommendationService {
         );
     }
 
-    // 두 좌표 간 거리 계산 (Haversine 공식, 미터 단위)
+    /**
+     * 2. 💡 [나를 위한 맛집] 사용자가 찜한 매장 취향 기반 추천 메서드
+     */
+    public PersonalRecommendationResponse recommendForUser(Long accountId, Double latitude, Double longitude, Double radiusMeters, int limit) {
+        // 0. 비로그인 유저 예외 처리
+        if (accountId == null) {
+            log.info("ℹ️ [개인화 추천] 비로그인 유저 요청입니다.");
+            return new PersonalRecommendationResponse(false, "로그인이 필요합니다.", Collections.emptyList());
+        }
+
+        // 1. 찜 목록 조회 (통합 쿼리로 일반/공공 매장 모두 가져옴)
+        List<RestaurantCandidate> userFavorites = recommendationQueryRepository.findFavoritesByAccountId(accountId);
+
+        // 2. 찜한 매장이 없을 경우 (콜드 스타트 -> 오리 UI 표출용 응답)
+        if (userFavorites == null || userFavorites.isEmpty()) {
+            log.info("ℹ️ [개인화 추천] accountId: {} 님의 찜/선호 데이터가 없습니다.", accountId);
+            return new PersonalRecommendationResponse(false, "선호 데이터가 없습니다. 맛집을 찜해보세요!", Collections.emptyList());
+        }
+
+        // 3. 사용자 취향 Profile Doc 생성 및 이미 찜한 매장 ID 수집
+        StringBuilder userProfileBuilder = new StringBuilder();
+        Set<Long> favoriteRestaurantIds = new HashSet<>();
+        Set<String> favoriteCategories = new LinkedHashSet<>();
+
+        for (RestaurantCandidate fav : userFavorites) {
+            if (fav.restaurantId() != null) {
+                favoriteRestaurantIds.add(fav.restaurantId());
+            }
+            if (fav.restaurantName() != null) {
+                userProfileBuilder.append(fav.restaurantName()).append(" ");
+            }
+            if (fav.categoryName() != null && !fav.categoryName().isBlank()) {
+                userProfileBuilder.append(fav.categoryName()).append(" ");
+                favoriteCategories.add(fav.categoryName());
+            }
+            if (fav.description() != null && !fav.description().isBlank()) {
+                userProfileBuilder.append(fav.description()).append(" ");
+            }
+        }
+
+        String userProfileDoc = userProfileBuilder.toString().trim();
+        List<String> userProfileTokens = Arrays.asList(userProfileDoc.split("\\s+"));
+
+        log.info("==================================================================================");
+        log.info("👤 [나를 위한 맛집 연산] accountId: {} | 찜 개수: {}개", accountId, userFavorites.size());
+        log.info("📄 [사용자 취향 Profile]: {}", userProfileDoc.length() > 60 ? userProfileDoc.substring(0, 60) + "..." : userProfileDoc);
+        log.info("==================================================================================");
+
+        // 4. 주변 범위 매장 조회 (위도/경도 기반 바운딩 박스)
+        Double minLat = null, maxLat = null, minLng = null, maxLng = null;
+        if (latitude != null && longitude != null) {
+            double delta = radiusMeters / 111000.0;
+            minLat = latitude - delta;
+            maxLat = latitude + delta;
+            minLng = longitude - delta;
+            maxLng = longitude + delta;
+        }
+
+        List<PublicRestaurant> candidates = publicQueryRepository.findCandidatesInBounds(
+                minLat, maxLat, minLng, maxLng, PageRequest.of(0, 300)
+        );
+
+        List<RecommendedItemDto> scoredItems = new ArrayList<>();
+
+        for (PublicRestaurant candidate : candidates) {
+            // 이미 찜한 매장은 추천에서 제외
+            if (favoriteRestaurantIds.contains(candidate.getPublicRestaurantId())) {
+                continue;
+            }
+
+            String candidateDoc = documentBuilder.build(candidate);
+
+            // 5. 취향 유사도 점수 산출
+            double textScore = scoreCalculator.calculateTextSimilarity(userProfileTokens, candidateDoc);
+
+            // 6. 거리 점수 산출
+            double distanceMeters = 0.0;
+            double distanceScore = 1.0;
+            if (latitude != null && longitude != null && candidate.getLatitude() != null && candidate.getLongitude() != null) {
+                distanceMeters = calculateHaversineDistance(
+                        latitude, longitude,
+                        candidate.getLatitude().doubleValue(),
+                        candidate.getLongitude().doubleValue()
+                );
+                distanceScore = Math.max(0.0, 1.0 - (distanceMeters / radiusMeters));
+            }
+
+            // 7. 취향 맞춤 합산 점수 = (취향 점수 70%) + (거리 점수 30%)
+            double finalScore = (textScore * 0.7) + (distanceScore * 0.3);
+
+            List<String> reasons = new ArrayList<>();
+            if (!favoriteCategories.isEmpty()) {
+                reasons.add("회원님이 선호하시는 " + String.join(", ", favoriteCategories) + " 취향 기반 맞춤 추천입니다.");
+            } else {
+                reasons.add("회원님의 활동 및 찜 데이터를 반영한 맞춤 추천 매장입니다.");
+            }
+
+            if (distanceScore > 0.5) {
+                reasons.add("현재 위치와 가깝습니다.");
+            }
+
+            scoredItems.add(new RecommendedItemDto(
+                    "PUBLIC",
+                    candidate.getPublicRestaurantId(),
+                    candidate.getName(),
+                    candidate.getCategoryMediumName() != null ? candidate.getCategoryMediumName() : candidate.getCategoryLargeName(),
+                    candidate.getRoadAddress(),
+                    candidate.getLatitude() != null ? candidate.getLatitude().doubleValue() : null,
+                    candidate.getLongitude() != null ? candidate.getLongitude().doubleValue() : null,
+                    Math.round(distanceMeters * 10) / 10.0,
+                    Math.round(finalScore * 10000) / 10000.0,
+                    reasons
+            ));
+        }
+
+        // 점수 순 내림차순 정렬 및 상위 limit개 추출
+        scoredItems.sort((a, b) -> Double.compare(b.score(), a.score()));
+        List<RecommendedItemDto> finalItems = scoredItems.stream().limit(limit).toList();
+
+        String summary = !favoriteCategories.isEmpty()
+                ? "회원님의 " + String.join(", ", favoriteCategories) + " 취향 기반 맞춤 추천"
+                : "회원님을 위한 맞춤 추천 맛집";
+
+        return new PersonalRecommendationResponse(true, summary, finalItems);
+    }
+
+    /**
+     * 💡 [추가] 두 좌표 간의 거리를 계산하는 하버사인(Haversine) 메서드
+     */
     private double calculateHaversineDistance(double lat1, double lon1, double lat2, double lon2) {
-        double R = 6371000; // 지구 반지름 (m)
+        double R = 6371000; // 지구 반지름 (미터 단위)
         double dLat = Math.toRadians(lat2 - lat1);
         double dLon = Math.toRadians(lon2 - lon1);
         double a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +

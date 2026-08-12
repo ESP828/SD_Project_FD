@@ -12,7 +12,7 @@ import java.util.List;
 @Repository
 public interface PublicRecommendationQueryRepository extends JpaRepository<PublicRestaurant, Long> {
 
-    // 1. 위도/경도 범위 및 상호명/카테고리 유사 조건 검색
+    // 1. 위도/경도 범위 검색
     @Query("""
         SELECT p FROM PublicRestaurant p
         WHERE (:minLat IS NULL OR p.latitude >= :minLat)
@@ -27,4 +27,16 @@ public interface PublicRecommendationQueryRepository extends JpaRepository<Publi
             @Param("maxLng") Double maxLng,
             Pageable pageable
     );
+
+    /**
+     * 2. 특정 사용자(accountId)가 찜한 공공 음식점 목록 조회
+     * FavoriteId 자바 필드명(restaurantId)을 바라보도록 작성
+     */
+    @Query("""
+        SELECT p FROM PublicRestaurant p
+        JOIN Favorite f ON p.publicRestaurantId = f.id.restaurantId
+        WHERE f.id.accountId = :accountId
+    """)
+    List<PublicRestaurant> findFavoritesByAccountId(@Param("accountId") Long accountId);
+
 }

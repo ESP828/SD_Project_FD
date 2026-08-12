@@ -297,4 +297,60 @@
       }
       renderError(error);
     });
+    // 마이페이지 또는 메인페이지의 "나를 위한 맛집" 로드 함수
+async function loadPersonalRecommendations(lat, lng) {
+  const token = localStorage.getItem('accessToken');
+
+  try {
+    const response = await fetch(`/api/recommendations/personal?latitude=${lat}&longitude=${lng}`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    const result = await response.json();
+    const data = result.data;
+    const container = document.getElementById('personal-recommend-container');
+
+    // 💡 1. 찜/선호 데이터가 없는 경우 (이미지 UI 렌더링)
+    if (!data.hasPreferenceData || data.items.length === 0) {
+      container.innerHTML = `
+        <div class="empty-recommend-box" style="text-align: center; padding: 30px 0;">
+          <img src="/images/duck_heart.png" alt="오리" style="width: 120px; margin-bottom: 15px;" />
+          <h3 style="font-weight: bold; margin-bottom: 8px;">추천에 사용할 음식점 데이터가 아직 없습니다</h3>
+          <p style="color: #666; font-size: 14px; margin-bottom: 20px;">
+            음식점·메뉴가 등록되면 이곳에 가게 이미지, 이름, 메뉴와 가격이 표시됩니다.
+          </p>
+          <a href="/pages/map/map.html" class="btn-find-kakao" style="display: inline-block; padding: 10px 24px; border: 1px solid #ddd; border-radius: 20px; text-decoration: none; color: #333; font-weight: bold;">
+            Kakao Map에서 먼저 찾기
+          </a>
+        </div>
+      `;
+      return;
+    }
+
+    // 💡 2. 찜 데이터가 있는 경우 (나를 위한 맛집 카드 목록 렌더링)
+    let cardsHtml = `<p class="pref-summary" style="color: #f39c12; font-weight: bold; margin-bottom: 15px;">${data.userPreferenceSummary}</p>`;
+    cardsHtml += '<div class="restaurant-card-grid">';
+
+    data.items.forEach(item => {
+      cardsHtml += `
+        <div class="restaurant-card">
+          <h4>${item.restaurantName}</h4>
+          <span class="badge">${item.categoryName}</span>
+          <p class="address">${item.address}</p>
+          <p class="score">취향 매칭 점수: <strong>${Math.round(item.score * 100)}점</strong></p>
+          <p class="reason">💡 ${item.reasons[0] || ''}</p>
+        </div>
+      `;
+    });
+
+    cardsHtml += '</div>';
+    container.innerHTML = cardsHtml;
+
+  } catch (error) {
+    console.error('개인화 추천 로딩 실패:', error);
+  }
+}
 })();
