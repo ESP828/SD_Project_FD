@@ -381,12 +381,28 @@
     );
   }
 
+  function authorMenuEmptyState(iconName, title, description) {
+    const empty = element("div", "author-menu-empty");
+    const emptyIcon = icon(iconName);
+    emptyIcon.classList.add("author-menu-empty-icon");
+    empty.append(
+      emptyIcon,
+      element("strong", "author-menu-empty-title", title),
+      element("p", "author-menu-empty-copy", description),
+    );
+    return empty;
+  }
+
   function authorMenuRecentPostSection(posts) {
     const section = element("section", "author-menu-recent");
     section.append(element("strong", "author-menu-recent-title", "이전글"));
     const items = Array.isArray(posts) ? posts : [];
     if (items.length === 0) {
-      section.append(element("p", "author-menu-recent-empty", "표시할 이전글이 없습니다."));
+      section.append(authorMenuEmptyState(
+        "article",
+        "아직 표시할 글이 없습니다",
+        "현재 확인할 수 있는 공개 게시글이 생기면 여기에 표시됩니다.",
+      ));
       return section;
     }
 
@@ -416,7 +432,11 @@
     section.append(element("strong", "author-menu-recent-title", "이전댓글"));
     const items = Array.isArray(comments) ? comments : [];
     if (items.length === 0) {
-      section.append(element("p", "author-menu-recent-empty", "표시할 이전댓글이 없습니다."));
+      section.append(authorMenuEmptyState(
+        "chat_bubble",
+        "아직 표시할 댓글이 없습니다",
+        "현재 확인할 수 있는 공개 댓글이 생기면 여기에 표시됩니다.",
+      ));
       return section;
     }
 
@@ -450,7 +470,11 @@
     section.append(element("strong", "author-menu-recent-title", "리뷰"));
     const items = Array.isArray(reviews) ? reviews : [];
     if (items.length === 0) {
-      section.append(element("p", "author-menu-recent-empty", "표시할 리뷰가 없습니다."));
+      section.append(authorMenuEmptyState(
+        "rate_review",
+        "아직 작성한 리뷰가 없습니다",
+        "작성자가 남긴 공개 리뷰가 생기면 가게와 별점을 함께 확인할 수 있습니다.",
+      ));
       return section;
     }
 
@@ -487,31 +511,37 @@
     button.setAttribute("role", "tab");
     button.setAttribute("aria-selected", active ? "true" : "false");
     button.append(
-      element("span", "author-menu-tab-label", label),
       element("strong", "author-menu-tab-count", String(count || 0)),
+      element("span", "author-menu-tab-label", label),
     );
     return button;
   }
 
   function renderAuthorMenuSummary(summary) {
     const menu = ensureAuthorMenu();
+    const nickname = summary.nickname || "작성자";
     const header = element("header", "author-menu-header");
+    const profile = element("div", "author-menu-profile");
+    const avatar = element("span", "author-menu-avatar", Array.from(nickname)[0] || "?");
+    avatar.setAttribute("aria-hidden", "true");
     const identity = element("div", "author-menu-identity");
     identity.append(
-      element("strong", "author-menu-nickname", summary.nickname || "작성자"),
+      element("strong", "author-menu-nickname", nickname),
       element(
         "span",
         "author-menu-account-id",
-        `(${summary.accountLabel || "계정 정보 없음"})`,
+        summary.accountLabel || "계정 정보 없음",
       ),
     );
+    profile.append(avatar, identity);
     header.append(
-      identity,
-      element("span", "author-menu-caption", "공개 활동"),
+      profile,
+      element("span", "author-menu-caption", "프로필"),
     );
 
-    const lastActivity = element("p", "author-menu-last-activity");
+    const lastActivity = element("div", "author-menu-last-activity");
     lastActivity.append(
+      element("span", "author-menu-last-activity-dot"),
       element("span", "author-menu-last-activity-label", "마지막 공개 활동"),
       element(
         "strong",
