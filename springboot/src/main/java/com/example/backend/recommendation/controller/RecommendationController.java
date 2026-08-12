@@ -19,7 +19,6 @@ public class RecommendationController {
     private final RecommendationPreviewService recommendationPreviewService;
     private final RecommendationService recommendationService;
 
-    // 두 의존성을 모두 주입받도록 생성자 수정
     public RecommendationController(
             RecommendationPreviewService recommendationPreviewService,
             RecommendationService recommendationService
@@ -36,7 +35,8 @@ public class RecommendationController {
             @AuthenticationPrincipal AuthenticatedAccount account,
             @RequestParam(required = false) String rankingSort
     ) {
-        return ApiResponse.success(recommendationPreviewService.getPage(account.accountId(), rankingSort));
+        Long accountId = account != null ? account.accountId() : null;
+        return ApiResponse.success(recommendationPreviewService.getPage(accountId, rankingSort));
     }
 
     /**
@@ -49,21 +49,24 @@ public class RecommendationController {
         NaturalLanguageRecommendationResponse response = recommendationService.recommendByQuery(request);
         return ResponseEntity.ok(ApiResponse.success(response));
     }
+
     /**
      * 💡 나를 위한 맛집 (개인화 추천 API)
      */
-@GetMapping("/personal")
-public ResponseEntity<ApiResponse<PersonalRecommendationResponse>> getPersonalRecommendations(
-        @AuthenticationPrincipal AuthenticatedAccount account, // 수정
-        @RequestParam(required = false, defaultValue = "37.4979") Double latitude,
-        @RequestParam(required = false, defaultValue = "127.0276") Double longitude,
-        @RequestParam(required = false, defaultValue = "3000") Double radiusMeters,
-        @RequestParam(required = false, defaultValue = "10") int limit
-) {
-    PersonalRecommendationResponse response = recommendationService.recommendForUser(
-            account.accountId(), latitude, longitude, radiusMeters, limit
-    );
-    return ResponseEntity.ok(ApiResponse.success(response));
-}
+    @GetMapping("/personal")
+    public ResponseEntity<ApiResponse<PersonalRecommendationResponse>> getPersonalRecommendations(
+            @AuthenticationPrincipal AuthenticatedAccount account,
+            @RequestParam(required = false, defaultValue = "37.4979") Double latitude,
+            @RequestParam(required = false, defaultValue = "127.0276") Double longitude,
+            @RequestParam(required = false, defaultValue = "3000") Double radiusMeters,
+            @RequestParam(required = false, defaultValue = "10") int limit
+    ) {
+        Long accountId = account != null ? account.accountId() : null;
 
+        PersonalRecommendationResponse response = recommendationService.recommendForUser(
+                accountId, latitude, longitude, radiusMeters, limit
+        );
+
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
 }

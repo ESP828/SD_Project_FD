@@ -13,26 +13,27 @@ import java.util.List;
 @Repository
 public class RecommendationQueryRepository {
 
-    // 💡 1. 사용자가 찜한 매장들의 상세 정보를 가져오는 SQL
+    // 💡 [수정] 일반 음식점(restaurant)과 공공 음식점(public_restaurant) 모두 대응하는 통합 찜 조회 SQL
     private static final String FAVORITES_BY_ACCOUNT_SQL = """
-            select r.restaurant_id,
-                   r.name as restaurant_name,
-                   rc.name as category_name,
-                   r.address,
-                   r.description,
-                   r.latitude,
-                   r.longitude,
-                   ri.image_url as restaurant_image_url,
-                   m.name as menu_name,
+            select coalesce(r.restaurant_id, pr.public_restaurant_id) as restaurant_id,
+                   coalesce(r.name, pr.name) as restaurant_name,
+                   coalesce(rc.name, pr.category_medium_name, pr.category_large_name, '') as category_name,
+                   coalesce(r.address, pr.road_address, '') as address,
+                   coalesce(r.description, '') as description,
+                   coalesce(r.latitude, pr.latitude) as latitude,
+                   coalesce(r.longitude, pr.longitude) as longitude,
+                   coalesce(ri.image_url, '') as restaurant_image_url,
+                   coalesce(m.name, '') as menu_name,
                    m.price as menu_price,
-                   m.image_url as menu_image_url,
-                   coalesce(rv.average_rating, 0) as average_rating,
+                   coalesce(m.image_url, '') as menu_image_url,
+                   coalesce(rv.average_rating, 0.0) as average_rating,
                    coalesce(rv.review_count, 0) as review_count,
-                   coalesce(fv.favorite_count, 0) as favorite_count,
+                   1 as favorite_count,
                    true as favorite_by_user,
-                   coalesce(ucp.preference_score, 0) as category_preference
+                   1.0 as category_preference
               from favorite uf
-              join restaurant r on r.restaurant_id = uf.restaurant_id
+              left join restaurant r on r.restaurant_id = uf.restaurant_id
+              left join public_restaurant pr on pr.public_restaurant_id = uf.public_restaurant_id
               left join restaurant_category rc on rc.category_id = r.category_id
               left join restaurant_image ri
                 on ri.restaurant_image_id = (
@@ -55,18 +56,12 @@ public class RecommendationQueryRepository {
                     select restaurant_id, avg(rating) as average_rating, count(*) as review_count
                       from review where status = 'ACTIVE' group by restaurant_id
               ) rv on rv.restaurant_id = r.restaurant_id
-              left join (
-                    select restaurant_id, count(*) as favorite_count
-                      from favorite group by restaurant_id
-              ) fv on fv.restaurant_id = r.restaurant_id
-              left join user_category_preference ucp
-                on ucp.category_id = r.category_id and ucp.account_id = :accountId
              where uf.account_id = :accountId
-               and r.status = 'ACTIVE'
+               and (r.status = 'ACTIVE' or pr.public_restaurant_id is not null)
              order by uf.created_at desc
             """;
 
-    // 💡 2. 후보 매장 전체 200건 조회 SQL (기존 유구한 유지)
+    // 후보 매장 전체 200건 조회 SQL (기존 유지)
     private static final String CANDIDATE_SQL = """
             select r.restaurant_id,
                    r.name as restaurant_name,
@@ -137,7 +132,7 @@ public class RecommendationQueryRepository {
     }
 
     /**
-     * 💡 [추가] 사용자가 찜한 음식점 목록 조회 (1번 기능 구현)
+     * 💡 사용자가 찜한 음식점 목록 조회 (통합버전)
      */
     public List<RestaurantCandidate> findFavoritesByAccountId(Long accountId) {
         var parameters = new MapSqlParameterSource("accountId", accountId);
@@ -164,7 +159,7 @@ public class RecommendationQueryRepository {
     }
 
     /**
-     * 후보 매장 200건 조회 (기존 메서드 100% 유지)
+     * 후보 매장 200건 조회
      */
     public List<RestaurantCandidate> findCandidates(Long accountId) {
         var parameters = new MapSqlParameterSource("accountId", accountId);
