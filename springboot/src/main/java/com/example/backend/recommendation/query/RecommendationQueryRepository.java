@@ -13,6 +13,60 @@ import java.util.List;
 @Repository
 public class RecommendationQueryRepository {
 
+    // 💡 1. 사용자가 찜한 매장들의 상세 정보를 가져오는 SQL
+    private static final String FAVORITES_BY_ACCOUNT_SQL = """
+            select r.restaurant_id,
+                   r.name as restaurant_name,
+                   rc.name as category_name,
+                   r.address,
+                   r.description,
+                   r.latitude,
+                   r.longitude,
+                   ri.image_url as restaurant_image_url,
+                   m.name as menu_name,
+                   m.price as menu_price,
+                   m.image_url as menu_image_url,
+                   coalesce(rv.average_rating, 0) as average_rating,
+                   coalesce(rv.review_count, 0) as review_count,
+                   coalesce(fv.favorite_count, 0) as favorite_count,
+                   true as favorite_by_user,
+                   coalesce(ucp.preference_score, 0) as category_preference
+              from favorite uf
+              join restaurant r on r.restaurant_id = uf.restaurant_id
+              left join restaurant_category rc on rc.category_id = r.category_id
+              left join restaurant_image ri
+                on ri.restaurant_image_id = (
+                    select ri2.restaurant_image_id
+                      from restaurant_image ri2
+                     where ri2.restaurant_id = r.restaurant_id
+                     order by ri2.representative desc, ri2.display_order asc, ri2.restaurant_image_id asc
+                     limit 1
+                )
+              left join menu m
+                on m.menu_id = (
+                    select m2.menu_id
+                      from menu m2
+                     where m2.restaurant_id = r.restaurant_id
+                       and m2.status = 'AVAILABLE'
+                     order by m2.representative desc, m2.menu_id asc
+                     limit 1
+                )
+              left join (
+                    select restaurant_id, avg(rating) as average_rating, count(*) as review_count
+                      from review where status = 'ACTIVE' group by restaurant_id
+              ) rv on rv.restaurant_id = r.restaurant_id
+              left join (
+                    select restaurant_id, count(*) as favorite_count
+                      from favorite group by restaurant_id
+              ) fv on fv.restaurant_id = r.restaurant_id
+              left join user_category_preference ucp
+                on ucp.category_id = r.category_id and ucp.account_id = :accountId
+             where uf.account_id = :accountId
+               and r.status = 'ACTIVE'
+             order by uf.created_at desc
+            """;
+
+    // 💡 2. 후보 매장 전체 200건 조회 SQL (기존 유구한 유지)
     private static final String CANDIDATE_SQL = """
             select r.restaurant_id,
                    r.name as restaurant_name,
@@ -82,6 +136,36 @@ public class RecommendationQueryRepository {
         this.jdbcTemplate = jdbcTemplate;
     }
 
+    /**
+     * 💡 [추가] 사용자가 찜한 음식점 목록 조회 (1번 기능 구현)
+     */
+    public List<RestaurantCandidate> findFavoritesByAccountId(Long accountId) {
+        var parameters = new MapSqlParameterSource("accountId", accountId);
+        return jdbcTemplate.query(FAVORITES_BY_ACCOUNT_SQL, parameters, (resultSet, rowNumber) ->
+                new RestaurantCandidate(
+                        resultSet.getLong("restaurant_id"),
+                        resultSet.getString("restaurant_name"),
+                        resultSet.getString("category_name"),
+                        resultSet.getString("address"),
+                        resultSet.getString("description"),
+                        nullableDouble(resultSet, "latitude"),
+                        nullableDouble(resultSet, "longitude"),
+                        resultSet.getString("restaurant_image_url"),
+                        resultSet.getString("menu_name"),
+                        nullableInteger(resultSet, "menu_price"),
+                        resultSet.getString("menu_image_url"),
+                        resultSet.getDouble("average_rating"),
+                        resultSet.getLong("review_count"),
+                        resultSet.getLong("favorite_count"),
+                        resultSet.getBoolean("favorite_by_user"),
+                        resultSet.getDouble("category_preference")
+                )
+        );
+    }
+
+    /**
+     * 후보 매장 200건 조회 (기존 메서드 100% 유지)
+     */
     public List<RestaurantCandidate> findCandidates(Long accountId) {
         var parameters = new MapSqlParameterSource("accountId", accountId);
         return jdbcTemplate.query(CANDIDATE_SQL, parameters, (resultSet, rowNumber) ->

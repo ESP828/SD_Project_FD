@@ -4,6 +4,7 @@ import com.example.backend.global.response.ApiResponse;
 import com.example.backend.global.security.principal.AuthenticatedAccount;
 import com.example.backend.recommendation.dto.request.NaturalLanguageRecommendationRequest;
 import com.example.backend.recommendation.dto.response.NaturalLanguageRecommendationResponse;
+import com.example.backend.recommendation.dto.response.PersonalRecommendationResponse;
 import com.example.backend.recommendation.dto.response.RecommendationPageResponse;
 import com.example.backend.recommendation.service.RecommendationPreviewService;
 import com.example.backend.recommendation.service.RecommendationService;
@@ -48,4 +49,21 @@ public class RecommendationController {
         NaturalLanguageRecommendationResponse response = recommendationService.recommendByQuery(request);
         return ResponseEntity.ok(ApiResponse.success(response));
     }
+    /**
+     * 💡 나를 위한 맛집 (개인화 추천 API)
+     */
+@GetMapping("/personal")
+public ResponseEntity<ApiResponse<PersonalRecommendationResponse>> getPersonalRecommendations(
+        @AuthenticationPrincipal AuthenticatedAccount account, // 수정
+        @RequestParam(required = false, defaultValue = "37.4979") Double latitude,
+        @RequestParam(required = false, defaultValue = "127.0276") Double longitude,
+        @RequestParam(required = false, defaultValue = "3000") Double radiusMeters,
+        @RequestParam(required = false, defaultValue = "10") int limit
+) {
+    PersonalRecommendationResponse response = recommendationService.recommendForUser(
+            account.accountId(), latitude, longitude, radiusMeters, limit
+    );
+    return ResponseEntity.ok(ApiResponse.success(response));
+}
+
 }
