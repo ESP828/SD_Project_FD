@@ -15,6 +15,7 @@
   const nextButton = document.getElementById("search-next");
   const pageLabel = document.getElementById("search-page-label");
   const quickButtons = document.querySelectorAll("[data-quick-category]");
+  let useAiSearch = Boolean(window.FooduckSession?.authenticated);
 
   // 기본 좌표 (위치 권한 거부/실패 시 강남역 좌표로 fallback)
   const DEFAULT_LOCATION = { latitude: 37.4979, longitude: 127.0276 };
@@ -61,12 +62,10 @@
     return row;
   }
 
-  // 추천 결과 카드 생성 (자연어 추천 DTO 필드 규격에 맞춤)
-  function createResultCard(item) {
+  function createResultCard(item, isRecommendation = false) {
     const article = document.createElement("article");
     article.className = "surface-card search-result-card";
 
-    // 1. 이미지 및 마커
     const visual = document.createElement("div");
     visual.className = "search-result-visual";
     const image = document.createElement("img");
@@ -75,7 +74,6 @@
     image.setAttribute("aria-hidden", "true");
     visual.append(image);
 
-    // 2. 바디 (상호명, 카테고리, 주소, 추천 이유 태그)
     const body = document.createElement("div");
     body.className = "search-result-body";
 
@@ -84,54 +82,59 @@
     category.textContent = item.categoryName || "음식점";
 
     const title = document.createElement("h3");
-    title.textContent = item.restaurantName; // DTO 필드: restaurantName
+    title.textContent = isRecommendation ? item.restaurantName : item.name;
 
     const address = createTextRow(
       "search-result-address",
       "location_on",
-      item.address || "주소 정보 없음", // DTO 필드: address
+      isRecommendation
+        ? item.address || "주소 정보 없음"
+        : item.roadAddress || item.lotAddress || "주소 정보 없음",
     );
+    body.append(category, title, address);
 
-    // 거리 정보 표시
-    const distanceInfo = createTextRow(
-      "search-result-distance",
-      "near_me",
-      `약 ${item.distanceMeters}m 거리 (매칭점수 ${(item.score * 100).toFixed(0)}점)`
-    );
-    distanceInfo.style.fontSize = "0.85rem";
-    distanceInfo.style.color = "#007bff";
+    if (isRecommendation) {
+      const distanceInfo = createTextRow(
+        "search-result-distance",
+        "near_me",
+        `약 ${item.distanceMeters}m 거리 (매칭점수 ${(item.score * 100).toFixed(0)}점)`,
+      );
+      distanceInfo.style.fontSize = "0.85rem";
+      distanceInfo.style.color = "#007bff";
+      body.append(distanceInfo);
 
-    body.append(category, title, address, distanceInfo);
+      if (item.reasons && item.reasons.length > 0) {
+        const reasonsWrap = document.createElement("div");
+        reasonsWrap.className = "search-result-reasons";
+        reasonsWrap.style.marginTop = "8px";
 
-    // 추천 이유 (Reasons) 태그 출력
-    if (item.reasons && item.reasons.length > 0) {
-      const reasonsWrap = document.createElement("div");
-      reasonsWrap.className = "search-result-reasons";
-      reasonsWrap.style.marginTop = "8px";
-
-      item.reasons.forEach(reason => {
-        const badge = document.createElement("span");
-        badge.className = "reason-badge";
-        badge.style.cssText = "display:inline-block; background:#ebf8ff; color:#2b6cb0; font-size:12px; padding:2px 8px; border-radius:12px; margin-right:4px; margin-top:4px;";
-        badge.textContent = `💡 ${reason}`;
-        reasonsWrap.append(badge);
-      });
-      body.append(reasonsWrap);
+        item.reasons.forEach((reason) => {
+          const badge = document.createElement("span");
+          badge.className = "reason-badge";
+          badge.style.cssText = "display:inline-block; background:#ebf8ff; color:#2b6cb0; font-size:12px; padding:2px 8px; border-radius:12px; margin-right:4px; margin-top:4px;";
+          badge.textContent = `💡 ${reason}`;
+          reasonsWrap.append(badge);
+        });
+        body.append(reasonsWrap);
+      }
     }
 
-    // 3. 버튼 영역 (상세보기, 지도)
     const actions = document.createElement("div");
     actions.className = "search-result-actions";
 
-    const sourceType = (item.sourceType || "PUBLIC").toLowerCase();
+    const sourceType = isRecommendation
+      ? (item.sourceType || "PUBLIC").toLowerCase()
+      : "public";
+    const sourceId = isRecommendation ? item.sourceId : item.id;
+    const restaurantName = isRecommendation ? item.restaurantName : item.name;
     const detailLink = document.createElement("a");
     detailLink.className = "button button-primary";
-    detailLink.href = `/pages/restaurant/detail.html?source=${sourceType}&id=${item.sourceId}`;
+    detailLink.href = `/pages/restaurant/detail.html?source=${sourceType}&id=${sourceId}`;
     detailLink.textContent = "상세보기";
 
     const mapLink = document.createElement("a");
     mapLink.className = "button button-secondary";
-    mapLink.href = `/pages/map/index.html?q=${encodeURIComponent(item.restaurantName)}`;
+    mapLink.href = `/pages/map/index.html?q=${encodeURIComponent(restaurantName)}`;
     mapLink.textContent = "지도에서 찾기";
 
     actions.append(detailLink, mapLink);
@@ -158,6 +161,30 @@
     count.textContent = "0";
   }
 
+  function updatePagination(response) {
+    const current = response.page + 1;
+    const total = Math.max(1, response.totalPages);
+    pageLabel.textContent = `${current} / ${total}`;
+    previousButton.disabled = !response.hasPrevPage;
+    nextButton.disabled = !response.hasNextPage;
+  }
+
+  function updateUrlState(page = 0) {
+    const params = new URLSearchParams();
+    const keyword = keywordInput.value.trim();
+    const region = regionInput.value.trim();
+    const category = categorySelect.value;
+
+    if (keyword) params.set("keyword", keyword);
+    if (region) params.set("region", region);
+    if (category) params.set("category", category);
+    if (!useAiSearch) params.set("page", String(Math.max(page, 0)));
+
+    const query = params.toString();
+    const url = query ? `${window.location.pathname}?${query}` : window.location.pathname;
+    window.history.replaceState(null, "", url);
+  }
+
   // GPS 좌표 구하기
   function getCurrentLocation() {
     return new Promise((resolve) => {
@@ -173,8 +200,54 @@
     });
   }
 
+  async function runPublicSearch(page = 0) {
+    resultHeading.hidden = false;
+    const params = new URLSearchParams({
+      page: String(page),
+      size: String(PAGE_SIZE),
+    });
+    const keyword = keywordInput.value.trim();
+    const region = regionInput.value.trim();
+    const category = categorySelect.value;
+    if (keyword) params.set("keyword", keyword);
+    if (region) params.set("region", region);
+    if (category) params.set("category", category);
+
+    updateUrlState(page);
+    setStatus("검색 중입니다.");
+    results.setAttribute("aria-busy", "true");
+
+    try {
+      const response = await Api.get(
+        `/public/map/restaurants/search?${params.toString()}`,
+        { auth: false },
+      );
+      const data = response.data;
+      results.removeAttribute("aria-busy");
+      currentPage = data.page;
+
+      if (data.items.length === 0) {
+        renderEmpty("다른 검색어나 지역으로 다시 찾아보세요.");
+        setStatus("조건에 맞는 맛집을 찾지 못했습니다.");
+        previousButton.disabled = true;
+        nextButton.disabled = true;
+        pageLabel.textContent = "1 / 1";
+        return;
+      }
+
+      results.replaceChildren(...data.items.map((item) => createResultCard(item)));
+      count.textContent = String(data.totalCount);
+      setStatus(`총 ${data.totalCount}개 중 ${data.page + 1}페이지 결과입니다.`);
+      updatePagination(data);
+    } catch (error) {
+      results.removeAttribute("aria-busy");
+      renderEmpty("검색 요청을 완료하지 못했습니다.");
+      setStatus("검색 요청에 실패했습니다.", true);
+    }
+  }
+
   // 자연어 맛집 추천 API (POST /api/recommendations/query) 실행
-  async function runSearch() {
+  async function runRecommendationSearch() {
     resultHeading.hidden = false;
 
     // 자연어 입력 문장 구성 (키워드 + 지역 + 카테고리 조합)
@@ -194,6 +267,7 @@
       if (category && !fullQuery.includes(category)) fullQuery = `${fullQuery} ${category}`;
     }
 
+    updateUrlState();
     setStatus("🤖 자연어 분석 및 맞춤 맛집을 계산 중입니다...");
     results.setAttribute("aria-busy", "true");
 
@@ -223,7 +297,7 @@
       }
 
       // 카드 목록 동적 렌더링
-      results.replaceChildren(...data.items.map(createResultCard));
+      results.replaceChildren(...data.items.map((item) => createResultCard(item, true)));
       count.textContent = String(data.items.length);
       setStatus(`'${data.originalQuery}' 추천 결과 ${data.items.length}건입니다.`);
 
@@ -234,15 +308,24 @@
 
     } catch (error) {
       results.removeAttribute("aria-busy");
+      if (error.status === 401) {
+        useAiSearch = false;
+        await runPublicSearch(0);
+        return;
+      }
       renderEmpty("검색 요청을 완료하지 못했습니다.");
       setStatus("검색 요청에 실패했습니다.", true);
     }
   }
 
+  function runSearch(page = 0) {
+    return useAiSearch ? runRecommendationSearch() : runPublicSearch(page);
+  }
+
   // 폼 제출 이벤트 handler
   form.addEventListener("submit", (event) => {
     event.preventDefault();
-    runSearch();
+    runSearch(0);
   });
 
   filterToggle.addEventListener("click", () => {
@@ -257,10 +340,10 @@
       quickButtons.forEach((item) =>
         item.classList.toggle("is-active", item === button),
       );
-      if (!keywordInput.value.trim()) {
+      if (useAiSearch && !keywordInput.value.trim()) {
         keywordInput.value = `${selectedCategory} 추천해줘`;
       }
-      runSearch();
+      runSearch(0);
     });
   });
 
@@ -273,12 +356,44 @@
     );
   });
 
+  previousButton.addEventListener("click", () => {
+    if (!useAiSearch && currentPage > 0) {
+      runSearch(currentPage - 1);
+    }
+  });
+  nextButton.addEventListener("click", () => {
+    if (!useAiSearch) {
+      runSearch(currentPage + 1);
+    }
+  });
+
   setStatus("검색 조건을 입력해 주세요.");
 
-  // URL Query Parameter (예: search.html?q=강남역 파스타) 자동 검색 실행
-  const query = new URLSearchParams(window.location.search).get("q");
-  if (query) {
-    keywordInput.value = query;
-    runSearch();
+  const initialParams = new URLSearchParams(window.location.search);
+  const initialKeyword = initialParams.get("keyword") || initialParams.get("q") || "";
+  const initialRegion = initialParams.get("region") || "";
+  const initialCategory = initialParams.get("category") || "";
+  const parsedInitialPage = Number(initialParams.get("page"));
+  const initialPage = Number.isInteger(parsedInitialPage)
+    ? Math.max(parsedInitialPage, 0)
+    : 0;
+
+  if (initialKeyword) keywordInput.value = initialKeyword;
+  if (initialRegion) regionInput.value = initialRegion;
+  if (initialCategory) {
+    categorySelect.value = initialCategory;
+    quickButtons.forEach((button) =>
+      button.classList.toggle(
+        "is-active",
+        button.dataset.quickCategory === initialCategory,
+      ),
+    );
+    setFilterPanelOpen(true);
+  } else if (initialRegion) {
+    setFilterPanelOpen(true);
+  }
+
+  if (initialKeyword || initialRegion || initialCategory) {
+    runSearch(useAiSearch ? 0 : initialPage);
   }
 })();
