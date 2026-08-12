@@ -1058,6 +1058,7 @@
       authorIdentity(post, {
         showAuthorMenu: true,
         authorMenuContext: newsPost ? "NEWS" : "COMMUNITY",
+        authorActivityCueMode: "full",
       }),
       element(
         "span",

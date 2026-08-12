@@ -1049,6 +1049,7 @@
         showNickname: true,
         showAuthorMenu: true,
         authorMenuContext: "NEWS",
+        authorActivityCueMode: "full",
       }));
     });
   }
