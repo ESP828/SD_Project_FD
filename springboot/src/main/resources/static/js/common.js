@@ -198,9 +198,11 @@
     }
     const paths = ICON_PATHS[iconName];
     if (!paths) {
+      element.dataset.iconError = iconName || "unknown";
       console.warn(`[FooduckIcons] 등록되지 않은 아이콘: ${iconName}`);
       return;
     }
+    delete element.dataset.iconError;
     const svg = document.createElementNS(SVG_NAMESPACE, "svg");
     svg.setAttribute("viewBox", "0 0 24 24");
     svg.setAttribute("aria-hidden", "true");

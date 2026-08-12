@@ -108,7 +108,7 @@ h4 {
 }
 
 .material-symbols-rounded:not([data-icon-name]) {
-  color: transparent;
+  visibility: hidden;
   overflow: hidden;
 }
 
