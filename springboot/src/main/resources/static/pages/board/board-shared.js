@@ -547,7 +547,7 @@
         "strong",
         "author-menu-last-activity-time",
         summary.lastPublicActivityAt
-          ? `${formatDate(summary.lastPublicActivityAt)} 활동함`
+          ? `${formatDate(summary.lastPublicActivityAt)}`
           : "공개 활동 기록 없음",
       ),
     );
