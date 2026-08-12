@@ -61,20 +61,19 @@ class PresetRestaurantConcurrencyIntegrationTest {
 
         for (int index = 0; index < 16; index++) {
             String name = "동시성 맛집 " + suffix.substring(0, 8) + "-" + index;
+            String externalStoreId = "concurrency-" + suffix.substring(0, 8) + "-" + index;
             jdbcTemplate.update("""
-                    insert into restaurant (
-                        owner_account_id, name, address, description,
-                        status, created_at, updated_at
-                    ) values (?, ?, '서울 테스트로', '동시성 테스트',
-                              'ACTIVE', current_timestamp, current_timestamp)
-                    """, accountId, name);
+                    insert into public_restaurant (
+                        external_store_id, name, road_address, status, created_at, updated_at
+                    ) values (?, ?, '서울 테스트로', 'ACTIVE', current_timestamp, current_timestamp)
+                    """, externalStoreId, name);
             restaurantIds.add(jdbcTemplate.queryForObject(
-                    "select restaurant_id from restaurant where name = ?", Long.class, name));
+                    "select public_restaurant_id from public_restaurant where name = ?", Long.class, name));
         }
         for (int index = 0; index < 14; index++) {
             jdbcTemplate.update("""
                     insert into preset_restaurant (
-                        preset_id, restaurant_id, display_order, description
+                        preset_id, public_restaurant_id, display_order, description
                     ) values (?, ?, ?, null)
                     """, presetId, restaurantIds.get(index), index);
         }
@@ -87,7 +86,7 @@ class PresetRestaurantConcurrencyIntegrationTest {
             jdbcTemplate.update("delete from preset where preset_id = ?", presetId);
         }
         for (Long restaurantId : restaurantIds) {
-            jdbcTemplate.update("delete from restaurant where restaurant_id = ?", restaurantId);
+            jdbcTemplate.update("delete from public_restaurant where public_restaurant_id = ?", restaurantId);
         }
         if (accountId != null) {
             jdbcTemplate.update("delete from account where account_id = ?", accountId);

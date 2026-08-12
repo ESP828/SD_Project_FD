@@ -16,10 +16,10 @@
     <section class="preset-hero">
       <div class="container preset-hero-grid">
         <div>
-          <p class="eyebrow">PRESSET COLLECTION</p>
-          <h1>고민할 필요 없이,<br>상황에 맞는 맛집 모음</h1>
+          <p class="eyebrow">PRESSET COLLECTIONS</p>
+          <h1>지금 어울리는<br>맛집 모음</h1>
           <p class="preset-hero-copy">
-            데이트부터 가족 모임, 혼밥까지. 푸드덕이 골라 담은 테마별 음식점을 만나보세요.
+            상황과 취향에 딱 맞는 프리셋을 검색하고, 오늘의 맛집 고민을 가볍게 해결해보세요.
           </p>
           <div class="preset-hero-actions">
             <a class="button button-primary" href="#preset-collection">모음 둘러보기</a>
@@ -38,29 +38,68 @@
       <div class="preset-section-heading">
         <div>
           <p class="eyebrow">CURATED FOR YOU</p>
-          <h2>지금 어울리는 맛집 모음</h2>
+          <h2>취향별 Presset을 둘러보세요</h2>
           <p id="preset-count" class="muted">프리셋을 불러오고 있습니다.</p>
         </div>
-        <a class="button button-secondary" href="/pages/map/index.html">맛집 지도</a>
+        <a class="preset-search-guide" href="#preset-search-panel">
+          검색 조건 선택하기 <span aria-hidden="true">↓</span>
+        </a>
       </div>
 
-      <div class="preset-toolbar surface-card">
-        <form id="preset-search-form" class="preset-search" role="search">
-          <label class="sr-only" for="preset-keyword">Presset 검색</label>
-          <input id="preset-keyword" type="search" maxlength="100" placeholder="지역, 상황, Presset 이름 검색">
-          <button class="button button-primary" type="submit">검색</button>
-        </form>
-        <label class="preset-sort-label" for="preset-sort">
-          정렬
-          <select id="preset-sort">
-            <option value="popular">인기순</option>
-            <option value="latest">최신순</option>
-            <option value="favorite">저장순</option>
-          </select>
-        </label>
-      </div>
+      <div id="preset-search-panel" class="preset-discovery-panel surface-card">
+        <div class="preset-discovery-main">
+          <form id="preset-search-form" class="preset-search" role="search">
+            <label class="sr-only" for="preset-keyword">Presset 검색</label>
+            <div class="preset-search-field">
+              <span class="preset-search-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" focusable="false">
+                  <circle cx="11" cy="11" r="6.5"></circle>
+                  <path d="m16 16 4 4"></path>
+                </svg>
+              </span>
+              <input
+                id="preset-keyword"
+                type="search"
+                maxlength="100"
+                placeholder="지역, 상황, 키워드로 프리셋 검색"
+              >
+            </div>
+            <button class="button button-primary preset-search-submit" type="submit">검색</button>
+          </form>
 
-      <div id="preset-filters" class="preset-filters preset-filters--wide" aria-label="상황별 Presset 필터"></div>
+          <div class="preset-toolbar-actions" aria-label="Presset 보기 옵션">
+            <label class="preset-sort-label" for="preset-sort">
+              <span>정렬</span>
+              <select id="preset-sort">
+                <option value="popular">인기순</option>
+                <option value="latest">최신순</option>
+                <option value="favorite">저장순</option>
+              </select>
+            </label>
+            <a class="button button-secondary preset-map-button" href="/pages/map/index.html">
+              <span aria-hidden="true">⌖</span> 지도 보기
+            </a>
+            <button
+              id="preset-filter-toggle"
+              class="button button-ghost preset-filter-toggle"
+              type="button"
+              aria-controls="preset-filter-panel"
+              aria-expanded="true"
+            >
+              <span aria-hidden="true">☷</span>
+              <span data-filter-toggle-text>상세 조건 접기</span>
+            </button>
+          </div>
+        </div>
+
+        <div id="preset-filter-panel" class="preset-filter-panel">
+          <div class="preset-filter-heading">
+            <strong>상황별 카테고리</strong>
+            <span>하나를 선택해 원하는 모음만 빠르게 확인하세요.</span>
+          </div>
+          <div id="preset-filters" class="preset-filters preset-filters--wide" aria-label="상황별 Presset 필터"></div>
+        </div>
+      </div>
 
       <div
         id="preset-list"

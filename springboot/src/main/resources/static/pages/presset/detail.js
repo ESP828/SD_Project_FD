@@ -52,9 +52,10 @@
     return group;
   }
 
-  function mapPath(restaurantId) {
+  function mapPath(restaurantId, editable = false) {
     const query = new URLSearchParams({ presetId: requestedId });
     if (restaurantId) query.set("restaurantId", restaurantId);
+    if (editable) query.set("edit", "1");
     return `/pages/map/index.html?${query.toString()}`;
   }
 
@@ -167,7 +168,7 @@
 
     if (restaurant.coordinateAvailable) {
       const map = element("a", "button button-secondary preset-restaurant-map-btn", "지도에서 보기");
-      map.href = mapPath(restaurant.restaurantId);
+      map.href = mapPath(restaurant.restaurantId, preset.isOwner);
       actions.append(map);
     } else {
       actions.append(element("span", "preset-coordinate-missing", "지도 위치 미등록"));
@@ -404,12 +405,10 @@
     if (data.imageUrl) {
       visual = element("div", "preset-detail-visual");
       visual.append(safeImage(data.imageUrl, `${data.title || "Presset"} 대표 이미지`, "preset-detail-image"));
-      const restaurantCountForBadge = Number(data.restaurantCount ?? data.restaurants?.length ?? 0);
-      visual.append(element("span", "preset-detail-visual-badge", `🍴 ${restaurantCountForBadge}`));
       hero.classList.add("preset-detail-hero--with-image");
     }
     const copy = element("div", "preset-detail-copy");
-    copy.append(createCategoryBadges(data.category), element("h1", "", data.title || "맛집 Presset"));
+    copy.append(element("h1", "", data.title || "맛집 Presset"), createCategoryBadges(data.category));
     const tags = element("div", "preset-tag-list");
     (data.tags || []).forEach((tag) => tags.append(element("span", "preset-tag", `#${tag.tagName}`)));
     if (tags.childElementCount) copy.append(tags);
@@ -432,8 +431,8 @@
     favorite.classList.toggle("is-active", data.favoriteByCurrentUser);
     favorite.setAttribute("aria-pressed", String(Boolean(data.favoriteByCurrentUser)));
     favorite.addEventListener("click", () => togglePresetFavorite(favorite));
-    const map = element("a", "button button-primary", "전체 맛집 지도 보기");
-    map.href = mapPath();
+    const map = element("a", "button button-primary", data.isOwner ? "지도에서 맛집 관리" : "전체 맛집 지도 보기");
+    map.href = mapPath(undefined, data.isOwner);
     actions.append(favorite, map);
     if (data.isOwner) {
       const edit = element("button", "button button-secondary", "Presset 수정하기");

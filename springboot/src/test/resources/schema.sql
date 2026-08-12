@@ -37,18 +37,58 @@ CREATE TABLE IF NOT EXISTS menu (
     status VARCHAR(20) NOT NULL
 );
 
-CREATE TABLE IF NOT EXISTS favorite (
-    account_id BIGINT NOT NULL,
-    restaurant_id BIGINT NOT NULL,
+-- JPA(create-drop)가 PublicRestaurant 엔티티 기준으로 이미 만든, 컬럼이 부족한 테이블을
+-- 실제 운영 스키마와 맞는 전체 컬럼 버전으로 교체한다.
+-- review는 public_restaurant를 FK로 참조하므로(JPA 관리) 먼저 지웠다가 그대로 다시 만든다.
+DROP TABLE IF EXISTS review;
+DROP TABLE IF EXISTS public_restaurant;
+
+CREATE TABLE public_restaurant (
+    public_restaurant_id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    external_store_id VARCHAR(30) NOT NULL UNIQUE,
+    name VARCHAR(150) NOT NULL,
+    branch_name VARCHAR(100),
+    category_large_code VARCHAR(10),
+    category_large_name VARCHAR(50),
+    category_medium_code VARCHAR(10),
+    category_medium_name VARCHAR(50),
+    category_small_code VARCHAR(10),
+    category_small_name VARCHAR(50),
+    category_group VARCHAR(20),
+    sido_name VARCHAR(30),
+    sigungu_name VARCHAR(30),
+    road_address VARCHAR(255),
+    lot_address VARCHAR(255),
+    address_detail VARCHAR(255),
+    phone VARCHAR(30),
+    opening_hours VARCHAR(500),
+    closed_days VARCHAR(255),
+    description VARCHAR(2000),
+    status VARCHAR(20) NOT NULL DEFAULT 'ACTIVE',
+    latitude DECIMAL(10, 7),
+    longitude DECIMAL(10, 7),
+    data_ym VARCHAR(6),
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    PRIMARY KEY (account_id, restaurant_id)
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE IF NOT EXISTS review (
-    review_id BIGINT AUTO_INCREMENT PRIMARY KEY,
-    restaurant_id BIGINT NOT NULL,
+-- Favorite 엔티티는 (account_id, restaurant_id)만 매핑하므로, 리뷰와 동일하게 만든 뒤
+-- public_restaurant_id 컬럼을 얹은 운영 스키마 버전으로 교체한다.
+DROP TABLE IF EXISTS favorite;
+
+CREATE TABLE favorite (
     account_id BIGINT NOT NULL,
-    rating INT NOT NULL,
+    restaurant_id BIGINT,
+    public_restaurant_id BIGINT,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE review (
+    review_id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    restaurant_id BIGINT,
+    public_restaurant_id BIGINT,
+    account_id BIGINT NOT NULL,
+    rating TINYINT NOT NULL,
     content VARCHAR(1000),
     status VARCHAR(20) NOT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -110,12 +150,13 @@ ALTER TABLE preset
         FOREIGN KEY (preset_image_id) REFERENCES preset_image (preset_image_id) ON DELETE SET NULL;
 
 CREATE TABLE IF NOT EXISTS preset_restaurant (
+    preset_restaurant_id BIGINT AUTO_INCREMENT PRIMARY KEY,
     preset_id BIGINT NOT NULL,
-    restaurant_id BIGINT NOT NULL,
+    public_restaurant_id BIGINT,
+    owner_restaurant_id BIGINT,
     display_order INT NOT NULL DEFAULT 0,
     description VARCHAR(255),
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    PRIMARY KEY (preset_id, restaurant_id)
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS preset_favorite (

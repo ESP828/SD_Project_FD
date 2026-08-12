@@ -6,6 +6,9 @@
   const searchForm = document.querySelector("#preset-search-form");
   const keywordInput = document.querySelector("#preset-keyword");
   const sortSelect = document.querySelector("#preset-sort");
+  const filterToggle = document.querySelector("#preset-filter-toggle");
+  const filterToggleText = document.querySelector("[data-filter-toggle-text]");
+  const filterPanel = document.querySelector("#preset-filter-panel");
   const registerLink = document.querySelector("[data-preset-register-link]");
   const toast = document.querySelector("#preset-toast");
   const registerPath = "/pages/presset/register.html";
@@ -48,6 +51,19 @@
     }
     tokens.forEach((token) => group.append(element("span", "preset-category", token)));
     return group;
+  }
+
+  function createCardDescription(preset) {
+    const tagNames = (preset.tags || [])
+      .map((tag) => tag.tagName)
+      .filter(Boolean)
+      .slice(0, 2);
+    const categoryNames = parseCategoryTokens(preset.category).slice(0, 2);
+    const keywords = tagNames.length ? tagNames : categoryNames;
+    if (keywords.length) {
+      return `${keywords.join(" · ")}에 어울리는 맛집을 한곳에 모았습니다.`;
+    }
+    return "상황과 취향에 맞는 맛집을 편하게 둘러보세요.";
   }
 
   function detailPath(presetId) {
@@ -122,6 +138,7 @@
     const card = element("article", "preset-card");
     const visualLink = element("a", "preset-card-visual");
     visualLink.href = detailPath(preset.presetId);
+    visualLink.setAttribute("aria-label", `${preset.title || "Presset"} 상세 보기`);
     if (preset.imageUrl) {
       visualLink.append(safeImage(
         preset.imageUrl,
@@ -137,8 +154,6 @@
     if (Number.isInteger(rank)) {
       visualLink.append(element("span", "preset-card-rank", String(rank)));
     }
-    visualLink.append(createCategoryBadges(preset.category));
-
     const favorite = element("button", "preset-favorite-button", preset.favoriteByCurrentUser ? "♥" : "♡");
     favorite.type = "button";
     favorite.classList.toggle("is-active", preset.favoriteByCurrentUser);
@@ -152,50 +167,37 @@
     card.append(visualLink, favorite);
 
     const body = element("div", "preset-card-body");
+    body.append(createCategoryBadges(preset.category));
     const titleLink = element("a", "preset-card-title", preset.title || "이름 없는 Presset");
     titleLink.href = detailPath(preset.presetId);
     body.append(titleLink);
+    body.append(element("p", "preset-card-description", createCardDescription(preset)));
 
     const tags = element("div", "preset-tag-list");
     (preset.tags || []).forEach((tag) => tags.append(element("span", "preset-tag", `#${tag.tagName}`)));
     if (tags.childElementCount) body.append(tags);
-
-    const thumbnails = element("div", "preset-thumbnails");
-    (preset.thumbnailImageUrls || []).slice(0, 3).forEach((url) => {
-      thumbnails.append(safeImage(
-        url,
-        preset.title,
-        "preset-thumbnail",
-        "preset-image-placeholder preset-thumbnail-placeholder",
-      ));
-    });
-    if (thumbnails.childElementCount) body.append(thumbnails);
 
     const meta = element("div", "preset-card-meta");
     meta.append(
       element("span", "", `🍴 맛집 ${preset.restaurantCount || 0}곳`),
       element("span", "", `👁 조회 ${Number(preset.viewCount || 0).toLocaleString("ko-KR")}`),
     );
-    const saved = element("span", "", `🔖 저장 ${preset.favoriteCount || 0}`);
-    saved.dataset.favoriteCount = "";
-    meta.append(saved);
     body.append(meta);
 
     const actions = element("div", "preset-card-actions");
-    const goDetail = element("a", "button button-primary preset-card-cta", "맛집 목록 보기 →");
+    const goDetail = element("a", "button button-primary preset-card-cta", "맛집 목록 보기");
     goDetail.href = detailPath(preset.presetId);
-    const goMap = element("a", "button button-secondary preset-card-cta", "지도에서 보기");
+    const goMap = element("a", "preset-card-map-link", "지도에서 보기 ↗");
     goMap.href = `/pages/map/index.html?presetId=${encodeURIComponent(preset.presetId)}`;
     actions.append(goDetail, goMap);
-    body.append(actions);
 
-    card.append(body);
+    card.append(body, actions);
     return card;
   }
 
   function renderFilters() {
     filters.replaceChildren();
-    const all = element("button", "preset-filter", "▦ 전체");
+    const all = element("button", "preset-filter", "전체");
     all.type = "button";
     all.setAttribute("aria-pressed", String(state.tagId === null));
     all.addEventListener("click", () => selectTag(null));
@@ -290,6 +292,14 @@
     state.sort = sortSelect.value;
     state.page = 0;
     loadPresets();
+  });
+  filterToggle?.addEventListener("click", () => {
+    const expanded = filterToggle.getAttribute("aria-expanded") === "true";
+    filterToggle.setAttribute("aria-expanded", String(!expanded));
+    filterPanel.hidden = expanded;
+    if (filterToggleText) {
+      filterToggleText.textContent = expanded ? "상세 조건" : "상세 조건 접기";
+    }
   });
 
   sortSelect.value = state.sort;

@@ -166,6 +166,7 @@
     chat_bubble: [
       "M4 5h16v11H9l-5 4V5z",
     ],
+    add: ["M12 5v14", "M5 12h14"],
   };
 
   function setIcon(element, iconName) {

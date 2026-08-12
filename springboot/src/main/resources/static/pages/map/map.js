@@ -14,6 +14,7 @@
   const searchAreaButton = document.getElementById("search-area-button");
   const pageTitle = document.getElementById("map-page-title");
   const presetBreadcrumb = document.getElementById("preset-map-breadcrumb");
+  const presetManageBack = document.getElementById("preset-manage-back");
   const detailPanel = document.getElementById("place-detail-panel");
   const detailClose = document.getElementById("place-detail-close");
   const detailBody = document.getElementById("place-detail-body");
@@ -35,6 +36,7 @@
   let lastSearchKeyword = "";
   let presetItems = [];
   let detailRequestToken = 0;
+  let resultMode = "preset";
 
   function setMapStatus(message, isError = false) {
     mapStatus.textContent = message;
@@ -82,7 +84,7 @@
     kakaoMap.addControl(new kakao.maps.ZoomControl(), kakao.maps.ControlPosition.RIGHT);
     mapPlaceholder.hidden = true;
     const showSearchAreaButton = () => {
-      if (!presetMode && lastSearchKeyword) searchAreaButton.hidden = false;
+      if ((!presetMode || editMode) && lastSearchKeyword) searchAreaButton.hidden = false;
     };
     kakao.maps.event.addListener(kakaoMap, "dragend", showSearchAreaButton);
     kakao.maps.event.addListener(kakaoMap, "zoom_changed", showSearchAreaButton);
@@ -285,19 +287,24 @@
     return false;
   }
 
-  async function toggleRestaurantFavorite(button, place) {
-    if (!requireLogin()) return;
+  async function addToPreset(button, place) {
     button.disabled = true;
     try {
-      const response = place.favoriteByCurrentUser
-        ? await Api.delete(`/restaurants/${place.restaurantId}/favorite`)
-        : await Api.post(`/restaurants/${place.restaurantId}/favorite`);
-      place.favoriteByCurrentUser = Boolean(response.data?.favoriteByCurrentUser);
-      button.classList.toggle("is-active", place.favoriteByCurrentUser);
-      button.textContent = place.favoriteByCurrentUser ? "♥ 저장됨" : "♡ 저장";
+      await Api.post(`/presets/${presetId}/restaurants/${place.restaurantId}`);
+      button.classList.add("is-added");
+      button.innerHTML = '<span class="material-symbols-rounded" aria-hidden="true">check_circle</span> 추가됨';
+      window.FooduckIcons?.enhance(button);
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      await fetchPresetData();
+      renderPresetFilters();
+      setMapStatus(`"${place.place_name}"을(를) presset에 추가했습니다.`);
+      if (resultMode === "search" && lastSearchKeyword) {
+        await searchPlaces(lastSearchKeyword);
+      } else {
+        renderItems(presetItems, pageTitle.textContent, true, "preset");
+      }
     } catch (error) {
-      alert(error.message);
-    } finally {
+      window.alert(error.message || "추가 중 오류가 발생했습니다.");
       button.disabled = false;
     }
   }
@@ -358,16 +365,7 @@
     body.append(select);
     const actions = document.createElement("div");
     actions.className = "place-result-actions";
-    if (presetMode) {
-      const favorite = document.createElement("button");
-      favorite.className = "place-result-link place-result-favorite";
-      favorite.type = "button";
-      favorite.classList.toggle("is-active", place.favoriteByCurrentUser);
-      favorite.textContent = place.favoriteByCurrentUser ? "♥ 저장됨" : "♡ 저장";
-      favorite.addEventListener("click", () => toggleRestaurantFavorite(favorite, place));
-      actions.append(favorite);
-    }
-    if (editMode) {
+    if (editMode && resultMode === "preset") {
       const remove = document.createElement("button");
       remove.className = "place-result-link place-result-remove";
       remove.type = "button";
@@ -378,6 +376,18 @@
         removeFromPreset(remove, place);
       });
       actions.append(remove);
+    }
+    if (editMode && resultMode === "search") {
+      const add = document.createElement("button");
+      add.className = "place-result-link place-result-add";
+      add.type = "button";
+      add.setAttribute("aria-label", `${place.place_name} presset에 추가`);
+      add.innerHTML = '<span class="material-symbols-rounded" aria-hidden="true">add</span> 프리셋에 추가';
+      add.addEventListener("click", (event) => {
+        event.stopPropagation();
+        addToPreset(add, place);
+      });
+      actions.append(add);
     }
     const detail = document.createElement("a");
     detail.className = "place-result-link place-result-detail";
@@ -391,7 +401,9 @@
     return article;
   }
 
-  function renderItems(items, title, fitBounds = true) {
+  function renderItems(items, title, fitBounds = true, mode = "preset") {
+    resultMode = mode;
+    presetManageBack.hidden = !(editMode && mode === "search");
     clearMarkers();
     placeResults.replaceChildren();
     items.forEach((place) => currentPlaces.set(String(place.restaurantId), place));
@@ -474,6 +486,15 @@
     });
   }
 
+  async function fetchPresetData() {
+    const response = await Api.get(`/presets/${presetId}/map-restaurants`);
+    const data = response.data || {};
+    presetItems = (data.restaurants || []).map(toPresetPlace);
+    pageTitle.textContent = editMode ? `${data.title || "Presset"} 맛집 관리` : (data.title || "Presset 지도");
+    document.title = `${data.title || "Presset"} 지도 · 푸드덕`;
+    return data;
+  }
+
   async function loadPreset() {
     if (!Number.isSafeInteger(presetId) || presetId <= 0) {
       setResultsState(0, "Presset 지도");
@@ -481,13 +502,9 @@
       setMapStatus("올바른 presetId가 필요합니다.", true);
       return;
     }
-    const response = await Api.get(`/presets/${presetId}/map-restaurants`);
-    const data = response.data || {};
-    presetItems = (data.restaurants || []).map(toPresetPlace);
-    pageTitle.textContent = editMode ? `${data.title || "Presset"} 맛집 관리` : (data.title || "Presset 지도");
-    document.title = `${data.title || "Presset"} 지도 · 푸드덕`;
+    const data = await fetchPresetData();
     renderPresetFilters();
-    renderItems(presetItems, data.title || "Presset 지도");
+    renderItems(presetItems, data.title || "Presset 지도", true, "preset");
     const missing = presetItems.filter((item) => !item.coordinateAvailable).length;
     setMapStatus(`${presetItems.length}곳 중 ${presetItems.length - missing}곳을 지도에 표시했습니다.${missing ? ` 좌표 미등록 ${missing}곳` : ""}`);
     if (Number.isSafeInteger(requestedRestaurantId) && requestedRestaurantId > 0) {
@@ -521,7 +538,7 @@
       setMapStatus(`“${normalized}” 검색 중입니다.`);
       const response = await Api.get(`/public/map/restaurants?${params}`, { auth: false });
       const results = (response.data || []).map(toPublicPlace);
-      renderItems(results, "검색 결과");
+      renderItems(results, "검색 결과", true, "search");
       setMapStatus(results.length ? `${results.length}개의 장소를 표시했습니다.` : "검색 결과가 없습니다.", !results.length);
     } catch (error) {
       renderEmptyResults("장소 검색 중 오류가 발생했습니다.");
@@ -542,6 +559,10 @@
     button.addEventListener("click", () => { keywordInput.value = button.dataset.categoryKeyword; searchPlaces(button.dataset.categoryKeyword); });
   });
   searchAreaButton.addEventListener("click", () => searchPlaces(lastSearchKeyword));
+  presetManageBack.addEventListener("click", () => {
+    keywordInput.value = "";
+    loadPreset();
+  });
   locationButton.addEventListener("click", () => {
     if (!kakaoMap || !navigator.geolocation) {
       setMapStatus("현재 위치를 확인할 수 없습니다.", true);
@@ -570,9 +591,11 @@
   if (presetMode) {
     mapPage.classList.add("preset-map-mode");
     if (presetBreadcrumb) presetBreadcrumb.hidden = false;
-    searchForm.hidden = true;
-    locationButton.hidden = true;
-    searchAreaButton.hidden = true;
+    if (!editMode) {
+      searchForm.hidden = true;
+      locationButton.hidden = true;
+      searchAreaButton.hidden = true;
+    }
   }
 
   (async () => {
