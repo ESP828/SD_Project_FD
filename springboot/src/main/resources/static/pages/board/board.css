@@ -608,9 +608,13 @@
 
 .comment-list {
   display: grid;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .comment-item {
+  min-width: 0;
+  max-width: 100%;
   padding: 16px 0;
   border-top: 1px solid var(--color-line);
 }
@@ -647,10 +651,14 @@
 }
 
 .comment-content {
+  min-width: 0;
+  max-width: 100%;
   margin-bottom: 8px;
   color: var(--color-muted);
   font-size: 0.82rem;
   white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: normal;
 }
 
 .comment-actions {
@@ -1871,16 +1879,22 @@
   display: grid;
   grid-template-columns: minmax(0, 1fr) 300px;
   align-items: start;
+  min-width: 0;
+  max-width: 100%;
   gap: 24px;
 }
 
 .board-detail-column,
 .detail-side-stack {
   display: grid;
+  min-width: 0;
+  max-width: 100%;
   gap: 20px;
 }
 
 .board-detail-card {
+  min-width: 0;
+  max-width: 100%;
   min-height: 420px;
   padding: clamp(25px, 4vw, 42px);
 }
@@ -1891,6 +1905,8 @@
 }
 
 .detail-heading {
+  min-width: 0;
+  max-width: 100%;
   padding-bottom: 22px;
   border-bottom: 1px solid var(--color-line);
 }
@@ -1899,6 +1915,8 @@
   margin: 16px 0 14px;
   font-size: clamp(1.75rem, 4vw, 2.65rem);
   line-height: 1.25;
+  overflow-wrap: anywhere;
+  word-break: normal;
 }
 
 .detail-heading .detail-meta {
@@ -1911,11 +1929,15 @@
 }
 
 .board-detail-card .detail-body {
+  min-width: 0;
+  max-width: 100%;
   min-height: 220px;
   padding-block: 34px;
   color: #304154;
   font-size: 0.96rem;
   line-height: 1.85;
+  overflow-wrap: anywhere;
+  word-break: normal;
 }
 
 .board-detail-card .detail-actions {
@@ -1925,6 +1947,8 @@
 }
 
 .board-comments-card {
+  min-width: 0;
+  max-width: 100%;
   padding: clamp(23px, 4vw, 36px);
 }
 
@@ -2065,12 +2089,15 @@
 }
 
 .comment-image-wrap {
-  max-width: 420px;
+  width: min(100%, 420px);
+  min-width: 0;
+  max-width: 100%;
   margin: 6px 0 12px;
 }
 
 .comment-image {
   display: block;
+  width: auto;
   max-width: 100%;
   max-height: 420px;
   border-radius: 12px;
@@ -2466,12 +2493,16 @@
 }
 
 .detail-media-list {
+  min-width: 0;
+  max-width: 100%;
   margin-top: 24px;
   gap: 16px;
 }
 
 .detail-media-item {
   overflow: hidden;
+  min-width: 0;
+  max-width: 100%;
   border: 1px solid var(--color-line);
   border-radius: 14px;
   background: #f9fbfd;
@@ -2567,6 +2598,8 @@
 .detail-media-video > video {
   display: block;
   width: 100%;
+  max-width: 100%;
+  height: auto;
   max-height: 680px;
   object-fit: contain;
   background: #111;
@@ -2574,6 +2607,9 @@
 
 .detail-media-video {
   position: relative;
+  overflow: hidden;
+  min-width: 0;
+  max-width: 100%;
   min-height: 180px;
   background: #111;
 }
