@@ -11,19 +11,14 @@ import org.springframework.jdbc.support.GeneratedKeyHolder;
 import org.springframework.stereotype.Repository;
 
 import java.sql.ResultSet;
-import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
-import java.util.concurrent.ThreadLocalRandom;
 
 @Repository
 public class PresetQueryRepository {
@@ -38,7 +33,7 @@ public class PresetQueryRepository {
                    p.display_order,
                    p.created_at,
                    pi.stored_filename,
-                   count(distinct pr.restaurant_id) as restaurant_count,
+                   count(distinct pr.preset_restaurant_id) as restaurant_count,
                    (select count(*) from preset_favorite pf_count
                      where pf_count.preset_id = p.preset_id) as favorite_count,
                    case when :accountId is not null and exists (
@@ -124,55 +119,43 @@ public class PresetQueryRepository {
             """;
 
     private static final String RESTAURANTS_SQL = """
-            select r.restaurant_id,
+            select r.public_restaurant_id as restaurant_id,
                    r.name,
-                   rc.name as category_name,
-                   r.address,
+                   coalesce(r.category_small_name, r.category_medium_name, r.category_large_name) as category_name,
+                   coalesce(r.road_address, r.lot_address) as address,
                    r.address_detail,
                    r.phone,
                    r.opening_hours,
                    r.closed_days,
                    r.description,
                    pr.description as preset_description,
-                   ri.image_url,
+                   cast(null as char) as image_url,
                    coalesce(rv.average_rating, 0) as average_rating,
                    coalesce(rv.review_count, 0) as review_count,
                    r.latitude,
                    r.longitude,
                    case when fav.account_id is null then false else true end as favorite_by_current_user
               from preset_restaurant pr
-              join restaurant r
-                on r.restaurant_id = pr.restaurant_id
-              left join restaurant_category rc
-                on rc.category_id = r.category_id
-              left join restaurant_image ri
-                on ri.restaurant_image_id = (
-                    select ri2.restaurant_image_id
-                      from restaurant_image ri2
-                     where ri2.restaurant_id = r.restaurant_id
-                     order by ri2.representative desc,
-                              ri2.display_order asc,
-                              ri2.restaurant_image_id asc
-                     limit 1
-                )
+              join public_restaurant r
+                on r.public_restaurant_id = pr.public_restaurant_id
               left join (
-                    select restaurant_id,
+                    select public_restaurant_id,
                            avg(rating) as average_rating,
                            count(*) as review_count
                       from review
                      where status = 'ACTIVE'
-                     group by restaurant_id
-              ) rv on rv.restaurant_id = r.restaurant_id
+                       and public_restaurant_id is not null
+                     group by public_restaurant_id
+              ) rv on rv.public_restaurant_id = r.public_restaurant_id
               left join favorite fav
-                on fav.restaurant_id = r.restaurant_id
+                on fav.public_restaurant_id = r.public_restaurant_id
                and fav.account_id = :accountId
              where pr.preset_id = :presetId
                and r.status = 'ACTIVE'
-             order by pr.display_order asc, r.restaurant_id asc
+             order by pr.display_order asc, r.public_restaurant_id asc
             """;
 
     private final NamedParameterJdbcTemplate jdbcTemplate;
-    private volatile Set<String> presetRestaurantColumns;
 
     public PresetQueryRepository(NamedParameterJdbcTemplate jdbcTemplate) {
         this.jdbcTemplate = jdbcTemplate;
@@ -272,8 +255,8 @@ public class PresetQueryRepository {
         Integer count = jdbcTemplate.queryForObject(
                 """
                 select count(*)
-                  from restaurant
-                 where restaurant_id = :restaurantId
+                  from public_restaurant
+                 where public_restaurant_id = :restaurantId
                    and status = 'ACTIVE'
                 """,
                 new MapSqlParameterSource("restaurantId", restaurantId),
@@ -288,7 +271,7 @@ public class PresetQueryRepository {
                 select count(*)
                   from preset_restaurant
                  where preset_id = :presetId
-                   and restaurant_id = :restaurantId
+                   and public_restaurant_id = :restaurantId
                 """,
                 new MapSqlParameterSource()
                         .addValue("presetId", presetId)
@@ -321,43 +304,18 @@ public class PresetQueryRepository {
     }
 
     public int addRestaurant(Long presetId, Long restaurantId, int displayOrder) {
-        List<String> columns = new ArrayList<>(List.of(
-                "preset_id", "restaurant_id", "display_order", "description"
-        ));
-        List<String> values = new ArrayList<>(List.of(
-                ":presetId", ":restaurantId", ":displayOrder", ":description"
-        ));
+        String sql = """
+                insert into preset_restaurant (
+                    preset_id, public_restaurant_id, display_order, description
+                ) values (
+                    :presetId, :restaurantId, :displayOrder, :description
+                )
+                """;
         MapSqlParameterSource parameters = new MapSqlParameterSource()
                 .addValue("presetId", presetId)
                 .addValue("restaurantId", restaurantId)
                 .addValue("displayOrder", displayOrder)
                 .addValue("description", null);
-
-        Set<String> actualColumns = presetRestaurantColumns();
-        if (actualColumns.contains("preset_content_id")) {
-            columns.add("preset_content_id");
-            values.add(":presetContentId");
-            parameters.addValue(
-                    "presetContentId",
-                    ThreadLocalRandom.current().nextLong(1, Long.MAX_VALUE)
-            );
-        }
-        if (actualColumns.contains("owner_restaurant_id")) {
-            columns.add("owner_restaurant_id");
-            values.add(":ownerRestaurantId");
-            parameters.addValue("ownerRestaurantId", restaurantId);
-        }
-        if (actualColumns.contains("sort_order")) {
-            columns.add("sort_order");
-            values.add(":sortOrder");
-            parameters.addValue("sortOrder", displayOrder);
-        }
-
-        String sql = "insert into preset_restaurant ("
-                + String.join(", ", columns)
-                + ") values ("
-                + String.join(", ", values)
-                + ")";
         return jdbcTemplate.update(sql, parameters);
     }
 
@@ -366,7 +324,7 @@ public class PresetQueryRepository {
                 """
                 delete from preset_restaurant
                  where preset_id = :presetId
-                   and restaurant_id = :restaurantId
+                   and public_restaurant_id = :restaurantId
                 """,
                 new MapSqlParameterSource()
                         .addValue("presetId", presetId)
@@ -376,22 +334,21 @@ public class PresetQueryRepository {
 
     public List<PresetRestaurantOptionResponse> findAvailableActiveRestaurants(Long presetId) {
         String sql = """
-                select r.restaurant_id,
+                select r.public_restaurant_id as restaurant_id,
                        r.name,
-                       rc.name as category_name,
-                       r.address,
+                       coalesce(r.category_small_name, r.category_medium_name, r.category_large_name) as category_name,
+                       coalesce(r.road_address, r.lot_address) as address,
                        r.address_detail
-                  from restaurant r
-                  left join restaurant_category rc
-                    on rc.category_id = r.category_id
+                  from public_restaurant r
                  where r.status = 'ACTIVE'
                    and not exists (
                        select 1
                          from preset_restaurant pr
                         where pr.preset_id = :presetId
-                          and pr.restaurant_id = r.restaurant_id
+                          and pr.public_restaurant_id = r.public_restaurant_id
                    )
-                 order by r.name asc, r.restaurant_id asc
+                 order by r.name asc, r.public_restaurant_id asc
+                 limit 500
                 """;
         return jdbcTemplate.query(
                 sql,
@@ -636,7 +593,7 @@ public class PresetQueryRepository {
                 select pr.preset_id, ri.image_url
                   from preset_restaurant pr
                   join restaurant r
-                    on r.restaurant_id = pr.restaurant_id and r.status = 'ACTIVE'
+                    on r.restaurant_id = pr.owner_restaurant_id and r.status = 'ACTIVE'
                   join restaurant_image ri
                     on ri.restaurant_image_id = (
                         select ri2.restaurant_image_id
@@ -723,26 +680,6 @@ public class PresetQueryRepository {
                 && latitude >= -90 && latitude <= 90
                 && longitude >= -180 && longitude <= 180
                 && !(latitude == 0 && longitude == 0);
-    }
-
-    private Set<String> presetRestaurantColumns() {
-        Set<String> cached = presetRestaurantColumns;
-        if (cached != null) {
-            return cached;
-        }
-        Set<String> detected = jdbcTemplate.getJdbcTemplate().query(
-                "select * from preset_restaurant where 1 = 0",
-                resultSet -> {
-                    ResultSetMetaData metadata = resultSet.getMetaData();
-                    Set<String> names = new HashSet<>();
-                    for (int index = 1; index <= metadata.getColumnCount(); index++) {
-                        names.add(metadata.getColumnLabel(index).toLowerCase(Locale.ROOT));
-                    }
-                    return Set.copyOf(names);
-                }
-        );
-        presetRestaurantColumns = detected;
-        return detected;
     }
 
     private record PresetSummaryRow(

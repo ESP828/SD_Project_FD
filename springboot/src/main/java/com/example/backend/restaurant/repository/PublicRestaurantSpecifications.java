@@ -38,10 +38,7 @@ public final class PublicRestaurantSpecifications {
             if (categoryNames == null || categoryNames.isEmpty()) {
                 return cb.conjunction();
             }
-            return cb.or(
-                    root.get("categoryMediumName").in(categoryNames),
-                    root.get("categorySmallName").in(categoryNames)
-            );
+            return root.get("categoryGroup").in(categoryNames);
         };
     }
 }

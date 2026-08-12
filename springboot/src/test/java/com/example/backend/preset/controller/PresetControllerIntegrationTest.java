@@ -56,6 +56,7 @@ class PresetControllerIntegrationTest {
 
     private Long presetId;
     private Long restaurantId;
+    private Long ownerRestaurantId;
     private Long accountId;
     private String accessToken;
     private Path rolledBackImagePath;
@@ -81,6 +82,16 @@ class PresetControllerIntegrationTest {
                 "성수 데이트 맛집", "데이트", 12, 1, "ACTIVE", accountId, true);
         presetId = jdbcTemplate.queryForObject("select max(preset_id) from preset", Long.class);
 
+        restaurantId = createRestaurant("성수 테스트 키친");
+        jdbcTemplate.update(
+                "update public_restaurant set latitude = ?, longitude = ? where public_restaurant_id = ?",
+                37.5445, 127.0560, restaurantId);
+        jdbcTemplate.update("""
+                insert into preset_restaurant (
+                    preset_id, public_restaurant_id, display_order, description
+                ) values (?, ?, ?, ?)
+                """, presetId, restaurantId, 1, "데이트 분위기가 좋은 곳");
+
         jdbcTemplate.update("""
                 insert into restaurant (
                     owner_account_id, name, address, address_detail,
@@ -88,15 +99,10 @@ class PresetControllerIntegrationTest {
                     description, status, created_at, updated_at
                 ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, current_timestamp, current_timestamp)
                 """,
-                accountId, "성수 테스트 키친", "서울 성동구 테스트로 1", "1층",
+                accountId, "성수 사장님 매장", "서울 성동구 테스트로 1", "1층",
                 37.5445, 127.0560, "02-0000-0000", "11:00-21:00", "월요일",
-                "프리셋 조회 테스트용 음식점", "ACTIVE");
-        restaurantId = jdbcTemplate.queryForObject("select max(restaurant_id) from restaurant", Long.class);
-        jdbcTemplate.update("""
-                insert into preset_restaurant (
-                    preset_id, restaurant_id, display_order, description
-                ) values (?, ?, ?, ?)
-                """, presetId, restaurantId, 1, "데이트 분위기가 좋은 곳");
+                "찜 기능 테스트용 음식점", "ACTIVE");
+        ownerRestaurantId = jdbcTemplate.queryForObject("select max(restaurant_id) from restaurant", Long.class);
 
         jdbcTemplate.update("insert into tag (name) values (?)", "데이트");
         Integer tagId = jdbcTemplate.queryForObject("select max(tag_id) from tag", Integer.class);
@@ -403,7 +409,7 @@ class PresetControllerIntegrationTest {
                         .header("Authorization", "Bearer " + accessToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.favoriteCount").value(1));
-        mockMvc.perform(post("/api/restaurants/{restaurantId}/favorite", restaurantId)
+        mockMvc.perform(post("/api/restaurants/{restaurantId}/favorite", ownerRestaurantId)
                         .header("Authorization", "Bearer " + accessToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.favoriteByCurrentUser").value(true));
@@ -470,18 +476,18 @@ class PresetControllerIntegrationTest {
 
     private Long createRestaurant(String name) {
         jdbcTemplate.update("""
-                insert into restaurant (
-                    owner_account_id, name, address, description,
-                    status, created_at, updated_at
-                ) values (?, ?, ?, ?, 'ACTIVE', current_timestamp, current_timestamp)
-                """, accountId, name, "서울 테스트로", "Presset 제한 테스트용 맛집");
-        return jdbcTemplate.queryForObject("select max(restaurant_id) from restaurant", Long.class);
+                insert into public_restaurant (
+                    external_store_id, name, road_address, status, created_at, updated_at
+                ) values (?, ?, ?, 'ACTIVE', current_timestamp, current_timestamp)
+                """, java.util.UUID.randomUUID().toString().substring(0, 30), name, "서울 테스트로");
+        return jdbcTemplate.queryForObject(
+                "select max(public_restaurant_id) from public_restaurant", Long.class);
     }
 
     private void connectRestaurant(Long targetPresetId, Long targetRestaurantId, int displayOrder) {
         jdbcTemplate.update("""
                 insert into preset_restaurant (
-                    preset_id, restaurant_id, display_order, description
+                    preset_id, public_restaurant_id, display_order, description
                 ) values (?, ?, ?, null)
                 """, targetPresetId, targetRestaurantId, displayOrder);
     }

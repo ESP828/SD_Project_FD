@@ -36,7 +36,7 @@ class FooduckDatabaseNameGuardTest {
     @DisplayName("H2 테스트 데이터베이스에는 MySQL 이름 검사를 적용하지 않는다")
     void ignoresNonMysqlTestDatabase() {
         assertDoesNotThrow(() -> FooduckDatabaseNameGuard.validate(
-                "jdbc:h2:mem:fooduck_test;MODE=MySQL"
+                "jdbc:h2:mem:foodduck_test;MODE=MySQL"
         ));
     }
 }
