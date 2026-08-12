@@ -570,20 +570,110 @@
       comments: authorMenuRecentCommentSection(summary.recentComments),
       reviews: authorMenuRecentReviewSection(summary.recentReviews),
     };
+    activityPanel.dataset.activeAuthorActivityTab = "posts";
     activityPanel.replaceChildren(sections.posts);
+
+    let authorActivitySwitchId = 0;
+
+    async function switchAuthorActivityPanel(key) {
+      const nextSection = sections[key];
+      if (!nextSection) return;
+      if (activityPanel.dataset.activeAuthorActivityTab === key) return;
+
+      const switchId = ++authorActivitySwitchId;
+      activityPanel.dataset.activeAuthorActivityTab = key;
+      const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
+      activityPanel.getAnimations({ subtree: true }).forEach((animation) => animation.cancel());
+
+      if (reduceMotion || typeof activityPanel.animate !== "function") {
+        activityPanel.replaceChildren(nextSection);
+        if (activeAuthorTrigger && !menu.hidden) {
+          positionAuthorMenu(activeAuthorTrigger);
+        }
+        return;
+      }
+
+      const currentSection = activityPanel.firstElementChild;
+      const startHeight = activityPanel.getBoundingClientRect().height;
+      activityPanel.classList.add("is-switching");
+      activityPanel.style.height = `${startHeight}px`;
+
+      if (currentSection) {
+        const exitAnimation = currentSection.animate(
+          [
+            { opacity: 1, transform: "translateY(0)" },
+            { opacity: 0, transform: "translateY(-2px)" },
+          ],
+          {
+            duration: 90,
+            easing: "cubic-bezier(0.4, 0, 1, 1)",
+            fill: "forwards",
+          },
+        );
+        try {
+          await exitAnimation.finished;
+        } catch (_) {
+          return;
+        }
+      }
+
+      if (switchId !== authorActivitySwitchId) return;
+
+      activityPanel.replaceChildren(nextSection);
+
+      activityPanel.style.height = "auto";
+      const targetHeight = activityPanel.getBoundingClientRect().height;
+      activityPanel.style.height = `${startHeight}px`;
+      if (activeAuthorTrigger && !menu.hidden) {
+        positionAuthorMenu(activeAuthorTrigger);
+      }
+
+      const heightAnimation = activityPanel.animate(
+        [
+          { height: `${startHeight}px` },
+          { height: `${targetHeight}px` },
+        ],
+        {
+          duration: 180,
+          easing: "cubic-bezier(0.16, 1, 0.3, 1)",
+          fill: "forwards",
+        },
+      );
+      const enterAnimation = nextSection.animate(
+        [
+          { opacity: 0, transform: "translateY(4px)" },
+          { opacity: 1, transform: "translateY(0)" },
+        ],
+        {
+          duration: 170,
+          easing: "cubic-bezier(0.16, 1, 0.3, 1)",
+          fill: "both",
+        },
+      );
+
+      await Promise.allSettled([heightAnimation.finished, enterAnimation.finished]);
+      if (switchId !== authorActivitySwitchId) return;
+
+      heightAnimation.cancel();
+      enterAnimation.cancel();
+      activityPanel.style.height = "";
+      activityPanel.classList.remove("is-switching");
+      if (activeAuthorTrigger && !menu.hidden) {
+        positionAuthorMenu(activeAuthorTrigger);
+      }
+    }
 
     tabs.addEventListener("click", (event) => {
       const button = event.target.closest("[data-author-activity-tab]");
       if (!button || !tabs.contains(button)) return;
       const key = button.dataset.authorActivityTab;
-      if (!sections[key]) return;
+      if (!sections[key] || activityPanel.dataset.activeAuthorActivityTab === key) return;
       tabs.querySelectorAll("[data-author-activity-tab]").forEach((tab) => {
         const active = tab === button;
         tab.classList.toggle("is-active", active);
         tab.setAttribute("aria-selected", active ? "true" : "false");
       });
-      activityPanel.replaceChildren(sections[key]);
-      positionAuthorMenu(activeAuthorTrigger);
+      switchAuthorActivityPanel(key);
     });
 
     const footer = element("div", "author-menu-footer");

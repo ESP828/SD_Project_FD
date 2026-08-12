@@ -1300,7 +1300,11 @@
   background: transparent;
   font: inherit;
   cursor: pointer;
-  transition: color 140ms ease, background-color 140ms ease, box-shadow 140ms ease, transform 140ms ease;
+  transition:
+    color 170ms ease,
+    background-color 170ms ease,
+    box-shadow 180ms ease,
+    transform 140ms ease;
 }
 
 .author-menu-tab:hover,
@@ -1340,6 +1344,16 @@
 
 .author-menu-activity-panel {
   min-height: 112px;
+}
+
+.author-menu-activity-panel.is-switching {
+  overflow: hidden;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .author-menu-tab {
+    transition: none;
+  }
 }
 
 .author-menu-recent-title-row {
