@@ -86,6 +86,13 @@ public class BoardAccessPolicy {
             Long restaurantId,
             Account account
     ) {
+        if (category == PostCategory.NEWS) {
+            throw new BoardException(
+                    HttpStatus.BAD_REQUEST,
+                    "BOARD_NEWS_DEDICATED_ENDPOINT_REQUIRED",
+                    "식당 소식은 식당 소식 전용 API를 이용해 주세요."
+            );
+        }
         if (account == null) {
             throw new BoardException(
                     HttpStatus.UNAUTHORIZED,
@@ -136,6 +143,57 @@ public class BoardAccessPolicy {
         }
     }
 
+    public void assertCanWritePublicRestaurantNews(
+            Long publicRestaurantId,
+            Account account
+    ) {
+        assertAuthenticated(account);
+        if (publicRestaurantId == null || publicRestaurantId <= 0) {
+            throw badRequest("공공데이터 음식점 ID가 올바르지 않습니다.");
+        }
+        if (!isAdmin(account)) {
+            throw new BoardException(
+                    HttpStatus.FORBIDDEN,
+                    "BOARD_PUBLIC_NEWS_ADMIN_REQUIRED",
+                    "관리자만 공공데이터 음식점 소식을 작성할 수 있습니다."
+            );
+        }
+        if (!referenceRepository.publicRestaurantExists(publicRestaurantId)) {
+            throw new BoardException(
+                    HttpStatus.NOT_FOUND,
+                    "BOARD_PUBLIC_RESTAURANT_NOT_FOUND",
+                    "공공데이터 음식점을 찾을 수 없습니다."
+            );
+        }
+    }
+
+    public void assertCanWriteOwnedRestaurantNews(
+            Long restaurantId,
+            Account account
+    ) {
+        assertAuthenticated(account);
+        if (restaurantId == null || restaurantId <= 0) {
+            throw badRequest("음식점 ID가 올바르지 않습니다.");
+        }
+        if (!referenceRepository.restaurantExists(restaurantId)) {
+            throw new BoardException(
+                    HttpStatus.NOT_FOUND,
+                    "BOARD_RESTAURANT_NOT_FOUND",
+                    "연결할 수 있는 음식점을 찾을 수 없습니다."
+            );
+        }
+        if (!referenceRepository.restaurantOwnedBy(
+                restaurantId,
+                account.getAccountId()
+        )) {
+            throw new BoardException(
+                    HttpStatus.FORBIDDEN,
+                    "BOARD_RESTAURANT_NEWS_OWNERSHIP_REQUIRED",
+                    "본인이 등록한 음식점에 대해서만 소식을 작성할 수 있습니다."
+            );
+        }
+    }
+
     public void assertBoardTypeChangeAllowed(
             BoardType current,
             BoardType requested,
@@ -153,6 +211,16 @@ public class BoardAccessPolicy {
     private AuthorRoleReference findAuthorRoleReference(Long accountId) {
         return referenceRepository.findAuthorRoleReferences(Set.of(accountId))
                 .getOrDefault(accountId, DEFAULT_AUTHOR_ROLE);
+    }
+
+    private void assertAuthenticated(Account account) {
+        if (account == null) {
+            throw new BoardException(
+                    HttpStatus.UNAUTHORIZED,
+                    "BOARD_AUTHENTICATION_REQUIRED",
+                    "로그인이 필요합니다."
+            );
+        }
     }
 
     private BoardException badRequest(String message) {

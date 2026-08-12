@@ -7,6 +7,7 @@ import com.example.backend.preset.dto.response.FavoriteStateResponse;
 import com.example.backend.preset.dto.response.PresetDetailResponse;
 import com.example.backend.preset.dto.response.PresetMapResponse;
 import com.example.backend.preset.dto.response.PresetPageResponse;
+import com.example.backend.preset.dto.response.PresetRestaurantCountResponse;
 import com.example.backend.preset.dto.response.PresetTagResponse;
 import com.example.backend.preset.service.PresetService;
 import jakarta.validation.Valid;
@@ -75,6 +76,15 @@ public class PresetController {
         return ApiResponse.success("프리셋을 수정했습니다.", null);
     }
 
+    @DeleteMapping("/{presetId}")
+    public ApiResponse<Void> deletePreset(
+            @PathVariable Long presetId,
+            @AuthenticationPrincipal AuthenticatedAccount account
+    ) {
+        presetService.deletePreset(presetId, account.accountId());
+        return ApiResponse.success("프리셋을 삭제했습니다.", null);
+    }
+
     @GetMapping("/tags")
     public ApiResponse<List<PresetTagResponse>> getTags() {
         return ApiResponse.success(presetService.getFilterTags());
@@ -96,6 +106,31 @@ public class PresetController {
         return ApiResponse.success(presetService.getMapPreset(presetId, accountId(account)));
     }
 
+    @PostMapping("/{presetId}/restaurants/{restaurantId}")
+    @ResponseStatus(HttpStatus.CREATED)
+    public ApiResponse<PresetRestaurantCountResponse> addRestaurant(
+            @PathVariable Long presetId,
+            @PathVariable Long restaurantId,
+            @AuthenticationPrincipal AuthenticatedAccount account
+    ) {
+        return ApiResponse.success(
+                "Presset에 맛집을 추가했습니다.",
+                presetService.addRestaurant(presetId, restaurantId, account.accountId())
+        );
+    }
+
+    @DeleteMapping("/{presetId}/restaurants/{restaurantId}")
+    public ApiResponse<PresetRestaurantCountResponse> removeRestaurant(
+            @PathVariable Long presetId,
+            @PathVariable Long restaurantId,
+            @AuthenticationPrincipal AuthenticatedAccount account
+    ) {
+        return ApiResponse.success(
+                "Presset에서 맛집을 삭제했습니다.",
+                presetService.removeRestaurant(presetId, restaurantId, account.accountId())
+        );
+    }
+
     @PostMapping("/{presetId}/favorite")
     public ApiResponse<FavoriteStateResponse> addFavorite(
             @PathVariable Long presetId,
@@ -113,7 +148,7 @@ public class PresetController {
             @AuthenticationPrincipal AuthenticatedAccount account
     ) {
         return ApiResponse.success(
-                "Presset 저장을 해제했습니다.",
+                "Presset 찜을 해제했습니다.",
                 presetService.removeFavorite(presetId, account.accountId())
         );
     }

@@ -13,9 +13,7 @@
   const sidebarToggleIcon = sidebarToggleButton.querySelector(".material-symbols-rounded");
   const searchAreaButton = document.getElementById("search-area-button");
   const pageTitle = document.getElementById("map-page-title");
-  const presetContext = document.getElementById("preset-map-context");
-  const presetSummary = document.getElementById("preset-map-summary");
-  const presetBack = document.getElementById("preset-map-back");
+  const presetBreadcrumb = document.getElementById("preset-map-breadcrumb");
   const detailPanel = document.getElementById("place-detail-panel");
   const detailClose = document.getElementById("place-detail-close");
   const detailBody = document.getElementById("place-detail-body");
@@ -23,6 +21,7 @@
   const query = new URLSearchParams(location.search);
   const presetMode = query.has("presetId");
   const presetId = Number(query.get("presetId"));
+  const editMode = presetMode && query.has("edit");
   const requestedRestaurantId = Number(query.get("restaurantId"));
   const SEARCH_RADIUS_METERS = 500;
   const markerAssetRoot = "/images/markers";
@@ -181,16 +180,15 @@
       : (reviews.length ? reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length : null);
     const reviewCount = isOwned ? (detail?.reviewCount ?? 0) : reviews.length;
 
-    const menuHtml = isOwned
-      ? (menuItems.length
-        ? menuItems.slice(0, 4).map((item) => `
+    const menuHtml = menuItems.length
+      ? (isOwned ? "" : '<p class="place-detail-menu-disclaimer">* 공공데이터 기반 예시 메뉴로 실제와 다를 수 있습니다.</p>')
+        + menuItems.slice(0, 4).map((item) => `
             <div class="place-detail-menu-item">
               <strong>${escapeHtml(item.name)}</strong>
               <span>${item.price != null ? `${item.price.toLocaleString("ko-KR")}원` : "가격 미정"}</span>
             </div>
           `).join("")
-        : '<div class="place-detail-empty">등록된 메뉴가 없습니다.</div>')
-      : '<div class="place-detail-empty">공공데이터 출처 가게는 메뉴 정보를 제공하지 않습니다.<br>사업자가 푸드덕에 가게를 직접 등록하면 메뉴를 볼 수 있어요.</div>';
+      : '<div class="place-detail-empty">등록된 메뉴가 없습니다.</div>';
 
     const reviewHtml = reviews.length
       ? reviews.slice(0, 3).map((review) => `
@@ -247,7 +245,7 @@
       const [detailResponse, reviewsResponse, menuResponse] = await Promise.all([
         Api.get(isOwned ? `/public/restaurants/${place.restaurantId}` : `/public/map/restaurants/${place.restaurantId}`),
         Api.get(isOwned ? `/public/restaurants/${place.restaurantId}/reviews` : `/public/map/restaurants/${place.restaurantId}/reviews`, { auth: false }),
-        isOwned ? Api.get(`/public/restaurants/${place.restaurantId}/menu`, { auth: false }) : Promise.resolve({ data: [] }),
+        Api.get(isOwned ? `/public/restaurants/${place.restaurantId}/menu` : `/public/map/restaurants/${place.restaurantId}/menu`, { auth: false }),
       ]);
       if (requestId !== detailRequestToken) return;
       place.favoriteByCurrentUser = Boolean(detailResponse.data?.favoritedByMe);
@@ -304,6 +302,22 @@
     }
   }
 
+  async function removeFromPreset(button, place) {
+    if (!window.confirm(`"${place.place_name}"을(를) 이 presset에서 삭제할까요?`)) return;
+    button.disabled = true;
+    try {
+      if (place.restaurantId > 0) {
+        await Api.delete(`/presets/${presetId}/restaurants/${place.restaurantId}`);
+      }
+      presetItems = presetItems.filter((item) => item.restaurantId !== place.restaurantId);
+      renderItems(presetItems, pageTitle.textContent);
+      setMapStatus(`"${place.place_name}"을(를) presset에서 삭제했습니다.`);
+    } catch (error) {
+      window.alert(error.message || "삭제 중 오류가 발생했습니다.");
+      button.disabled = false;
+    }
+  }
+
   function createResultRow(place, index) {
     const article = document.createElement("article");
     article.className = "place-result";
@@ -352,6 +366,18 @@
       favorite.textContent = place.favoriteByCurrentUser ? "♥ 저장됨" : "♡ 저장";
       favorite.addEventListener("click", () => toggleRestaurantFavorite(favorite, place));
       actions.append(favorite);
+    }
+    if (editMode) {
+      const remove = document.createElement("button");
+      remove.className = "place-result-link place-result-remove";
+      remove.type = "button";
+      remove.setAttribute("aria-label", `${place.place_name} presset에서 삭제`);
+      remove.innerHTML = '<i class="fa-solid fa-trash-can" aria-hidden="true"></i> 삭제';
+      remove.addEventListener("click", (event) => {
+        event.stopPropagation();
+        removeFromPreset(remove, place);
+      });
+      actions.append(remove);
     }
     const detail = document.createElement("a");
     detail.className = "place-result-link place-result-detail";
@@ -458,9 +484,7 @@
     const response = await Api.get(`/presets/${presetId}/map-restaurants`);
     const data = response.data || {};
     presetItems = (data.restaurants || []).map(toPresetPlace);
-    pageTitle.textContent = data.title || "Presset 지도";
-    presetSummary.textContent = "이 Presset에 포함된 맛집만 표시합니다.";
-    presetBack.href = `/pages/presset/detail.html?presetId=${encodeURIComponent(presetId)}`;
+    pageTitle.textContent = editMode ? `${data.title || "Presset"} 맛집 관리` : (data.title || "Presset 지도");
     document.title = `${data.title || "Presset"} 지도 · 푸드덕`;
     renderPresetFilters();
     renderItems(presetItems, data.title || "Presset 지도");
@@ -545,7 +569,7 @@
 
   if (presetMode) {
     mapPage.classList.add("preset-map-mode");
-    presetContext.hidden = false;
+    if (presetBreadcrumb) presetBreadcrumb.hidden = false;
     searchForm.hidden = true;
     locationButton.hidden = true;
     searchAreaButton.hidden = true;

@@ -69,6 +69,8 @@ public class PostService {
     private static final int MAX_DISCOVERY_SIZE = 10;
     private static final int MAX_AUTHOR_RECENT_POSTS = 5;
     private static final int MAX_AUTHOR_RECENT_COMMENTS = 5;
+    private static final int MAX_NEWS_TITLE_LENGTH = 200;
+    private static final int MAX_NEWS_CONTENT_LENGTH = 10_000;
     private static final int BEST_COMMUNITY_MINIMUM_LIKE_COUNT = 3;
     private static final Duration RAPID_DUPLICATE_WINDOW =
             Duration.ofMillis(3_500);
@@ -206,6 +208,208 @@ public class PostService {
     }
 
     @Transactional(readOnly = true)
+    public RestaurantNewsPageResponse getPublicRestaurantNews(
+            Long publicRestaurantId,
+            int page,
+            int size,
+            Long currentAccountId
+    ) {
+        validatePage(page, size);
+        validateId(publicRestaurantId, "공공데이터 음식점");
+        if (!referenceRepository.publicRestaurantExists(publicRestaurantId)) {
+            throw publicRestaurantNotFound();
+        }
+
+        Account currentAccount = boardUserService.findOptional(currentAccountId);
+        Page<Post> result = postRepository.findPublicRestaurantNews(
+                publicRestaurantId,
+                BoardType.GENERAL,
+                PostCategory.NEWS,
+                PostStatus.ACTIVE,
+                PageRequest.of(page, size)
+        );
+        return toRestaurantNewsPage(result, currentAccount);
+    }
+
+    @Transactional
+    public RestaurantNewsItemResponse createPublicRestaurantNews(
+            Long publicRestaurantId,
+            String title,
+            String content,
+            Long currentAccountId
+    ) {
+        Account currentAccount = boardUserService.require(currentAccountId);
+        accessPolicy.assertCanWritePublicRestaurantNews(
+                publicRestaurantId,
+                currentAccount
+        );
+        return createRestaurantNews(
+                currentAccount,
+                null,
+                publicRestaurantId,
+                title,
+                content
+        );
+    }
+
+    @Transactional
+    public PostDetailResponse updatePublicRestaurantNews(
+            Long publicRestaurantId,
+            Long postId,
+            String title,
+            String content,
+            Long currentAccountId
+    ) {
+        validateId(postId, "게시글");
+        Account currentAccount = boardUserService.require(currentAccountId);
+        accessPolicy.assertCanWritePublicRestaurantNews(
+                publicRestaurantId,
+                currentAccount
+        );
+        Post post = postRepository.findPublicRestaurantNewsForUpdate(
+                        postId,
+                        publicRestaurantId,
+                        BoardType.GENERAL,
+                        PostCategory.NEWS,
+                        PostStatus.ACTIVE
+                )
+                .orElseThrow(this::newsNotFound);
+        post.update(
+                null,
+                publicRestaurantId,
+                BoardType.GENERAL,
+                PostCategory.NEWS,
+                normalizeNewsTitle(title),
+                normalizeNewsContent(content)
+        );
+        return responseMapper.toDetail(post, currentAccount);
+    }
+
+    @Transactional
+    public void deletePublicRestaurantNews(
+            Long publicRestaurantId,
+            Long postId,
+            Long currentAccountId
+    ) {
+        validateId(postId, "게시글");
+        Account currentAccount = boardUserService.require(currentAccountId);
+        accessPolicy.assertCanWritePublicRestaurantNews(
+                publicRestaurantId,
+                currentAccount
+        );
+        Post post = postRepository.findPublicRestaurantNewsForUpdate(
+                        postId,
+                        publicRestaurantId,
+                        BoardType.GENERAL,
+                        PostCategory.NEWS,
+                        PostStatus.ACTIVE
+                )
+                .orElseThrow(this::newsNotFound);
+        postRepository.delete(post);
+    }
+
+    @Transactional(readOnly = true)
+    public RestaurantNewsPageResponse getOwnedRestaurantNews(
+            Long restaurantId,
+            int page,
+            int size,
+            Long currentAccountId
+    ) {
+        validatePage(page, size);
+        validateId(restaurantId, "음식점");
+        if (!referenceRepository.restaurantExists(restaurantId)) {
+            throw restaurantNotFound();
+        }
+
+        Account currentAccount = boardUserService.findOptional(currentAccountId);
+        Page<Post> result = postRepository.findOwnedRestaurantNews(
+                restaurantId,
+                BoardType.GENERAL,
+                PostCategory.NEWS,
+                PostStatus.ACTIVE,
+                PageRequest.of(page, size)
+        );
+        return toRestaurantNewsPage(result, currentAccount);
+    }
+
+    @Transactional
+    public RestaurantNewsItemResponse createOwnedRestaurantNews(
+            Long restaurantId,
+            String title,
+            String content,
+            Long currentAccountId
+    ) {
+        Account currentAccount = boardUserService.require(currentAccountId);
+        accessPolicy.assertCanWriteOwnedRestaurantNews(
+                restaurantId,
+                currentAccount
+        );
+        return createRestaurantNews(
+                currentAccount,
+                restaurantId,
+                null,
+                title,
+                content
+        );
+    }
+
+    @Transactional
+    public PostDetailResponse updateOwnedRestaurantNews(
+            Long restaurantId,
+            Long postId,
+            String title,
+            String content,
+            Long currentAccountId
+    ) {
+        validateId(postId, "게시글");
+        Account currentAccount = boardUserService.require(currentAccountId);
+        accessPolicy.assertCanWriteOwnedRestaurantNews(
+                restaurantId,
+                currentAccount
+        );
+        Post post = postRepository.findOwnedRestaurantNewsForUpdate(
+                        postId,
+                        restaurantId,
+                        BoardType.GENERAL,
+                        PostCategory.NEWS,
+                        PostStatus.ACTIVE
+                )
+                .orElseThrow(this::newsNotFound);
+        post.update(
+                restaurantId,
+                null,
+                BoardType.GENERAL,
+                PostCategory.NEWS,
+                normalizeNewsTitle(title),
+                normalizeNewsContent(content)
+        );
+        return responseMapper.toDetail(post, currentAccount);
+    }
+
+    @Transactional
+    public void deleteOwnedRestaurantNews(
+            Long restaurantId,
+            Long postId,
+            Long currentAccountId
+    ) {
+        validateId(postId, "게시글");
+        Account currentAccount = boardUserService.require(currentAccountId);
+        accessPolicy.assertCanWriteOwnedRestaurantNews(
+                restaurantId,
+                currentAccount
+        );
+        Post post = postRepository.findOwnedRestaurantNewsForUpdate(
+                        postId,
+                        restaurantId,
+                        BoardType.GENERAL,
+                        PostCategory.NEWS,
+                        PostStatus.ACTIVE
+                )
+                .orElseThrow(this::newsNotFound);
+        postRepository.delete(post);
+    }
+
+    @Transactional(readOnly = true)
     public PostPageResponse getPosts(
             String boardTypeValue,
             String categoryValue,
@@ -222,6 +426,13 @@ public class PostService {
                 currentAccount
         );
         PostCategory category = parseCategory(categoryValue);
+        if (category == PostCategory.NEWS) {
+            throw new BoardException(
+                    HttpStatus.BAD_REQUEST,
+                    "BOARD_NEWS_DEDICATED_ENDPOINT_REQUIRED",
+                    "식당 소식은 식당 소식 전용 API를 이용해 주세요."
+            );
+        }
         String normalizedKeyword = normalizeKeyword(keyword);
         String sort = normalizeSort(sortValue);
 
@@ -403,6 +614,7 @@ public class PostService {
     public AuthorSummaryResponse getAuthorSummary(
             Long authorAccountId,
             Long excludePostId,
+            boolean includeNewsActivity,
             Long currentAccountId
     ) {
         validateId(authorAccountId, "작성자 계정");
@@ -456,6 +668,41 @@ public class PostService {
                         comment.getCreatedAt()
                 ))
                 .toList();
+        List<AuthorRecentPostResponse> recentNewsPosts = includeNewsActivity
+                ? postRepository.findRecentActiveNewsPostsByAuthor(
+                        authorAccountId,
+                        PostStatus.ACTIVE,
+                        excludePostId,
+                        PageRequest.of(0, MAX_AUTHOR_RECENT_POSTS)
+                )
+                .stream()
+                .map(post -> new AuthorRecentPostResponse(
+                        post.getPostId(),
+                        post.getTitle(),
+                        post.getBoardType(),
+                        post.getCategory(),
+                        post.getCreatedAt()
+                ))
+                .toList()
+                : List.of();
+        List<AuthorRecentCommentResponse> recentNewsComments = includeNewsActivity
+                ? commentRepository.findRecentActiveNewsCommentsByAuthor(
+                        authorAccountId,
+                        CommentStatus.ACTIVE,
+                        PostStatus.ACTIVE,
+                        excludePostId,
+                        PageRequest.of(0, MAX_AUTHOR_RECENT_COMMENTS)
+                )
+                .stream()
+                .map(comment -> new AuthorRecentCommentResponse(
+                        comment.getCommentId(),
+                        comment.getPost().getPostId(),
+                        comment.getPost().getTitle(),
+                        comment.getContent(),
+                        comment.getCreatedAt()
+                ))
+                .toList()
+                : List.of();
 
         return new AuthorSummaryResponse(
                 author.getAccountId(),
@@ -475,14 +722,29 @@ public class PostService {
                         readableBoardType
                 ),
                 recentPosts,
-                recentComments
+                recentComments,
+                includeNewsActivity
+                        ? postRepository.countActiveNewsPostsByAuthor(
+                                authorAccountId,
+                                PostStatus.ACTIVE
+                        )
+                        : 0L,
+                includeNewsActivity
+                        ? commentRepository.countActiveNewsCommentsByAuthor(
+                                authorAccountId,
+                                CommentStatus.ACTIVE,
+                                PostStatus.ACTIVE
+                        )
+                        : 0L,
+                recentNewsPosts,
+                recentNewsComments
         );
     }
 
     @Transactional(readOnly = true)
     public PostDetailResponse getPost(Long postId, Long currentAccountId) {
         Account currentAccount = boardUserService.findOptional(currentAccountId);
-        Post post = getExistingPost(postId);
+        Post post = getExistingActivePost(postId);
         accessPolicy.assertCanRead(post.getBoardType(), currentAccount);
 
         long viewCount = referenceRepository.increasePostViewCountImmediately(postId);
@@ -589,8 +851,8 @@ public class PostService {
             Long currentAccountId
     ) {
         Account currentAccount = boardUserService.require(currentAccountId);
-        Post post = getExistingPostForUpdate(postId);
-        assertOwnerOrAdmin(post, currentAccount);
+        Post post = getExistingActivePostForUpdate(postId);
+        assertCanManageMedia(post, currentAccount);
 
         if (mediaData == null || mediaData.length == 0) {
             throw badRequest("비어 있는 파일은 첨부할 수 없습니다.");
@@ -691,7 +953,7 @@ public class PostService {
             Long currentAccountId
     ) {
         Account currentAccount = boardUserService.findOptional(currentAccountId);
-        Post post = getExistingPost(postId);
+        Post post = getExistingActivePost(postId);
         accessPolicy.assertCanRead(post.getBoardType(), currentAccount);
 
         return responseMapper.toMediaResponses(
@@ -851,8 +1113,8 @@ public class PostService {
     ) {
         validateId(postMediaId, "첨부파일");
         Account currentAccount = boardUserService.require(currentAccountId);
-        Post post = getExistingPostForUpdate(postId);
-        assertOwnerOrAdmin(post, currentAccount);
+        Post post = getExistingActivePostForUpdate(postId);
+        assertCanManageMedia(post, currentAccount);
 
         PostMediaFileReference media = referenceRepository
                 .findPostMediaFile(postMediaId)
@@ -878,7 +1140,7 @@ public class PostService {
                 .orElseThrow(() -> notFound("첨부파일을 찾을 수 없습니다."));
 
         Account currentAccount = boardUserService.findOptional(currentAccountId);
-        Post post = getExistingPost(media.postId());
+        Post post = getExistingActivePost(media.postId());
         accessPolicy.assertCanRead(post.getBoardType(), currentAccount);
 
         if (BoardReferenceQueryRepository.MEDIA_URL_PROCESSING.equals(
@@ -932,7 +1194,8 @@ public class PostService {
     @Transactional
     public PostLikeResponse likePost(Long postId, Long currentAccountId) {
         Account currentAccount = boardUserService.require(currentAccountId);
-        Post post = getExistingPostForUpdate(postId);
+        Post post = getExistingActivePostForUpdate(postId);
+        assertLikeablePost(post);
         accessPolicy.assertCanRead(post.getBoardType(), currentAccount);
 
         PostLikeId id = new PostLikeId(postId, currentAccount.getAccountId());
@@ -946,7 +1209,8 @@ public class PostService {
     @Transactional
     public PostLikeResponse unlikePost(Long postId, Long currentAccountId) {
         Account currentAccount = boardUserService.require(currentAccountId);
-        Post post = getExistingPostForUpdate(postId);
+        Post post = getExistingActivePostForUpdate(postId);
+        assertLikeablePost(post);
         accessPolicy.assertCanRead(post.getBoardType(), currentAccount);
 
         PostLikeId id = new PostLikeId(postId, currentAccount.getAccountId());
@@ -957,16 +1221,162 @@ public class PostService {
         return new PostLikeResponse(postId, post.getLikeCount(), false);
     }
 
+    private RestaurantNewsItemResponse createRestaurantNews(
+            Account currentAccount,
+            Long restaurantId,
+            Long publicRestaurantId,
+            String title,
+            String content
+    ) {
+        String normalizedTitle = normalizeNewsTitle(title);
+        String normalizedContent = normalizeNewsContent(content);
+        PostSubmissionKey submissionKey = new PostSubmissionKey(
+                currentAccount.getAccountId(),
+                normalizedContent
+        );
+        long checkedAt = System.nanoTime();
+        if (!reservePostSubmission(submissionKey, checkedAt)) {
+            throw rapidDuplicatePost();
+        }
+
+        try {
+            assertNotRapidDuplicate(
+                    currentAccount.getAccountId(),
+                    normalizedContent
+            );
+            Post post = Post.create(
+                    currentAccount,
+                    restaurantId,
+                    publicRestaurantId,
+                    BoardType.GENERAL,
+                    PostCategory.NEWS,
+                    normalizedTitle,
+                    normalizedContent
+            );
+            postRepository.save(post);
+            RestaurantNewsItemResponse response = toRestaurantNewsItem(post, false);
+            completePostSubmissionAfterTransaction(submissionKey);
+            return response;
+        } catch (RuntimeException | Error exception) {
+            releasePostSubmission(submissionKey);
+            throw exception;
+        }
+    }
+
+    private RestaurantNewsPageResponse toRestaurantNewsPage(
+            Page<Post> page,
+            Account currentAccount
+    ) {
+        List<Post> posts = page.getContent();
+        Set<Long> likedPostIds = currentAccount == null || posts.isEmpty()
+                ? Set.of()
+                : Set.copyOf(postLikeRepository.findLikedPostIds(
+                        currentAccount.getAccountId(),
+                        posts.stream().map(Post::getPostId).toList()
+                ));
+        return new RestaurantNewsPageResponse(
+                posts.stream()
+                        .map(post -> toRestaurantNewsItem(
+                                post,
+                                likedPostIds.contains(post.getPostId())
+                        ))
+                        .toList(),
+                page.getNumber(),
+                page.getSize(),
+                page.getTotalElements(),
+                page.getTotalPages(),
+                page.isFirst(),
+                page.isLast()
+        );
+    }
+
+    private RestaurantNewsItemResponse toRestaurantNewsItem(
+            Post post,
+            boolean likedByCurrentUser
+    ) {
+        return new RestaurantNewsItemResponse(
+                post.getPostId(),
+                post.getTitle(),
+                post.getContent(),
+                post.getAuthor().getAccountId(),
+                post.getAuthor().getNickname(),
+                post.getLikeCount(),
+                likedByCurrentUser,
+                post.getCreatedAt()
+        );
+    }
+
+    private String normalizeNewsTitle(String title) {
+        String normalized = title == null ? "" : title.strip();
+        if (normalized.isBlank()) {
+            throw badRequest("제목을 입력해 주세요.");
+        }
+        if (normalized.length() > MAX_NEWS_TITLE_LENGTH) {
+            throw badRequest(
+                    "제목은 " + MAX_NEWS_TITLE_LENGTH + "자 이하로 입력해 주세요."
+            );
+        }
+        return normalized;
+    }
+
+    private String normalizeNewsContent(String content) {
+        String normalized = content == null ? "" : content.strip();
+        if (normalized.isBlank()) {
+            throw badRequest("내용을 입력해 주세요.");
+        }
+        if (normalized.length() > MAX_NEWS_CONTENT_LENGTH) {
+            throw badRequest(
+                    "내용은 " + MAX_NEWS_CONTENT_LENGTH + "자 이하로 입력해 주세요."
+            );
+        }
+        return normalized;
+    }
+
     private Post getExistingPost(Long postId) {
+        Post post = getExistingActivePost(postId);
+        assertCommunityPost(post);
+        return post;
+    }
+
+    private Post getExistingActivePost(Long postId) {
         validateId(postId, "게시글");
-        return postRepository.findByPostIdAndStatus(postId, PostStatus.ACTIVE)
+        return postRepository.findByPostIdAndStatus(
+                        postId,
+                        PostStatus.ACTIVE
+                )
                 .orElseThrow(() -> notFound("게시글을 찾을 수 없습니다."));
     }
 
     private Post getExistingPostForUpdate(Long postId) {
+        Post post = getExistingActivePostForUpdate(postId);
+        assertCommunityPost(post);
+        return post;
+    }
+
+    private Post getExistingActivePostForUpdate(Long postId) {
         validateId(postId, "게시글");
-        return postRepository.findByPostIdAndStatusForUpdate(postId, PostStatus.ACTIVE)
+        return postRepository.findByPostIdAndStatusForUpdate(
+                        postId,
+                        PostStatus.ACTIVE
+                )
                 .orElseThrow(() -> notFound("게시글을 찾을 수 없습니다."));
+    }
+
+    private void assertCommunityPost(Post post) {
+        if (post.getCategory() == PostCategory.NEWS) {
+            throw notFound("게시글을 찾을 수 없습니다.");
+        }
+    }
+
+    private void assertLikeablePost(Post post) {
+        if (post.getCategory() != PostCategory.NEWS) {
+            return;
+        }
+        Long restaurantId = post.getRestaurantId();
+        Long publicRestaurantId = post.getPublicRestaurantId();
+        if ((restaurantId == null) == (publicRestaurantId == null)) {
+            throw notFound("게시글을 찾을 수 없습니다.");
+        }
     }
 
     private void assertOwnerOrAdmin(Post post, Account account) {
@@ -978,6 +1388,27 @@ public class PostService {
                     "게시글 작성자 또는 관리자만 수정·삭제할 수 있습니다."
             );
         }
+    }
+
+    private void assertCanManageMedia(Post post, Account account) {
+        if (post.getCategory() != PostCategory.NEWS) {
+            assertOwnerOrAdmin(post, account);
+            return;
+        }
+
+        Long restaurantId = post.getRestaurantId();
+        Long publicRestaurantId = post.getPublicRestaurantId();
+        if ((restaurantId == null) == (publicRestaurantId == null)) {
+            throw notFound("게시글을 찾을 수 없습니다.");
+        }
+        if (publicRestaurantId != null) {
+            accessPolicy.assertCanWritePublicRestaurantNews(
+                    publicRestaurantId,
+                    account
+            );
+            return;
+        }
+        accessPolicy.assertCanWriteOwnedRestaurantNews(restaurantId, account);
     }
 
     private String normalizeOriginalName(String encodedOriginalName) {
@@ -1418,6 +1849,30 @@ public class PostService {
         );
     }
 
+    private BoardException publicRestaurantNotFound() {
+        return new BoardException(
+                HttpStatus.NOT_FOUND,
+                "BOARD_PUBLIC_RESTAURANT_NOT_FOUND",
+                "공공데이터 음식점을 찾을 수 없습니다."
+        );
+    }
+
+    private BoardException restaurantNotFound() {
+        return new BoardException(
+                HttpStatus.NOT_FOUND,
+                "BOARD_RESTAURANT_NOT_FOUND",
+                "음식점을 찾을 수 없습니다."
+        );
+    }
+
+    private BoardException newsNotFound() {
+        return new BoardException(
+                HttpStatus.NOT_FOUND,
+                "BOARD_NEWS_NOT_FOUND",
+                "식당 소식을 찾을 수 없습니다."
+        );
+    }
+
     private BoardException notFound(String message) {
         return new BoardException(
                 HttpStatus.NOT_FOUND,
@@ -1466,11 +1921,17 @@ public class PostService {
             long postCount,
             long commentCount,
             List<AuthorRecentPostResponse> recentPosts,
-            List<AuthorRecentCommentResponse> recentComments
+            List<AuthorRecentCommentResponse> recentComments,
+            long newsPostCount,
+            long newsCommentCount,
+            List<AuthorRecentPostResponse> recentNewsPosts,
+            List<AuthorRecentCommentResponse> recentNewsComments
     ) {
         public AuthorSummaryResponse {
             recentPosts = List.copyOf(recentPosts);
             recentComments = List.copyOf(recentComments);
+            recentNewsPosts = List.copyOf(recentNewsPosts);
+            recentNewsComments = List.copyOf(recentNewsComments);
         }
     }
 
@@ -1490,5 +1951,31 @@ public class PostService {
             String content,
             LocalDateTime createdAt
     ) {
+    }
+
+    public record RestaurantNewsItemResponse(
+            Long postId,
+            String title,
+            String content,
+            Long authorAccountId,
+            String authorNickname,
+            long likeCount,
+            boolean likedByCurrentUser,
+            LocalDateTime createdAt
+    ) {
+    }
+
+    public record RestaurantNewsPageResponse(
+            List<RestaurantNewsItemResponse> content,
+            int page,
+            int size,
+            long totalElements,
+            int totalPages,
+            boolean first,
+            boolean last
+    ) {
+        public RestaurantNewsPageResponse {
+            content = List.copyOf(content);
+        }
     }
 }

@@ -9,6 +9,8 @@ import com.example.backend.board.dto.response.PostPageResponse;
 import com.example.backend.board.service.PostService;
 import com.example.backend.global.response.ApiResponse;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -69,6 +71,142 @@ public class PostController {
         ));
     }
 
+    @GetMapping("/restaurants/public/{publicRestaurantId}/news")
+    public ApiResponse<PostService.RestaurantNewsPageResponse>
+    getPublicRestaurantNews(
+            @PathVariable Long publicRestaurantId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size,
+            Authentication authentication
+    ) {
+        return ApiResponse.success(postService.getPublicRestaurantNews(
+                publicRestaurantId,
+                page,
+                size,
+                BoardAuthentication.accountId(authentication)
+        ));
+    }
+
+    @PostMapping("/restaurants/public/{publicRestaurantId}/news")
+    @ResponseStatus(HttpStatus.CREATED)
+    public ApiResponse<PostService.RestaurantNewsItemResponse>
+    createPublicRestaurantNews(
+            @PathVariable Long publicRestaurantId,
+            @Valid @RequestBody NewsCreateRequest request,
+            Authentication authentication
+    ) {
+        return ApiResponse.success(
+                "식당 소식이 등록되었습니다.",
+                postService.createPublicRestaurantNews(
+                        publicRestaurantId,
+                        request.title(),
+                        request.content(),
+                        BoardAuthentication.accountId(authentication)
+                )
+        );
+    }
+
+    @PutMapping("/restaurants/public/{publicRestaurantId}/news/{postId}")
+    public ApiResponse<PostDetailResponse> updatePublicRestaurantNews(
+            @PathVariable Long publicRestaurantId,
+            @PathVariable Long postId,
+            @Valid @RequestBody NewsCreateRequest request,
+            Authentication authentication
+    ) {
+        return ApiResponse.success(
+                "식당 소식이 수정되었습니다.",
+                postService.updatePublicRestaurantNews(
+                        publicRestaurantId,
+                        postId,
+                        request.title(),
+                        request.content(),
+                        BoardAuthentication.accountId(authentication)
+                )
+        );
+    }
+
+    @DeleteMapping("/restaurants/public/{publicRestaurantId}/news/{postId}")
+    public ApiResponse<Void> deletePublicRestaurantNews(
+            @PathVariable Long publicRestaurantId,
+            @PathVariable Long postId,
+            Authentication authentication
+    ) {
+        postService.deletePublicRestaurantNews(
+                publicRestaurantId,
+                postId,
+                BoardAuthentication.accountId(authentication)
+        );
+        return ApiResponse.success("식당 소식이 삭제되었습니다.", null);
+    }
+
+    @GetMapping("/restaurants/{restaurantId}/news")
+    public ApiResponse<PostService.RestaurantNewsPageResponse>
+    getOwnedRestaurantNews(
+            @PathVariable Long restaurantId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size,
+            Authentication authentication
+    ) {
+        return ApiResponse.success(postService.getOwnedRestaurantNews(
+                restaurantId,
+                page,
+                size,
+                BoardAuthentication.accountId(authentication)
+        ));
+    }
+
+    @PostMapping("/restaurants/{restaurantId}/news")
+    @ResponseStatus(HttpStatus.CREATED)
+    public ApiResponse<PostService.RestaurantNewsItemResponse>
+    createOwnedRestaurantNews(
+            @PathVariable Long restaurantId,
+            @Valid @RequestBody NewsCreateRequest request,
+            Authentication authentication
+    ) {
+        return ApiResponse.success(
+                "식당 소식이 등록되었습니다.",
+                postService.createOwnedRestaurantNews(
+                        restaurantId,
+                        request.title(),
+                        request.content(),
+                        BoardAuthentication.accountId(authentication)
+                )
+        );
+    }
+
+    @PutMapping("/restaurants/{restaurantId}/news/{postId}")
+    public ApiResponse<PostDetailResponse> updateOwnedRestaurantNews(
+            @PathVariable Long restaurantId,
+            @PathVariable Long postId,
+            @Valid @RequestBody NewsCreateRequest request,
+            Authentication authentication
+    ) {
+        return ApiResponse.success(
+                "식당 소식이 수정되었습니다.",
+                postService.updateOwnedRestaurantNews(
+                        restaurantId,
+                        postId,
+                        request.title(),
+                        request.content(),
+                        BoardAuthentication.accountId(authentication)
+                )
+        );
+    }
+
+    @DeleteMapping("/restaurants/{restaurantId}/news/{postId}")
+    public ApiResponse<Void> deleteOwnedRestaurantNews(
+            @PathVariable Long restaurantId,
+            @PathVariable Long postId,
+            Authentication authentication
+    ) {
+        postService.deleteOwnedRestaurantNews(
+                restaurantId,
+                postId,
+                BoardAuthentication.accountId(authentication)
+        );
+        return ApiResponse.success("식당 소식이 삭제되었습니다.", null);
+    }
+
     @GetMapping("/best")
     public ApiResponse<List<PostListItemResponse>> getBestPosts(
             @RequestParam(required = false) String boardType,
@@ -123,11 +261,13 @@ public class PostController {
     public ApiResponse<PostService.AuthorSummaryResponse> getAuthorSummary(
             @PathVariable Long authorAccountId,
             @RequestParam(required = false) Long excludePostId,
+            @RequestParam(defaultValue = "false") boolean includeNewsActivity,
             Authentication authentication
     ) {
         return ApiResponse.success(postService.getAuthorSummary(
                 authorAccountId,
                 excludePostId,
+                includeNewsActivity,
                 BoardAuthentication.accountId(authentication)
         ));
     }
@@ -368,5 +508,16 @@ public class PostController {
                         BoardAuthentication.accountId(authentication)
                 )
         );
+    }
+
+    public record NewsCreateRequest(
+            @NotBlank(message = "제목을 입력해 주세요.")
+            @Size(max = 200, message = "제목은 200자 이하로 입력해 주세요.")
+            String title,
+
+            @NotBlank(message = "내용을 입력해 주세요.")
+            @Size(max = 10000, message = "내용은 10,000자 이하로 입력해 주세요.")
+            String content
+    ) {
     }
 }

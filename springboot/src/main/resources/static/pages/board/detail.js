@@ -68,6 +68,237 @@
     return item?.edited === true;
   }
 
+  function isNewsPost(post = state.post) {
+    return post?.category === "NEWS";
+  }
+
+  function newsSource(post) {
+    const hasPublicRestaurant = post?.publicRestaurantId != null;
+    const hasOwnedRestaurant = post?.restaurantId != null;
+    if (hasPublicRestaurant === hasOwnedRestaurant) return null;
+    return hasPublicRestaurant
+      ? { source: "public", id: post.publicRestaurantId }
+      : { source: "owned", id: post.restaurantId };
+  }
+
+  function restaurantNewsPath(post) {
+    const target = newsSource(post);
+    if (!target) return null;
+    const params = new URLSearchParams({
+      source: target.source,
+      id: String(target.id),
+      tab: "news",
+    });
+    return `/pages/restaurant/detail.html?${params.toString()}`;
+  }
+
+  function restaurantInfoPath(post) {
+    const target = newsSource(post);
+    if (!target) return null;
+    const params = new URLSearchParams({
+      source: target.source,
+      id: String(target.id),
+      tab: "info",
+    });
+    return `/pages/restaurant/detail.html?${params.toString()}`;
+  }
+
+  function newsRestaurantApiPath(post) {
+    const target = newsSource(post);
+    if (!target) return null;
+    const restaurantId = encodeURIComponent(target.id);
+    return target.source === "public"
+      ? `/public/map/restaurants/${restaurantId}`
+      : `/public/restaurants/${restaurantId}`;
+  }
+
+  function newsRestaurantFallback(post) {
+    const target = newsSource(post);
+    if (!target) return null;
+    if (target.source === "owned" && post?.restaurant) {
+      return {
+        name: post.restaurant.name || "등록 식당",
+        category: null,
+        address: post.restaurant.address || "주소 정보 없음",
+        phone: null,
+        openingHours: null,
+        sourceLabel: "푸드덕 등록 식당",
+      };
+    }
+    return {
+      name: "연결된 가게",
+      category: null,
+      address: "가게 정보를 불러오지 못했습니다.",
+      phone: null,
+      openingHours: null,
+      sourceLabel: "식당",
+    };
+  }
+
+  function normalizeNewsRestaurant(post, restaurant) {
+    const target = newsSource(post);
+    if (!target || !restaurant) return newsRestaurantFallback(post);
+
+    if (target.source === "public") {
+      return {
+        name: restaurant.name || "연결된 가게",
+        category:
+          restaurant.categorySmallName ||
+          restaurant.categoryMediumName ||
+          restaurant.categoryLargeName ||
+          null,
+        address: restaurant.roadAddress || restaurant.lotAddress || "주소 정보 없음",
+        phone: null,
+        openingHours: null,
+        sourceLabel: "식당",
+      };
+    }
+
+    const fullAddress = [restaurant.address, restaurant.addressDetail]
+      .filter(Boolean)
+      .join(" ");
+    return {
+      name: restaurant.name || post?.restaurant?.name || "연결된 가게",
+      category: restaurant.categoryName || null,
+      address: fullAddress || post?.restaurant?.address || "주소 정보 없음",
+      phone: restaurant.phone || null,
+      openingHours: restaurant.openingHours || null,
+      sourceLabel: "푸드덕 등록 식당",
+    };
+  }
+
+  function renderNewsRestaurantCardContent(card, post, restaurant, options = {}) {
+    const infoPath = restaurantInfoPath(post);
+    const source = newsSource(post);
+    const data = restaurant || newsRestaurantFallback(post);
+    if (!card || !data || !source) return;
+
+    card.classList.toggle("is-loading", options.loading === true);
+    card.classList.toggle("has-error", options.error === true);
+    card.replaceChildren();
+
+    const copy = element("div", "news-restaurant-card__copy");
+    const eyebrow = element("div", "news-restaurant-card__eyebrow");
+    const icon = element("span", "material-symbols-rounded", "storefront");
+    icon.setAttribute("aria-hidden", "true");
+    eyebrow.append(icon, document.createTextNode(" 이 소식의 가게"));
+
+    const headingRow = element("div", "news-restaurant-card__heading");
+    headingRow.append(
+      element("strong", "news-restaurant-card__name", data.name),
+      element("span", "news-restaurant-card__source", data.sourceLabel),
+    );
+    copy.append(eyebrow, headingRow);
+
+    const details = element("div", "news-restaurant-card__details");
+    if (data.category) {
+      const category = element("span", "news-restaurant-card__detail");
+      const categoryIcon = element("span", "material-symbols-rounded", "storefront");
+      categoryIcon.setAttribute("aria-hidden", "true");
+      category.append(categoryIcon, document.createTextNode(data.category));
+      details.append(category);
+    }
+    const address = element("span", "news-restaurant-card__detail");
+    const addressIcon = element("span", "material-symbols-rounded", "location_on");
+    addressIcon.setAttribute("aria-hidden", "true");
+    address.append(addressIcon, document.createTextNode(data.address));
+    details.append(address);
+    if (data.phone) {
+      const phone = element("span", "news-restaurant-card__detail");
+      const phoneIcon = element("span", "material-symbols-rounded", "call");
+      phoneIcon.setAttribute("aria-hidden", "true");
+      phone.append(phoneIcon, document.createTextNode(data.phone));
+      details.append(phone);
+    }
+    if (data.openingHours) {
+      const hours = element("span", "news-restaurant-card__detail");
+      const hoursIcon = element("span", "material-symbols-rounded", "schedule");
+      hoursIcon.setAttribute("aria-hidden", "true");
+      hours.append(hoursIcon, document.createTextNode(data.openingHours));
+      details.append(hours);
+    }
+    copy.append(details);
+
+    const action = element("a", "button button-sm button-secondary news-restaurant-card__action", "가게 정보 보기");
+    action.href = infoPath || restaurantNewsPath(post) || "#";
+    const arrow = element("span", "material-symbols-rounded", "arrow_forward");
+    arrow.setAttribute("aria-hidden", "true");
+    action.append(document.createTextNode(" "), arrow);
+
+    card.append(copy, action);
+    window.FooduckIcons?.enhance(card);
+  }
+
+  function renderNewsRestaurantCard(post) {
+    const target = newsSource(post);
+    if (!target) return null;
+
+    const card = element("section", "news-restaurant-card is-loading");
+    card.setAttribute("aria-label", "이 소식의 가게 정보");
+    renderNewsRestaurantCardContent(
+      card,
+      post,
+      target.source === "owned" ? newsRestaurantFallback(post) : {
+        name: "가게 정보를 불러오는 중입니다.",
+        category: null,
+        address: "잠시만 기다려 주세요.",
+        phone: null,
+        openingHours: null,
+        sourceLabel: target.source === "public" ? "식당" : "푸드덕 등록 식당",
+      },
+      { loading: true },
+    );
+
+    const path = newsRestaurantApiPath(post);
+    if (!path) return card;
+
+    Api.get(path, { auth: false })
+      .then((payload) => {
+        if (!card.isConnected || state.post?.postId !== post.postId) return;
+        renderNewsRestaurantCardContent(
+          card,
+          post,
+          normalizeNewsRestaurant(post, payload?.data),
+        );
+      })
+      .catch(() => {
+        if (!card.isConnected || state.post?.postId !== post.postId) return;
+        renderNewsRestaurantCardContent(
+          card,
+          post,
+          newsRestaurantFallback(post),
+          { error: true },
+        );
+      });
+
+    return card;
+  }
+
+  function newsWritePath(post) {
+    const params = new URLSearchParams({
+      postId: String(post.postId),
+      from: "NEWS",
+    });
+    return `/pages/board/write.html?${params.toString()}`;
+  }
+
+  function newsDeletePath(post) {
+    const target = newsSource(post);
+    if (!target) return null;
+    const restaurantId = encodeURIComponent(target.id);
+    const targetPostId = encodeURIComponent(post.postId);
+    return target.source === "public"
+      ? `/board/posts/restaurants/public/${restaurantId}/news/${targetPostId}`
+      : `/board/posts/restaurants/${restaurantId}/news/${targetPostId}`;
+  }
+
+  function setBackLink(href, label) {
+    listLink.href = href;
+    const icon = element("span", "material-symbols-rounded", "arrow_back");
+    icon.setAttribute("aria-hidden", "true");
+    listLink.replaceChildren(icon, document.createTextNode(` ${label}`));
+  }
+
   let selectedCommentImage = null;
   let commentImagePreviewUrl = null;
   let activeReplyForm = null;
@@ -790,19 +1021,31 @@
 
   function renderPost(post) {
     state.post = post;
+    const newsPost = isNewsPost(post);
+    const newsTarget = newsPost ? newsSource(post) : null;
+    const newsReturnPath = newsPost ? restaurantNewsPath(post) : null;
     document.title = `${post.title} · 푸드덕`;
-    listLink.href = fromBest
-      ? "/pages/board/index.html?boardType=BEST"
-      : fromPopular
-        ? "/pages/board/index.html?boardType=POPULAR"
-        : board.listPath(post.boardType);
+    setBackLink(
+      newsReturnPath || (fromBest
+        ? "/pages/board/index.html?boardType=BEST"
+        : fromPopular
+          ? "/pages/board/index.html?boardType=POPULAR"
+          : board.listPath(post.boardType)),
+      newsReturnPath ? "가게 소식으로 돌아가기" : "커뮤니티 목록",
+    );
     detailContent.replaceChildren();
 
     const badges = element("div", "detail-badges");
     badges.append(detailBadge(categoryLabel(post.category)));
     badges.append(
       detailBadge(
-        post.boardType === "BUSINESS" ? "사업자 커뮤니티" : "일반 커뮤니티",
+        newsPost
+          ? newsTarget?.source === "public"
+            ? "식당 소식"
+            : "등록 식당 소식"
+          : post.boardType === "BUSINESS"
+            ? "사업자 커뮤니티"
+            : "일반 커뮤니티",
         "post-board-badge",
       ),
     );
@@ -812,19 +1055,25 @@
 
     const meta = element("div", "detail-meta");
     meta.append(
-      authorIdentity(post, { showAuthorMenu: true }),
+      authorIdentity(post, {
+        showAuthorMenu: true,
+        authorMenuContext: newsPost ? "NEWS" : "COMMUNITY",
+      }),
       element(
         "span",
         "",
         `${formatDate(post.createdAt)}${isEdited(post) ? " · 수정됨" : ""}`,
       ),
       element("span", "", `조회 ${post.viewCount || 0}`),
-      element("span", "", `추천 ${post.likeCount || 0}`),
     );
+    meta.append(element("span", "", `추천 ${post.likeCount || 0}`));
     heading.append(meta);
     detailContent.append(heading);
 
-    if (post.restaurant) {
+    if (newsPost) {
+      const newsRestaurantCard = renderNewsRestaurantCard(post);
+      if (newsRestaurantCard) detailContent.append(newsRestaurantCard);
+    } else if (post.restaurant) {
       const restaurant = element("div", "detail-restaurant");
       const copy = element("span");
       copy.append(
@@ -851,16 +1100,21 @@
       toggleLike,
     );
     actions.append(likeButton);
-    if ((!fromBest && post.ownedByCurrentUser) || session.isAdmin) {
+    const canManage = newsPost
+      ? post.newsManageableByCurrentUser === true && Boolean(newsTarget)
+      : (!fromBest && post.ownedByCurrentUser) || session.isAdmin;
+    if (canManage) {
       const editLink = element("a", "button button-sm button-secondary", "수정");
-      editLink.href = board.writePath(post.boardType, post.postId);
+      editLink.href = newsPost
+        ? newsWritePath(post)
+        : board.writePath(post.boardType, post.postId);
       actions.append(
         editLink,
         actionButton("삭제", "button button-sm button-danger", deletePost),
       );
     }
-    detailContent.append(actions);
-    renderRestaurantSide(post.restaurant);
+    if (actions.childElementCount) detailContent.append(actions);
+    renderRestaurantSide(newsPost ? null : post.restaurant);
     window.FooduckIcons?.enhance(detailContent);
   }
 
@@ -933,12 +1187,24 @@
   }
 
   async function deletePost() {
-    if (!window.confirm("게시글과 연결된 댓글·추천을 삭제하시겠습니까?")) return;
+    const newsPost = isNewsPost();
+    const deletePath = newsPost ? newsDeletePath(state.post) : `/board/posts/${postId}`;
+    const returnPath = newsPost
+      ? restaurantNewsPath(state.post)
+      : board.listPath(state.post.boardType);
+    if (!deletePath || !returnPath) {
+      showToast(toast, "가게 소식의 식당 정보를 확인할 수 없습니다.", true);
+      return;
+    }
+    const message = newsPost
+      ? "이 가게 소식과 연결된 댓글·추천을 삭제하시겠습니까?"
+      : "게시글과 연결된 댓글·추천을 삭제하시겠습니까?";
+    if (!window.confirm(message)) return;
     try {
-      const payload = await Api.delete(`/board/posts/${postId}`);
+      const payload = await Api.delete(deletePath);
       invalidateBoardCache();
       window.alert(payload.message);
-      window.location.assign(board.listPath(state.post.boardType));
+      window.location.assign(returnPath);
     } catch (error) {
       showToast(toast, error.message, true);
     }
@@ -1197,7 +1463,10 @@
 
     const top = element("div", "comment-top");
     top.append(
-      authorIdentity(comment, { showAuthorMenu: true }),
+      authorIdentity(comment, {
+        showAuthorMenu: true,
+        authorMenuContext: isNewsPost() ? "NEWS" : "COMMUNITY",
+      }),
       element(
         "span",
         "comment-date",
@@ -1437,7 +1706,13 @@
       await Promise.all([
         postPromise,
         loadComments(),
-        loadRelatedPosts(),
+        postPromise.then(() => {
+          if (isNewsPost()) {
+            renderRelatedPosts([]);
+            return;
+          }
+          return loadRelatedPosts();
+        }),
         postPromise.then(loadUnansweredPosts),
       ]);
     } catch (error) {

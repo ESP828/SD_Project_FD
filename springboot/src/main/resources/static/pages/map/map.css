@@ -162,11 +162,54 @@
   font-weight: 750;
 }
 
-.category-list button:hover,
-.category-list button.is-active {
+.category-list button:hover {
   border-color: #ffd294;
   color: #a55100;
   background: var(--color-orange-soft);
+}
+
+.category-list button.is-active {
+  border-color: var(--color-orange);
+  color: #fff;
+  background: var(--color-orange);
+  box-shadow: 0 6px 14px rgba(255, 152, 0, 0.28);
+}
+
+.preset-breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 12px;
+  color: var(--color-subtle);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.preset-breadcrumb a {
+  color: var(--color-subtle);
+}
+
+.preset-breadcrumb a:hover {
+  color: var(--color-orange-dark);
+}
+
+.preset-breadcrumb [aria-current="page"] {
+  color: var(--color-navy);
+  font-weight: 850;
+}
+
+.map-helper-text {
+  margin: 10px 0 0;
+  padding: 10px 12px;
+  border-radius: 11px;
+  background: #f8fafc;
+  color: var(--color-muted);
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
+.map-helper-text[hidden] {
+  display: none;
 }
 
 .map-action-row {
@@ -687,6 +730,12 @@
   line-height: 1.5;
 }
 
+.place-detail-menu-disclaimer {
+  margin: 0 0 8px;
+  color: var(--color-subtle);
+  font-size: 0.7rem;
+}
+
 .place-detail-menu-item {
   display: flex;
   align-items: center;
@@ -834,15 +883,30 @@
 }
 
 .preset-map-context a {
+  display: inline-block;
+  margin-top: 4px;
   color: var(--color-orange-dark);
   font-size: 0.78rem;
   font-weight: 850;
 }
 
 .preset-map-context p {
-  margin: 7px 0 0;
+  margin: 0;
   color: var(--color-muted);
   font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.place-result-index {
+  display: grid;
+  min-width: 20px;
+  height: 20px;
+  place-items: center;
+  padding: 0 5px;
+  border-radius: 50%;
+  background: var(--color-canvas);
+  color: var(--color-navy);
+  font-size: 0.68rem;
 }
 
 .place-result.has-no-coordinate {
@@ -863,4 +927,18 @@
 
 .place-result-favorite.is-active {
   color: #f15a24;
+}
+
+.place-result-remove {
+  margin-left: auto;
+  color: var(--color-danger);
+}
+
+.place-result-remove:hover {
+  color: #b42318;
+}
+
+.place-result-remove:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }

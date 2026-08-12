@@ -9,5 +9,6 @@ public enum PostCategory {
     RECOMMENDATION,
     REVIEW,
     QUESTION,
-    TRAVEL
+    TRAVEL,
+    NEWS
 }

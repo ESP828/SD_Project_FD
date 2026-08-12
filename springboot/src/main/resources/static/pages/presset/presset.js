@@ -10,7 +10,6 @@
   const toast = document.querySelector("#preset-toast");
   const registerPath = "/pages/presset/register.html";
   const createdMessageKey = "fooduck:preset-created";
-  const fallbackImage = "/images/foodduck-guide.png";
   const requestedSort = new URLSearchParams(location.search).get("sort");
   const initialSort = ["popular", "latest", "favorite"].includes(requestedSort)
     ? requestedSort
@@ -55,13 +54,21 @@
     return `/pages/presset/detail.html?presetId=${encodeURIComponent(presetId)}`;
   }
 
-  function safeImage(source, title, className) {
+  function imagePlaceholder(className = "preset-image-placeholder") {
+    const placeholder = element("span", className, "이미지 없음");
+    placeholder.setAttribute("aria-label", "등록 이미지 없음");
+    return placeholder;
+  }
+
+  function safeImage(source, title, className, placeholderClassName) {
     const image = new Image();
     image.className = className;
-    image.src = source || fallbackImage;
+    image.src = source;
     image.alt = `${title || "Presset"} 대표 이미지`;
     image.loading = "lazy";
-    image.addEventListener("error", () => { image.src = fallbackImage; }, { once: true });
+    image.addEventListener("error", () => {
+      image.replaceWith(imagePlaceholder(placeholderClassName));
+    }, { once: true });
     return image;
   }
 
@@ -100,7 +107,7 @@
       preset.favoriteCount = Number(payload.data?.favoriteCount) || 0;
       button.classList.toggle("is-active", preset.favoriteByCurrentUser);
       button.setAttribute("aria-pressed", String(preset.favoriteByCurrentUser));
-      button.setAttribute("aria-label", preset.favoriteByCurrentUser ? "Presset 저장 해제" : "Presset 저장");
+      button.setAttribute("aria-label", preset.favoriteByCurrentUser ? "Presset 찜 해제" : "Presset 찜");
       button.textContent = preset.favoriteByCurrentUser ? "♥" : "♡";
       button.closest(".preset-card")?.querySelector("[data-favorite-count]")
         ?.replaceChildren(document.createTextNode(`저장 ${preset.favoriteCount}`));
@@ -111,18 +118,32 @@
     }
   }
 
-  function createCard(preset) {
+  function createCard(preset, rank) {
     const card = element("article", "preset-card");
     const visualLink = element("a", "preset-card-visual");
     visualLink.href = detailPath(preset.presetId);
-    if (preset.imageUrl) visualLink.append(safeImage(preset.imageUrl, preset.title, "preset-card-image"));
+    if (preset.imageUrl) {
+      visualLink.append(safeImage(
+        preset.imageUrl,
+        preset.title,
+        "preset-card-image",
+        "preset-image-placeholder preset-card-image-placeholder",
+      ));
+    } else {
+      visualLink.append(imagePlaceholder(
+        "preset-image-placeholder preset-card-image-placeholder",
+      ));
+    }
+    if (Number.isInteger(rank)) {
+      visualLink.append(element("span", "preset-card-rank", String(rank)));
+    }
     visualLink.append(createCategoryBadges(preset.category));
 
     const favorite = element("button", "preset-favorite-button", preset.favoriteByCurrentUser ? "♥" : "♡");
     favorite.type = "button";
     favorite.classList.toggle("is-active", preset.favoriteByCurrentUser);
     favorite.setAttribute("aria-pressed", String(Boolean(preset.favoriteByCurrentUser)));
-    favorite.setAttribute("aria-label", preset.favoriteByCurrentUser ? "Presset 저장 해제" : "Presset 저장");
+    favorite.setAttribute("aria-label", preset.favoriteByCurrentUser ? "Presset 찜 해제" : "Presset 찜");
     favorite.addEventListener("click", (event) => {
       event.preventDefault();
       event.stopPropagation();
@@ -141,26 +162,40 @@
 
     const thumbnails = element("div", "preset-thumbnails");
     (preset.thumbnailImageUrls || []).slice(0, 3).forEach((url) => {
-      thumbnails.append(safeImage(url, preset.title, "preset-thumbnail"));
+      thumbnails.append(safeImage(
+        url,
+        preset.title,
+        "preset-thumbnail",
+        "preset-image-placeholder preset-thumbnail-placeholder",
+      ));
     });
     if (thumbnails.childElementCount) body.append(thumbnails);
 
     const meta = element("div", "preset-card-meta");
     meta.append(
-      element("span", "", `맛집 ${preset.restaurantCount || 0}곳`),
-      element("span", "", `조회 ${Number(preset.viewCount || 0).toLocaleString("ko-KR")}`),
+      element("span", "", `🍴 맛집 ${preset.restaurantCount || 0}곳`),
+      element("span", "", `👁 조회 ${Number(preset.viewCount || 0).toLocaleString("ko-KR")}`),
     );
-    const saved = element("span", "", `저장 ${preset.favoriteCount || 0}`);
+    const saved = element("span", "", `🔖 저장 ${preset.favoriteCount || 0}`);
     saved.dataset.favoriteCount = "";
     meta.append(saved);
     body.append(meta);
+
+    const actions = element("div", "preset-card-actions");
+    const goDetail = element("a", "button button-primary preset-card-cta", "맛집 목록 보기 →");
+    goDetail.href = detailPath(preset.presetId);
+    const goMap = element("a", "button button-secondary preset-card-cta", "지도에서 보기");
+    goMap.href = `/pages/map/index.html?presetId=${encodeURIComponent(preset.presetId)}`;
+    actions.append(goDetail, goMap);
+    body.append(actions);
+
     card.append(body);
     return card;
   }
 
   function renderFilters() {
     filters.replaceChildren();
-    const all = element("button", "preset-filter", "전체");
+    const all = element("button", "preset-filter", "▦ 전체");
     all.type = "button";
     all.setAttribute("aria-pressed", String(state.tagId === null));
     all.addEventListener("click", () => selectTag(null));
@@ -214,7 +249,8 @@
       empty.append(element("h3", "", "조건에 맞는 Presset이 없습니다."), element("p", "", "다른 태그나 검색어를 선택해 보세요."));
       list.append(empty);
     } else {
-      presets.forEach((preset) => list.append(createCard(preset)));
+      const base = (pageData.number || pageData.page || 0) * (pageData.size || state.size || presets.length);
+      presets.forEach((preset, index) => list.append(createCard(preset, base + index + 1)));
     }
     renderPagination(pageData);
   }

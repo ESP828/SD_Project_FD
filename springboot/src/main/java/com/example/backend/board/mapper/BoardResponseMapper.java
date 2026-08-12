@@ -4,6 +4,7 @@ import com.example.backend.auth.domain.entity.Account;
 import com.example.backend.board.domain.entity.Comment;
 import com.example.backend.board.domain.entity.Post;
 import com.example.backend.board.domain.type.CommentStatus;
+import com.example.backend.board.domain.type.PostCategory;
 import com.example.backend.board.dto.response.CommentResponse;
 import com.example.backend.board.dto.response.PostDetailResponse;
 import com.example.backend.board.dto.response.PostListItemResponse;
@@ -156,6 +157,7 @@ public class BoardResponseMapper {
                 post.getBoardType(),
                 post.getCategory(),
                 post.getRestaurantId(),
+                post.getPublicRestaurantId(),
                 restaurant,
                 viewCount,
                 commentRepository.countByPostPostIdAndStatus(
@@ -165,10 +167,30 @@ public class BoardResponseMapper {
                 post.getLikeCount(),
                 isLiked(post, currentAccount),
                 isOwned(post.getAuthor(), currentAccount),
+                isNewsManageable(post, currentAccount),
                 post.getCreatedAt(),
                 post.getUpdatedAt(),
                 post.isEdited(),
                 media
+        );
+    }
+
+    private boolean isNewsManageable(Post post, Account currentAccount) {
+        if (post.getCategory() != PostCategory.NEWS || currentAccount == null) {
+            return false;
+        }
+
+        Long restaurantId = post.getRestaurantId();
+        Long publicRestaurantId = post.getPublicRestaurantId();
+        if ((restaurantId == null) == (publicRestaurantId == null)) {
+            return false;
+        }
+        if (publicRestaurantId != null) {
+            return accessPolicy.isAdmin(currentAccount);
+        }
+        return referenceRepository.restaurantOwnedBy(
+                restaurantId,
+                currentAccount.getAccountId()
         );
     }
 
