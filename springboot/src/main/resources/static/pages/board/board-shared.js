@@ -25,7 +25,9 @@
   let authorActivityHintTarget = null;
   let authorActivityHintShownInSession = false;
   let authorActivityHintTimer = null;
-  const AUTHOR_ACTIVITY_HINT_KEY = "fooduck:author-activity-hint:v1";
+  let authorActivityTooltip = null;
+  let authorActivityTooltipTarget = null;
+  const AUTHOR_ACTIVITY_HINT_KEY = "fooduck:author-profile-hint:v1";
 
   function cacheScope() {
     const session = window.FooduckSession;
@@ -210,28 +212,48 @@
     authorActivityHint = null;
   }
 
-  function positionAuthorActivityHint(trigger) {
-    if (!authorActivityHint || !trigger?.isConnected) return;
+  function positionFloatingPanel(panel, trigger, gap = 10) {
+    if (!panel || !trigger?.isConnected) return null;
     const rect = trigger.getBoundingClientRect();
-    const hintRect = authorActivityHint.getBoundingClientRect();
-    const gap = 10;
+    const panelRect = panel.getBoundingClientRect();
     const viewportPadding = 12;
-    const belowTop = window.scrollY + rect.bottom + gap;
-    const aboveTop = window.scrollY + rect.top - hintRect.height - gap;
-    const canPlaceBelow = rect.bottom + gap + hintRect.height <= window.innerHeight - viewportPadding;
+    const canPlaceBelow = rect.bottom + gap + panelRect.height <= window.innerHeight - viewportPadding;
     const top = canPlaceBelow
-      ? belowTop
-      : Math.max(window.scrollY + viewportPadding, aboveTop);
+      ? rect.bottom + gap
+      : Math.max(viewportPadding, rect.top - panelRect.height - gap);
     const left = Math.min(
-      Math.max(
-        window.scrollX + viewportPadding,
-        window.scrollX + rect.left + rect.width / 2 - hintRect.width / 2,
-      ),
-      window.scrollX + window.innerWidth - hintRect.width - viewportPadding,
+      Math.max(viewportPadding, rect.left + rect.width / 2 - panelRect.width / 2),
+      window.innerWidth - panelRect.width - viewportPadding,
     );
-    authorActivityHint.dataset.placement = canPlaceBelow ? "below" : "above";
-    authorActivityHint.style.top = `${top}px`;
-    authorActivityHint.style.left = `${left}px`;
+    panel.dataset.placement = canPlaceBelow ? "below" : "above";
+    panel.style.top = `${top}px`;
+    panel.style.left = `${left}px`;
+    return canPlaceBelow ? "below" : "above";
+  }
+
+  function positionAuthorActivityHint(trigger) {
+    positionFloatingPanel(authorActivityHint, trigger, 10);
+  }
+
+  function closeAuthorActivityTooltip() {
+    if (authorActivityTooltip) {
+      authorActivityTooltip.remove();
+      authorActivityTooltip = null;
+    }
+    authorActivityTooltipTarget = null;
+  }
+
+  function showAuthorActivityTooltip(trigger) {
+    if (!trigger?.isConnected || authorActivityHint) return;
+    const message = trigger.dataset.authorActivityTooltip;
+    if (!message) return;
+    closeAuthorActivityTooltip();
+    const tooltip = element("div", "author-activity-tooltip", message);
+    tooltip.setAttribute("role", "tooltip");
+    document.body.append(tooltip);
+    authorActivityTooltip = tooltip;
+    authorActivityTooltipTarget = trigger;
+    positionFloatingPanel(tooltip, trigger, 8);
   }
 
   function maybeShowAuthorActivityHint(trigger) {
@@ -244,17 +266,18 @@
         && rect.top <= window.innerHeight;
       if (!visible) return;
 
+      closeAuthorActivityTooltip();
       const hint = element("aside", "author-activity-onboarding");
       hint.setAttribute("role", "status");
       hint.setAttribute("aria-live", "polite");
       const copy = element("div", "author-activity-onboarding-copy");
       copy.append(
-        element("strong", "author-activity-onboarding-title", "작성자 활동을 확인해보세요"),
-        element("span", "author-activity-onboarding-text", "닉네임을 눌러 글 · 댓글 · 리뷰를 볼 수 있어요."),
+        element("strong", "author-activity-onboarding-title", "작성자 프로필을 확인해보세요"),
+        element("span", "author-activity-onboarding-text", "닉네임이나 프로필 버튼을 눌러 글 · 댓글 · 리뷰를 볼 수 있어요."),
       );
       const close = element("button", "author-activity-onboarding-close", "×");
       close.type = "button";
-      close.setAttribute("aria-label", "작성자 활동 안내 닫기");
+      close.setAttribute("aria-label", "작성자 프로필 안내 닫기");
       close.addEventListener("click", (event) => {
         event.preventDefault();
         event.stopPropagation();
@@ -290,7 +313,7 @@
     authorMenu.id = "board-author-menu";
     authorMenu.hidden = true;
     authorMenu.setAttribute("role", "dialog");
-    authorMenu.setAttribute("aria-label", "작성자 활동 메뉴");
+    authorMenu.setAttribute("aria-label", "작성자 프로필");
     document.body.append(authorMenu);
 
     document.addEventListener("click", (event) => {
@@ -354,7 +377,7 @@
     const menu = ensureAuthorMenu();
     menu.replaceChildren(
       element("strong", "author-menu-nickname", author.authorNickname || "작성자"),
-      element("p", "author-menu-loading", "공개 활동을 불러오는 중입니다."),
+      element("p", "author-menu-loading", "프로필을 불러오는 중입니다."),
     );
   }
 
@@ -559,8 +582,8 @@
   function renderAuthorMenuError(message) {
     const menu = ensureAuthorMenu();
     menu.replaceChildren(
-      element("strong", "author-menu-nickname", "작성자 정보"),
-      element("p", "author-menu-error", message || "활동 정보를 불러오지 못했습니다."),
+      element("strong", "author-menu-nickname", "작성자 프로필"),
+      element("p", "author-menu-error", message || "프로필 정보를 불러오지 못했습니다."),
     );
   }
 
@@ -615,13 +638,19 @@
     trigger.setAttribute("aria-haspopup", "dialog");
     trigger.setAttribute("aria-controls", "board-author-menu");
     trigger.setAttribute("aria-expanded", "false");
-    trigger.setAttribute("aria-label", `${author.authorNickname || "작성자"} 작성자 활동 보기`);
-    trigger.dataset.authorActivityTooltip = "작성자 활동 · 글 · 댓글 · 리뷰 보기";
+    trigger.setAttribute("aria-label", `${author.authorNickname || "작성자"} 프로필 보기`);
+    trigger.dataset.authorActivityTooltip = "작성자 프로필 보기 · 글 · 댓글 · 리뷰 확인";
+    trigger.addEventListener("mouseenter", () => showAuthorActivityTooltip(trigger));
+    trigger.addEventListener("mouseleave", closeAuthorActivityTooltip);
+    trigger.addEventListener("focus", () => showAuthorActivityTooltip(trigger));
+    trigger.addEventListener("blur", closeAuthorActivityTooltip);
     trigger.addEventListener("click", (event) => {
+      closeAuthorActivityTooltip();
       openAuthorMenu(author, trigger, event, context);
     });
     trigger.addEventListener("keydown", (event) => {
       if (event.key !== "Enter" && event.key !== " ") return;
+      closeAuthorActivityTooltip();
       openAuthorMenu(author, trigger, event, context);
     });
     maybeShowAuthorActivityHint(trigger);
@@ -634,17 +663,19 @@
       `author-activity-cue author-activity-cue--${normalized}`,
     );
     cue.setAttribute("aria-hidden", "true");
-    if (normalized === "full") {
-      const person = icon("person");
-      person.classList.add("author-activity-person");
-      cue.append(
-        person,
-        element("span", "author-activity-cue-label", "활동 보기"),
-      );
-    } else {
-      cue.append(element("span", "author-activity-cue-label", "활동"));
-    }
-    const arrow = icon("arrow_forward");
+
+    const person = icon("person");
+    person.classList.add("author-activity-person");
+    cue.append(
+      person,
+      element(
+        "span",
+        "author-activity-cue-label",
+        normalized === "full" ? "프로필 보기" : "프로필",
+      ),
+    );
+
+    const arrow = icon("chevron_right");
     arrow.classList.add("author-activity-arrow");
     cue.append(arrow);
     return cue;
