@@ -1,6 +1,8 @@
 (() => {
   const content = document.querySelector("#preset-detail-content");
-  const requestedId = Number(new URLSearchParams(location.search).get("presetId"));
+  const requestedQuery = new URLSearchParams(location.search);
+  const requestedId = Number(requestedQuery.get("presetId"));
+  let openEditOnRender = requestedQuery.get("edit") === "1";
   let preset;
   let selectedCategory = "전체";
   let restaurantStatusMessage = "";
@@ -471,7 +473,10 @@
     });
     section.append(categoryBar, restaurantList);
     renderRestaurants(restaurantList);
+    const shouldOpenEditForm = data.isOwner && openEditOnRender;
+    openEditOnRender = false;
     content.append(hero, section);
+    if (shouldOpenEditForm) toggleEditForm(hero);
   }
 
   function renderError(message) {

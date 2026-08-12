@@ -99,6 +99,7 @@ public class PresetQueryRepository {
                    p.category,
                    p.view_count,
                    p.created_at,
+                   p.is_public,
                    pi.stored_filename,
                    (select count(*) from preset_favorite pf_count
                      where pf_count.preset_id = p.preset_id) as favorite_count,
@@ -386,17 +387,14 @@ public class PresetQueryRepository {
         return enrichSummaries(rows);
     }
 
-    public List<PresetSummaryResponse> findSavedByAccount(Long accountId) {
+    public List<PresetSummaryResponse> findCreatedByAccount(Long accountId) {
         MapSqlParameterSource parameters = new MapSqlParameterSource("accountId", accountId);
         String sql = LIST_SELECT + """
-                 join preset_favorite pf_saved
-                   on pf_saved.preset_id = p.preset_id
-                  and pf_saved.account_id = :accountId
                  where p.status = 'ACTIVE'
-                   and (coalesce(p.is_public, true) = true or p.account_id = :accountId)
+                   and p.account_id = :accountId
                  group by p.preset_id, p.title, p.category,
-                          p.view_count, p.display_order, p.created_at, pi.stored_filename, pf_saved.created_at
-                 order by pf_saved.created_at desc, p.preset_id desc
+                          p.view_count, p.display_order, p.created_at, pi.stored_filename
+                 order by p.created_at desc, p.preset_id desc
                 """;
         return enrichSummaries(jdbcTemplate.query(sql, parameters, this::mapSummaryRow));
     }
@@ -428,6 +426,7 @@ public class PresetQueryRepository {
                         resultSet.getLong("favorite_count"),
                         resultSet.getBoolean("favorite_by_current_user"),
                         resultSet.getBoolean("is_owner"),
+                        resultSet.getBoolean("is_public"),
                         imageUrl(resultSet.getString("stored_filename")),
                         resultSet.getObject("created_at", LocalDateTime.class)
                 )
@@ -704,6 +703,7 @@ public class PresetQueryRepository {
             long favoriteCount,
             boolean favoriteByCurrentUser,
             boolean isOwner,
+            boolean isPublic,
             String imageUrl,
             LocalDateTime createdAt
     ) {

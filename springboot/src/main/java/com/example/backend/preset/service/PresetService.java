@@ -306,9 +306,9 @@ public class PresetService {
     }
 
     @Transactional(readOnly = true)
-    public List<PresetSummaryResponse> getSavedPresets(Long accountId) {
+    public List<PresetSummaryResponse> getCreatedPresets(Long accountId) {
         validateId(accountId, "계정");
-        return queryRepository.findSavedByAccount(accountId);
+        return queryRepository.findCreatedByAccount(accountId);
     }
 
     private PresetDetailResponse toDetail(PresetDetailRow preset, Long accountId) {
@@ -326,6 +326,7 @@ public class PresetService {
                 preset.favoriteCount(),
                 preset.favoriteByCurrentUser(),
                 preset.isOwner(),
+                preset.isPublic(),
                 preset.imageUrl(),
                 preset.createdAt(),
                 restaurantCount,

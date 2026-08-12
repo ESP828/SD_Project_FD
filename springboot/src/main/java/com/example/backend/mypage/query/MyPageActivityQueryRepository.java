@@ -27,6 +27,12 @@ public class MyPageActivityQueryRepository {
                 count("select count(*) from favorite where account_id = :accountId", parameters),
                 count("""
                         select count(*)
+                          from preset
+                         where account_id = :accountId
+                           and status = 'ACTIVE'
+                        """, parameters),
+                count("""
+                        select count(*)
                           from review
                          where account_id = :accountId
                            and status = 'ACTIVE'
@@ -254,6 +260,7 @@ public class MyPageActivityQueryRepository {
 
     public record ActivityCounts(
             long favorites,
+            long presets,
             long reviews,
             long posts,
             long comments,

@@ -173,9 +173,10 @@
     }
     const summary = profile.createSummary(data, profileActions);
 
-    const activities = element("section", "activity-grid");
+    const activities = element("section", "activity-grid activity-grid--mypage");
     activities.append(
       activity("찜한 가게", data.favoriteCount, "favorites"),
+      activity("프리셋 리스트", data.presetCount, "presets"),
       activity("작성한 리뷰", data.reviewCount, "reviews"),
       activity("작성한 게시글", data.postCount, "posts"),
       activity("작성한 댓글", data.commentCount, "comments"),
@@ -228,6 +229,7 @@
     const actionList = element("div", "mypage-action-list");
     actionList.append(
       action("찜한 가게", "저장한 맛집 확인", detailPath("favorites")),
+      action("프리셋 리스트", "내가 만든 프리셋 확인·수정", detailPath("presets")),
       action("내 리뷰", "작성한 리뷰 확인", detailPath("reviews")),
       action("내 게시글", "작성한 게시글 확인", detailPath("posts")),
       action("내 댓글", "작성한 댓글 확인", detailPath("comments")),

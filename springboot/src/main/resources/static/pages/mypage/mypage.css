@@ -188,6 +188,10 @@
   margin-bottom: 20px;
 }
 
+.activity-grid--mypage {
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+}
+
 .activity-card {
   position: relative;
   padding: 19px;
