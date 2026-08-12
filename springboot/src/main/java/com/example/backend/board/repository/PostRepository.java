@@ -26,7 +26,6 @@ public interface PostRepository extends JpaRepository<Post, Long> {
             where p.author.accountId = :accountId
               and p.status = :status
               and (:boardType is null or p.boardType = :boardType)
-              and p.category <> com.example.backend.board.domain.type.PostCategory.NEWS
             """)
     long countActivePostsByAuthor(
             @Param("accountId") Long accountId,
@@ -42,42 +41,12 @@ public interface PostRepository extends JpaRepository<Post, Long> {
               and p.status = :status
               and (:boardType is null or p.boardType = :boardType)
               and (:excludedPostId is null or p.postId <> :excludedPostId)
-              and p.category <> com.example.backend.board.domain.type.PostCategory.NEWS
             order by p.createdAt desc, p.postId desc
             """)
     List<Post> findRecentActivePostsByAuthor(
             @Param("accountId") Long accountId,
             @Param("status") PostStatus status,
             @Param("boardType") BoardType boardType,
-            @Param("excludedPostId") Long excludedPostId,
-            Pageable pageable
-    );
-
-    @Query("""
-            select count(p)
-            from Post p
-            where p.author.accountId = :accountId
-              and p.status = :status
-              and p.category = com.example.backend.board.domain.type.PostCategory.NEWS
-            """)
-    long countActiveNewsPostsByAuthor(
-            @Param("accountId") Long accountId,
-            @Param("status") PostStatus status
-    );
-
-    @Query("""
-            select p
-            from Post p
-            join fetch p.author
-            where p.author.accountId = :accountId
-              and p.status = :status
-              and p.category = com.example.backend.board.domain.type.PostCategory.NEWS
-              and (:excludedPostId is null or p.postId <> :excludedPostId)
-            order by p.createdAt desc, p.postId desc
-            """)
-    List<Post> findRecentActiveNewsPostsByAuthor(
-            @Param("accountId") Long accountId,
-            @Param("status") PostStatus status,
             @Param("excludedPostId") Long excludedPostId,
             Pageable pageable
     );

@@ -69,6 +69,7 @@ public class PostService {
     private static final int MAX_DISCOVERY_SIZE = 10;
     private static final int MAX_AUTHOR_RECENT_POSTS = 5;
     private static final int MAX_AUTHOR_RECENT_COMMENTS = 5;
+    private static final int MAX_AUTHOR_RECENT_REVIEWS = 5;
     private static final int MAX_NEWS_TITLE_LENGTH = 200;
     private static final int MAX_NEWS_CONTENT_LENGTH = 10_000;
     private static final int BEST_COMMUNITY_MINIMUM_LIKE_COUNT = 3;
@@ -614,7 +615,6 @@ public class PostService {
     public AuthorSummaryResponse getAuthorSummary(
             Long authorAccountId,
             Long excludePostId,
-            boolean includeNewsActivity,
             Long currentAccountId
     ) {
         validateId(authorAccountId, "작성자 계정");
@@ -630,9 +630,11 @@ public class PostService {
             );
         }
         Account currentAccount = boardUserService.findOptional(currentAccountId);
-        BoardType readableBoardType = accessPolicy.isApprovedBusiness(currentAccount)
+        boolean canReadBusiness = accessPolicy.isApprovedBusiness(currentAccount);
+        BoardType readableBoardType = canReadBusiness
                 ? null
                 : BoardType.GENERAL;
+
         List<AuthorRecentPostResponse> recentPosts = postRepository
                 .findRecentActivePostsByAuthor(
                         authorAccountId,
@@ -650,6 +652,7 @@ public class PostService {
                         post.getCreatedAt()
                 ))
                 .toList();
+
         List<AuthorRecentCommentResponse> recentComments = commentRepository
                 .findRecentActiveCommentsByAuthor(
                         authorAccountId,
@@ -665,44 +668,28 @@ public class PostService {
                         comment.getPost().getPostId(),
                         comment.getPost().getTitle(),
                         comment.getContent(),
+                        comment.getPost().getBoardType(),
+                        comment.getPost().getCategory(),
                         comment.getCreatedAt()
                 ))
                 .toList();
-        List<AuthorRecentPostResponse> recentNewsPosts = includeNewsActivity
-                ? postRepository.findRecentActiveNewsPostsByAuthor(
+
+        List<AuthorRecentReviewResponse> recentReviews = referenceRepository
+                .findRecentActiveReviewsByAuthor(
                         authorAccountId,
-                        PostStatus.ACTIVE,
-                        excludePostId,
-                        PageRequest.of(0, MAX_AUTHOR_RECENT_POSTS)
+                        MAX_AUTHOR_RECENT_REVIEWS
                 )
                 .stream()
-                .map(post -> new AuthorRecentPostResponse(
-                        post.getPostId(),
-                        post.getTitle(),
-                        post.getBoardType(),
-                        post.getCategory(),
-                        post.getCreatedAt()
+                .map(review -> new AuthorRecentReviewResponse(
+                        review.reviewId(),
+                        review.restaurantSource(),
+                        review.storeId(),
+                        review.restaurantName(),
+                        review.rating(),
+                        review.content(),
+                        review.createdAt()
                 ))
-                .toList()
-                : List.of();
-        List<AuthorRecentCommentResponse> recentNewsComments = includeNewsActivity
-                ? commentRepository.findRecentActiveNewsCommentsByAuthor(
-                        authorAccountId,
-                        CommentStatus.ACTIVE,
-                        PostStatus.ACTIVE,
-                        excludePostId,
-                        PageRequest.of(0, MAX_AUTHOR_RECENT_COMMENTS)
-                )
-                .stream()
-                .map(comment -> new AuthorRecentCommentResponse(
-                        comment.getCommentId(),
-                        comment.getPost().getPostId(),
-                        comment.getPost().getTitle(),
-                        comment.getContent(),
-                        comment.getCreatedAt()
-                ))
-                .toList()
-                : List.of();
+                .toList();
 
         return new AuthorSummaryResponse(
                 author.getAccountId(),
@@ -710,6 +697,10 @@ public class PostService {
                 author.getLoginId() == null
                         ? "소셜 계정"
                         : "@" + author.getLoginId(),
+                referenceRepository.findLastPublicActivityAt(
+                        authorAccountId,
+                        canReadBusiness
+                ),
                 postRepository.countActivePostsByAuthor(
                         authorAccountId,
                         PostStatus.ACTIVE,
@@ -721,23 +712,10 @@ public class PostService {
                         PostStatus.ACTIVE,
                         readableBoardType
                 ),
+                referenceRepository.countActiveReviewsByAuthor(authorAccountId),
                 recentPosts,
                 recentComments,
-                includeNewsActivity
-                        ? postRepository.countActiveNewsPostsByAuthor(
-                                authorAccountId,
-                                PostStatus.ACTIVE
-                        )
-                        : 0L,
-                includeNewsActivity
-                        ? commentRepository.countActiveNewsCommentsByAuthor(
-                                authorAccountId,
-                                CommentStatus.ACTIVE,
-                                PostStatus.ACTIVE
-                        )
-                        : 0L,
-                recentNewsPosts,
-                recentNewsComments
+                recentReviews
         );
     }
 
@@ -1302,6 +1280,8 @@ public class PostService {
                 post.getAuthor().getNickname(),
                 post.getLikeCount(),
                 likedByCurrentUser,
+                post.getViewCount(),
+                post.isEdited(),
                 post.getCreatedAt()
         );
     }
@@ -1918,20 +1898,18 @@ public class PostService {
             Long accountId,
             String nickname,
             String accountLabel,
+            LocalDateTime lastPublicActivityAt,
             long postCount,
             long commentCount,
+            long reviewCount,
             List<AuthorRecentPostResponse> recentPosts,
             List<AuthorRecentCommentResponse> recentComments,
-            long newsPostCount,
-            long newsCommentCount,
-            List<AuthorRecentPostResponse> recentNewsPosts,
-            List<AuthorRecentCommentResponse> recentNewsComments
+            List<AuthorRecentReviewResponse> recentReviews
     ) {
         public AuthorSummaryResponse {
             recentPosts = List.copyOf(recentPosts);
             recentComments = List.copyOf(recentComments);
-            recentNewsPosts = List.copyOf(recentNewsPosts);
-            recentNewsComments = List.copyOf(recentNewsComments);
+            recentReviews = List.copyOf(recentReviews);
         }
     }
 
@@ -1949,6 +1927,19 @@ public class PostService {
             Long postId,
             String postTitle,
             String content,
+            BoardType boardType,
+            PostCategory category,
+            LocalDateTime createdAt
+    ) {
+    }
+
+    public record AuthorRecentReviewResponse(
+            Long reviewId,
+            String restaurantSource,
+            Long storeId,
+            String restaurantName,
+            byte rating,
+            String content,
             LocalDateTime createdAt
     ) {
     }
@@ -1961,6 +1952,8 @@ public class PostService {
             String authorNickname,
             long likeCount,
             boolean likedByCurrentUser,
+            long viewCount,
+            boolean edited,
             LocalDateTime createdAt
     ) {
     }

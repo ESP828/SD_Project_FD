@@ -92,6 +92,16 @@
   const session = window.FooduckSession || {};
   const isLoggedIn = Boolean(session.authenticated);
   const isAdmin = Boolean(session.isAdmin);
+  let newsSummaryResizeTicking = false;
+
+  window.addEventListener("resize", () => {
+    if (newsSummaryResizeTicking) return;
+    newsSummaryResizeTicking = true;
+    window.requestAnimationFrame(() => {
+      updateNewsSummaryTruncation();
+      newsSummaryResizeTicking = false;
+    });
+  }, { passive: true });
 
   function renderTabs(order) {
     tabOrder = order;
@@ -115,6 +125,8 @@
     if (!loadedTabs.has(key)) {
       loadedTabs.add(key);
       loadTabContent(key);
+    } else if (key === "news") {
+      scheduleNewsSummaryTruncationCheck();
     }
   }
 
@@ -289,18 +301,45 @@
       return `
         <div class="store-news-summary-link is-static">
           <p class="store-news-title">${title}</p>
-          <p class="store-news-content">${content}</p>
+          <div class="store-news-content-wrap">
+            <p class="store-news-content">${content}</p>
+          </div>
         </div>
       `;
     }
     const href = escapeHtml(newsBoardPath("detail", news.postId));
-    const label = escapeHtml(`${news.title || "소식"} 상세 보기`);
+    const label = escapeHtml(`${news.title || "소식"} 전체 내용 보기`);
     return `
       <a class="store-news-summary-link" href="${href}" aria-label="${label}">
         <p class="store-news-title">${title}</p>
-        <p class="store-news-content">${content}</p>
+        <div class="store-news-content-wrap">
+          <p class="store-news-content">${content}</p>
+        </div>
+        <span class="store-news-read-more" data-news-read-more hidden>전체 내용 보기 <span aria-hidden="true">→</span></span>
       </a>
     `;
+  }
+
+  function updateNewsSummaryTruncation() {
+    if (panels.news.hidden) return;
+    panels.news.querySelectorAll(".store-news-summary-link:not(.is-static)").forEach((link) => {
+      const contentNode = link.querySelector(".store-news-content");
+      const readMore = link.querySelector("[data-news-read-more]");
+      if (!contentNode || !readMore) return;
+
+      link.classList.remove("is-truncated");
+      readMore.hidden = true;
+
+      const truncated = contentNode.scrollHeight > contentNode.clientHeight + 1;
+      link.classList.toggle("is-truncated", truncated);
+      readMore.hidden = !truncated;
+    });
+  }
+
+  function scheduleNewsSummaryTruncationCheck() {
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(updateNewsSummaryTruncation);
+    });
   }
 
   function newsMediaStatus(media) {
@@ -1010,6 +1049,7 @@
         showNickname: true,
         showAuthorMenu: true,
         authorMenuContext: "NEWS",
+        authorActivityCueMode: "full",
       }));
     });
   }
@@ -1043,7 +1083,7 @@
             <div class="store-news-meta">
               <div class="store-news-meta-copy">
                 <span class="store-news-author" data-news-author-index="${index}">${escapeHtml(news.authorNickname || "-")}</span>
-                <span class="store-news-date">${formatDate(news.createdAt)}</span>
+                <span class="store-news-date">${formatDate(news.createdAt)}${news.edited ? " · 수정됨" : ""} · 조회 ${Number(news.viewCount || 0).toLocaleString("ko-KR")}</span>
               </div>
               ${newsLikeButtonHtml(news)}
             </div>
@@ -1052,6 +1092,7 @@
     renderNewsCard(bodyHtml, newsPaginationHtml(pageData));
     bindNewsAuthors(items);
     bindNewsMedia(items);
+    scheduleNewsSummaryTruncationCheck();
   }
 
   function renderNewsError(error) {
