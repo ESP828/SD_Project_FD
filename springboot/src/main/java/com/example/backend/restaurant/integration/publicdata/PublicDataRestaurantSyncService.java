@@ -97,7 +97,6 @@ public class PublicDataRestaurantSyncService {
                     item.indsLclsCd(),
                     item.indsLclsNm(),
                     item.indsMclsCd(),
-                    item.indsMclsNm(),
                     item.indsSclsCd(),
                     item.indsSclsNm(),
                     item.ctprvnNm(),

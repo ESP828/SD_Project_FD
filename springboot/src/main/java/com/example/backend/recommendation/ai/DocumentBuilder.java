@@ -19,7 +19,6 @@ public class DocumentBuilder {
         add(words, restaurant.getName());
 
         add(words, restaurant.getCategoryLargeName());
-        add(words, restaurant.getCategoryMediumName());
         add(words, restaurant.getCategorySmallName());
 
         add(words, restaurant.getSidoName());
@@ -79,7 +78,6 @@ public class DocumentBuilder {
 
     List<String> categories = List.of(
             restaurant.getCategoryLargeName(),
-            restaurant.getCategoryMediumName(),
             restaurant.getCategorySmallName()
     );
 

@@ -1231,7 +1231,7 @@
     const address = store.roadAddress || store.lotAddress || "-";
     addressEl.textContent = address;
 
-    const categoryName = store.categoryGroup || store.categorySmallName || store.categoryMediumName || store.categoryLargeName;
+    const categoryName = store.categorySmallName || store.categoryLargeName;
     badgesEl.innerHTML = categoryName
       ? `<span class="store-badge store-badge--category">${escapeHtml(categoryName)}</span>`
       : "";
@@ -1263,7 +1263,6 @@
         <h2>가게 정보</h2>
         <dl class="store-basic-info">
           <div><dt>업종(대분류)</dt><dd>${escapeHtml(store.categoryLargeName || "-")}</dd></div>
-          <div><dt>업종(중분류)</dt><dd>${escapeHtml(store.categoryMediumName || "-")}</dd></div>
           <div><dt>업종(소분류)</dt><dd>${escapeHtml(store.categorySmallName || "-")}</dd></div>
           <div><dt>도로명 주소</dt><dd>${escapeHtml(store.roadAddress || "-")}</dd></div>
           <div><dt>지번 주소</dt><dd>${escapeHtml(store.lotAddress || "-")}</dd></div>

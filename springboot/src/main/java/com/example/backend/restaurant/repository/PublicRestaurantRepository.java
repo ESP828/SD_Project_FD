@@ -31,9 +31,9 @@ public interface PublicRestaurantRepository extends JpaRepository<PublicRestaura
             SELECT p.* FROM public_restaurant p
             WHERE p.latitude BETWEEN :minLatitude AND :maxLatitude
               AND p.longitude BETWEEN :minLongitude AND :maxLongitude
-              AND MATCH(p.name, p.category_large_name, p.category_medium_name, p.category_small_name, p.road_address, p.lot_address)
+              AND MATCH(p.name, p.category_large_name, p.category_small_name, p.road_address, p.lot_address)
                   AGAINST(:keyword IN NATURAL LANGUAGE MODE)
-            ORDER BY MATCH(p.name, p.category_large_name, p.category_medium_name, p.category_small_name, p.road_address, p.lot_address)
+            ORDER BY MATCH(p.name, p.category_large_name, p.category_small_name, p.road_address, p.lot_address)
                      AGAINST(:keyword IN NATURAL LANGUAGE MODE) DESC
             LIMIT :limit
             """, nativeQuery = true)
