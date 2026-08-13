@@ -54,6 +54,11 @@
   let postRequestGeneration = 0;
   let bestRequestGeneration = 0;
   let unansweredRequestGeneration = 0;
+  let boardLoginPopup = null;
+  let boardLoginPollTimer = null;
+  let boardLoginStorageHandler = null;
+  let pendingBoardLoginAction = null;
+  let boardLogoutInFlight = false;
 
   if (!session || !board || !boardList || !searchForm) {
     return;
@@ -115,6 +120,93 @@
     if (sourceView) params.set("from", sourceView);
     params.set("returnTo", listUrlFromState());
     return `/pages/board/detail.html?${params.toString()}`;
+  }
+
+  function stopBoardLoginWatch({ closePopup = false, clearPendingAction = false } = {}) {
+    if (boardLoginPollTimer) {
+      window.clearInterval(boardLoginPollTimer);
+      boardLoginPollTimer = null;
+    }
+    if (boardLoginStorageHandler) {
+      window.removeEventListener("storage", boardLoginStorageHandler);
+      boardLoginStorageHandler = null;
+    }
+    if (closePopup && boardLoginPopup && !boardLoginPopup.closed) {
+      try {
+        boardLoginPopup.close();
+      } catch (_error) {
+        // 브라우저가 창 제어를 제한하면 그대로 둔다.
+      }
+    }
+    boardLoginPopup = null;
+    if (clearPendingAction) pendingBoardLoginAction = null;
+  }
+
+  function completeBoardLoginIfReady() {
+    if (!Api.getToken()) return false;
+    const action = pendingBoardLoginAction;
+    pendingBoardLoginAction = null;
+    stopBoardLoginWatch({ closePopup: true });
+    if (typeof action === "function") window.setTimeout(action, 0);
+    return true;
+  }
+
+  function openBoardLogin({ nextPath = listUrlFromState(), onSuccess = null } = {}) {
+    stopBoardLoginWatch({ closePopup: true, clearPendingAction: true });
+    pendingBoardLoginAction = typeof onSuccess === "function" ? onSuccess : null;
+    const loginUrl = `/pages/auth/login.html?next=${encodeURIComponent(nextPath)}`;
+    const popup = window.open(
+      loginUrl,
+      "fooduck-board-list-login",
+      "popup=yes,width=520,height=760,resizable=yes,scrollbars=yes",
+    );
+    if (!popup) {
+      pendingBoardLoginAction = null;
+      window.alert("로그인 창을 열 수 없습니다. 이 사이트의 팝업을 허용한 뒤 다시 시도해 주세요.");
+      return false;
+    }
+    boardLoginPopup = popup;
+    boardLoginStorageHandler = (event) => {
+      if (event.key === "accessToken" && event.newValue) completeBoardLoginIfReady();
+    };
+    window.addEventListener("storage", boardLoginStorageHandler);
+    boardLoginPollTimer = window.setInterval(() => {
+      if (completeBoardLoginIfReady()) return;
+      if (boardLoginPopup?.closed) stopBoardLoginWatch({ clearPendingAction: true });
+    }, 300);
+    popup.focus();
+    return true;
+  }
+
+  function initializeBoardAuthEntryPoints() {
+    document.addEventListener("click", (event) => {
+      const loginLink = event.target.closest(
+        '.site-header a.header-auth-button[href^="/pages/auth/login.html"]',
+      );
+      if (!loginLink || session.authenticated) return;
+      event.preventDefault();
+      openBoardLogin({
+        nextPath: listUrlFromState(),
+        onSuccess: () => window.location.reload(),
+      });
+    });
+
+    document.addEventListener("click", async (event) => {
+      const logoutButton = event.target.closest(".site-header [data-logout]");
+      if (!logoutButton || !session.authenticated) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      if (boardLogoutInFlight) return;
+      boardLogoutInFlight = true;
+      logoutButton.disabled = true;
+      try {
+        await Api.logout();
+      } catch (_error) {
+        Api.clearToken();
+      } finally {
+        window.location.reload();
+      }
+    }, true);
   }
 
   function renderLoading() {
@@ -632,7 +724,14 @@
     link.addEventListener("click", (event) => {
       if (session.authenticated) return;
       event.preventDefault();
-      board.requireLogin(link.getAttribute("href"));
+      const target = link.getAttribute("href");
+      openBoardLogin({
+        nextPath: target || listUrlFromState(),
+        onSuccess: () => {
+          if (target) window.location.assign(target);
+          else window.location.reload();
+        },
+      });
     });
   });
 
@@ -726,6 +825,7 @@
     if (event.persisted) loadBoardContent();
   });
 
+  initializeBoardAuthEntryPoints();
   initializeScrollTopButton();
   initializeBoard();
 })();
