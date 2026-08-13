@@ -1,6 +1,7 @@
 package com.example.backend.board.query;
 
 import com.example.backend.board.dto.response.RestaurantSummaryResponse;
+import org.springframework.jdbc.core.ConnectionCallback;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.jdbc.support.GeneratedKeyHolder;
@@ -573,7 +574,7 @@ public class BoardReferenceQueryRepository {
                     )
             );
             Integer updated = jdbcTemplate.getJdbcTemplate().execute(
-                    connection -> {
+                    (ConnectionCallback<Integer>) connection -> {
                         try (PreparedStatement statement =
                                      connection.prepareStatement(
                                              """
@@ -647,7 +648,7 @@ public class BoardReferenceQueryRepository {
             InputStream inputStream
     ) throws IOException {
         Integer updated = jdbcTemplate.getJdbcTemplate().execute(
-                connection -> {
+                (ConnectionCallback<Integer>) connection -> {
                     try (PreparedStatement statement =
                                  connection.prepareStatement(
                                          """
@@ -762,7 +763,8 @@ public class BoardReferenceQueryRepository {
             long length,
             OutputStream outputStream
     ) {
-        Long written = jdbcTemplate.getJdbcTemplate().execute(connection -> {
+        Long written = jdbcTemplate.getJdbcTemplate().execute(
+                (ConnectionCallback<Long>) connection -> {
             try (PreparedStatement statement = connection.prepareStatement(
                     """
                     select substring(media_data, ?, ?)
@@ -814,7 +816,8 @@ public class BoardReferenceQueryRepository {
             long length,
             OutputStream outputStream
     ) {
-        Long written = jdbcTemplate.getJdbcTemplate().execute(connection -> {
+        Long written = jdbcTemplate.getJdbcTemplate().execute(
+                (ConnectionCallback<Long>) connection -> {
             try (PreparedStatement statement = connection.prepareStatement(
                     """
                     select substring(image_data, ?, ?)
