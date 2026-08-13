@@ -429,6 +429,8 @@
   let pendingDetailLoginAction = null;
   let detailLoginSuccessMessage = "로그인되었습니다.";
   let detailLogoutInFlight = false;
+  let likeInFlight = false;
+  let activeLikeButton = null;
   let activeReplyForm = null;
   let activeReplyPreviewUrl = null;
   let activeCommentEditForm = null;
@@ -685,15 +687,20 @@
     commentImageRetryNotice = null;
   }
 
-  function showCommentImageRetryNotice(commentId, file, error) {
+  function showCommentImageRetryNotice(
+    commentId,
+    file,
+    error,
+    { label = "댓글" } = {},
+  ) {
     if (!commentId || !file) return;
     clearCommentImageRetryNotice();
-    pendingCommentImageRetry = { commentId, file };
+    pendingCommentImageRetry = { commentId, file, label };
 
     const notice = element("div", "comment-upload-retry");
     const copy = element("div", "comment-upload-retry__copy");
     copy.append(
-      element("strong", "", "댓글은 등록됐지만 사진을 올리지 못했습니다."),
+      element("strong", "", `${label}은 등록됐지만 사진을 올리지 못했습니다.`),
       element(
         "span",
         "",
@@ -725,7 +732,7 @@
         await uploadCommentImage(retry.commentId, retry.file);
         invalidateBoardCache();
         clearCommentImageRetryNotice();
-        showToast(toast, "댓글 사진이 등록되었습니다.");
+        showToast(toast, `${retry.label || "댓글"} 사진이 등록되었습니다.`);
         try {
           await loadCommentPage(currentCommentPage, {
             highlightCommentId: retry.commentId,
@@ -1453,6 +1460,8 @@
         : "button button-sm button-secondary",
       toggleLike,
     );
+    likeButton.disabled = likeInFlight;
+    activeLikeButton = likeButton;
     actions.append(likeButton);
     const canManage = newsPost
       ? post.newsManageableByCurrentUser === true && Boolean(newsTarget)
@@ -1535,6 +1544,10 @@
       });
       return;
     }
+    if (likeInFlight) return;
+
+    likeInFlight = true;
+    if (activeLikeButton) activeLikeButton.disabled = true;
     try {
       const payload = state.post.likedByCurrentUser
         ? await Api.delete(`/board/posts/${postId}/like`)
@@ -1548,6 +1561,9 @@
       showToast(toast, payload.message);
     } catch (error) {
       showToast(toast, error.message, true);
+    } finally {
+      likeInFlight = false;
+      if (activeLikeButton) activeLikeButton.disabled = false;
     }
   }
 
@@ -1852,6 +1868,12 @@
             toast,
             `답글은 등록됐지만 사진 업로드에 실패했습니다. ${imageUploadError.message}`,
             true,
+          );
+          showCommentImageRetryNotice(
+            createdCommentId,
+            imageFile,
+            imageUploadError,
+            { label: "답글" },
           );
         } else {
           showToast(

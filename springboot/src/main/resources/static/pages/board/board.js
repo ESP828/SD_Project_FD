@@ -103,6 +103,12 @@
     return `/pages/board/index.html${query ? `?${query}` : ""}`;
   }
 
+  function writeHrefFromCurrentList(boardType = state.lastBoardType) {
+    const url = new URL(board.writePath(boardType), window.location.origin);
+    url.searchParams.set("returnTo", listUrlFromState());
+    return `${url.pathname}${url.search}`;
+  }
+
   function syncListUrl(historyMode = "replace") {
     if (historyMode === "none") return;
     const nextUrl = listUrlFromState();
@@ -676,7 +682,7 @@
     searchForm.hidden = isRankedView;
     writeLinks.forEach((link) => {
       link.hidden = isRankedView;
-      link.href = board.writePath(state.lastBoardType);
+      link.href = writeHrefFromCurrentList(state.lastBoardType);
     });
     syncListUrl(historyMode);
   }
