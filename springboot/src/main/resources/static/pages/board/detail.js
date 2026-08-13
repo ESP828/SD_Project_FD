@@ -2,9 +2,11 @@
   const session = window.FooduckSession;
   const board = window.FooduckBoard;
   const postId = board?.readPostId();
-  const sourceView = new URLSearchParams(window.location.search).get("from");
+  const detailParams = new URLSearchParams(window.location.search);
+  const sourceView = detailParams.get("from");
   const fromBest = sourceView === "BEST";
   const fromPopular = sourceView === "POPULAR";
+  const requestedReturnTo = detailParams.get("returnTo");
   const state = { post: null };
   const MEDIA_POLL_BASE_DELAY = 2500;
   const MEDIA_POLL_MAX_DELAY = 15000;
@@ -71,6 +73,39 @@
 
   function isEdited(item) {
     return item?.edited === true;
+  }
+
+  function safeBoardListReturnPath(value) {
+    if (!value) return null;
+    try {
+      const url = new URL(value, window.location.origin);
+      if (url.origin !== window.location.origin) return null;
+      if (url.pathname !== "/pages/board/index.html") return null;
+      return `${url.pathname}${url.search}`;
+    } catch (_error) {
+      return null;
+    }
+  }
+
+  const listReturnPath = safeBoardListReturnPath(requestedReturnTo);
+
+  function communityReturnPath(post = state.post) {
+    if (listReturnPath) return listReturnPath;
+    if (fromBest) return "/pages/board/index.html?boardType=BEST";
+    if (fromPopular) return "/pages/board/index.html?boardType=POPULAR";
+    return board.listPath(post?.boardType);
+  }
+
+  function detailHrefPreservingReturn(nextPostId) {
+    const params = new URLSearchParams({ postId: String(nextPostId) });
+    if (listReturnPath) {
+      params.set("returnTo", listReturnPath);
+    } else if (fromBest) {
+      params.set("from", "BEST");
+    } else if (fromPopular) {
+      params.set("from", "POPULAR");
+    }
+    return `/pages/board/detail.html?${params.toString()}`;
   }
 
   function isCommentSubmitEnter(event) {
@@ -388,6 +423,10 @@
   let commentImagePreviewUrl = null;
   let pendingCommentImageRetry = null;
   let commentImageRetryNotice = null;
+  let commentLoginPopup = null;
+  let commentLoginPollTimer = null;
+  let commentLoginStorageHandler = null;
+  let pendingCommentSubmitAfterLogin = false;
   let activeReplyForm = null;
   let activeReplyPreviewUrl = null;
   let activeCommentEditForm = null;
@@ -396,6 +435,102 @@
   let totalCommentPages = 0;
   let commentPageLoading = false;
   const expandedReplyThreadIds = new Set();
+
+  function decodeAccessToken(token) {
+    try {
+      const encoded = String(token || "").split(".")[1];
+      if (!encoded) return null;
+      const normalized = encoded.replace(/-/g, "+").replace(/_/g, "/");
+      const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, "=");
+      const binary = window.atob(padded);
+      const bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0));
+      return JSON.parse(new TextDecoder().decode(bytes));
+    } catch (_error) {
+      return null;
+    }
+  }
+
+  function stopCommentLoginWatch({ closePopup = false } = {}) {
+    if (commentLoginPollTimer) {
+      window.clearInterval(commentLoginPollTimer);
+      commentLoginPollTimer = null;
+    }
+    if (commentLoginStorageHandler) {
+      window.removeEventListener("storage", commentLoginStorageHandler);
+      commentLoginStorageHandler = null;
+    }
+    if (closePopup && commentLoginPopup && !commentLoginPopup.closed) {
+      try {
+        commentLoginPopup.close();
+      } catch (_error) {
+        // 브라우저가 창 제어를 제한하면 그대로 둔다.
+      }
+    }
+    commentLoginPopup = null;
+  }
+
+  function completeCommentLoginIfReady() {
+    const token = Api.getToken();
+    if (!token) return false;
+    const payload = decodeAccessToken(token) || {};
+    session.authenticated = true;
+    session.accountId = Number(payload.sub) || session.accountId || null;
+    session.loginId = payload.loginId || session.loginId || null;
+    session.authorities = Array.isArray(payload.authorities)
+      ? payload.authorities.filter((value) => typeof value === "string")
+      : session.authorities || [];
+    session.canManageBusiness = session.authorities.includes("ROLE_BUSINESS")
+      || session.authorities.includes("ROLE_ADMIN");
+    session.isAdmin = session.authorities.includes("ROLE_ADMIN");
+    session.hasAuthority = (authority) => session.authorities.includes(authority);
+    if (commentLoginNote) {
+      commentLoginNote.textContent = `@${session.loginId || "소셜 계정"}으로 작성합니다.`;
+    }
+    stopCommentLoginWatch({ closePopup: true });
+    showToast(toast, "로그인되었습니다. 작성 중인 댓글을 등록합니다.");
+    if (pendingCommentSubmitAfterLogin) {
+      pendingCommentSubmitAfterLogin = false;
+      window.setTimeout(() => commentForm.requestSubmit(), 0);
+    }
+    return true;
+  }
+
+  function openCommentLogin() {
+    const nextPath = `${window.location.pathname}${window.location.search}`;
+    const loginUrl = `/pages/auth/login.html?next=${encodeURIComponent(nextPath)}`;
+    stopCommentLoginWatch({ closePopup: true });
+    const popup = window.open(
+      loginUrl,
+      "fooduck-board-comment-login",
+      "popup=yes,width=520,height=760,resizable=yes,scrollbars=yes",
+    );
+    if (!popup) {
+      pendingCommentSubmitAfterLogin = false;
+      showToast(
+        toast,
+        "로그인 창을 열 수 없습니다. 이 사이트의 팝업을 허용한 뒤 다시 시도해 주세요.",
+        true,
+      );
+      return;
+    }
+
+    commentLoginPopup = popup;
+    commentLoginStorageHandler = (event) => {
+      if (event.key === "accessToken" && event.newValue) {
+        completeCommentLoginIfReady();
+      }
+    };
+    window.addEventListener("storage", commentLoginStorageHandler);
+    commentLoginPollTimer = window.setInterval(() => {
+      if (completeCommentLoginIfReady()) return;
+      if (commentLoginPopup?.closed) {
+        stopCommentLoginWatch();
+        pendingCommentSubmitAfterLogin = false;
+        showToast(toast, "로그인이 취소되었습니다.", true);
+      }
+    }, 300);
+    popup.focus();
+  }
 
   function clearCommentImageSelection() {
     selectedCommentImage = null;
@@ -597,7 +732,7 @@
     posts.forEach((post) => {
       const item = element("li");
       const link = element("a");
-      link.href = detailPath(post.postId);
+      link.href = detailHrefPreservingReturn(post.postId);
       link.setAttribute("aria-label", `${post.title} 상세 보기`);
       link.append(element("span", "best-rank", categoryLabel(post.category).slice(0, 1)));
       const copy = element("span", "best-copy");
@@ -670,7 +805,7 @@
     visiblePosts.forEach((post) => {
       const item = element("li");
       const link = element("a");
-      link.href = detailPath(post.postId);
+      link.href = detailHrefPreservingReturn(post.postId);
       link.setAttribute("aria-label", `${post.title} 답변하러 가기`);
       link.append(element("span", "best-rank", "Q"));
       const copy = element("span", "best-copy");
@@ -1190,11 +1325,7 @@
     const newsReturnPath = newsPost ? restaurantNewsPath(post) : null;
     document.title = `${post.title} · 푸드덕`;
     setBackLink(
-      newsReturnPath || (fromBest
-        ? "/pages/board/index.html?boardType=BEST"
-        : fromPopular
-          ? "/pages/board/index.html?boardType=POPULAR"
-          : board.listPath(post.boardType)),
+      newsReturnPath || communityReturnPath(post),
       newsReturnPath ? "가게 소식으로 돌아가기" : "커뮤니티 목록",
     );
     detailContent.replaceChildren();
@@ -1311,7 +1442,7 @@
       element("span", "", message || "게시글 주소를 다시 확인해 주세요."),
     );
     const link = element("a", "button button-sm button-secondary", "커뮤니티 목록");
-    link.href = "/pages/board/index.html";
+    link.href = listReturnPath || "/pages/board/index.html";
     wrapper.append(link);
     detailContent.append(wrapper);
   }
@@ -1361,7 +1492,7 @@
     const deletePath = newsPost ? newsDeletePath(state.post) : `/board/posts/${postId}`;
     const returnPath = newsPost
       ? restaurantNewsPath(state.post)
-      : board.listPath(state.post.boardType);
+      : communityReturnPath(state.post);
     if (!deletePath || !returnPath) {
       showToast(toast, "가게 소식의 식당 정보를 확인할 수 없습니다.", true);
       return;
@@ -2251,7 +2382,13 @@
 
   commentForm.addEventListener("submit", async (event) => {
     event.preventDefault();
-    if (!board.requireLogin(window.location.pathname + window.location.search)) return;
+    if (!session.authenticated) {
+      pendingCommentSubmitAfterLogin = true;
+      if (!completeCommentLoginIfReady()) {
+        openCommentLogin();
+      }
+      return;
+    }
     const content = commentContent.value.trim();
     if (!content) {
       showToast(toast, "댓글 내용을 입력해 주세요.", true);
@@ -2300,7 +2437,7 @@
   });
 
   if (!session.authenticated) {
-    commentLoginNote.textContent = "댓글 작성 시 로그인 화면으로 이동합니다.";
+    commentLoginNote.textContent = "댓글 등록 시 로그인 창이 열리고, 로그인 후 이 글에서 이어서 작성합니다.";
   } else {
     commentLoginNote.textContent = `@${session.loginId || "소셜 계정"}으로 작성합니다.`;
   }
@@ -2383,6 +2520,7 @@
     clearMediaPoll();
     clearCommentImageSelection();
     clearCommentImageRetryNotice();
+    stopCommentLoginWatch({ closePopup: true });
     closeReplyComposer();
     document.querySelector(".detail-image-viewer")?.remove();
     document.body.classList.remove("is-image-viewer-open");
