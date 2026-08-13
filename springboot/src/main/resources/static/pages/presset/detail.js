@@ -110,25 +110,6 @@
     }
   }
 
-  async function toggleRestaurantFavorite(button, restaurant) {
-    if (!requireLogin()) return;
-    button.disabled = true;
-    try {
-      const response = restaurant.favoriteByCurrentUser
-        ? await Api.delete(`/restaurants/${restaurant.restaurantId}/favorite`)
-        : await Api.post(`/restaurants/${restaurant.restaurantId}/favorite`);
-      restaurant.favoriteByCurrentUser = Boolean(response.data?.favoriteByCurrentUser);
-      button.classList.toggle("is-active", restaurant.favoriteByCurrentUser);
-      button.setAttribute("aria-pressed", String(restaurant.favoriteByCurrentUser));
-      button.setAttribute("aria-label", restaurant.favoriteByCurrentUser ? "음식점 저장 해제" : "음식점 저장");
-      button.textContent = restaurant.favoriteByCurrentUser ? "♥" : "♡";
-    } catch (error) {
-      alert(error.message);
-    } finally {
-      button.disabled = false;
-    }
-  }
-
   function createRestaurantCard(restaurant, index) {
     const card = element("article", "preset-restaurant-card surface-card");
     const visual = element("div", "preset-restaurant-visual");
@@ -160,13 +141,6 @@
     body.append(facts);
 
     const actions = element("div", "preset-restaurant-actions");
-    const favorite = element("button", "preset-restaurant-favorite", restaurant.favoriteByCurrentUser ? "♥" : "♡");
-    favorite.type = "button";
-    favorite.classList.toggle("is-active", restaurant.favoriteByCurrentUser);
-    favorite.setAttribute("aria-pressed", String(Boolean(restaurant.favoriteByCurrentUser)));
-    favorite.setAttribute("aria-label", restaurant.favoriteByCurrentUser ? "음식점 저장 해제" : "음식점 저장");
-    favorite.addEventListener("click", () => toggleRestaurantFavorite(favorite, restaurant));
-    actions.append(favorite);
 
     if (restaurant.coordinateAvailable) {
       const map = element("a", "button button-secondary preset-restaurant-map-btn", "지도에서 보기");
@@ -183,90 +157,6 @@
     }
     card.append(visual, body, actions);
     return card;
-  }
-
-  function createRestaurantManager(data) {
-    const manager = element("section", "preset-restaurant-manager surface-card");
-    const count = Number(data.restaurantCount ?? data.restaurants?.length ?? 0);
-    const limit = Number(data.restaurantLimit || 15);
-    const atLimit = count >= limit;
-    const options = Array.isArray(data.restaurantOptions) ? data.restaurantOptions : [];
-
-    const heading = element("div", "preset-restaurant-manager-heading");
-    const copy = element("div");
-    copy.append(
-      element("h2", "", "Presset 맛집 관리"),
-      element("p", "", `선택한 맛집 ${count} / ${limit}`),
-    );
-    const meter = element("strong", "preset-restaurant-count", `맛집 ${count}곳 · 최대 ${limit}곳`);
-    heading.append(copy, meter);
-
-    const form = element("form", "preset-restaurant-add-form");
-    const select = element("select", "preset-restaurant-select");
-    select.name = "restaurantId";
-    select.setAttribute("aria-label", "Presset에 추가할 맛집");
-    const prompt = element("option", "", options.length ? "추가할 맛집을 선택하세요" : "추가 가능한 맛집이 없습니다");
-    prompt.value = "";
-    select.append(prompt);
-    options.forEach((option) => {
-      const item = element("option", "", [
-        option.name,
-        option.categoryName,
-        option.address,
-      ].filter(Boolean).join(" · "));
-      item.value = String(option.restaurantId);
-      select.append(item);
-    });
-
-    const submit = element("button", "button button-primary", "맛집 추가");
-    submit.type = "submit";
-    select.disabled = atLimit || !options.length;
-    submit.disabled = atLimit || !options.length;
-    form.append(select, submit);
-
-    const result = element("p", "preset-restaurant-manager-result");
-    result.setAttribute("role", "status");
-    if (atLimit) {
-      result.textContent = "한 프리셋에는 최대 15개의 맛집만 담을 수 있습니다.";
-    } else if (restaurantStatusMessage) {
-      result.textContent = restaurantStatusMessage;
-      result.classList.toggle("is-error", restaurantStatusError);
-    }
-
-    form.addEventListener("submit", async (event) => {
-      event.preventDefault();
-      if (!requireLogin()) return;
-      if (count >= limit) {
-        result.textContent = "한 프리셋에는 최대 15개의 맛집만 담을 수 있습니다.";
-        return;
-      }
-      const restaurantId = Number(select.value);
-      if (!Number.isSafeInteger(restaurantId) || restaurantId <= 0) {
-        result.textContent = "추가할 맛집을 선택해 주세요.";
-        result.classList.add("is-error");
-        return;
-      }
-      submit.disabled = true;
-      select.disabled = true;
-      result.textContent = "맛집을 추가하고 있습니다.";
-      result.classList.remove("is-error");
-      try {
-        const response = await Api.post(`/presets/${requestedId}/restaurants/${restaurantId}`);
-        restaurantStatusMessage = response.message || "Presset에 맛집을 추가했습니다.";
-        restaurantStatusError = false;
-        await reloadPreset();
-      } catch (error) {
-        restaurantStatusMessage = error.message || "맛집을 추가하지 못했습니다.";
-        restaurantStatusError = true;
-        result.textContent = restaurantStatusMessage;
-        result.classList.add("is-error");
-        submit.disabled = atLimit || !options.length;
-        select.disabled = atLimit || !options.length;
-      }
-    });
-
-    manager.append(heading, form, result);
-    return manager;
   }
 
   function renderRestaurants(host) {
@@ -451,10 +341,6 @@
     const heading = element("div", "section-header");
     heading.append(element("h2", "", "이 Presset에 포함된 맛집"));
     section.append(heading);
-
-    if (data.isOwner) {
-      section.append(createRestaurantManager(data));
-    }
 
     const categories = ["전체", ...new Set((data.restaurants || []).map((restaurant) => restaurant.categoryName || "기타"))];
     if (!categories.includes(selectedCategory)) selectedCategory = "전체";
