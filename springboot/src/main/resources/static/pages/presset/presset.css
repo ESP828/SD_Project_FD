@@ -546,23 +546,6 @@
   box-shadow: 0 6px 16px rgba(255, 152, 0, 0.28);
 }
 
-.preset-card-rank {
-  position: absolute;
-  z-index: 2;
-  top: 14px;
-  left: 14px;
-  display: grid;
-  width: 32px;
-  height: 32px;
-  place-items: center;
-  border-radius: 50%;
-  color: #fff;
-  background: var(--color-orange);
-  box-shadow: 0 6px 14px rgba(15, 43, 77, 0.22);
-  font-size: 0.8rem;
-  font-weight: 900;
-}
-
 .preset-card-actions {
   display: flex;
   min-width: 0;
@@ -639,15 +622,16 @@
   box-shadow: 0 16px 38px rgba(15, 43, 77, 0.09);
 }
 
-.preset-card-visual {
+.preset-card-map {
   position: relative;
   display: block;
   min-height: 242px;
   overflow: hidden;
-  background: var(--color-cream);
+  background:
+    radial-gradient(circle at 12% 18%, rgba(255, 152, 0, 0.08), transparent 40%),
+    var(--color-cream);
 }
 
-.preset-card-image,
 .preset-detail-image,
 .preset-restaurant-image {
   width: 100%;
@@ -668,8 +652,82 @@
   font-weight: 800;
 }
 
-.preset-card-image-placeholder {
+.preset-card-map-placeholder {
   min-height: 242px;
+}
+
+.preset-card-map-path {
+  position: absolute;
+  z-index: 1;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.preset-card-map-path polyline {
+  fill: none;
+  stroke: var(--color-orange);
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-dasharray: 4 4;
+  opacity: 0.75;
+}
+
+.preset-card-map-stop {
+  position: absolute;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transform: translate(-50%, -50%);
+}
+
+.preset-card-map-stop--1 {
+  top: 26%;
+  left: 18%;
+}
+
+.preset-card-map-stop--2 {
+  top: 50%;
+  left: 58%;
+}
+
+.preset-card-map-stop--3 {
+  top: 78%;
+  left: 18%;
+}
+
+.preset-card-map-badge {
+  position: absolute;
+  z-index: 3;
+  top: -6px;
+  left: -6px;
+  display: grid;
+  width: 20px;
+  height: 20px;
+  place-items: center;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  color: #fff;
+  background: var(--color-orange);
+  box-shadow: 0 3px 8px rgba(15, 43, 77, 0.22);
+  font-size: 0.68rem;
+  font-weight: 900;
+}
+
+.preset-card-map-thumb,
+.preset-card-map-thumb-placeholder {
+  width: 56px;
+  height: 56px;
+  border: 2px solid #fff;
+  border-radius: 14px;
+  object-fit: cover;
+  box-shadow: 0 6px 14px rgba(15, 43, 77, 0.18);
+}
+
+.preset-card-map-thumb-placeholder {
+  font-size: 0.6rem;
 }
 
 .preset-thumbnail-placeholder {
@@ -725,6 +783,30 @@
   color: var(--color-orange-dark);
 }
 
+.preset-card-chip-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.preset-card-chip {
+  padding: 6px 12px;
+  border: 1px solid var(--color-line);
+  border-radius: 999px;
+  color: var(--color-muted);
+  background: #fff;
+  font-size: 0.74rem;
+  font-weight: 750;
+}
+
+.preset-card-eyebrow {
+  margin: 0 0 6px;
+  color: var(--color-orange-dark);
+  font-size: 0.78rem;
+  font-weight: 850;
+}
+
 .preset-tag-list {
   display: flex;
   flex-wrap: wrap;
@@ -753,16 +835,20 @@
 }
 
 .preset-card-map-link {
-  align-self: center;
-  margin-top: 3px;
-  color: var(--color-orange-dark);
-  font-size: 0.76rem;
-  font-weight: 850;
+  display: grid;
+  min-height: 43px;
+  place-items: center;
+  padding: 0 14px;
+  border: 1px solid var(--color-line);
+  border-radius: 12px;
+  color: var(--color-navy);
+  font-size: 0.78rem;
+  font-weight: 800;
 }
 
 .preset-card-map-link:hover {
-  text-decoration: underline;
-  text-underline-offset: 3px;
+  border-color: var(--color-orange);
+  color: var(--color-orange-dark);
 }
 
 .preset-pagination {
@@ -1074,7 +1160,7 @@
     grid-template-columns: 230px minmax(0, 1fr);
   }
 
-  .preset-card-visual {
+  .preset-card-map {
     grid-row: 1 / span 2;
   }
 
@@ -1205,13 +1291,13 @@
     grid-template-columns: 1fr;
   }
 
-  .preset-card-visual {
+  .preset-card-map {
     grid-row: auto;
     height: 210px;
     min-height: 210px;
   }
 
-  .preset-card-image-placeholder {
+  .preset-card-map-placeholder {
     min-height: 210px;
   }
 

@@ -339,9 +339,6 @@
     hero.append(createEditForm(data));
 
     const section = element("section", "preset-restaurants");
-    const heading = element("div", "section-header");
-    heading.append(element("h2", "", "이 보물지도에 포함된 맛집"));
-    section.append(heading);
 
     const categories = ["전체", ...new Set((data.restaurants || []).map((restaurant) => restaurant.categoryName || "기타"))];
     if (!categories.includes(selectedCategory)) selectedCategory = "전체";
