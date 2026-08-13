@@ -379,21 +379,6 @@
   margin-bottom: 0;
 }
 
-.preset-search-guide {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  padding-bottom: 5px;
-  border-bottom: 1px solid rgba(229, 111, 0, 0.35);
-  color: var(--color-orange-dark);
-  font-size: 0.86rem;
-  font-weight: 850;
-}
-
-.preset-search-guide:hover {
-  border-color: var(--color-orange-dark);
-}
-
 .preset-discovery-panel {
   margin-bottom: 28px;
   padding: 24px;
