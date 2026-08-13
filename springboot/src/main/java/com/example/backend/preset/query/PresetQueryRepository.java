@@ -32,6 +32,7 @@ public class PresetQueryRepository {
                    p.view_count,
                    p.display_order,
                    p.created_at,
+                   p.account_id,
                    pi.stored_filename,
                    count(distinct pr.preset_restaurant_id) as restaurant_count,
                    (select count(*) from preset_favorite pf_count
@@ -69,7 +70,7 @@ public class PresetQueryRepository {
 
     private static final String LIST_GROUP = """
              group by p.preset_id, p.title, p.category,
-                      p.view_count, p.display_order, p.created_at, pi.stored_filename
+                      p.view_count, p.display_order, p.created_at, p.account_id, pi.stored_filename
             """;
 
     private static final String COUNT_SQL = """
@@ -384,7 +385,7 @@ public class PresetQueryRepository {
         String sql = LIST_SELECT + ACTIVE_FILTER + LIST_GROUP
                 + orderBy(sort) + " limit :size offset :offset";
         List<PresetSummaryRow> rows = jdbcTemplate.query(sql, parameters, this::mapSummaryRow);
-        return enrichSummaries(rows);
+        return enrichSummaries(rows, accountId);
     }
 
     public List<PresetSummaryResponse> findCreatedByAccount(Long accountId) {
@@ -393,10 +394,10 @@ public class PresetQueryRepository {
                  where p.status = 'ACTIVE'
                    and p.account_id = :accountId
                  group by p.preset_id, p.title, p.category,
-                          p.view_count, p.display_order, p.created_at, pi.stored_filename
+                          p.view_count, p.display_order, p.created_at, p.account_id, pi.stored_filename
                  order by p.created_at desc, p.preset_id desc
                 """;
-        return enrichSummaries(jdbcTemplate.query(sql, parameters, this::mapSummaryRow));
+        return enrichSummaries(jdbcTemplate.query(sql, parameters, this::mapSummaryRow), accountId);
     }
 
     public List<PresetTagResponse> findActiveFilterTags() {
@@ -548,7 +549,7 @@ public class PresetQueryRepository {
         return count == null ? 0 : count;
     }
 
-    private List<PresetSummaryResponse> enrichSummaries(List<PresetSummaryRow> rows) {
+    private List<PresetSummaryResponse> enrichSummaries(List<PresetSummaryRow> rows, Long accountId) {
         if (rows.isEmpty()) {
             return List.of();
         }
@@ -565,6 +566,7 @@ public class PresetQueryRepository {
                 row.restaurantCount(),
                 row.favoriteCount(),
                 row.favoriteByCurrentUser(),
+                accountId != null && accountId.equals(row.accountId()),
                 row.createdAt(),
                 tags.getOrDefault(row.presetId(), List.of()),
                 thumbnails.getOrDefault(row.presetId(), List.of())
@@ -629,6 +631,7 @@ public class PresetQueryRepository {
                 resultSet.getLong("restaurant_count"),
                 resultSet.getLong("favorite_count"),
                 resultSet.getBoolean("favorite_by_current_user"),
+                resultSet.getObject("account_id", Long.class),
                 resultSet.getObject("created_at", LocalDateTime.class)
         );
     }
@@ -691,6 +694,7 @@ public class PresetQueryRepository {
             long restaurantCount,
             long favoriteCount,
             boolean favoriteByCurrentUser,
+            Long accountId,
             LocalDateTime createdAt
     ) {
     }
