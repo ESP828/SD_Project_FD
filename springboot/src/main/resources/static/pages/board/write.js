@@ -6,6 +6,9 @@
   const currentPath = window.location.pathname + window.location.search;
   if (!board.requireLogin(currentPath)) return;
 
+  const writeParams = new URLSearchParams(window.location.search);
+  const requestedReturnTo = writeParams.get("returnTo");
+
   const MAX_MEDIA_COUNT = 10;
   const MAX_IMAGE_BYTES = 20 * 1024 * 1024;
   const MAX_VIDEO_BYTES = 100 * 1024 * 1024;
@@ -44,9 +47,65 @@
   let selectedMediaSequence = 0;
   let mediaBusy = false;
   let writeLogoutInFlight = false;
+  let editorBaseline = null;
+  let allowEditorNavigation = false;
   const removedMediaIds = new Set();
 
   if (!form) return;
+
+  function safeBoardListReturnPath(value) {
+    if (!value) return null;
+    try {
+      const url = new URL(value, window.location.origin);
+      if (url.origin !== window.location.origin) return null;
+      if (url.pathname !== "/pages/board/index.html") return null;
+      return `${url.pathname}${url.search}`;
+    } catch (_error) {
+      return null;
+    }
+  }
+
+  const listReturnPath = safeBoardListReturnPath(requestedReturnTo);
+
+  function pathWithListReturn(path) {
+    if (!listReturnPath || !path) return path;
+    const url = new URL(path, window.location.origin);
+    url.searchParams.set("returnTo", listReturnPath);
+    return `${url.pathname}${url.search}`;
+  }
+
+  function currentEditorSnapshot() {
+    return {
+      boardType: boardTypeSelect?.value || "GENERAL",
+      category: categorySelect?.value || "",
+      title: titleInput?.value || "",
+      content: contentInput?.value || "",
+    };
+  }
+
+  function captureEditorBaseline() {
+    editorBaseline = currentEditorSnapshot();
+  }
+
+  function hasUnsavedEditorChanges() {
+    if (!editorBaseline) return false;
+    const current = currentEditorSnapshot();
+    return (
+      current.boardType !== editorBaseline.boardType ||
+      current.category !== editorBaseline.category ||
+      current.title !== editorBaseline.title ||
+      current.content !== editorBaseline.content ||
+      selectedMedia.length > 0 ||
+      removedMediaIds.size > 0
+    );
+  }
+
+  function confirmEditorLeave() {
+    return (
+      !hasUnsavedEditorChanges() ||
+      window.confirm("작성 중인 내용이 있습니다. 페이지를 나가시겠습니까?")
+    );
+  }
 
   function initializeWriteLogoutEntryPoint() {
     document.addEventListener("click", async (event) => {
@@ -58,15 +117,20 @@
       event.preventDefault();
       event.stopImmediatePropagation();
       if (writeLogoutInFlight) return;
+      if (!confirmEditorLeave()) return;
+
       writeLogoutInFlight = true;
       button.disabled = true;
+      allowEditorNavigation = true;
 
       try {
         await Api.logout();
       } catch (_error) {
         Api.clearToken();
       } finally {
-        window.location.assign(board.listPath(boardTypeSelect?.value || "GENERAL"));
+        window.location.assign(
+          listReturnPath || board.listPath(boardTypeSelect?.value || "GENERAL"),
+        );
       }
     }, true);
   }
@@ -178,7 +242,7 @@
       cancelLink.href = newsDetailPath(postId);
       return;
     }
-    const href = board.listPath(boardType);
+    const href = listReturnPath || board.listPath(boardType);
     setEditorBackLink(href, "커뮤니티 목록");
     if (!postId) cancelLink.href = href;
   }
@@ -430,7 +494,7 @@
       "",
       newsPost
         ? newsWritePath(postId)
-        : board.writePath(savedPost.boardType, postId),
+        : pathWithListReturn(board.writePath(savedPost.boardType, postId)),
     );
   }
 
@@ -681,10 +745,11 @@
         return;
       }
 
+      allowEditorNavigation = true;
       window.location.assign(
         newsEdit
           ? newsDetailPath(savedPostId)
-          : board.detailPath(savedPostId),
+          : pathWithListReturn(board.detailPath(savedPostId)),
       );
     } catch (error) {
       errorMessage.textContent =
@@ -712,9 +777,16 @@
     submitButton.disabled = false;
 
     if (postId) await loadForEdit();
+    captureEditorBaseline();
   }
 
-  window.addEventListener("beforeunload", () => {
+  window.addEventListener("beforeunload", (event) => {
+    if (allowEditorNavigation || !hasUnsavedEditorChanges()) return;
+    event.preventDefault();
+    event.returnValue = "";
+  });
+
+  window.addEventListener("pagehide", () => {
     selectedMedia.forEach((entry) => URL.revokeObjectURL(entry.previewUrl));
   });
 
