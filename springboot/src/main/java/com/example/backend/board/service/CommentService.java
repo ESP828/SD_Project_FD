@@ -52,6 +52,7 @@ public class CommentService {
 
     private static final int MAX_PAGE_SIZE = 100;
     private static final int MAX_COMMENT_IMAGE_BYTES = 5 * 1024 * 1024;
+    private static final int COMMENT_IMAGE_READ_CHUNK_BYTES = 1024 * 1024;
     private static final int MAX_COMMENT_IMAGE_NAME_LENGTH = 255;
     private static final Set<String> COMMENT_IMAGE_EXTENSIONS = Set.of(
             "jpg", "jpeg", "png", "gif", "webp"
@@ -395,7 +396,8 @@ public class CommentService {
                 commentId,
                 comment.getImageMimeType(),
                 comment.getImageOriginalName(),
-                declaredSize
+                declaredSize,
+                comment.getUpdatedAt()
         );
     }
 
@@ -403,23 +405,26 @@ public class CommentService {
             Long commentId,
             long fileSize,
             OutputStream outputStream
-    ) {
-        long written;
-        try {
-            written = requireReferenceRepository().streamCommentImageBytes(
-                    commentId,
-                    fileSize,
-                    outputStream
+    ) throws IOException {
+        long written = 0;
+        while (written < fileSize) {
+            int requestedLength = (int) Math.min(
+                    COMMENT_IMAGE_READ_CHUNK_BYTES,
+                    fileSize - written
             );
-        } catch (RuntimeException exception) {
-            if (exception instanceof java.io.UncheckedIOException) {
-                throw new BoardException(
-                        HttpStatus.INTERNAL_SERVER_ERROR,
-                        "BOARD_COMMENT_IMAGE_READ_FAILED",
-                        "댓글 사진을 불러오지 못했습니다."
-                );
+            byte[] chunk = requireReferenceRepository().readCommentImageChunk(
+                    commentId,
+                    written,
+                    requestedLength
+            );
+            if (chunk.length == 0) {
+                break;
             }
-            throw exception;
+            outputStream.write(chunk);
+            written += chunk.length;
+            if (chunk.length != requestedLength) {
+                break;
+            }
         }
         if (written != fileSize) {
             throw new BoardException(
@@ -896,7 +901,8 @@ public class CommentService {
             Long commentId,
             String mimeType,
             String originalName,
-            long fileSize
+            long fileSize,
+            LocalDateTime updatedAt
     ) {
     }
 
