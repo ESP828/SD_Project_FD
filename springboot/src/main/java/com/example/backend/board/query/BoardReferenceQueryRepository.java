@@ -648,6 +648,22 @@ public class BoardReferenceQueryRepository {
         }
     }
 
+    public int markInterruptedPostMediaFailed() {
+        return jdbcTemplate.update(
+                """
+                update post_media
+                   set media_url = :failedUrl,
+                       media_data = x''
+                 where media_type = 'VIDEO_LINK'
+                   and media_url = :processingUrl
+                """,
+                Map.of(
+                        "failedUrl", MEDIA_URL_FAILED,
+                        "processingUrl", MEDIA_URL_PROCESSING
+                )
+        );
+    }
+
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void markPostMediaFailed(Long postMediaId) {
         jdbcTemplate.update(

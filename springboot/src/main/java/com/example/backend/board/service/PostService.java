@@ -22,6 +22,7 @@ import com.example.backend.board.query.BoardReferenceQueryRepository.PostMediaFi
 import com.example.backend.board.repository.CommentRepository;
 import com.example.backend.board.repository.PostLikeRepository;
 import com.example.backend.board.repository.PostRepository;
+import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -45,6 +46,7 @@ import java.io.OutputStream;
 import java.io.UncheckedIOException;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
@@ -194,6 +196,30 @@ public class PostService {
         this.mediaTransactionTemplate = new TransactionTemplate(
                 transactionManager
         );
+    }
+
+    @PostConstruct
+    public void recoverInterruptedMediaProcessing() {
+        int recoveredMedia = 0;
+        try {
+            recoveredMedia =
+                    referenceRepository.markInterruptedPostMediaFailed();
+        } catch (RuntimeException exception) {
+            LOGGER.error(
+                    "중단된 게시판 동영상 처리 상태를 정리하지 못했습니다.",
+                    exception
+            );
+        }
+
+        int deletedStagedMedia = deleteAbandonedStagedMedia();
+        if (recoveredMedia > 0 || deletedStagedMedia > 0) {
+            LOGGER.info(
+                    "중단된 게시판 미디어 작업을 정리했습니다. "
+                            + "failedMedia={}, deletedTempFiles={}",
+                    recoveredMedia,
+                    deletedStagedMedia
+            );
+        }
     }
 
     @PreDestroy
@@ -1166,6 +1192,42 @@ public class PostService {
             deleteStagedMediaQuietly(stagedVideo);
             videoProcessingSlots.release();
         }
+    }
+
+    private int deleteAbandonedStagedMedia() {
+        Path tempDirectory = Path.of(
+                System.getProperty("java.io.tmpdir")
+        );
+        if (!Files.isDirectory(tempDirectory)) {
+            return 0;
+        }
+
+        int deleted = 0;
+        try (DirectoryStream<Path> stagedFiles = Files.newDirectoryStream(
+                tempDirectory,
+                "fooduck-board-media-*.upload"
+        )) {
+            for (Path stagedFile : stagedFiles) {
+                try {
+                    if (Files.deleteIfExists(stagedFile)) {
+                        deleted++;
+                    }
+                } catch (IOException exception) {
+                    LOGGER.warn(
+                            "중단된 게시판 미디어 임시 파일을 삭제하지 못했습니다. path={}",
+                            stagedFile,
+                            exception
+                    );
+                }
+            }
+        } catch (IOException exception) {
+            LOGGER.warn(
+                    "게시판 미디어 임시 파일을 확인하지 못했습니다. tempDirectory={}",
+                    tempDirectory,
+                    exception
+            );
+        }
+        return deleted;
     }
 
     private void markVideoProcessingFailed(
