@@ -3092,6 +3092,56 @@ body.is-image-viewer-open {
   }
 }
 
+/* 게시판 목록/상세 상단 이동 버튼 */
+.board-scroll-top {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 250;
+  display: grid;
+  width: 46px;
+  height: 46px;
+  padding: 0;
+  place-items: center;
+  border: 1px solid var(--color-line);
+  border-radius: 50%;
+  color: var(--color-navy);
+  background: var(--color-surface);
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.16);
+  font-size: 1.35rem;
+  font-weight: 900;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.board-scroll-top[hidden] {
+  display: none;
+}
+
+.board-scroll-top:hover {
+  transform: translateY(-2px);
+}
+
+.board-scroll-top:focus-visible {
+  outline: 3px solid var(--color-orange);
+  outline-offset: 3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .board-scroll-top:hover {
+    transform: none;
+  }
+}
+
+@media (max-width: 720px) {
+  .board-scroll-top {
+    right: 16px;
+    bottom: 16px;
+    width: 44px;
+    height: 44px;
+  }
+}
+
 /* NEWS 상세: 게시글 본문보다 먼저 연결된 가게 정보를 고정된 블록으로 표시한다. */
 .news-restaurant-card {
   display: flex;
@@ -3206,5 +3256,60 @@ body.is-image-viewer-open {
 
   .news-restaurant-card__action {
     align-self: flex-start;
+  }
+}
+
+.comment-load-error,
+.comment-upload-retry {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 14px 0;
+  padding: 14px 16px;
+  border: 1px solid var(--color-line);
+  border-radius: 12px;
+  background: var(--color-surface-soft, #fffaf5);
+}
+
+.comment-load-error {
+  flex-direction: column;
+  justify-content: center;
+  padding: 24px 16px;
+  color: var(--color-muted);
+  text-align: center;
+}
+
+.comment-load-error strong,
+.comment-upload-retry__copy strong {
+  color: var(--color-text);
+}
+
+.comment-upload-retry__copy {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.comment-upload-retry__copy span {
+  color: var(--color-muted);
+  font-size: 0.82rem;
+  overflow-wrap: anywhere;
+}
+
+.comment-upload-retry__actions {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 8px;
+}
+
+@media (max-width: 640px) {
+  .comment-upload-retry {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .comment-upload-retry__actions {
+    justify-content: flex-end;
   }
 }

@@ -229,6 +229,7 @@
         name: restaurant.name || "연결된 가게",
         category:
           restaurant.categorySmallName ||
+          restaurant.categoryMediumName ||
           restaurant.categoryLargeName ||
           null,
         address: restaurant.roadAddress || restaurant.lotAddress || "주소 정보 없음",
@@ -385,6 +386,8 @@
 
   let selectedCommentImage = null;
   let commentImagePreviewUrl = null;
+  let pendingCommentImageRetry = null;
+  let commentImageRetryNotice = null;
   let activeReplyForm = null;
   let activeReplyPreviewUrl = null;
   let activeCommentEditForm = null;
@@ -481,6 +484,77 @@
       throw new Error(message || "댓글 사진 업로드에 실패했습니다.");
     }
     return payload;
+  }
+
+  function clearCommentImageRetryNotice() {
+    pendingCommentImageRetry = null;
+    commentImageRetryNotice?.remove();
+    commentImageRetryNotice = null;
+  }
+
+  function showCommentImageRetryNotice(commentId, file, error) {
+    if (!commentId || !file) return;
+    clearCommentImageRetryNotice();
+    pendingCommentImageRetry = { commentId, file };
+
+    const notice = element("div", "comment-upload-retry");
+    const copy = element("div", "comment-upload-retry__copy");
+    copy.append(
+      element("strong", "", "댓글은 등록됐지만 사진을 올리지 못했습니다."),
+      element(
+        "span",
+        "",
+        error?.message || "사진만 다시 올릴 수 있습니다.",
+      ),
+    );
+
+    const actions = element("div", "comment-upload-retry__actions");
+    const retryButton = element(
+      "button",
+      "button button-sm button-primary",
+      "사진 다시 올리기",
+    );
+    retryButton.type = "button";
+    const dismissButton = element(
+      "button",
+      "button button-sm button-secondary",
+      "닫기",
+    );
+    dismissButton.type = "button";
+
+    retryButton.addEventListener("click", async () => {
+      const retry = pendingCommentImageRetry;
+      if (!retry) return;
+      retryButton.disabled = true;
+      dismissButton.disabled = true;
+      retryButton.textContent = "올리는 중";
+      try {
+        await uploadCommentImage(retry.commentId, retry.file);
+        invalidateBoardCache();
+        clearCommentImageRetryNotice();
+        showToast(toast, "댓글 사진이 등록되었습니다.");
+        try {
+          await loadCommentPage(currentCommentPage, {
+            highlightCommentId: retry.commentId,
+            scrollToHighlight: false,
+          });
+        } catch (reloadError) {
+          showToast(toast, reloadError.message, true);
+        }
+      } catch (retryError) {
+        retryButton.disabled = false;
+        dismissButton.disabled = false;
+        retryButton.textContent = "사진 다시 올리기";
+        copy.querySelector("span").textContent =
+          retryError.message || "사진 업로드에 다시 실패했습니다.";
+      }
+    });
+
+    dismissButton.addEventListener("click", clearCommentImageRetryNotice);
+    actions.append(retryButton, dismissButton);
+    notice.append(copy, actions);
+    commentForm.before(notice);
+    commentImageRetryNotice = notice;
   }
 
   function actionButton(label, className, handler) {
@@ -1865,6 +1939,44 @@
     });
   }
 
+  function renderCommentLoadError(error, page = currentCommentPage) {
+    closeReplyComposer();
+    closeCommentEditor();
+    commentList.replaceChildren();
+    if (commentPagination) {
+      commentPagination.hidden = true;
+      commentPagination.replaceChildren();
+    }
+    commentCount.textContent = String(state.post?.commentCount ?? "-");
+
+    const wrapper = element("div", "comment-load-error");
+    wrapper.append(
+      element("strong", "", "댓글을 불러오지 못했습니다."),
+      element(
+        "span",
+        "",
+        error?.message || "잠시 후 다시 시도해 주세요.",
+      ),
+    );
+    const retry = element(
+      "button",
+      "button button-sm button-secondary",
+      "다시 시도",
+    );
+    retry.type = "button";
+    retry.addEventListener("click", async () => {
+      retry.disabled = true;
+      try {
+        await loadCommentPage(page);
+      } catch (retryError) {
+        renderCommentLoadError(retryError, page);
+      }
+    });
+    wrapper.append(retry);
+    commentList.append(wrapper);
+    announceCommentStatus("댓글을 불러오지 못했습니다. 다시 시도할 수 있습니다.");
+  }
+
   function renderComments(pageData, options = {}) {
     const comments = pageData.content || [];
 
@@ -2171,6 +2283,7 @@
           `댓글은 등록됐지만 사진 업로드에 실패했습니다. ${imageUploadError.message}`,
           true,
         );
+        showCommentImageRetryNotice(createdCommentId, imageFile, imageUploadError);
       } else {
         showToast(
           toast,
@@ -2192,6 +2305,39 @@
     commentLoginNote.textContent = `@${session.loginId || "소셜 계정"}으로 작성합니다.`;
   }
 
+  function initializeScrollTopButton() {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "board-scroll-top";
+    button.textContent = "↑";
+    button.title = "맨 위로 이동";
+    button.setAttribute("aria-label", "맨 위로 이동");
+    button.hidden = true;
+    document.body.append(button);
+
+    let ticking = false;
+    const updateVisibility = () => {
+      button.hidden = window.scrollY <= 450;
+      ticking = false;
+    };
+
+    window.addEventListener("scroll", () => {
+      if (ticking) return;
+      ticking = true;
+      window.requestAnimationFrame(updateVisibility);
+    }, { passive: true });
+
+    button.addEventListener("click", () => {
+      const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      window.scrollTo({
+        top: 0,
+        behavior: reduceMotion ? "auto" : "smooth",
+      });
+    });
+
+    updateVisibility();
+  }
+
   async function loadPage() {
     if (!postId) {
       renderPostError("유효한 게시글 번호가 없습니다.");
@@ -2201,25 +2347,24 @@
       if (commentWriteShortcut) commentWriteShortcut.hidden = true;
       return;
     }
+
     try {
-      const postPromise = loadPost();
-      await Promise.all([
-        postPromise,
-        loadCommentPage(0),
-        postPromise.then(() => {
-          if (isNewsPost()) {
-            renderRelatedPosts([]);
-            return;
-          }
-          return loadRelatedPosts();
-        }),
-        postPromise.then(loadUnansweredPosts),
-      ]);
+      await loadPost();
     } catch (error) {
       renderPostError(error.message);
       commentForm.hidden = true;
       if (commentWriteShortcut) commentWriteShortcut.hidden = true;
+      return;
     }
+
+    const commentTask = loadCommentPage(0).catch((error) => {
+      renderCommentLoadError(error, 0);
+      return null;
+    });
+    const relatedTask = isNewsPost()
+      ? Promise.resolve(renderRelatedPosts([]))
+      : loadRelatedPosts();
+    await Promise.all([commentTask, relatedTask, loadUnansweredPosts()]);
   }
 
   document.addEventListener("visibilitychange", () => {
@@ -2237,6 +2382,7 @@
     mediaPollingDisposed = true;
     clearMediaPoll();
     clearCommentImageSelection();
+    clearCommentImageRetryNotice();
     closeReplyComposer();
     document.querySelector(".detail-image-viewer")?.remove();
     document.body.classList.remove("is-image-viewer-open");
@@ -2250,5 +2396,6 @@
     }
   });
 
+  initializeScrollTopButton();
   loadPage();
 })();

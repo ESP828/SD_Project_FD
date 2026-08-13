@@ -1,10 +1,28 @@
 (() => {
   const session = window.FooduckSession;
   const board = window.FooduckBoard;
-  const requestedValue = new URLSearchParams(window.location.search).get("boardType");
+  const initialParams = new URLSearchParams(window.location.search);
+  const requestedValue = initialParams.get("boardType");
   const requestedBoardType = ["BUSINESS", "BEST", "POPULAR"].includes(requestedValue)
     ? requestedValue
     : "GENERAL";
+  const requestedCategory = [
+    "GENERAL",
+    "RECOMMENDATION",
+    "REVIEW",
+    "QUESTION",
+    "TRAVEL",
+  ].includes(initialParams.get("category"))
+    ? initialParams.get("category")
+    : "";
+  const requestedSort = ["LATEST", "LIKES", "COMMENTS"].includes(initialParams.get("sort"))
+    ? initialParams.get("sort")
+    : "LATEST";
+  const requestedKeyword = String(initialParams.get("keyword") || "").trim().slice(0, 100);
+  const requestedPage = Math.max(
+    0,
+    Math.min(9999, (Number.parseInt(initialParams.get("page"), 10) || 1) - 1),
+  );
   const initialBoardType = requestedBoardType === "BUSINESS"
     ? "GENERAL"
     : requestedBoardType;
@@ -12,10 +30,10 @@
   const state = {
     boardType: initialBoardType,
     lastBoardType: initialBoardType === "BUSINESS" ? "BUSINESS" : "GENERAL",
-    category: "",
-    keyword: "",
-    sort: "LATEST",
-    page: 0,
+    category: requestedCategory,
+    keyword: requestedKeyword,
+    sort: requestedSort,
+    page: requestedBoardType === "POPULAR" ? 0 : requestedPage,
     size: 7,
   };
 
@@ -33,6 +51,9 @@
   const sortSelect = document.getElementById("board-sort");
   const resetButton = document.getElementById("board-reset-button");
   const writeLinks = Array.from(document.querySelectorAll("[data-write-link]"));
+  let postRequestGeneration = 0;
+  let bestRequestGeneration = 0;
+  let unansweredRequestGeneration = 0;
 
   if (!session || !board || !boardList || !searchForm) {
     return;
@@ -51,6 +72,34 @@
 
   function isEdited(item) {
     return item?.edited === true;
+  }
+
+  function syncSearchControls() {
+    if (categorySelect) categorySelect.value = state.category;
+    if (keywordInput) keywordInput.value = state.keyword;
+    if (sortSelect) sortSelect.value = state.sort;
+  }
+
+  function syncListUrl() {
+    const params = new URLSearchParams();
+    if (state.boardType !== "GENERAL") params.set("boardType", state.boardType);
+
+    if (["GENERAL", "BUSINESS"].includes(state.boardType)) {
+      if (state.category) params.set("category", state.category);
+      if (state.keyword) params.set("keyword", state.keyword);
+      if (state.sort !== "LATEST") params.set("sort", state.sort);
+    }
+
+    if (state.boardType !== "POPULAR" && state.page > 0) {
+      params.set("page", String(state.page + 1));
+    }
+
+    const query = params.toString();
+    window.history.replaceState(
+      null,
+      "",
+      `/pages/board/index.html${query ? `?${query}` : ""}`,
+    );
   }
 
   function renderLoading() {
@@ -174,9 +223,9 @@
           "span",
           "",
           state.boardType === "BEST"
-            ? "최근 7일 안에 추천을 3개 이상 받은 글이 여기에 표시됩니다."
+            ? "추천을 3개 이상 받은 글이 여기에 표시됩니다."
             : state.boardType === "POPULAR"
-              ? "추천이 쌓인 이야기가 순위에 따라 여기에 표시됩니다."
+              ? "최근 30일 동안 추천을 많이 받은 이야기가 여기에 표시됩니다."
               : "첫 번째 맛집 이야기를 함께 나눠 보세요.",
         ),
       );
@@ -223,6 +272,7 @@
   function changePage(page) {
     if (page < 0) return;
     state.page = page;
+    syncListUrl();
     loadPosts();
     document.querySelector(".board-content")?.scrollIntoView({ behavior: "smooth" });
   }
@@ -244,6 +294,7 @@
   }
 
   async function loadPosts() {
+    const generation = ++postRequestGeneration;
     const isBest = state.boardType === "BEST";
     const isPopular = state.boardType === "POPULAR";
     const params = new URLSearchParams();
@@ -268,9 +319,11 @@
         : `/board/posts?${params.toString()}`;
     const cached = readBoardCache(path);
     if (cached) {
+      if (generation !== postRequestGeneration) return;
       renderPosts(normalizePostPage(cached.data));
       if (cached.fresh) return;
     } else {
+      if (generation !== postRequestGeneration) return;
       renderLoading();
     }
 
@@ -278,8 +331,10 @@
       const payload = await Api.get(path);
       const data = payload.data || (isPopular ? [] : {});
       writeBoardCache(path, data);
+      if (generation !== postRequestGeneration) return;
       renderPosts(normalizePostPage(data));
     } catch (error) {
+      if (generation !== postRequestGeneration) return;
       if (!cached) renderListError(error);
     }
   }
@@ -311,6 +366,7 @@
   }
 
   async function loadBestPosts() {
+    const generation = ++bestRequestGeneration;
     const isRankedView = ["BEST", "POPULAR"].includes(state.boardType);
     if (bestPostPanel) bestPostPanel.hidden = isRankedView;
     if (isRankedView) return;
@@ -321,9 +377,11 @@
     const path = `/board/posts/best?${params.toString()}`;
     const cached = readBoardCache(path);
     if (cached) {
+      if (generation !== bestRequestGeneration) return;
       renderBestPosts(cached.data || []);
       if (cached.fresh) return;
     } else {
+      if (generation !== bestRequestGeneration) return;
       bestPostList.replaceChildren(element("li", "best-loading", "불러오는 중"));
     }
 
@@ -331,8 +389,10 @@
       const payload = await Api.get(path);
       const posts = payload.data || [];
       writeBoardCache(path, posts);
+      if (generation !== bestRequestGeneration) return;
       renderBestPosts(posts);
     } catch (error) {
+      if (generation !== bestRequestGeneration) return;
       if (!cached) {
         bestPostList.replaceChildren(
           element("li", "best-loading", error.message || "불러오지 못했습니다."),
@@ -384,6 +444,7 @@
 
   async function loadUnansweredPosts() {
     if (!unansweredPostList) return;
+    const generation = ++unansweredRequestGeneration;
     const params = new URLSearchParams({
       boardType: ["BEST", "POPULAR"].includes(state.boardType)
         ? state.lastBoardType
@@ -393,9 +454,11 @@
     const path = `/board/posts/unanswered?${params.toString()}`;
     const cached = readBoardCache(path);
     if (cached) {
+      if (generation !== unansweredRequestGeneration) return;
       renderUnansweredPosts(cached.data || []);
       if (cached.fresh) return;
     } else {
+      if (generation !== unansweredRequestGeneration) return;
       unansweredPostList.replaceChildren(
         element("li", "best-loading", "불러오는 중"),
       );
@@ -405,8 +468,10 @@
       const payload = await Api.get(path);
       const posts = payload.data || [];
       writeBoardCache(path, posts);
+      if (generation !== unansweredRequestGeneration) return;
       renderUnansweredPosts(posts);
     } catch (error) {
+      if (generation !== unansweredRequestGeneration) return;
       if (!cached) {
         unansweredPostList.replaceChildren(
           element("li", "best-loading", error.message || "불러오지 못했습니다."),
@@ -470,17 +535,7 @@
       link.hidden = isRankedView;
       link.href = board.writePath(state.lastBoardType);
     });
-    window.history.replaceState(
-      null,
-      "",
-      isBest
-        ? "/pages/board/index.html?boardType=BEST"
-        : isPopular
-          ? "/pages/board/index.html?boardType=POPULAR"
-          : state.boardType === "BUSINESS"
-            ? "/pages/board/index.html?boardType=BUSINESS"
-            : "/pages/board/index.html",
-    );
+    syncListUrl();
   }
 
   function switchBoard(boardType) {
@@ -505,6 +560,7 @@
     state.keyword = keywordInput.value.trim();
     state.sort = sortSelect.value;
     state.page = 0;
+    syncListUrl();
     loadPosts();
   });
 
@@ -514,6 +570,7 @@
     state.keyword = "";
     state.sort = "LATEST";
     state.page = 0;
+    syncListUrl();
     loadPosts();
   });
 
@@ -524,6 +581,39 @@
       board.requireLogin(link.getAttribute("href"));
     });
   });
+
+  function initializeScrollTopButton() {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "board-scroll-top";
+    button.textContent = "↑";
+    button.title = "맨 위로 이동";
+    button.setAttribute("aria-label", "맨 위로 이동");
+    button.hidden = true;
+    document.body.append(button);
+
+    let ticking = false;
+    const updateVisibility = () => {
+      button.hidden = window.scrollY <= 450;
+      ticking = false;
+    };
+
+    window.addEventListener("scroll", () => {
+      if (ticking) return;
+      ticking = true;
+      window.requestAnimationFrame(updateVisibility);
+    }, { passive: true });
+
+    button.addEventListener("click", () => {
+      const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      window.scrollTo({
+        top: 0,
+        behavior: reduceMotion ? "auto" : "smooth",
+      });
+    });
+
+    updateVisibility();
+  }
 
   async function initializeBoard() {
     const businessAccessPromise = board.canUseBusinessBoard().then((allowed) => {
@@ -547,5 +637,7 @@
   window.addEventListener("pageshow", (event) => {
     if (event.persisted) loadBoardContent();
   });
+
+  initializeScrollTopButton();
   initializeBoard();
 })();
