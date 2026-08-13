@@ -6,8 +6,10 @@ import com.example.backend.board.dto.response.PostDetailResponse;
 import com.example.backend.board.dto.response.PostLikeResponse;
 import com.example.backend.board.dto.response.PostListItemResponse;
 import com.example.backend.board.dto.response.PostPageResponse;
+import com.example.backend.board.exception.BoardException;
 import com.example.backend.board.service.PostService;
 import com.example.backend.global.response.ApiResponse;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
@@ -30,6 +32,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 
@@ -292,16 +295,26 @@ public class PostController {
                     value = HttpHeaders.CONTENT_TYPE,
                     required = false
             ) String contentType,
-            @RequestBody byte[] mediaData,
+            HttpServletRequest request,
             Authentication authentication
     ) {
-        PostDetailResponse.MediaResponse media = postService.uploadMedia(
-                postId,
-                encodedFileName,
-                contentType,
-                mediaData,
-                BoardAuthentication.accountId(authentication)
-        );
+        PostDetailResponse.MediaResponse media;
+        try {
+            media = postService.uploadMedia(
+                    postId,
+                    encodedFileName,
+                    contentType,
+                    request.getInputStream(),
+                    request.getContentLengthLong(),
+                    BoardAuthentication.accountId(authentication)
+            );
+        } catch (IOException exception) {
+            throw new BoardException(
+                    HttpStatus.BAD_REQUEST,
+                    "BOARD_MEDIA_READ_FAILED",
+                    "첨부파일 전송 데이터를 읽지 못했습니다."
+            );
+        }
         return ApiResponse.success(
                 "PROCESSING".equals(media.processingStatus())
                         ? "동영상 전송이 완료되어 서버 처리를 시작했습니다."

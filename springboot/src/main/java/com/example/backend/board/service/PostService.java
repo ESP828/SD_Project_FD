@@ -25,6 +25,7 @@ import com.example.backend.board.repository.PostRepository;
 import jakarta.annotation.PreDestroy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -32,12 +33,15 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -159,6 +163,7 @@ public class PostService {
     private final BoardAccessPolicy accessPolicy;
     private final BoardResponseMapper responseMapper;
     private final BoardReferenceQueryRepository referenceRepository;
+    private TransactionTemplate mediaTransactionTemplate;
 
     @Value("${board.best-window-days:30}")
     private int bestWindowDays = 30;
@@ -181,6 +186,15 @@ public class PostService {
         this.referenceRepository = referenceRepository;
     }
 
+    @Autowired
+    void configureMediaTransactionTemplate(
+            PlatformTransactionManager transactionManager
+    ) {
+        this.mediaTransactionTemplate = new TransactionTemplate(
+                transactionManager
+        );
+    }
+
     @PreDestroy
     public void stopVideoProcessor() {
         videoProcessingExecutor.shutdownNow();
@@ -198,7 +212,7 @@ public class PostService {
                 activeVideoProcessingSources
         );
         interruptedMedia.keySet().forEach(this::markStoppedVideoAsFailed);
-        interruptedMedia.values().forEach(this::deleteStagedVideoQuietly);
+        interruptedMedia.values().forEach(this::deleteStagedMediaQuietly);
         activeVideoProcessingSources.clear();
     }
 
@@ -820,53 +834,110 @@ public class PostService {
         postRepository.delete(post);
     }
 
-    @Transactional
     public PostDetailResponse.MediaResponse uploadMedia(
             Long postId,
             String encodedOriginalName,
             String declaredContentType,
-            byte[] mediaData,
+            InputStream mediaData,
+            long declaredContentLength,
+            Long currentAccountId
+    ) {
+        TransactionTemplate transactionTemplate =
+                requireMediaTransactionTemplate();
+        transactionTemplate.executeWithoutResult(status ->
+                preflightMediaUpload(postId, currentAccountId)
+        );
+
+        String originalName = normalizeOriginalName(encodedOriginalName);
+        MediaTypeInfo mediaType = resolveMediaType(
+                originalName,
+                declaredContentType
+        );
+        long maximumBytes = mediaType.image()
+                ? MAX_IMAGE_BYTES
+                : MAX_VIDEO_BYTES;
+        validateDeclaredMediaLength(
+                declaredContentLength,
+                maximumBytes,
+                mediaType.image()
+        );
+
+        StagedMedia stagedMedia = stageMediaUpload(
+                mediaData,
+                maximumBytes,
+                mediaType.image()
+        );
+        boolean handedOffToVideoProcessor = false;
+        try {
+            validateMediaSignature(originalName, stagedMedia.path());
+            PostDetailResponse.MediaResponse response =
+                    transactionTemplate.execute(status -> persistStagedMedia(
+                            postId,
+                            originalName,
+                            mediaType,
+                            stagedMedia,
+                            currentAccountId
+                    ));
+            if (response == null) {
+                throw new IllegalStateException(
+                        "게시판 미디어 저장 결과를 생성하지 못했습니다."
+                );
+            }
+            handedOffToVideoProcessor = !mediaType.image();
+            return response;
+        } finally {
+            if (!handedOffToVideoProcessor) {
+                deleteStagedMediaQuietly(stagedMedia.path());
+            }
+        }
+    }
+
+    private void preflightMediaUpload(
+            Long postId,
+            Long currentAccountId
+    ) {
+        Account currentAccount = boardUserService.require(currentAccountId);
+        Post post = getExistingActivePost(postId);
+        assertCanManageMedia(post, currentAccount);
+        if (referenceRepository.countPostMedia(postId) >= MAX_MEDIA_COUNT) {
+            throw tooManyMedia();
+        }
+    }
+
+    private PostDetailResponse.MediaResponse persistStagedMedia(
+            Long postId,
+            String originalName,
+            MediaTypeInfo mediaType,
+            StagedMedia stagedMedia,
             Long currentAccountId
     ) {
         Account currentAccount = boardUserService.require(currentAccountId);
         Post post = getExistingActivePostForUpdate(postId);
         assertCanManageMedia(post, currentAccount);
 
-        if (mediaData == null || mediaData.length == 0) {
-            throw badRequest("비어 있는 파일은 첨부할 수 없습니다.");
-        }
         if (referenceRepository.countPostMedia(postId) >= MAX_MEDIA_COUNT) {
-            throw badRequest(
-                    "게시글에는 사진과 동영상을 합해 최대 "
-                            + MAX_MEDIA_COUNT + "개까지 첨부할 수 있습니다."
-            );
-        }
-
-        String originalName = normalizeOriginalName(encodedOriginalName);
-        MediaTypeInfo mediaType = detectMediaType(
-                originalName,
-                declaredContentType,
-                mediaData
-        );
-        if (mediaType.image() && mediaData.length > MAX_IMAGE_BYTES) {
-            throw badRequest("사진은 한 파일당 20MB 이하만 첨부할 수 있습니다.");
-        }
-        if (!mediaType.image() && mediaData.length > MAX_VIDEO_BYTES) {
-            throw badRequest("동영상은 한 파일당 100MB 이하만 첨부할 수 있습니다.");
+            throw tooManyMedia();
         }
 
         int displayOrder = referenceRepository.nextPostMediaDisplayOrder(postId);
         Long postMediaId;
         if (mediaType.image()) {
-            postMediaId = referenceRepository.savePostMedia(
-                    postId,
-                    mediaType.databaseType(),
-                    mediaType.mimeType(),
-                    originalName,
-                    mediaData.length,
-                    displayOrder,
-                    mediaData
-            );
+            try (InputStream inputStream =
+                         Files.newInputStream(stagedMedia.path())) {
+                postMediaId = referenceRepository.savePostMedia(
+                        postId,
+                        mediaType.databaseType(),
+                        mediaType.mimeType(),
+                        originalName,
+                        stagedMedia.fileSize(),
+                        displayOrder,
+                        inputStream
+                );
+            } catch (IOException exception) {
+                throw mediaStagingFailed(
+                        "사진을 서버 저장용 파일에서 읽지 못했습니다."
+                );
+            }
         } else {
             if (!videoProcessingSlots.tryAcquire()) {
                 throw new BoardException(
@@ -875,33 +946,31 @@ public class PostService {
                         "동영상 처리 요청이 많습니다. 잠시 후 다시 시도해 주세요."
                 );
             }
-            Path stagedVideo = null;
             Long processingMediaId = null;
             try {
-                stagedVideo = stageVideoMedia(mediaData);
                 processingMediaId =
                         referenceRepository.createProcessingPostMedia(
                                 postId,
                                 mediaType.databaseType(),
                                 mediaType.mimeType(),
                                 originalName,
-                                mediaData.length,
+                                stagedMedia.fileSize(),
                                 displayOrder
                         );
                 postMediaId = processingMediaId;
                 scheduleVideoProcessingAfterTransaction(
                         postMediaId,
-                        mediaData.length,
-                        stagedVideo
+                        stagedMedia.fileSize(),
+                        stagedMedia.path()
                 );
             } catch (RuntimeException exception) {
                 if (processingMediaId != null) {
                     activeVideoProcessingSources.remove(
                             processingMediaId,
-                            stagedVideo
+                            stagedMedia.path()
                     );
                 }
-                deleteStagedVideoQuietly(stagedVideo);
+                deleteStagedMediaQuietly(stagedMedia.path());
                 videoProcessingSlots.release();
                 throw exception;
             }
@@ -915,7 +984,7 @@ public class PostService {
                         : null,
                 mediaType.mimeType(),
                 originalName,
-                mediaData.length,
+                stagedMedia.fileSize(),
                 displayOrder,
                 mediaType.image() ? "READY" : "PROCESSING",
                 mediaType.image() ? 100 : 0,
@@ -939,26 +1008,89 @@ public class PostService {
         );
     }
 
-    private Path stageVideoMedia(byte[] mediaData) {
-        Path stagedVideo = null;
+    private StagedMedia stageMediaUpload(
+            InputStream mediaData,
+            long maximumBytes,
+            boolean image
+    ) {
+        if (mediaData == null) {
+            throw badRequest("비어 있는 파일은 첨부할 수 없습니다.");
+        }
+
+        Path stagedMedia = null;
+        long fileSize = 0;
         try {
-            stagedVideo = Files.createTempFile(
-                    "fooduck-board-video-",
+            stagedMedia = Files.createTempFile(
+                    "fooduck-board-media-",
                     ".upload"
             );
-            Files.write(stagedVideo, mediaData);
-            if (Files.size(stagedVideo) != mediaData.length) {
-                throw new IOException("임시 동영상 크기가 일치하지 않습니다.");
+            try (OutputStream outputStream = Files.newOutputStream(stagedMedia)) {
+                byte[] buffer = new byte[64 * 1024];
+                int read;
+                while ((read = mediaData.read(buffer)) != -1) {
+                    if (fileSize + read > maximumBytes) {
+                        throw mediaTooLarge(image);
+                    }
+                    outputStream.write(buffer, 0, read);
+                    fileSize += read;
+                }
             }
-            return stagedVideo;
+            if (fileSize == 0) {
+                throw badRequest("비어 있는 파일은 첨부할 수 없습니다.");
+            }
+            return new StagedMedia(stagedMedia, fileSize);
+        } catch (BoardException exception) {
+            deleteStagedMediaQuietly(stagedMedia);
+            throw exception;
         } catch (IOException exception) {
-            deleteStagedVideoQuietly(stagedVideo);
-            throw new BoardException(
-                    HttpStatus.INTERNAL_SERVER_ERROR,
-                    "BOARD_MEDIA_STAGING_FAILED",
-                    "동영상을 서버 처리용 파일로 준비하지 못했습니다."
+            deleteStagedMediaQuietly(stagedMedia);
+            throw mediaStagingFailed(
+                    "첨부파일을 서버 처리용 파일로 준비하지 못했습니다."
             );
         }
+    }
+
+    private void validateDeclaredMediaLength(
+            long declaredContentLength,
+            long maximumBytes,
+            boolean image
+    ) {
+        if (declaredContentLength == 0) {
+            throw badRequest("비어 있는 파일은 첨부할 수 없습니다.");
+        }
+        if (declaredContentLength > maximumBytes) {
+            throw mediaTooLarge(image);
+        }
+    }
+
+    private void validateMediaSignature(
+            String originalName,
+            Path stagedMedia
+    ) {
+        byte[] signature;
+        try (InputStream inputStream = Files.newInputStream(stagedMedia)) {
+            signature = inputStream.readNBytes(64);
+        } catch (IOException exception) {
+            throw mediaStagingFailed(
+                    "첨부파일 형식을 확인하지 못했습니다."
+            );
+        }
+
+        String extension = findExtension(originalName);
+        if (!matchesFileSignature(extension, signature)) {
+            throw badRequest(
+                    "파일 확장자와 실제 파일 형식이 일치하지 않습니다."
+            );
+        }
+    }
+
+    private TransactionTemplate requireMediaTransactionTemplate() {
+        if (mediaTransactionTemplate == null) {
+            throw new IllegalStateException(
+                    "게시판 미디어 트랜잭션이 초기화되지 않았습니다."
+            );
+        }
+        return mediaTransactionTemplate;
     }
 
     private void scheduleVideoProcessingAfterTransaction(
@@ -981,7 +1113,7 @@ public class PostService {
                         postMediaId,
                         stagedVideo
                 );
-                deleteStagedVideoQuietly(stagedVideo);
+                deleteStagedMediaQuietly(stagedVideo);
                 markVideoProcessingFailed(postMediaId, exception);
                 videoProcessingSlots.release();
             }
@@ -1007,7 +1139,7 @@ public class PostService {
                                     postMediaId,
                                     stagedVideo
                             );
-                            deleteStagedVideoQuietly(stagedVideo);
+                            deleteStagedMediaQuietly(stagedVideo);
                             videoProcessingSlots.release();
                         }
                     }
@@ -1030,7 +1162,7 @@ public class PostService {
             markVideoProcessingFailed(postMediaId, exception);
         } finally {
             activeVideoProcessingSources.remove(postMediaId, stagedVideo);
-            deleteStagedVideoQuietly(stagedVideo);
+            deleteStagedMediaQuietly(stagedVideo);
             videoProcessingSlots.release();
         }
     }
@@ -1068,16 +1200,16 @@ public class PostService {
         }
     }
 
-    private void deleteStagedVideoQuietly(Path stagedVideo) {
-        if (stagedVideo == null) {
+    private void deleteStagedMediaQuietly(Path stagedMedia) {
+        if (stagedMedia == null) {
             return;
         }
         try {
-            Files.deleteIfExists(stagedVideo);
+            Files.deleteIfExists(stagedMedia);
         } catch (IOException exception) {
             LOGGER.warn(
-                    "게시판 동영상 임시 파일을 삭제하지 못했습니다. path={}",
-                    stagedVideo,
+                    "게시판 미디어 임시 파일을 삭제하지 못했습니다. path={}",
+                    stagedMedia,
                     exception
             );
         }
@@ -1424,10 +1556,9 @@ public class PostService {
         return fileName;
     }
 
-    private MediaTypeInfo detectMediaType(
+    private MediaTypeInfo resolveMediaType(
             String originalName,
-            String declaredContentType,
-            byte[] data
+            String declaredContentType
     ) {
         String extension = findExtension(originalName);
         String mimeType = MEDIA_MIME_TYPES.get(extension);
@@ -1440,11 +1571,6 @@ public class PostService {
         boolean image = IMAGE_EXTENSIONS.contains(extension);
         if (!image && !VIDEO_EXTENSIONS.contains(extension)) {
             throw badRequest("지원하지 않는 첨부파일 형식입니다.");
-        }
-        if (!matchesFileSignature(extension, data)) {
-            throw badRequest(
-                    "파일 확장자와 실제 파일 형식이 일치하지 않습니다."
-            );
         }
 
         String normalizedDeclaredType = normalizeContentType(declaredContentType);
@@ -1829,6 +1955,29 @@ public class PostService {
         );
     }
 
+    private BoardException tooManyMedia() {
+        return badRequest(
+                "게시글에는 사진과 동영상을 합해 최대 "
+                        + MAX_MEDIA_COUNT + "개까지 첨부할 수 있습니다."
+        );
+    }
+
+    private BoardException mediaTooLarge(boolean image) {
+        return badRequest(
+                image
+                        ? "사진은 한 파일당 20MB 이하만 첨부할 수 있습니다."
+                        : "동영상은 한 파일당 100MB 이하만 첨부할 수 있습니다."
+        );
+    }
+
+    private BoardException mediaStagingFailed(String message) {
+        return new BoardException(
+                HttpStatus.INTERNAL_SERVER_ERROR,
+                "BOARD_MEDIA_STAGING_FAILED",
+                message
+        );
+    }
+
     private BoardException publicRestaurantNotFound() {
         return new BoardException(
                 HttpStatus.NOT_FOUND,
@@ -1859,6 +2008,12 @@ public class PostService {
                 "BOARD_POST_NOT_FOUND",
                 message
         );
+    }
+
+    private record StagedMedia(
+            Path path,
+            long fileSize
+    ) {
     }
 
     private record MediaTypeInfo(

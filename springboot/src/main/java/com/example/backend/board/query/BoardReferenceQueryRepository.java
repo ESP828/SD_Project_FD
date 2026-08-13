@@ -466,6 +466,28 @@ public class BoardReferenceQueryRepository {
         return postMediaId;
     }
 
+    public Long savePostMedia(
+            Long postId,
+            String mediaType,
+            String mimeType,
+            String originalName,
+            long fileSize,
+            int displayOrder,
+            InputStream mediaData
+    ) throws IOException {
+        Long postMediaId = insertPostMedia(
+                postId,
+                mediaType,
+                "db:pending",
+                mimeType,
+                originalName,
+                fileSize,
+                displayOrder
+        );
+        storePostMediaData(postMediaId, fileSize, mediaData);
+        return postMediaId;
+    }
+
     public Long createProcessingPostMedia(
             Long postId,
             String mediaType,
