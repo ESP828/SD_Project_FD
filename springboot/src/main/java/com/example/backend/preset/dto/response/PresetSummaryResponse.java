@@ -13,6 +13,7 @@ public record PresetSummaryResponse(
         long restaurantCount,
         long favoriteCount,
         boolean favoriteByCurrentUser,
+        boolean isOwner,
         LocalDateTime createdAt,
         List<PresetTagResponse> tags,
         List<String> thumbnailImageUrls
