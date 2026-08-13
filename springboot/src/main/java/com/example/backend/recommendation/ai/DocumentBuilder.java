@@ -4,6 +4,7 @@ import com.example.backend.restaurant.domain.entity.PublicRestaurant;
 import org.springframework.stereotype.Component;
 
 import java.util.*;
+import java.util.stream.Stream;
 
 
 @Component
@@ -77,11 +78,13 @@ public class DocumentBuilder {
         PublicRestaurant restaurant
 ){
 
-    List<String> categories = List.of(
+List<String> categories = Stream.of(
             restaurant.getCategoryLargeName(),
             restaurant.getCategoryMediumName(),
             restaurant.getCategorySmallName()
-    );
+        )
+        .filter(Objects::nonNull)
+        .toList();
 
 
     categories.forEach(category -> {
