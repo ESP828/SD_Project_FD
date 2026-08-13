@@ -725,17 +725,6 @@
   color: var(--color-orange-dark);
 }
 
-.preset-card-description {
-  display: -webkit-box;
-  overflow: hidden;
-  margin: 0 0 14px;
-  color: var(--color-muted);
-  font-size: 0.86rem;
-  line-height: 1.55;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-}
-
 .preset-tag-list {
   display: flex;
   flex-wrap: wrap;

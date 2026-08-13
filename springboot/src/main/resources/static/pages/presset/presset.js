@@ -53,19 +53,6 @@
     return group;
   }
 
-  function createCardDescription(preset) {
-    const tagNames = (preset.tags || [])
-      .map((tag) => tag.tagName)
-      .filter(Boolean)
-      .slice(0, 2);
-    const categoryNames = parseCategoryTokens(preset.category).slice(0, 2);
-    const keywords = tagNames.length ? tagNames : categoryNames;
-    if (keywords.length) {
-      return `${keywords.join(" · ")}에 어울리는 맛집을 한곳에 모았습니다.`;
-    }
-    return "상황과 취향에 맞는 맛집을 편하게 둘러보세요.";
-  }
-
   function detailPath(presetId) {
     return `/pages/presset/detail.html?presetId=${encodeURIComponent(presetId)}`;
   }
@@ -171,8 +158,6 @@
     const titleLink = element("a", "preset-card-title", preset.title || "이름 없는 보물지도");
     titleLink.href = detailPath(preset.presetId);
     body.append(titleLink);
-    body.append(element("p", "preset-card-description", createCardDescription(preset)));
-
     const tags = element("div", "preset-tag-list");
     (preset.tags || []).forEach((tag) => tags.append(element("span", "preset-tag", `#${tag.tagName}`)));
     if (tags.childElementCount) body.append(tags);
