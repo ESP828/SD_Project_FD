@@ -381,8 +381,8 @@
       const add = document.createElement("button");
       add.className = "place-result-link place-result-add";
       add.type = "button";
-      add.setAttribute("aria-label", `${place.place_name} presset에 추가`);
-      add.innerHTML = '<span class="material-symbols-rounded" aria-hidden="true">add</span> 프리셋에 추가';
+      add.setAttribute("aria-label", `${place.place_name} 보물지도에 추가`);
+      add.innerHTML = '<span class="material-symbols-rounded" aria-hidden="true">add</span> 보물지도에 추가';
       add.addEventListener("click", (event) => {
         event.stopPropagation();
         addToPreset(add, place);
@@ -490,21 +490,21 @@
     const response = await Api.get(`/presets/${presetId}/map-restaurants`);
     const data = response.data || {};
     presetItems = (data.restaurants || []).map(toPresetPlace);
-    pageTitle.textContent = editMode ? `${data.title || "Presset"} 맛집 관리` : (data.title || "Presset 지도");
-    document.title = `${data.title || "Presset"} 지도 · 푸드덕`;
+    pageTitle.textContent = editMode ? `${data.title || "보물지도"} 맛집 관리` : (data.title || "보물지도");
+    document.title = `${data.title || "보물지도"} 지도 · 푸드덕`;
     return data;
   }
 
   async function loadPreset() {
     if (!Number.isSafeInteger(presetId) || presetId <= 0) {
-      setResultsState(0, "Presset 지도");
-      renderEmptyResults("올바른 presetId가 필요합니다. Presset 상세에서 지도 보기를 이용해 주세요.");
+      setResultsState(0, "보물지도");
+      renderEmptyResults("올바른 presetId가 필요합니다. 보물지도 상세에서 지도 보기를 이용해 주세요.");
       setMapStatus("올바른 presetId가 필요합니다.", true);
       return;
     }
     const data = await fetchPresetData();
     renderPresetFilters();
-    renderItems(presetItems, data.title || "Presset 지도", true, "preset");
+    renderItems(presetItems, data.title || "보물지도", true, "preset");
     const missing = presetItems.filter((item) => !item.coordinateAvailable).length;
     setMapStatus(`${presetItems.length}곳 중 ${presetItems.length - missing}곳을 지도에 표시했습니다.${missing ? ` 좌표 미등록 ${missing}곳` : ""}`);
     if (Number.isSafeInteger(requestedRestaurantId) && requestedRestaurantId > 0) {

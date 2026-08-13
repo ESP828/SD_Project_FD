@@ -80,7 +80,7 @@
     const image = new Image();
     image.className = className;
     image.src = source;
-    image.alt = `${title || "Presset"} 대표 이미지`;
+    image.alt = `${title || "보물지도"} 대표 이미지`;
     image.loading = "lazy";
     image.addEventListener("error", () => {
       image.replaceWith(imagePlaceholder(placeholderClassName));
@@ -123,7 +123,7 @@
       preset.favoriteCount = Number(payload.data?.favoriteCount) || 0;
       button.classList.toggle("is-active", preset.favoriteByCurrentUser);
       button.setAttribute("aria-pressed", String(preset.favoriteByCurrentUser));
-      button.setAttribute("aria-label", preset.favoriteByCurrentUser ? "Presset 찜 해제" : "Presset 찜");
+      button.setAttribute("aria-label", preset.favoriteByCurrentUser ? "보물지도 찜 해제" : "보물지도 찜");
       button.textContent = preset.favoriteByCurrentUser ? "♥" : "♡";
       button.closest(".preset-card")?.querySelector("[data-favorite-count]")
         ?.replaceChildren(document.createTextNode(`저장 ${preset.favoriteCount}`));
@@ -138,7 +138,7 @@
     const card = element("article", "preset-card");
     const visualLink = element("a", "preset-card-visual");
     visualLink.href = detailPath(preset.presetId);
-    visualLink.setAttribute("aria-label", `${preset.title || "Presset"} 상세 보기`);
+    visualLink.setAttribute("aria-label", `${preset.title || "보물지도"} 상세 보기`);
     if (preset.imageUrl) {
       visualLink.append(safeImage(
         preset.imageUrl,
@@ -158,7 +158,7 @@
     favorite.type = "button";
     favorite.classList.toggle("is-active", preset.favoriteByCurrentUser);
     favorite.setAttribute("aria-pressed", String(Boolean(preset.favoriteByCurrentUser)));
-    favorite.setAttribute("aria-label", preset.favoriteByCurrentUser ? "Presset 찜 해제" : "Presset 찜");
+    favorite.setAttribute("aria-label", preset.favoriteByCurrentUser ? "보물지도 찜 해제" : "보물지도 찜");
     favorite.addEventListener("click", (event) => {
       event.preventDefault();
       event.stopPropagation();
@@ -168,7 +168,7 @@
 
     const body = element("div", "preset-card-body");
     body.append(createCategoryBadges(preset.category));
-    const titleLink = element("a", "preset-card-title", preset.title || "이름 없는 Presset");
+    const titleLink = element("a", "preset-card-title", preset.title || "이름 없는 보물지도");
     titleLink.href = detailPath(preset.presetId);
     body.append(titleLink);
     body.append(element("p", "preset-card-description", createCardDescription(preset)));
@@ -250,7 +250,7 @@
     list.classList.toggle("preset-list--state", presets.length === 0);
     if (!presets.length) {
       const empty = element("div", "preset-state preset-state--surface");
-      empty.append(element("h3", "", "조건에 맞는 Presset이 없습니다."), element("p", "", "다른 태그나 검색어를 선택해 보세요."));
+      empty.append(element("h3", "", "조건에 맞는 보물지도가 없습니다."), element("p", "", "다른 태그나 검색어를 선택해 보세요."));
       list.append(empty);
     } else {
       const base = (pageData.number || pageData.page || 0) * (pageData.size || state.size || presets.length);
@@ -267,7 +267,7 @@
     retry.type = "button";
     retry.addEventListener("click", loadPresets);
     const box = element("div", "preset-state preset-state--surface");
-    box.append(element("h3", "", "Presset을 불러오지 못했습니다."), element("p", "", error.message), retry);
+    box.append(element("h3", "", "보물지도를 불러오지 못했습니다."), element("p", "", error.message), retry);
     list.append(box);
   }
 

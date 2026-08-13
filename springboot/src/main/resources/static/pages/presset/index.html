@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="상황과 취향에 맞춰 골라 보는 푸드덕 맛집 프리셋">
-  <title>Presset · 푸드덕</title>
+  <meta name="description" content="상황과 취향에 맞춰 골라 보는 푸드덕 맛집 보물지도">
+  <title>보물지도 · 푸드덕</title>
   <link rel="icon" href="/images/favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/css/common.css">
   <link rel="stylesheet" href="/pages/presset/presset.css">
@@ -16,18 +16,15 @@
     <section class="preset-hero">
       <div class="container preset-hero-grid">
         <div>
-          <p class="eyebrow">PRESSET COLLECTIONS</p>
-          <h1>지금 어울리는<br>맛집 모음</h1>
-          <p class="preset-hero-copy">
-            상황과 취향에 딱 맞는 프리셋을 검색하고, 오늘의 맛집 고민을 가볍게 해결해보세요.
-          </p>
+          <p class="eyebrow">treasuremap collections</p>
+          <h1>나의 취향을<br>선택해놓은 맛집</h1>
           <div class="preset-hero-actions">
             <a class="button button-primary" href="#preset-collection">모음 둘러보기</a>
             <a
               class="button button-secondary"
               href="/pages/presset/register.html"
               data-preset-register-link
-            >프리셋 등록</a>
+            >보물지도 등록</a>
           </div>
         </div>
         <img src="/images/characters/cooking.png" alt="" aria-hidden="true">
@@ -38,15 +35,15 @@
       <div class="preset-section-heading">
         <div>
           <p class="eyebrow">CURATED FOR YOU</p>
-          <h2>취향별 Presset을 둘러보세요</h2>
-          <p id="preset-count" class="muted">프리셋을 불러오고 있습니다.</p>
+          <h2>취향별 보물지도를 둘러보세요</h2>
+          <p id="preset-count" class="muted">보물지도를 불러오고 있습니다.</p>
         </div>
       </div>
 
       <div id="preset-search-panel" class="preset-discovery-panel surface-card">
         <div class="preset-discovery-main">
           <form id="preset-search-form" class="preset-search" role="search">
-            <label class="sr-only" for="preset-keyword">Presset 검색</label>
+            <label class="sr-only" for="preset-keyword">보물지도 검색</label>
             <div class="preset-search-field">
               <span class="preset-search-icon" aria-hidden="true">
                 <svg viewBox="0 0 24 24" focusable="false">
@@ -58,13 +55,13 @@
                 id="preset-keyword"
                 type="search"
                 maxlength="100"
-                placeholder="지역, 상황, 키워드로 프리셋 검색"
+                placeholder="지역, 상황, 키워드로 보물지도 검색"
               >
             </div>
             <button class="button button-primary preset-search-submit" type="submit">검색</button>
           </form>
 
-          <div class="preset-toolbar-actions" aria-label="Presset 보기 옵션">
+          <div class="preset-toolbar-actions" aria-label="보물지도 보기 옵션">
             <label class="preset-sort-label" for="preset-sort">
               <span>정렬</span>
               <select id="preset-sort">
@@ -87,7 +84,7 @@
         </div>
 
         <div id="preset-filter-panel" class="preset-filter-panel">
-          <div id="preset-filters" class="preset-filters preset-filters--wide" aria-label="상황별 Presset 필터"></div>
+          <div id="preset-filters" class="preset-filters preset-filters--wide" aria-label="상황별 보물지도 필터"></div>
         </div>
       </div>
 
@@ -103,7 +100,7 @@
           <strong>맛집 모음을 준비하고 있습니다.</strong>
         </div>
       </div>
-      <nav id="preset-pagination" class="preset-pagination" aria-label="Presset 페이지"></nav>
+      <nav id="preset-pagination" class="preset-pagination" aria-label="보물지도 페이지"></nav>
     </section>
   </main>
 

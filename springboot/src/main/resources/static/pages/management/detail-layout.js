@@ -97,7 +97,7 @@
         ["applications", "사업자 신청", "/pages/admin/business-applications.html", "pendingBusinessApplicationCount"],
         ["restaurants", "음식점 관리", "/pages/admin/restaurants.html", "activeRestaurantCount"],
         ["community", "커뮤니티 관리", "/pages/admin/community.html", "communityPostCount"],
-        ["presets", "Preset 관리", "/pages/admin/presets.html", "activePresetCount"],
+        ["presets", "보물지도 관리", "/pages/admin/presets.html", "activePresetCount"],
       ],
     },
   };

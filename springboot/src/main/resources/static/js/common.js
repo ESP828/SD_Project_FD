@@ -399,7 +399,7 @@
         protectedRecommendation: true,
       },
       { id: "board", label: "커뮤니티", href: "/pages/board/index.html" },
-      { id: "presset", label: "preset", href: "/pages/presset/index.html" },
+      { id: "presset", label: "보물지도", href: "/pages/presset/index.html" },
     ];
 
     const nav = items.map((item) => {

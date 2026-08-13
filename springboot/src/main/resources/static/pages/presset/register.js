@@ -156,7 +156,7 @@
       return "로그인이 필요합니다. 로그인 후 다시 시도해 주세요.";
     }
     if (error.status === 403) {
-      return "프리셋을 등록할 권한이 없습니다.";
+      return "보물지도를 등록할 권한이 없습니다.";
     }
     if (error.status >= 500) {
       return "서버에서 저장하지 못했습니다. 잠시 후 다시 시도해 주세요.";
@@ -245,7 +245,7 @@
       try {
         sessionStorage.setItem(
           createdMessageKey,
-          response.message || "프리셋이 등록되었습니다.",
+          response.message || "보물지도가 등록되었습니다.",
         );
       } catch (_error) {
         // 성공 안내를 저장하지 못해도 이미 완료된 등록과 목록 이동은 유지한다.

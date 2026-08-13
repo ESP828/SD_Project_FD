@@ -51,7 +51,7 @@
     const body = document.createElement("div");
     body.className = "home-preset-body";
     const title = document.createElement("h3");
-    title.textContent = preset.title || "맛집 Presset";
+    title.textContent = preset.title || "맛집 보물지도";
     body.append(title);
 
     if (Array.isArray(preset.tags) && preset.tags.length) {
@@ -72,7 +72,7 @@
 
     const cta = document.createElement("span");
     cta.className = "home-preset-cta";
-    cta.textContent = "presset 보러가기 →";
+    cta.textContent = "보물지도 보러가기 →";
     body.append(cta);
 
     link.append(body);
@@ -87,7 +87,7 @@
       if (!presets.length) {
         const state = document.createElement("p");
         state.className = "home-preset-state";
-        state.textContent = "현재 공개된 Presset이 없습니다.";
+        state.textContent = "현재 공개된 보물지도가 없습니다.";
         list.append(state);
         return;
       }
@@ -96,6 +96,6 @@
     })
     .catch(() => {
       list.setAttribute("aria-busy", "false");
-      list.innerHTML = '<p class="home-preset-state">인기 Presset을 불러오지 못했습니다.</p>';
+      list.innerHTML = '<p class="home-preset-state">인기 보물지도를 불러오지 못했습니다.</p>';
     });
 })();

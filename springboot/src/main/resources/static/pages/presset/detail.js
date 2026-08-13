@@ -75,11 +75,11 @@
 
   async function removeRestaurant(button, restaurant) {
     if (!requireLogin()) return;
-    if (!confirm(`${restaurant.name || "선택한 맛집"}을(를) 이 Presset에서 삭제할까요?`)) return;
+    if (!confirm(`${restaurant.name || "선택한 맛집"}을(를) 이 보물지도에서 삭제할까요?`)) return;
     button.disabled = true;
     try {
       const response = await Api.delete(`/presets/${requestedId}/restaurants/${restaurant.restaurantId}`);
-      restaurantStatusMessage = response.message || "Presset에서 맛집을 삭제했습니다.";
+      restaurantStatusMessage = response.message || "보물지도에서 맛집을 삭제했습니다.";
       restaurantStatusError = false;
       await reloadPreset();
     } catch (error) {
@@ -101,7 +101,7 @@
       preset.favoriteCount = Number(response.data?.favoriteCount) || 0;
       button.classList.toggle("is-active", preset.favoriteByCurrentUser);
       button.setAttribute("aria-pressed", String(preset.favoriteByCurrentUser));
-      button.textContent = preset.favoriteByCurrentUser ? "♥ 저장됨" : "♡ Presset 찜";
+      button.textContent = preset.favoriteByCurrentUser ? "♥ 저장됨" : "♡ 보물지도 찜";
       document.querySelector("[data-preset-favorite-count]").textContent = `저장 ${preset.favoriteCount.toLocaleString("ko-KR")}`;
     } catch (error) {
       alert(error.message);
@@ -150,7 +150,7 @@
       actions.append(element("span", "preset-coordinate-missing", "지도 위치 미등록"));
     }
     if (preset.isOwner) {
-      const remove = element("button", "button button-secondary preset-restaurant-remove", "Presset에서 삭제");
+      const remove = element("button", "button button-secondary preset-restaurant-remove", "보물지도에서 삭제");
       remove.type = "button";
       remove.addEventListener("click", () => removeRestaurant(remove, restaurant));
       actions.append(remove);
@@ -244,7 +244,7 @@
     publicInput.type = "checkbox";
     publicInput.name = "isPublic";
     publicInput.checked = data.isPublic !== false;
-    publicLabel.append(publicInput, element("span"), document.createTextNode("다른 사용자에게 이 프리셋 공개"));
+    publicLabel.append(publicInput, element("span"), document.createTextNode("다른 사용자에게 이 보물지도 공개"));
     publicField.append(publicLabel);
     grid.append(publicField);
 
@@ -288,7 +288,7 @@
     preset = data;
     content.replaceChildren();
     content.setAttribute("aria-busy", "false");
-    document.title = `${data.title || "Presset"} · 푸드덕`;
+    document.title = `${data.title || "보물지도"} · 푸드덕`;
     const breadcrumbTitle = document.getElementById("preset-breadcrumb-title");
     if (breadcrumbTitle) breadcrumbTitle.textContent = data.title || "상세";
 
@@ -296,11 +296,11 @@
     let visual = null;
     if (data.imageUrl) {
       visual = element("div", "preset-detail-visual");
-      visual.append(safeImage(data.imageUrl, `${data.title || "Presset"} 대표 이미지`, "preset-detail-image"));
+      visual.append(safeImage(data.imageUrl, `${data.title || "보물지도"} 대표 이미지`, "preset-detail-image"));
       hero.classList.add("preset-detail-hero--with-image");
     }
     const copy = element("div", "preset-detail-copy");
-    copy.append(element("h1", "", data.title || "맛집 Presset"), createCategoryBadges(data.category));
+    copy.append(element("h1", "", data.title || "맛집 보물지도"), createCategoryBadges(data.category));
     const tags = element("div", "preset-tag-list");
     (data.tags || []).forEach((tag) => tags.append(element("span", "preset-tag", `#${tag.tagName}`)));
     if (tags.childElementCount) copy.append(tags);
@@ -318,7 +318,8 @@
     copy.append(stats);
 
     const actions = element("div", "preset-detail-actions");
-    const favorite = element("button", "button preset-detail-favorite", data.favoriteByCurrentUser ? "♥ 저장됨" : "♡ Presset 찜");
+    const favorite = element("button", "button preset-detail-favorite", data.favoriteByCurrentUser ? "♥ 저장됨" : "♡ 보물지도 찜");
+
     favorite.type = "button";
     favorite.classList.toggle("is-active", data.favoriteByCurrentUser);
     favorite.setAttribute("aria-pressed", String(Boolean(data.favoriteByCurrentUser)));
@@ -327,7 +328,7 @@
     map.href = mapPath(undefined, data.isOwner);
     actions.append(favorite, map);
     if (data.isOwner) {
-      const edit = element("button", "button button-secondary", "Presset 수정하기");
+      const edit = element("button", "button button-secondary", "보물지도 수정하기");
       edit.type = "button";
       edit.addEventListener("click", () => toggleEditForm(hero));
       actions.append(edit);
@@ -339,7 +340,7 @@
 
     const section = element("section", "preset-restaurants");
     const heading = element("div", "section-header");
-    heading.append(element("h2", "", "이 Presset에 포함된 맛집"));
+    heading.append(element("h2", "", "이 보물지도에 포함된 맛집"));
     section.append(heading);
 
     const categories = ["전체", ...new Set((data.restaurants || []).map((restaurant) => restaurant.categoryName || "기타"))];
@@ -371,12 +372,12 @@
     const state = element("div", "preset-state preset-state--surface surface-card");
     const back = element("a", "button button-secondary", "목록으로 돌아가기");
     back.href = "/pages/presset/index.html";
-    state.append(element("h2", "", "Presset을 표시할 수 없습니다."), element("p", "", message), back);
+    state.append(element("h2", "", "보물지도를 표시할 수 없습니다."), element("p", "", message), back);
     content.append(state);
   }
 
   if (!Number.isSafeInteger(requestedId) || requestedId <= 0) {
-    renderError("올바른 Presset 번호가 필요합니다.");
+    renderError("올바른 보물지도 번호가 필요합니다.");
     return;
   }
   reloadPreset()
