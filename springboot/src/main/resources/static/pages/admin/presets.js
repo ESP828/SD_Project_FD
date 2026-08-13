@@ -19,7 +19,7 @@
 
   function openForm(preset) {
     editingId = preset?.presetId || null;
-    document.querySelector("#preset-dialog-title").textContent = editingId ? "Presset 수정" : "Presset 등록";
+    document.querySelector("#preset-dialog-title").textContent = editingId ? "보물지도 수정" : "보물지도 등록";
     form.elements.title.value = preset?.title || "";
     form.elements.category.value = preset?.category || "";
     form.elements.displayOrder.value = preset?.displayOrder ?? 0;
@@ -30,7 +30,7 @@
 
   function render() {
     if (!presets.length) {
-      body.innerHTML = '<tr><td colspan="7">등록된 Presset이 없습니다.</td></tr>';
+      body.innerHTML = '<tr><td colspan="7">등록된 보물지도가 없습니다.</td></tr>';
       return;
     }
     body.innerHTML = presets.map((preset) => `<tr>
@@ -60,7 +60,7 @@
     const edit = event.target.closest("[data-edit]");
     if (edit) openForm(presets.find((preset) => preset.presetId === Number(edit.dataset.edit)));
     const remove = event.target.closest("[data-delete]");
-    if (!remove || !confirm("이 Presset을 삭제 상태로 변경할까요?")) return;
+    if (!remove || !confirm("이 보물지도를 삭제 상태로 변경할까요?")) return;
     try { await Api.delete(`/admin/presets/${remove.dataset.delete}`); await load(); }
     catch (error) { alert(error.message); }
   });

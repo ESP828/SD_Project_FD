@@ -11,14 +11,14 @@
 
   const tabs = {
     presets: {
-      label: "프리셋 리스트",
-      title: "내가 만든 프리셋",
-      description: "현재 계정으로 만든 프리셋을 확인하고 수정할 수 있습니다.",
+      label: "보물지도 리스트",
+      title: "내가 만든 보물지도",
+      description: "현재 계정으로 만든 보물지도를 확인하고 수정할 수 있습니다.",
       endpoint: "/mypage/presets",
       countKey: "presetCount",
       emptyIcon: "bookmarks",
-      emptyTitle: "만든 프리셋이 없습니다.",
-      emptyCopy: "프리셋 페이지에서 나만의 맛집 목록을 만들어 보세요.",
+      emptyTitle: "만든 보물지도가 없습니다.",
+      emptyCopy: "보물지도 페이지에서 나만의 맛집 목록을 만들어 보세요.",
     },
     favorites: {
       label: "찜한 가게",
@@ -170,7 +170,7 @@
   function presetCard(item) {
     const card = element("article", "mypage-detail-card");
     const href = presetDetailPath(item.presetId);
-    card.append(createCardTop(item.title || "제목 없는 프리셋", item.category || "카테고리 없음", href));
+    card.append(createCardTop(item.title || "제목 없는 보물지도", item.category || "카테고리 없음", href));
 
     const meta = element("div", "mypage-detail-meta");
     meta.append(
