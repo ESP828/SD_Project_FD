@@ -2,6 +2,32 @@
   const list = document.querySelector("#home-preset-list");
   if (!list) return;
 
+  const prevButton = document.querySelector("#home-preset-prev");
+  const nextButton = document.querySelector("#home-preset-next");
+
+  function updateNavVisibility() {
+    if (!prevButton || !nextButton) return;
+    const maxScroll = list.scrollWidth - list.clientWidth;
+    if (maxScroll <= 4) {
+      prevButton.hidden = true;
+      nextButton.hidden = true;
+      return;
+    }
+    prevButton.hidden = list.scrollLeft <= 4;
+    nextButton.hidden = list.scrollLeft >= maxScroll - 4;
+  }
+
+  function scrollByCard(direction) {
+    const card = list.querySelector(".home-preset-card");
+    const step = card ? card.getBoundingClientRect().width + 20 : list.clientWidth;
+    list.scrollBy({ left: direction * step, behavior: "smooth" });
+  }
+
+  prevButton?.addEventListener("click", () => scrollByCard(-1));
+  nextButton?.addEventListener("click", () => scrollByCard(1));
+  list.addEventListener("scroll", updateNavVisibility, { passive: true });
+  window.addEventListener("resize", updateNavVisibility);
+
   function renderCard(preset, rank) {
     const link = document.createElement("a");
     link.className = "home-preset-card";
@@ -41,7 +67,7 @@
 
     const meta = document.createElement("span");
     meta.className = "home-preset-meta";
-    meta.textContent = `🍴 맛집 ${preset.restaurantCount || 0}곳 · 🔖 저장 ${preset.favoriteCount || 0}회`;
+    meta.textContent = `🍴 맛집 ${preset.restaurantCount || 0}곳`;
     body.append(meta);
 
     const cta = document.createElement("span");
@@ -66,6 +92,7 @@
         return;
       }
       presets.forEach((preset, index) => list.append(renderCard(preset, index + 1)));
+      window.requestAnimationFrame(updateNavVisibility);
     })
     .catch(() => {
       list.setAttribute("aria-busy", "false");
