@@ -32,6 +32,7 @@ public class PresetQueryRepository {
                    p.view_count,
                    p.display_order,
                    p.created_at,
+                   p.account_id,
                    pi.stored_filename,
                    count(distinct pr.preset_restaurant_id) as restaurant_count,
                    (select count(*) from preset_favorite pf_count
@@ -69,7 +70,7 @@ public class PresetQueryRepository {
 
     private static final String LIST_GROUP = """
              group by p.preset_id, p.title, p.category,
-                      p.view_count, p.display_order, p.created_at, pi.stored_filename
+                      p.view_count, p.display_order, p.created_at, p.account_id, pi.stored_filename
             """;
 
     private static final String COUNT_SQL = """
@@ -99,6 +100,7 @@ public class PresetQueryRepository {
                    p.category,
                    p.view_count,
                    p.created_at,
+                   p.is_public,
                    pi.stored_filename,
                    (select count(*) from preset_favorite pf_count
                      where pf_count.preset_id = p.preset_id) as favorite_count,
@@ -383,22 +385,19 @@ public class PresetQueryRepository {
         String sql = LIST_SELECT + ACTIVE_FILTER + LIST_GROUP
                 + orderBy(sort) + " limit :size offset :offset";
         List<PresetSummaryRow> rows = jdbcTemplate.query(sql, parameters, this::mapSummaryRow);
-        return enrichSummaries(rows);
+        return enrichSummaries(rows, accountId);
     }
 
-    public List<PresetSummaryResponse> findSavedByAccount(Long accountId) {
+    public List<PresetSummaryResponse> findCreatedByAccount(Long accountId) {
         MapSqlParameterSource parameters = new MapSqlParameterSource("accountId", accountId);
         String sql = LIST_SELECT + """
-                 join preset_favorite pf_saved
-                   on pf_saved.preset_id = p.preset_id
-                  and pf_saved.account_id = :accountId
                  where p.status = 'ACTIVE'
-                   and (coalesce(p.is_public, true) = true or p.account_id = :accountId)
+                   and p.account_id = :accountId
                  group by p.preset_id, p.title, p.category,
-                          p.view_count, p.display_order, p.created_at, pi.stored_filename, pf_saved.created_at
-                 order by pf_saved.created_at desc, p.preset_id desc
+                          p.view_count, p.display_order, p.created_at, p.account_id, pi.stored_filename
+                 order by p.created_at desc, p.preset_id desc
                 """;
-        return enrichSummaries(jdbcTemplate.query(sql, parameters, this::mapSummaryRow));
+        return enrichSummaries(jdbcTemplate.query(sql, parameters, this::mapSummaryRow), accountId);
     }
 
     public List<PresetTagResponse> findActiveFilterTags() {
@@ -428,6 +427,7 @@ public class PresetQueryRepository {
                         resultSet.getLong("favorite_count"),
                         resultSet.getBoolean("favorite_by_current_user"),
                         resultSet.getBoolean("is_owner"),
+                        resultSet.getBoolean("is_public"),
                         imageUrl(resultSet.getString("stored_filename")),
                         resultSet.getObject("created_at", LocalDateTime.class)
                 )
@@ -549,7 +549,7 @@ public class PresetQueryRepository {
         return count == null ? 0 : count;
     }
 
-    private List<PresetSummaryResponse> enrichSummaries(List<PresetSummaryRow> rows) {
+    private List<PresetSummaryResponse> enrichSummaries(List<PresetSummaryRow> rows, Long accountId) {
         if (rows.isEmpty()) {
             return List.of();
         }
@@ -566,6 +566,7 @@ public class PresetQueryRepository {
                 row.restaurantCount(),
                 row.favoriteCount(),
                 row.favoriteByCurrentUser(),
+                accountId != null && accountId.equals(row.accountId()),
                 row.createdAt(),
                 tags.getOrDefault(row.presetId(), List.of()),
                 thumbnails.getOrDefault(row.presetId(), List.of())
@@ -630,6 +631,7 @@ public class PresetQueryRepository {
                 resultSet.getLong("restaurant_count"),
                 resultSet.getLong("favorite_count"),
                 resultSet.getBoolean("favorite_by_current_user"),
+                resultSet.getObject("account_id", Long.class),
                 resultSet.getObject("created_at", LocalDateTime.class)
         );
     }
@@ -692,6 +694,7 @@ public class PresetQueryRepository {
             long restaurantCount,
             long favoriteCount,
             boolean favoriteByCurrentUser,
+            Long accountId,
             LocalDateTime createdAt
     ) {
     }
@@ -704,6 +707,7 @@ public class PresetQueryRepository {
             long favoriteCount,
             boolean favoriteByCurrentUser,
             boolean isOwner,
+            boolean isPublic,
             String imageUrl,
             LocalDateTime createdAt
     ) {

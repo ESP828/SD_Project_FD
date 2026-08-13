@@ -84,16 +84,15 @@ public class RecommendationService {
 
         for (PublicRestaurant restaurant : candidates) {
             String name = restaurant.getName() != null ? restaurant.getName() : "";
-            String categoryGroup = restaurant.getCategoryGroup() != null ? restaurant.getCategoryGroup() : "";
-            String categoryMedium = restaurant.getCategoryMediumName() != null ? restaurant.getCategoryMediumName() : "";
+            String categoryLarge = restaurant.getCategoryLargeName() != null ? restaurant.getCategoryLargeName() : "";
             String categorySmall = restaurant.getCategorySmallName() != null ? restaurant.getCategorySmallName() : "";
 
             boolean isDirectCategoryMatch = false;
             String matchedCategoryToken = "";
             if (parsedQuery.categoryTokens() != null && !parsedQuery.categoryTokens().isEmpty()) {
                 for (String catToken : parsedQuery.categoryTokens()) {
-                    if (name.contains(catToken) || categoryGroup.contains(catToken) ||
-                        categoryMedium.contains(catToken) || categorySmall.contains(catToken)) {
+                    if (name.contains(catToken) || categoryLarge.contains(catToken) ||
+                        categorySmall.contains(catToken)) {
                         isDirectCategoryMatch = true;
                         matchedCategoryToken = catToken;
                         break;
@@ -115,7 +114,7 @@ public class RecommendationService {
 
             boolean isFastfood = name.contains("맥도날드") || name.contains("버거킹") ||
                                  name.contains("롯데리아") || name.contains("KFC") ||
-                                 categoryMedium.contains("패스트푸드");
+                                 categorySmall.contains("버거") || categorySmall.contains("치킨") || categorySmall.contains("피자");
             if (isFastfood && !isDirectCategoryMatch) {
                 filteredOutCount++;
                 continue;
@@ -152,8 +151,7 @@ public class RecommendationService {
                     "PUBLIC",
                     restaurant.getPublicRestaurantId(),
                     name,
-                    restaurant.getCategoryGroup() != null ? restaurant.getCategoryGroup()
-                            : restaurant.getCategoryMediumName() != null ? restaurant.getCategoryMediumName() : restaurant.getCategoryLargeName(),
+                    restaurant.getCategorySmallName() != null ? restaurant.getCategorySmallName() : restaurant.getCategoryLargeName(),
                     restaurant.getRoadAddress(),
                     restaurant.getLatitude() != null ? restaurant.getLatitude().doubleValue() : null,
                     restaurant.getLongitude() != null ? restaurant.getLongitude().doubleValue() : null,
@@ -187,24 +185,26 @@ public class RecommendationService {
         );
     }
 
-/**
-     * 2. 💡 [나를 위한 맛집] 고도화된 점수 산출 알고리즘 적용 (최종 보완)
+    /**
+     * 2. 💡 [나를 위한 맛집] 사용자가 찜한 매장 취향 기반 추천 메서드
      */
     public PersonalRecommendationResponse recommendForUser(Long accountId, Double latitude, Double longitude, Double radiusMeters, int limit) {
+        // 0. 비로그인 유저 예외 처리
         if (accountId == null) {
             log.info("ℹ️ [개인화 추천] 비로그인 유저 요청입니다.");
             return new PersonalRecommendationResponse(false, "로그인이 필요합니다.", Collections.emptyList());
         }
 
-        // 1. 사용자의 찜 내역 조회
+        // 1. 찜 목록 조회 (통합 쿼리로 일반/공공 매장 모두 가져옴)
         List<RestaurantCandidate> userFavorites = recommendationQueryRepository.findFavoritesByAccountId(accountId);
 
+        // 2. 찜한 매장이 없을 경우 (콜드 스타트 -> 오리 UI 표출용 응답)
         if (userFavorites == null || userFavorites.isEmpty()) {
             log.info("ℹ️ [개인화 추천] accountId: {} 님의 찜/선호 데이터가 없습니다.", accountId);
             return new PersonalRecommendationResponse(false, "선호 데이터가 없습니다. 맛집을 찜해보세요!", Collections.emptyList());
         }
 
-        // 2. 취향 Profile 구축 & 최애 카테고리 키워드 세트 수집
+        // 3. 사용자 취향 Profile Doc 생성 및 이미 찜한 매장 ID 수집
         StringBuilder userProfileBuilder = new StringBuilder();
         Set<Long> favoriteRestaurantIds = new HashSet<>();
         Set<String> favoriteCategories = new LinkedHashSet<>();
@@ -233,7 +233,7 @@ public class RecommendationService {
         log.info("📄 [사용자 취향 Profile]: {}", userProfileDoc.length() > 60 ? userProfileDoc.substring(0, 60) + "..." : userProfileDoc);
         log.info("==================================================================================");
 
-        // 3. 반경 내 후보 매장 조회
+        // 4. 주변 범위 매장 조회 (위도/경도 기반 바운딩 박스)
         Double minLat = null, maxLat = null, minLng = null, maxLng = null;
         if (latitude != null && longitude != null) {
             double delta = radiusMeters / 111000.0;
@@ -256,38 +256,11 @@ public class RecommendationService {
             }
 
             String candidateDoc = documentBuilder.build(candidate);
-            String candidateCategory = candidate.getCategoryMediumName() != null
-                    ? candidate.getCategoryMediumName()
-                    : (candidate.getCategoryLargeName() != null ? candidate.getCategoryLargeName() : "");
 
-            // -----------------------------------------------------------------
-            // 💡 [점수 보완 1] 텍스트 및 카테고리 취향 점수 (60% 반영)
-            // -----------------------------------------------------------------
-            double rawTextSimilarity = scoreCalculator.calculateTextSimilarity(userProfileTokens, candidateDoc);
-            // 유사도 스케일 보정 (제곱근 스케일링으로 미세 차이 강조)
-            double textScore = Math.sqrt(rawTextSimilarity);
+            // 5. 취향 유사도 점수 산출
+            double textScore = scoreCalculator.calculateTextSimilarity(userProfileTokens, candidateDoc);
 
-            // 카테고리 정밀 직접 매칭 보너스 (30% 가산)
-            boolean isCategoryMatch = false;
-            for (String favCategory : favoriteCategories) {
-                if (!favCategory.isBlank() && (candidateCategory.contains(favCategory) || candidate.getName().contains(favCategory))) {
-                    isCategoryMatch = true;
-                    break;
-                }
-            }
-            double categoryBonus = isCategoryMatch ? 0.3 : 0.0;
-            double totalTasteScore = Math.min(1.0, textScore + categoryBonus);
-
-            // -----------------------------------------------------------------
-            // 💡 [점수 보완 2] 신뢰도/평점 점수 (20% 반영)
-            // -----------------------------------------------------------------
-            // 공공데이터 평점이 없을 경우 디폴트 4.0점(0.8) 기본 부여
-            double rating = 4.0;
-            double ratingScore = rating / 5.0; // 0.8
-
-            // -----------------------------------------------------------------
-            // 💡 [점수 보완 3] 거리 점수 (20% 반영)
-            // -----------------------------------------------------------------
+            // 6. 거리 점수 산출
             double distanceMeters = 0.0;
             double distanceScore = 1.0;
             if (latitude != null && longitude != null && candidate.getLatitude() != null && candidate.getLongitude() != null) {
@@ -296,35 +269,28 @@ public class RecommendationService {
                         candidate.getLatitude().doubleValue(),
                         candidate.getLongitude().doubleValue()
                 );
-                distanceScore = calculateDistanceScore(distanceMeters, radiusMeters);
+                distanceScore = Math.max(0.0, 1.0 - (distanceMeters / radiusMeters));
             }
 
-            // -----------------------------------------------------------------
-            // 💡 [최종 점수 합산] 취향(60%) + 평점(20%) + 거리(20%)
-            // -----------------------------------------------------------------
-            double finalScore = (totalTasteScore * 0.6) + (ratingScore * 0.2) + (distanceScore * 0.2);
+            // 7. 취향 맞춤 합산 점수 = (취향 점수 70%) + (거리 점수 30%)
+            double finalScore = (textScore * 0.7) + (distanceScore * 0.3);
 
-            // 💡 추천 사유(Reasons) 생성
             List<String> reasons = new ArrayList<>();
-            if (isCategoryMatch) {
-                reasons.add("자주 찾으시는 " + candidateCategory + " 스타일의 맞춤 매장입니다.");
-            } else if (textScore > 0.1) {
-                reasons.add("회원님의 선호 키워드와 연관성이 높은 매장입니다.");
+            if (!favoriteCategories.isEmpty()) {
+                reasons.add("회원님이 선호하시는 " + String.join(", ", favoriteCategories) + " 취향 기반 맞춤 추천입니다.");
             } else {
-                reasons.add("회원님의 찜 데이터를 기반으로 엄선한 추천 매장입니다.");
+                reasons.add("회원님의 활동 및 찜 데이터를 반영한 맞춤 추천 매장입니다.");
             }
 
-            if (distanceMeters <= 500) {
-                reasons.add("걸어서 갈 수 있는 매우 가까운 거리입니다. (" + Math.round(distanceMeters) + "m)");
-            } else if (distanceScore > 0.6) {
-                reasons.add("현재 위치 근묵에 있습니다.");
+            if (distanceScore > 0.5) {
+                reasons.add("현재 위치와 가깝습니다.");
             }
 
             scoredItems.add(new RecommendedItemDto(
                     "PUBLIC",
                     candidate.getPublicRestaurantId(),
                     candidate.getName(),
-                    candidateCategory,
+                    candidate.getCategorySmallName() != null ? candidate.getCategorySmallName() : candidate.getCategoryLargeName(),
                     candidate.getRoadAddress(),
                     candidate.getLatitude() != null ? candidate.getLatitude().doubleValue() : null,
                     candidate.getLongitude() != null ? candidate.getLongitude().doubleValue() : null,
@@ -346,21 +312,10 @@ public class RecommendationService {
     }
 
     /**
-     * 💡 [거리 감쇄 함수] 반경 대비 거리에 따른 자연스러운 점수 감쇄 (Gaussian Decay 유사)
-     */
-    private double calculateDistanceScore(double distanceMeters, double maxRadiusMeters) {
-        if (distanceMeters <= 0) return 1.0;
-        if (distanceMeters >= maxRadiusMeters) return 0.0;
-        // 거리가 멀어질수록 부드럽게 감소하는 감쇄식
-        double ratio = distanceMeters / maxRadiusMeters;
-        return Math.max(0.0, 1.0 - Math.pow(ratio, 1.5));
-    }
-
-    /**
-     * 💡 두 좌표 간의 거리를 계산하는 하버사인(Haversine) 메서드
+     * 💡 [추가] 두 좌표 간의 거리를 계산하는 하버사인(Haversine) 메서드
      */
     private double calculateHaversineDistance(double lat1, double lon1, double lat2, double lon2) {
-        double R = 6371000; // 지구 반지름 (미터)
+        double R = 6371000; // 지구 반지름 (미터 단위)
         double dLat = Math.toRadians(lat2 - lat1);
         double dLon = Math.toRadians(lon2 - lon1);
         double a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +

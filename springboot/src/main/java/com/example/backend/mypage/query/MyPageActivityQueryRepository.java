@@ -27,6 +27,12 @@ public class MyPageActivityQueryRepository {
                 count("select count(*) from favorite where account_id = :accountId", parameters),
                 count("""
                         select count(*)
+                          from preset
+                         where account_id = :accountId
+                           and status = 'ACTIVE'
+                        """, parameters),
+                count("""
+                        select count(*)
                           from review
                          where account_id = :accountId
                            and status = 'ACTIVE'
@@ -78,7 +84,7 @@ public class MyPageActivityQueryRepository {
                                 union all
                                 select null as restaurant_id,
                                        p.name as restaurant_name,
-                                       coalesce(p.category_small_name, p.category_medium_name, p.category_large_name) as category_name,
+                                       coalesce(p.category_small_name, p.category_large_name) as category_name,
                                        coalesce(p.road_address, p.lot_address) as address,
                                        null as description,
                                        f.created_at as created_at
@@ -254,6 +260,7 @@ public class MyPageActivityQueryRepository {
 
     public record ActivityCounts(
             long favorites,
+            long presets,
             long reviews,
             long posts,
             long comments,

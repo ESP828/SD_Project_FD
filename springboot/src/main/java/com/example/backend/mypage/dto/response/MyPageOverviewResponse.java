@@ -19,6 +19,7 @@ public record MyPageOverviewResponse(
         LocalDateTime createdAt,
         List<String> authorities,
         long favoriteCount,
+        long presetCount,
         long reviewCount,
         long postCount,
         long commentCount,

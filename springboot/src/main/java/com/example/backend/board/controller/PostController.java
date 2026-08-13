@@ -6,8 +6,11 @@ import com.example.backend.board.dto.response.PostDetailResponse;
 import com.example.backend.board.dto.response.PostLikeResponse;
 import com.example.backend.board.dto.response.PostListItemResponse;
 import com.example.backend.board.dto.response.PostPageResponse;
+import com.example.backend.board.exception.BoardException;
 import com.example.backend.board.service.PostService;
 import com.example.backend.global.response.ApiResponse;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
@@ -30,6 +33,8 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.io.IOException;
+import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 
@@ -261,13 +266,11 @@ public class PostController {
     public ApiResponse<PostService.AuthorSummaryResponse> getAuthorSummary(
             @PathVariable Long authorAccountId,
             @RequestParam(required = false) Long excludePostId,
-            @RequestParam(defaultValue = "false") boolean includeNewsActivity,
             Authentication authentication
     ) {
         return ApiResponse.success(postService.getAuthorSummary(
                 authorAccountId,
                 excludePostId,
-                includeNewsActivity,
                 BoardAuthentication.accountId(authentication)
         ));
     }
@@ -294,16 +297,26 @@ public class PostController {
                     value = HttpHeaders.CONTENT_TYPE,
                     required = false
             ) String contentType,
-            @RequestBody byte[] mediaData,
+            HttpServletRequest request,
             Authentication authentication
     ) {
-        PostDetailResponse.MediaResponse media = postService.uploadMedia(
-                postId,
-                encodedFileName,
-                contentType,
-                mediaData,
-                BoardAuthentication.accountId(authentication)
-        );
+        PostDetailResponse.MediaResponse media;
+        try {
+            media = postService.uploadMedia(
+                    postId,
+                    encodedFileName,
+                    contentType,
+                    request.getInputStream(),
+                    request.getContentLengthLong(),
+                    BoardAuthentication.accountId(authentication)
+            );
+        } catch (IOException exception) {
+            throw new BoardException(
+                    HttpStatus.BAD_REQUEST,
+                    "BOARD_MEDIA_READ_FAILED",
+                    "첨부파일 전송 데이터를 읽지 못했습니다."
+            );
+        }
         return ApiResponse.success(
                 "PROCESSING".equals(media.processingStatus())
                         ? "동영상 전송이 완료되어 서버 처리를 시작했습니다."
@@ -327,15 +340,20 @@ public class PostController {
     }
 
     @GetMapping("/media/{postMediaId}")
-    public ResponseEntity<byte[]> getMedia(
+    public void getMedia(
             @PathVariable Long postMediaId,
             @RequestHeader(
                     value = HttpHeaders.RANGE,
                     required = false
             ) String range,
+            @RequestHeader(
+                    value = HttpHeaders.IF_NONE_MATCH,
+                    required = false
+            ) String ifNoneMatch,
             @RequestParam(defaultValue = "false") boolean download,
-            Authentication authentication
-    ) {
+            Authentication authentication,
+            HttpServletResponse response
+    ) throws IOException {
         PostService.MediaDownload media = postService.getMedia(
                 postMediaId,
                 range,
@@ -343,17 +361,30 @@ public class PostController {
                 BoardAuthentication.accountId(authentication)
         );
 
-        HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(resolveMediaType(media.mimeType()));
-        headers.setContentLength(media.data().length);
-        headers.set(HttpHeaders.ACCEPT_RANGES, "bytes");
-        headers.setCacheControl("private, max-age=3600, no-transform");
-        headers.setETag(
-                "\"board-media-" + media.postMediaId()
-                        + "-" + media.totalSize() + "\""
+        String etag = "\"board-media-" + media.postMediaId()
+                + "-" + media.totalSize() + "\"";
+        response.setHeader(HttpHeaders.ACCEPT_RANGES, "bytes");
+        response.setHeader(
+                HttpHeaders.CACHE_CONTROL,
+                "private, max-age=3600, no-transform"
         );
-        headers.set(HttpHeaders.VARY, HttpHeaders.RANGE);
-        headers.setContentDisposition(
+        response.setHeader(HttpHeaders.ETAG, etag);
+        response.setHeader(HttpHeaders.VARY, HttpHeaders.RANGE);
+
+        if (matchesIfNoneMatch(ifNoneMatch, etag)) {
+            response.setStatus(HttpStatus.NOT_MODIFIED.value());
+            return;
+        }
+
+        response.setStatus(
+                media.partial()
+                        ? HttpStatus.PARTIAL_CONTENT.value()
+                        : HttpStatus.OK.value()
+        );
+        response.setContentType(resolveMediaType(media.mimeType()).toString());
+        response.setContentLengthLong(media.contentLength());
+        response.setHeader(
+                HttpHeaders.CONTENT_DISPOSITION,
                 (media.download()
                         ? ContentDisposition.attachment()
                         : ContentDisposition.inline())
@@ -362,22 +393,24 @@ public class PostController {
                                 StandardCharsets.UTF_8
                         )
                         .build()
+                        .toString()
         );
         if (media.partial()) {
-            headers.set(
+            response.setHeader(
                     HttpHeaders.CONTENT_RANGE,
                     "bytes " + media.start() + "-" + media.end()
                             + "/" + media.totalSize()
             );
         }
 
-        return new ResponseEntity<>(
-                media.data(),
-                headers,
-                media.partial()
-                        ? HttpStatus.PARTIAL_CONTENT
-                        : HttpStatus.OK
+        OutputStream outputStream = response.getOutputStream();
+        postService.streamMedia(
+                media.postMediaId(),
+                media.start(),
+                media.contentLength(),
+                outputStream
         );
+        outputStream.flush();
     }
 
     @DeleteMapping("/{postId}/media/{postMediaId}")
@@ -482,6 +515,25 @@ public class PostController {
                         BoardAuthentication.accountId(authentication)
                 )
         );
+    }
+
+    private boolean matchesIfNoneMatch(String ifNoneMatch, String etag) {
+        if (ifNoneMatch == null || ifNoneMatch.isBlank()) {
+            return false;
+        }
+        for (String rawCandidate : ifNoneMatch.split(",")) {
+            String candidate = rawCandidate.strip();
+            if ("*".equals(candidate)) {
+                return true;
+            }
+            if (candidate.startsWith("W/")) {
+                candidate = candidate.substring(2).strip();
+            }
+            if (etag.equals(candidate)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private MediaType resolveMediaType(String mimeType) {

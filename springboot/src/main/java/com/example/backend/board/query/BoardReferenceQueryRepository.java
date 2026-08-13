@@ -1,6 +1,7 @@
 package com.example.backend.board.query;
 
 import com.example.backend.board.dto.response.RestaurantSummaryResponse;
+import org.springframework.jdbc.core.ConnectionCallback;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.jdbc.support.GeneratedKeyHolder;
@@ -9,10 +10,15 @@ import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.io.ByteArrayInputStream;
+import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
+import java.io.UncheckedIOException;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
 import java.sql.Types;
+import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -21,6 +27,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -30,11 +38,13 @@ import java.util.stream.Collectors;
 @Repository
 public class BoardReferenceQueryRepository {
 
-    private static final int MEDIA_BLOB_CHUNK_BYTES = 1024 * 1024;
+    private static final int BLOB_READ_CHUNK_BYTES = 1024 * 1024;
     public static final String MEDIA_URL_PROCESSING = "db:processing";
     public static final String MEDIA_URL_FAILED = "db:failed";
 
     private final NamedParameterJdbcTemplate jdbcTemplate;
+    private final ConcurrentMap<Long, Long> postMediaWriteProgress =
+            new ConcurrentHashMap<>();
 
     public BoardReferenceQueryRepository(NamedParameterJdbcTemplate jdbcTemplate) {
         this.jdbcTemplate = jdbcTemplate;
@@ -56,6 +66,96 @@ public class BoardReferenceQueryRepository {
                 Integer.class
         );
         return count != null && count > 0;
+    }
+
+    public long countActiveReviewsByAuthor(Long accountId) {
+        Long count = jdbcTemplate.queryForObject(
+                """
+                select count(*)
+                  from review
+                 where account_id = :accountId
+                   and status = 'ACTIVE'
+                """,
+                Map.of("accountId", accountId),
+                Long.class
+        );
+        return count == null ? 0L : count;
+    }
+
+    public List<AuthorReviewReference> findRecentActiveReviewsByAuthor(
+            Long accountId,
+            int limit
+    ) {
+        return jdbcTemplate.query(
+                """
+                select r.review_id,
+                       case
+                           when r.public_restaurant_id is not null then 'public'
+                           else 'owned'
+                       end as restaurant_source,
+                       coalesce(r.public_restaurant_id, r.restaurant_id) as store_id,
+                       coalesce(pr.name, rt.name, '가게 정보 없음') as restaurant_name,
+                       r.rating,
+                       r.content,
+                       r.created_at
+                  from review r
+                  left join restaurant rt
+                    on rt.restaurant_id = r.restaurant_id
+                  left join public_restaurant pr
+                    on pr.public_restaurant_id = r.public_restaurant_id
+                 where r.account_id = :accountId
+                   and r.status = 'ACTIVE'
+                 order by r.created_at desc, r.review_id desc
+                 limit :limit
+                """,
+                new MapSqlParameterSource()
+                        .addValue("accountId", accountId)
+                        .addValue("limit", limit),
+                (resultSet, rowNumber) -> new AuthorReviewReference(
+                        resultSet.getLong("review_id"),
+                        resultSet.getString("restaurant_source"),
+                        resultSet.getLong("store_id"),
+                        resultSet.getString("restaurant_name"),
+                        resultSet.getByte("rating"),
+                        resultSet.getString("content"),
+                        resultSet.getObject("created_at", LocalDateTime.class)
+                )
+        );
+    }
+
+    public LocalDateTime findLastPublicActivityAt(
+            Long accountId,
+            boolean canReadBusiness
+    ) {
+        return jdbcTemplate.queryForObject(
+                """
+                select max(activity_at)
+                  from (
+                        select max(p.created_at) as activity_at
+                          from post p
+                         where p.account_id = :accountId
+                           and p.status = 'ACTIVE'
+                           and (:canReadBusiness = 1 or p.board_type = 'GENERAL')
+                        union all
+                        select max(c.created_at) as activity_at
+                          from post_comment c
+                          join post p on p.post_id = c.post_id
+                         where c.account_id = :accountId
+                           and c.status = 'ACTIVE'
+                           and p.status = 'ACTIVE'
+                           and (:canReadBusiness = 1 or p.board_type = 'GENERAL')
+                        union all
+                        select max(r.created_at) as activity_at
+                          from review r
+                         where r.account_id = :accountId
+                           and r.status = 'ACTIVE'
+                       ) public_activity
+                """,
+                new MapSqlParameterSource()
+                        .addValue("accountId", accountId)
+                        .addValue("canReadBusiness", canReadBusiness ? 1 : 0),
+                LocalDateTime.class
+        );
     }
 
     public boolean hasBusinessProfile(Long accountId) {
@@ -318,16 +418,27 @@ public class BoardReferenceQueryRepository {
                  order by display_order, post_media_id
                 """,
                 Map.of("postId", postId),
-                (resultSet, rowNumber) -> new PostMediaReference(
-                        resultSet.getLong("post_media_id"),
-                        resultSet.getString("media_type"),
-                        resultSet.getString("media_url"),
-                        resultSet.getString("mime_type"),
-                        resultSet.getString("original_name"),
-                        resultSet.getLong("file_size"),
-                        resultSet.getInt("display_order"),
-                        resultSet.getLong("stored_size")
-                )
+                (resultSet, rowNumber) -> {
+                    Long postMediaId = resultSet.getLong("post_media_id");
+                    String mediaUrl = resultSet.getString("media_url");
+                    long storedSize = resultSet.getLong("stored_size");
+                    if (MEDIA_URL_PROCESSING.equals(mediaUrl)) {
+                        storedSize = postMediaWriteProgress.getOrDefault(
+                                postMediaId,
+                                storedSize
+                        );
+                    }
+                    return new PostMediaReference(
+                            postMediaId,
+                            resultSet.getString("media_type"),
+                            mediaUrl,
+                            resultSet.getString("mime_type"),
+                            resultSet.getString("original_name"),
+                            resultSet.getLong("file_size"),
+                            resultSet.getInt("display_order"),
+                            storedSize
+                    );
+                }
         );
     }
 
@@ -360,8 +471,8 @@ public class BoardReferenceQueryRepository {
             String originalName,
             long fileSize,
             int displayOrder,
-            byte[] mediaData
-    ) {
+            InputStream mediaData
+    ) throws IOException {
         Long postMediaId = insertPostMedia(
                 postId,
                 mediaType,
@@ -451,86 +562,151 @@ public class BoardReferenceQueryRepository {
     public void storePostMediaData(
             Long postMediaId,
             long fileSize,
-            byte[] mediaData
-    ) {
-        try (ByteArrayInputStream inputStream =
-                     new ByteArrayInputStream(mediaData)) {
-            storePostMediaData(postMediaId, fileSize, inputStream);
-        } catch (IOException exception) {
-            throw new IllegalStateException(
-                    "게시판 미디어 데이터를 읽지 못했습니다.",
-                    exception
-            );
-        }
-    }
-
-    public void storePostMediaData(
-            Long postMediaId,
-            long fileSize,
             InputStream inputStream
     ) throws IOException {
-        while (true) {
-            byte[] chunk = inputStream.readNBytes(MEDIA_BLOB_CHUNK_BYTES);
-            if (chunk.length == 0) {
-                break;
-            }
-            int updated = jdbcTemplate.update(
-                    """
-                    update post_media
-                       set media_data = concat(
-                               coalesce(media_data, x''),
-                               :mediaChunk
-                           )
-                     where post_media_id = :postMediaId
-                       and media_url in ('db:pending', 'db:processing')
-                    """,
-                    new MapSqlParameterSource()
-                            .addValue("postMediaId", postMediaId)
-                            .addValue(
-                                    "mediaChunk",
-                                    chunk,
-                                    Types.LONGVARBINARY
-                            )
+        postMediaWriteProgress.put(postMediaId, 0L);
+        try {
+            InputStream progressInputStream = new ProgressInputStream(
+                    inputStream,
+                    bytesRead -> postMediaWriteProgress.put(
+                            postMediaId,
+                            Math.min(bytesRead, fileSize)
+                    )
             );
-            if (updated != 1) {
+            Integer updated = jdbcTemplate.getJdbcTemplate().execute(
+                    (ConnectionCallback<Integer>) connection -> {
+                        try (PreparedStatement statement =
+                                     connection.prepareStatement(
+                                             """
+                                             update post_media
+                                                set media_data = ?
+                                              where post_media_id = ?
+                                                and media_url in (
+                                                    'db:pending',
+                                                    'db:processing'
+                                                )
+                                             """
+                                     )) {
+                            statement.setBinaryStream(
+                                    1,
+                                    progressInputStream,
+                                    fileSize
+                            );
+                            statement.setLong(2, postMediaId);
+                            return statement.executeUpdate();
+                        }
+                    }
+            );
+            if (updated == null || updated != 1) {
                 throw new IllegalStateException(
                         "게시판 미디어 데이터를 저장하지 못했습니다."
                 );
             }
+
+            Long storedSize = jdbcTemplate.queryForObject(
+                    """
+                    select octet_length(media_data)
+                      from post_media
+                     where post_media_id = :postMediaId
+                    """,
+                    Map.of("postMediaId", postMediaId),
+                    Long.class
+            );
+            if (storedSize == null || storedSize != fileSize) {
+                throw new IllegalStateException(
+                        "게시판 미디어 데이터 크기가 일치하지 않습니다."
+                );
+            }
+
+            int completed = jdbcTemplate.update(
+                    """
+                    update post_media
+                       set media_url = :mediaUrl
+                     where post_media_id = :postMediaId
+                       and media_url in ('db:pending', 'db:processing')
+                    """,
+                    Map.of(
+                            "mediaUrl", "/api/board/posts/media/" + postMediaId,
+                            "postMediaId", postMediaId
+                    )
+            );
+            if (completed != 1) {
+                throw new IllegalStateException(
+                        "게시판 미디어 완료 상태를 저장하지 못했습니다."
+                );
+            }
+        } finally {
+            postMediaWriteProgress.remove(postMediaId);
+        }
+    }
+
+    public void storeCommentImageData(
+            Long commentId,
+            String mimeType,
+            String originalName,
+            long fileSize,
+            InputStream inputStream
+    ) throws IOException {
+        Integer updated = jdbcTemplate.getJdbcTemplate().execute(
+                (ConnectionCallback<Integer>) connection -> {
+                    try (PreparedStatement statement =
+                                 connection.prepareStatement(
+                                         """
+                                         update post_comment
+                                            set image_data = ?,
+                                                image_mime_type = ?,
+                                                image_original_name = ?,
+                                                image_file_size = ?
+                                          where comment_id = ?
+                                            and status = 'ACTIVE'
+                                         """
+                                 )) {
+                        statement.setBinaryStream(1, inputStream, fileSize);
+                        statement.setString(2, mimeType);
+                        statement.setString(3, originalName);
+                        statement.setLong(4, fileSize);
+                        statement.setLong(5, commentId);
+                        return statement.executeUpdate();
+                    }
+                }
+        );
+        if (updated == null || updated != 1) {
+            throw new IllegalStateException(
+                    "댓글 사진을 저장하지 못했습니다."
+            );
         }
 
         Long storedSize = jdbcTemplate.queryForObject(
                 """
-                select octet_length(media_data)
-                  from post_media
-                 where post_media_id = :postMediaId
+                select octet_length(image_data)
+                  from post_comment
+                 where comment_id = :commentId
+                   and status = 'ACTIVE'
                 """,
-                Map.of("postMediaId", postMediaId),
+                Map.of("commentId", commentId),
                 Long.class
         );
         if (storedSize == null || storedSize != fileSize) {
             throw new IllegalStateException(
-                    "게시판 미디어 데이터 크기가 일치하지 않습니다."
+                    "댓글 사진 저장 크기가 일치하지 않습니다."
             );
         }
+    }
 
-        int updated = jdbcTemplate.update(
+    public int markInterruptedPostMediaFailed() {
+        return jdbcTemplate.update(
                 """
                 update post_media
-                   set media_url = :mediaUrl
-                 where post_media_id = :postMediaId
-                   and media_url in ('db:pending', 'db:processing')
+                   set media_url = :failedUrl,
+                       media_data = x''
+                 where media_type = 'VIDEO_LINK'
+                   and media_url = :processingUrl
                 """,
                 Map.of(
-                        "mediaUrl", "/api/board/posts/media/" + postMediaId,
-                        "postMediaId", postMediaId
+                        "failedUrl", MEDIA_URL_FAILED,
+                        "processingUrl", MEDIA_URL_PROCESSING
                 )
         );
-        if (updated != 1) {
-            throw new IllegalStateException(
-                    "게시판 미디어 완료 상태를 저장하지 못했습니다."
-            );
-        }
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
@@ -549,6 +725,7 @@ public class BoardReferenceQueryRepository {
                         "processingUrl", MEDIA_URL_PROCESSING
                 )
         );
+        postMediaWriteProgress.remove(postMediaId);
     }
 
     public Optional<PostMediaFileReference> findPostMediaFile(Long postMediaId) {
@@ -580,29 +757,115 @@ public class BoardReferenceQueryRepository {
         return rows.stream().findFirst();
     }
 
-    public byte[] readPostMediaBytes(
+    public byte[] readPostMediaChunk(
             Long postMediaId,
             long zeroBasedStart,
             int length
     ) {
-        List<byte[]> rows = jdbcTemplate.query(
+        if (length < 1) {
+            return new byte[0];
+        }
+        byte[] data = jdbcTemplate.query(
                 """
-                select substring(media_data, :oneBasedStart, :length)
+                select substring(media_data, :startPosition, :chunkLength)
                   from post_media
                  where post_media_id = :postMediaId
                    and media_data is not null
                 """,
-                new MapSqlParameterSource()
-                        .addValue("postMediaId", postMediaId)
-                        .addValue("oneBasedStart", zeroBasedStart + 1)
-                        .addValue("length", length),
-                (resultSet, rowNumber) -> resultSet.getBytes(1)
+                Map.of(
+                        "startPosition", zeroBasedStart + 1,
+                        "chunkLength", length,
+                        "postMediaId", postMediaId
+                ),
+                resultSet -> {
+                    if (!resultSet.next()) {
+                        return new byte[0];
+                    }
+                    byte[] chunk = resultSet.getBytes(1);
+                    return chunk == null ? new byte[0] : chunk;
+                }
         );
-        return rows.stream().findFirst().orElse(null);
+        return data == null ? new byte[0] : data;
+    }
+
+    public long streamCommentImageBytes(
+            Long commentId,
+            long length,
+            OutputStream outputStream
+    ) {
+        Long written = jdbcTemplate.getJdbcTemplate().execute(
+                (ConnectionCallback<Long>) connection -> {
+            try (PreparedStatement statement = connection.prepareStatement(
+                    """
+                    select substring(image_data, ?, ?)
+                      from post_comment
+                     where comment_id = ?
+                       and status = 'ACTIVE'
+                       and image_data is not null
+                    """
+            )) {
+                long totalWritten = 0;
+                while (totalWritten < length) {
+                    long chunkLength = Math.min(
+                            BLOB_READ_CHUNK_BYTES,
+                            length - totalWritten
+                    );
+                    statement.setLong(1, totalWritten + 1);
+                    statement.setLong(2, chunkLength);
+                    statement.setLong(3, commentId);
+                    try (ResultSet resultSet = statement.executeQuery()) {
+                        if (!resultSet.next()) {
+                            break;
+                        }
+                        try (InputStream inputStream =
+                                     resultSet.getBinaryStream(1)) {
+                            long chunkWritten = copyBinaryStream(
+                                    inputStream,
+                                    outputStream,
+                                    chunkLength
+                            );
+                            totalWritten += chunkWritten;
+                            if (chunkWritten != chunkLength) {
+                                break;
+                            }
+                        } catch (IOException exception) {
+                            throw new UncheckedIOException(exception);
+                        }
+                    }
+                }
+                return totalWritten;
+            }
+        });
+        return written == null ? 0L : written;
+    }
+
+    private long copyBinaryStream(
+            InputStream inputStream,
+            OutputStream outputStream,
+            long maximumBytes
+    ) throws IOException {
+        if (inputStream == null || maximumBytes <= 0) {
+            return 0L;
+        }
+        byte[] buffer = new byte[64 * 1024];
+        long written = 0;
+        while (written < maximumBytes) {
+            int requested = (int) Math.min(
+                    buffer.length,
+                    maximumBytes - written
+            );
+            int read = inputStream.read(buffer, 0, requested);
+            if (read < 0) {
+                break;
+            }
+            outputStream.write(buffer, 0, read);
+            written += read;
+        }
+        return written;
     }
 
     public int deletePostMedia(Long postId, Long postMediaId) {
-        return jdbcTemplate.update(
+        int deleted = jdbcTemplate.update(
                 """
                 delete from post_media
                  where post_id = :postId
@@ -613,6 +876,45 @@ public class BoardReferenceQueryRepository {
                         "postMediaId", postMediaId
                 )
         );
+        postMediaWriteProgress.remove(postMediaId);
+        return deleted;
+    }
+
+    private static final class ProgressInputStream extends FilterInputStream {
+        private final java.util.function.LongConsumer progressConsumer;
+        private long bytesRead;
+
+        private ProgressInputStream(
+                InputStream inputStream,
+                java.util.function.LongConsumer progressConsumer
+        ) {
+            super(inputStream);
+            this.progressConsumer = progressConsumer;
+        }
+
+        @Override
+        public int read() throws IOException {
+            int value = super.read();
+            if (value >= 0) {
+                reportProgress(1);
+            }
+            return value;
+        }
+
+        @Override
+        public int read(byte[] buffer, int offset, int length)
+                throws IOException {
+            int read = super.read(buffer, offset, length);
+            if (read > 0) {
+                reportProgress(read);
+            }
+            return read;
+        }
+
+        private void reportProgress(int read) {
+            bytesRead += read;
+            progressConsumer.accept(bytesRead);
+        }
     }
 
     /**
@@ -629,6 +931,17 @@ public class BoardReferenceQueryRepository {
         }
     }
 
+
+    public record AuthorReviewReference(
+            Long reviewId,
+            String restaurantSource,
+            Long storeId,
+            String restaurantName,
+            byte rating,
+            String content,
+            LocalDateTime createdAt
+    ) {
+    }
 
     public record PostMediaReference(
             Long postMediaId,

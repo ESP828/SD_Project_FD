@@ -22,9 +22,9 @@ public class PresetMyPageController {
     }
 
     @GetMapping
-    public ApiResponse<List<PresetSummaryResponse>> getSavedPresets(
+    public ApiResponse<List<PresetSummaryResponse>> getCreatedPresets(
             @AuthenticationPrincipal AuthenticatedAccount account
     ) {
-        return ApiResponse.success(presetService.getSavedPresets(account.accountId()));
+        return ApiResponse.success(presetService.getCreatedPresets(account.accountId()));
     }
 }

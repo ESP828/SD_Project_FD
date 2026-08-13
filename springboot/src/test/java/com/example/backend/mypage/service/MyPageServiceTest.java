@@ -54,7 +54,7 @@ class MyPageServiceTest {
         when(accountRepository.findById(1L)).thenReturn(Optional.of(account));
         when(accountRepository.existsByNickname("새 닉네임")).thenReturn(false);
         when(authorityService.findCodes(1L)).thenReturn(List.of("ROLE_USER"));
-        when(activityQueryRepository.findCounts(1L)).thenReturn(new ActivityCounts(1, 2, 3, 4, 5));
+        when(activityQueryRepository.findCounts(1L)).thenReturn(new ActivityCounts(1, 2, 3, 4, 5, 6));
 
         var response = myPageService.updateProfile(
                 1L,
@@ -67,7 +67,8 @@ class MyPageServiceTest {
         assertEquals(Gender.FEMALE, account.getGender());
         assertEquals(birthDate, account.getBirthDate());
         assertEquals("새 닉네임", response.nickname());
-        assertEquals(5, response.unreadNotificationCount());
+        assertEquals(2, response.presetCount());
+        assertEquals(6, response.unreadNotificationCount());
     }
 
     @Test

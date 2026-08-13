@@ -557,6 +557,13 @@
     min-height: 330px;
   }
 
+  /* .home-preset-heading의 align-items: flex-end가 뒤에서 로드되는 home.css라서
+     common.css의 좁은 화면용 .section-header{flex-start} 규칙을 덮어써 텍스트가
+     오른쪽으로 밀리는 문제가 있었음 -> 좁은 화면에서는 다시 왼쪽 정렬로 되돌림 */
+  .home-preset-heading {
+    align-items: flex-start;
+  }
+
 }
 
 /* 팀 요구: 홈 배너는 부유 카드 없이 원본 푸드덕 캐릭터만 사용한다. */

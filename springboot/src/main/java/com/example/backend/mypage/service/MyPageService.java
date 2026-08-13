@@ -66,6 +66,7 @@ public class MyPageService {
                 account.getCreatedAt(),
                 authorityService.findCodes(accountId),
                 counts.favorites(),
+                counts.presets(),
                 counts.reviews(),
                 counts.posts(),
                 counts.comments(),

@@ -161,7 +161,42 @@ class PresetControllerIntegrationTest {
                         .header("Authorization", "Bearer " + accessToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.presetId").value(createdId))
+                .andExpect(jsonPath("$.data.isPublic").value(false))
                 .andExpect(jsonPath("$.data.imageUrl").doesNotExist());
+    }
+
+    @Test
+    @DisplayName("마이페이지는 찜한 목록이 아닌 로그인 계정이 만든 활성 Presset만 반환한다")
+    void getsPresetsCreatedByAuthenticatedAccountForMyPage() throws Exception {
+        jdbcTemplate.update("""
+                insert into account (
+                    login_id, email, nickname, gender, email_verified,
+                    profile_completed, status, created_at, updated_at
+                ) values (?, ?, ?, ?, ?, ?, ?, current_timestamp, current_timestamp)
+                """,
+                "preset-list-other", "preset-list-other@example.com", "다른프리셋작성자",
+                "UNSPECIFIED", true, true, "ACTIVE");
+        Long otherAccountId = jdbcTemplate.queryForObject(
+                "select max(account_id) from account", Long.class);
+        Long otherPresetId = createPreset("다른 계정의 찜한 Presset", otherAccountId);
+        jdbcTemplate.update(
+                "insert into preset_favorite (account_id, preset_id) values (?, ?)",
+                accountId,
+                otherPresetId
+        );
+
+        Long deletedPresetId = createPreset("삭제된 내 Presset", accountId);
+        jdbcTemplate.update(
+                "update preset set status = 'DELETED' where preset_id = ?",
+                deletedPresetId
+        );
+
+        mockMvc.perform(get("/api/mypage/presets")
+                        .header("Authorization", "Bearer " + accessToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.length()").value(1))
+                .andExpect(jsonPath("$.data[0].presetId").value(presetId))
+                .andExpect(jsonPath("$.data[0].title").value("성수 데이트 맛집"));
     }
 
     @Test

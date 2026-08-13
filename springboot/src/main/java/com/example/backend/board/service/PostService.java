@@ -22,24 +22,31 @@ import com.example.backend.board.query.BoardReferenceQueryRepository.PostMediaFi
 import com.example.backend.board.repository.CommentRepository;
 import com.example.backend.board.repository.PostLikeRepository;
 import com.example.backend.board.repository.PostRepository;
+import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
@@ -69,6 +76,7 @@ public class PostService {
     private static final int MAX_DISCOVERY_SIZE = 10;
     private static final int MAX_AUTHOR_RECENT_POSTS = 5;
     private static final int MAX_AUTHOR_RECENT_COMMENTS = 5;
+    private static final int MAX_AUTHOR_RECENT_REVIEWS = 5;
     private static final int MAX_NEWS_TITLE_LENGTH = 200;
     private static final int MAX_NEWS_CONTENT_LENGTH = 10_000;
     private static final int BEST_COMMUNITY_MINIMUM_LIKE_COUNT = 3;
@@ -87,6 +95,7 @@ public class PostService {
     private static final int INITIAL_MEDIA_RANGE_BYTES = 8 * 1024 * 1024;
     private static final int STREAM_MEDIA_RANGE_BYTES = 8 * 1024 * 1024;
     private static final int SUFFIX_MEDIA_RANGE_BYTES = 4 * 1024 * 1024;
+    private static final int MEDIA_DB_READ_CHUNK_BYTES = 1024 * 1024;
     private static final int MAX_ORIGINAL_NAME_LENGTH = 255;
 
     private static final Set<String> IMAGE_EXTENSIONS = Set.of(
@@ -158,6 +167,7 @@ public class PostService {
     private final BoardAccessPolicy accessPolicy;
     private final BoardResponseMapper responseMapper;
     private final BoardReferenceQueryRepository referenceRepository;
+    private TransactionTemplate mediaTransactionTemplate;
 
     @Value("${board.best-window-days:30}")
     private int bestWindowDays = 30;
@@ -180,6 +190,39 @@ public class PostService {
         this.referenceRepository = referenceRepository;
     }
 
+    @Autowired
+    void configureMediaTransactionTemplate(
+            PlatformTransactionManager transactionManager
+    ) {
+        this.mediaTransactionTemplate = new TransactionTemplate(
+                transactionManager
+        );
+    }
+
+    @PostConstruct
+    public void recoverInterruptedMediaProcessing() {
+        int recoveredMedia = 0;
+        try {
+            recoveredMedia =
+                    referenceRepository.markInterruptedPostMediaFailed();
+        } catch (RuntimeException exception) {
+            LOGGER.error(
+                    "중단된 게시판 동영상 처리 상태를 정리하지 못했습니다.",
+                    exception
+            );
+        }
+
+        int deletedStagedMedia = deleteAbandonedStagedMedia();
+        if (recoveredMedia > 0 || deletedStagedMedia > 0) {
+            LOGGER.info(
+                    "중단된 게시판 미디어 작업을 정리했습니다. "
+                            + "failedMedia={}, deletedTempFiles={}",
+                    recoveredMedia,
+                    deletedStagedMedia
+            );
+        }
+    }
+
     @PreDestroy
     public void stopVideoProcessor() {
         videoProcessingExecutor.shutdownNow();
@@ -197,7 +240,7 @@ public class PostService {
                 activeVideoProcessingSources
         );
         interruptedMedia.keySet().forEach(this::markStoppedVideoAsFailed);
-        interruptedMedia.values().forEach(this::deleteStagedVideoQuietly);
+        interruptedMedia.values().forEach(this::deleteStagedMediaQuietly);
         activeVideoProcessingSources.clear();
     }
 
@@ -614,7 +657,6 @@ public class PostService {
     public AuthorSummaryResponse getAuthorSummary(
             Long authorAccountId,
             Long excludePostId,
-            boolean includeNewsActivity,
             Long currentAccountId
     ) {
         validateId(authorAccountId, "작성자 계정");
@@ -630,9 +672,11 @@ public class PostService {
             );
         }
         Account currentAccount = boardUserService.findOptional(currentAccountId);
-        BoardType readableBoardType = accessPolicy.isApprovedBusiness(currentAccount)
+        boolean canReadBusiness = accessPolicy.isApprovedBusiness(currentAccount);
+        BoardType readableBoardType = canReadBusiness
                 ? null
                 : BoardType.GENERAL;
+
         List<AuthorRecentPostResponse> recentPosts = postRepository
                 .findRecentActivePostsByAuthor(
                         authorAccountId,
@@ -650,6 +694,7 @@ public class PostService {
                         post.getCreatedAt()
                 ))
                 .toList();
+
         List<AuthorRecentCommentResponse> recentComments = commentRepository
                 .findRecentActiveCommentsByAuthor(
                         authorAccountId,
@@ -665,44 +710,28 @@ public class PostService {
                         comment.getPost().getPostId(),
                         comment.getPost().getTitle(),
                         comment.getContent(),
+                        comment.getPost().getBoardType(),
+                        comment.getPost().getCategory(),
                         comment.getCreatedAt()
                 ))
                 .toList();
-        List<AuthorRecentPostResponse> recentNewsPosts = includeNewsActivity
-                ? postRepository.findRecentActiveNewsPostsByAuthor(
+
+        List<AuthorRecentReviewResponse> recentReviews = referenceRepository
+                .findRecentActiveReviewsByAuthor(
                         authorAccountId,
-                        PostStatus.ACTIVE,
-                        excludePostId,
-                        PageRequest.of(0, MAX_AUTHOR_RECENT_POSTS)
+                        MAX_AUTHOR_RECENT_REVIEWS
                 )
                 .stream()
-                .map(post -> new AuthorRecentPostResponse(
-                        post.getPostId(),
-                        post.getTitle(),
-                        post.getBoardType(),
-                        post.getCategory(),
-                        post.getCreatedAt()
+                .map(review -> new AuthorRecentReviewResponse(
+                        review.reviewId(),
+                        review.restaurantSource(),
+                        review.storeId(),
+                        review.restaurantName(),
+                        review.rating(),
+                        review.content(),
+                        review.createdAt()
                 ))
-                .toList()
-                : List.of();
-        List<AuthorRecentCommentResponse> recentNewsComments = includeNewsActivity
-                ? commentRepository.findRecentActiveNewsCommentsByAuthor(
-                        authorAccountId,
-                        CommentStatus.ACTIVE,
-                        PostStatus.ACTIVE,
-                        excludePostId,
-                        PageRequest.of(0, MAX_AUTHOR_RECENT_COMMENTS)
-                )
-                .stream()
-                .map(comment -> new AuthorRecentCommentResponse(
-                        comment.getCommentId(),
-                        comment.getPost().getPostId(),
-                        comment.getPost().getTitle(),
-                        comment.getContent(),
-                        comment.getCreatedAt()
-                ))
-                .toList()
-                : List.of();
+                .toList();
 
         return new AuthorSummaryResponse(
                 author.getAccountId(),
@@ -710,6 +739,10 @@ public class PostService {
                 author.getLoginId() == null
                         ? "소셜 계정"
                         : "@" + author.getLoginId(),
+                referenceRepository.findLastPublicActivityAt(
+                        authorAccountId,
+                        canReadBusiness
+                ),
                 postRepository.countActivePostsByAuthor(
                         authorAccountId,
                         PostStatus.ACTIVE,
@@ -721,23 +754,10 @@ public class PostService {
                         PostStatus.ACTIVE,
                         readableBoardType
                 ),
+                referenceRepository.countActiveReviewsByAuthor(authorAccountId),
                 recentPosts,
                 recentComments,
-                includeNewsActivity
-                        ? postRepository.countActiveNewsPostsByAuthor(
-                                authorAccountId,
-                                PostStatus.ACTIVE
-                        )
-                        : 0L,
-                includeNewsActivity
-                        ? commentRepository.countActiveNewsCommentsByAuthor(
-                                authorAccountId,
-                                CommentStatus.ACTIVE,
-                                PostStatus.ACTIVE
-                        )
-                        : 0L,
-                recentNewsPosts,
-                recentNewsComments
+                recentReviews
         );
     }
 
@@ -842,53 +862,110 @@ public class PostService {
         postRepository.delete(post);
     }
 
-    @Transactional
     public PostDetailResponse.MediaResponse uploadMedia(
             Long postId,
             String encodedOriginalName,
             String declaredContentType,
-            byte[] mediaData,
+            InputStream mediaData,
+            long declaredContentLength,
+            Long currentAccountId
+    ) {
+        TransactionTemplate transactionTemplate =
+                requireMediaTransactionTemplate();
+        transactionTemplate.executeWithoutResult(status ->
+                preflightMediaUpload(postId, currentAccountId)
+        );
+
+        String originalName = normalizeOriginalName(encodedOriginalName);
+        MediaTypeInfo mediaType = resolveMediaType(
+                originalName,
+                declaredContentType
+        );
+        long maximumBytes = mediaType.image()
+                ? MAX_IMAGE_BYTES
+                : MAX_VIDEO_BYTES;
+        validateDeclaredMediaLength(
+                declaredContentLength,
+                maximumBytes,
+                mediaType.image()
+        );
+
+        StagedMedia stagedMedia = stageMediaUpload(
+                mediaData,
+                maximumBytes,
+                mediaType.image()
+        );
+        boolean handedOffToVideoProcessor = false;
+        try {
+            validateMediaSignature(originalName, stagedMedia.path());
+            PostDetailResponse.MediaResponse response =
+                    transactionTemplate.execute(status -> persistStagedMedia(
+                            postId,
+                            originalName,
+                            mediaType,
+                            stagedMedia,
+                            currentAccountId
+                    ));
+            if (response == null) {
+                throw new IllegalStateException(
+                        "게시판 미디어 저장 결과를 생성하지 못했습니다."
+                );
+            }
+            handedOffToVideoProcessor = !mediaType.image();
+            return response;
+        } finally {
+            if (!handedOffToVideoProcessor) {
+                deleteStagedMediaQuietly(stagedMedia.path());
+            }
+        }
+    }
+
+    private void preflightMediaUpload(
+            Long postId,
+            Long currentAccountId
+    ) {
+        Account currentAccount = boardUserService.require(currentAccountId);
+        Post post = getExistingActivePost(postId);
+        assertCanManageMedia(post, currentAccount);
+        if (referenceRepository.countPostMedia(postId) >= MAX_MEDIA_COUNT) {
+            throw tooManyMedia();
+        }
+    }
+
+    private PostDetailResponse.MediaResponse persistStagedMedia(
+            Long postId,
+            String originalName,
+            MediaTypeInfo mediaType,
+            StagedMedia stagedMedia,
             Long currentAccountId
     ) {
         Account currentAccount = boardUserService.require(currentAccountId);
         Post post = getExistingActivePostForUpdate(postId);
         assertCanManageMedia(post, currentAccount);
 
-        if (mediaData == null || mediaData.length == 0) {
-            throw badRequest("비어 있는 파일은 첨부할 수 없습니다.");
-        }
         if (referenceRepository.countPostMedia(postId) >= MAX_MEDIA_COUNT) {
-            throw badRequest(
-                    "게시글에는 사진과 동영상을 합해 최대 "
-                            + MAX_MEDIA_COUNT + "개까지 첨부할 수 있습니다."
-            );
-        }
-
-        String originalName = normalizeOriginalName(encodedOriginalName);
-        MediaTypeInfo mediaType = detectMediaType(
-                originalName,
-                declaredContentType,
-                mediaData
-        );
-        if (mediaType.image() && mediaData.length > MAX_IMAGE_BYTES) {
-            throw badRequest("사진은 한 파일당 20MB 이하만 첨부할 수 있습니다.");
-        }
-        if (!mediaType.image() && mediaData.length > MAX_VIDEO_BYTES) {
-            throw badRequest("동영상은 한 파일당 100MB 이하만 첨부할 수 있습니다.");
+            throw tooManyMedia();
         }
 
         int displayOrder = referenceRepository.nextPostMediaDisplayOrder(postId);
         Long postMediaId;
         if (mediaType.image()) {
-            postMediaId = referenceRepository.savePostMedia(
-                    postId,
-                    mediaType.databaseType(),
-                    mediaType.mimeType(),
-                    originalName,
-                    mediaData.length,
-                    displayOrder,
-                    mediaData
-            );
+            try (InputStream inputStream =
+                         Files.newInputStream(stagedMedia.path())) {
+                postMediaId = referenceRepository.savePostMedia(
+                        postId,
+                        mediaType.databaseType(),
+                        mediaType.mimeType(),
+                        originalName,
+                        stagedMedia.fileSize(),
+                        displayOrder,
+                        inputStream
+                );
+            } catch (IOException exception) {
+                throw mediaStagingFailed(
+                        "사진을 서버 저장용 파일에서 읽지 못했습니다."
+                );
+            }
         } else {
             if (!videoProcessingSlots.tryAcquire()) {
                 throw new BoardException(
@@ -897,33 +974,31 @@ public class PostService {
                         "동영상 처리 요청이 많습니다. 잠시 후 다시 시도해 주세요."
                 );
             }
-            Path stagedVideo = null;
             Long processingMediaId = null;
             try {
-                stagedVideo = stageVideoMedia(mediaData);
                 processingMediaId =
                         referenceRepository.createProcessingPostMedia(
                                 postId,
                                 mediaType.databaseType(),
                                 mediaType.mimeType(),
                                 originalName,
-                                mediaData.length,
+                                stagedMedia.fileSize(),
                                 displayOrder
                         );
                 postMediaId = processingMediaId;
                 scheduleVideoProcessingAfterTransaction(
                         postMediaId,
-                        mediaData.length,
-                        stagedVideo
+                        stagedMedia.fileSize(),
+                        stagedMedia.path()
                 );
             } catch (RuntimeException exception) {
                 if (processingMediaId != null) {
                     activeVideoProcessingSources.remove(
                             processingMediaId,
-                            stagedVideo
+                            stagedMedia.path()
                     );
                 }
-                deleteStagedVideoQuietly(stagedVideo);
+                deleteStagedMediaQuietly(stagedMedia.path());
                 videoProcessingSlots.release();
                 throw exception;
             }
@@ -937,7 +1012,7 @@ public class PostService {
                         : null,
                 mediaType.mimeType(),
                 originalName,
-                mediaData.length,
+                stagedMedia.fileSize(),
                 displayOrder,
                 mediaType.image() ? "READY" : "PROCESSING",
                 mediaType.image() ? 100 : 0,
@@ -961,26 +1036,89 @@ public class PostService {
         );
     }
 
-    private Path stageVideoMedia(byte[] mediaData) {
-        Path stagedVideo = null;
+    private StagedMedia stageMediaUpload(
+            InputStream mediaData,
+            long maximumBytes,
+            boolean image
+    ) {
+        if (mediaData == null) {
+            throw badRequest("비어 있는 파일은 첨부할 수 없습니다.");
+        }
+
+        Path stagedMedia = null;
+        long fileSize = 0;
         try {
-            stagedVideo = Files.createTempFile(
-                    "fooduck-board-video-",
+            stagedMedia = Files.createTempFile(
+                    "fooduck-board-media-",
                     ".upload"
             );
-            Files.write(stagedVideo, mediaData);
-            if (Files.size(stagedVideo) != mediaData.length) {
-                throw new IOException("임시 동영상 크기가 일치하지 않습니다.");
+            try (OutputStream outputStream = Files.newOutputStream(stagedMedia)) {
+                byte[] buffer = new byte[64 * 1024];
+                int read;
+                while ((read = mediaData.read(buffer)) != -1) {
+                    if (fileSize + read > maximumBytes) {
+                        throw mediaTooLarge(image);
+                    }
+                    outputStream.write(buffer, 0, read);
+                    fileSize += read;
+                }
             }
-            return stagedVideo;
+            if (fileSize == 0) {
+                throw badRequest("비어 있는 파일은 첨부할 수 없습니다.");
+            }
+            return new StagedMedia(stagedMedia, fileSize);
+        } catch (BoardException exception) {
+            deleteStagedMediaQuietly(stagedMedia);
+            throw exception;
         } catch (IOException exception) {
-            deleteStagedVideoQuietly(stagedVideo);
-            throw new BoardException(
-                    HttpStatus.INTERNAL_SERVER_ERROR,
-                    "BOARD_MEDIA_STAGING_FAILED",
-                    "동영상을 서버 처리용 파일로 준비하지 못했습니다."
+            deleteStagedMediaQuietly(stagedMedia);
+            throw mediaStagingFailed(
+                    "첨부파일을 서버 처리용 파일로 준비하지 못했습니다."
             );
         }
+    }
+
+    private void validateDeclaredMediaLength(
+            long declaredContentLength,
+            long maximumBytes,
+            boolean image
+    ) {
+        if (declaredContentLength == 0) {
+            throw badRequest("비어 있는 파일은 첨부할 수 없습니다.");
+        }
+        if (declaredContentLength > maximumBytes) {
+            throw mediaTooLarge(image);
+        }
+    }
+
+    private void validateMediaSignature(
+            String originalName,
+            Path stagedMedia
+    ) {
+        byte[] signature;
+        try (InputStream inputStream = Files.newInputStream(stagedMedia)) {
+            signature = inputStream.readNBytes(64);
+        } catch (IOException exception) {
+            throw mediaStagingFailed(
+                    "첨부파일 형식을 확인하지 못했습니다."
+            );
+        }
+
+        String extension = findExtension(originalName);
+        if (!matchesFileSignature(extension, signature)) {
+            throw badRequest(
+                    "파일 확장자와 실제 파일 형식이 일치하지 않습니다."
+            );
+        }
+    }
+
+    private TransactionTemplate requireMediaTransactionTemplate() {
+        if (mediaTransactionTemplate == null) {
+            throw new IllegalStateException(
+                    "게시판 미디어 트랜잭션이 초기화되지 않았습니다."
+            );
+        }
+        return mediaTransactionTemplate;
     }
 
     private void scheduleVideoProcessingAfterTransaction(
@@ -1003,7 +1141,7 @@ public class PostService {
                         postMediaId,
                         stagedVideo
                 );
-                deleteStagedVideoQuietly(stagedVideo);
+                deleteStagedMediaQuietly(stagedVideo);
                 markVideoProcessingFailed(postMediaId, exception);
                 videoProcessingSlots.release();
             }
@@ -1029,7 +1167,7 @@ public class PostService {
                                     postMediaId,
                                     stagedVideo
                             );
-                            deleteStagedVideoQuietly(stagedVideo);
+                            deleteStagedMediaQuietly(stagedVideo);
                             videoProcessingSlots.release();
                         }
                     }
@@ -1052,9 +1190,45 @@ public class PostService {
             markVideoProcessingFailed(postMediaId, exception);
         } finally {
             activeVideoProcessingSources.remove(postMediaId, stagedVideo);
-            deleteStagedVideoQuietly(stagedVideo);
+            deleteStagedMediaQuietly(stagedVideo);
             videoProcessingSlots.release();
         }
+    }
+
+    private int deleteAbandonedStagedMedia() {
+        Path tempDirectory = Path.of(
+                System.getProperty("java.io.tmpdir")
+        );
+        if (!Files.isDirectory(tempDirectory)) {
+            return 0;
+        }
+
+        int deleted = 0;
+        try (DirectoryStream<Path> stagedFiles = Files.newDirectoryStream(
+                tempDirectory,
+                "fooduck-board-media-*.upload"
+        )) {
+            for (Path stagedFile : stagedFiles) {
+                try {
+                    if (Files.deleteIfExists(stagedFile)) {
+                        deleted++;
+                    }
+                } catch (IOException exception) {
+                    LOGGER.warn(
+                            "중단된 게시판 미디어 임시 파일을 삭제하지 못했습니다. path={}",
+                            stagedFile,
+                            exception
+                    );
+                }
+            }
+        } catch (IOException exception) {
+            LOGGER.warn(
+                    "게시판 미디어 임시 파일을 확인하지 못했습니다. tempDirectory={}",
+                    tempDirectory,
+                    exception
+            );
+        }
+        return deleted;
     }
 
     private void markVideoProcessingFailed(
@@ -1090,16 +1264,16 @@ public class PostService {
         }
     }
 
-    private void deleteStagedVideoQuietly(Path stagedVideo) {
-        if (stagedVideo == null) {
+    private void deleteStagedMediaQuietly(Path stagedMedia) {
+        if (stagedMedia == null) {
             return;
         }
         try {
-            Files.deleteIfExists(stagedVideo);
+            Files.deleteIfExists(stagedMedia);
         } catch (IOException exception) {
             LOGGER.warn(
-                    "게시판 동영상 임시 파일을 삭제하지 못했습니다. path={}",
-                    stagedVideo,
+                    "게시판 미디어 임시 파일을 삭제하지 못했습니다. path={}",
+                    stagedMedia,
                     exception
             );
         }
@@ -1167,28 +1341,55 @@ public class PostService {
         }
 
         ByteRange range = resolveByteRange(rangeHeader, media.fileSize());
-        int requestedLength = Math.toIntExact(range.end() - range.start() + 1);
-        byte[] bytes = referenceRepository.readPostMediaBytes(
-                postMediaId,
-                range.start(),
-                requestedLength
-        );
-        if (bytes == null || bytes.length == 0) {
-            throw notFound("첨부파일 데이터가 없습니다.");
-        }
-
-        long actualEnd = range.start() + bytes.length - 1;
+        long contentLength = range.end() - range.start() + 1;
         return new MediaDownload(
                 media.postMediaId(),
                 media.mimeType(),
                 media.originalName(),
                 media.fileSize(),
                 range.start(),
-                actualEnd,
+                range.end(),
                 range.partial(),
                 download,
-                bytes
+                contentLength
         );
+    }
+
+    public void streamMedia(
+            Long postMediaId,
+            long zeroBasedStart,
+            long contentLength,
+            OutputStream outputStream
+    ) throws IOException {
+        long written = 0;
+        while (written < contentLength) {
+            int requestedLength = (int) Math.min(
+                    MEDIA_DB_READ_CHUNK_BYTES,
+                    contentLength - written
+            );
+            byte[] chunk = referenceRepository.readPostMediaChunk(
+                    postMediaId,
+                    zeroBasedStart + written,
+                    requestedLength
+            );
+            if (chunk.length == 0) {
+                break;
+            }
+
+            // DB 조회가 끝나 커넥션이 반환된 뒤 HTTP 응답으로 보낸다.
+            outputStream.write(chunk);
+            written += chunk.length;
+            if (chunk.length != requestedLength) {
+                break;
+            }
+        }
+
+        if (written != contentLength) {
+            throw new IOException(
+                    "첨부파일 데이터를 모두 전송하지 못했습니다. expected="
+                            + contentLength + ", actual=" + written
+            );
+        }
     }
 
     @Transactional
@@ -1302,6 +1503,8 @@ public class PostService {
                 post.getAuthor().getNickname(),
                 post.getLikeCount(),
                 likedByCurrentUser,
+                post.getViewCount(),
+                post.isEdited(),
                 post.getCreatedAt()
         );
     }
@@ -1444,10 +1647,9 @@ public class PostService {
         return fileName;
     }
 
-    private MediaTypeInfo detectMediaType(
+    private MediaTypeInfo resolveMediaType(
             String originalName,
-            String declaredContentType,
-            byte[] data
+            String declaredContentType
     ) {
         String extension = findExtension(originalName);
         String mimeType = MEDIA_MIME_TYPES.get(extension);
@@ -1460,11 +1662,6 @@ public class PostService {
         boolean image = IMAGE_EXTENSIONS.contains(extension);
         if (!image && !VIDEO_EXTENSIONS.contains(extension)) {
             throw badRequest("지원하지 않는 첨부파일 형식입니다.");
-        }
-        if (!matchesFileSignature(extension, data)) {
-            throw badRequest(
-                    "파일 확장자와 실제 파일 형식이 일치하지 않습니다."
-            );
         }
 
         String normalizedDeclaredType = normalizeContentType(declaredContentType);
@@ -1614,13 +1811,13 @@ public class PostService {
             return new ByteRange(0, totalSize - 1, false);
         }
         if (!rangeHeader.startsWith("bytes=") || rangeHeader.contains(",")) {
-            throw rangeNotSatisfiable();
+            throw rangeNotSatisfiable(totalSize);
         }
 
         String value = rangeHeader.substring("bytes=".length()).strip();
         int dash = value.indexOf('-');
         if (dash < 0) {
-            throw rangeNotSatisfiable();
+            throw rangeNotSatisfiable(totalSize);
         }
 
         String startValue = value.substring(0, dash).strip();
@@ -1631,7 +1828,7 @@ public class PostService {
             if (startValue.isEmpty()) {
                 long suffixLength = Long.parseLong(endValue);
                 if (suffixLength < 1) {
-                    throw rangeNotSatisfiable();
+                    throw rangeNotSatisfiable(totalSize);
                 }
                 suffixLength = Math.min(
                         suffixLength,
@@ -1642,7 +1839,7 @@ public class PostService {
             } else {
                 start = Long.parseLong(startValue);
                 if (start < 0 || start >= totalSize) {
-                    throw rangeNotSatisfiable();
+                    throw rangeNotSatisfiable(totalSize);
                 }
                 int maximumRangeBytes = start == 0
                         ? INITIAL_MEDIA_RANGE_BYTES
@@ -1655,20 +1852,27 @@ public class PostService {
                         ? maximumEnd
                         : Math.min(Long.parseLong(endValue), maximumEnd);
                 if (end < start) {
-                    throw rangeNotSatisfiable();
+                    throw rangeNotSatisfiable(totalSize);
                 }
             }
             return new ByteRange(start, end, true);
         } catch (NumberFormatException exception) {
-            throw rangeNotSatisfiable();
+            throw rangeNotSatisfiable(totalSize);
         }
     }
 
-    private BoardException rangeNotSatisfiable() {
+    private BoardException rangeNotSatisfiable(long totalSize) {
+        HttpHeaders headers = new HttpHeaders();
+        headers.set(HttpHeaders.ACCEPT_RANGES, "bytes");
+        headers.set(
+                HttpHeaders.CONTENT_RANGE,
+                "bytes */" + Math.max(0, totalSize)
+        );
         return new BoardException(
                 HttpStatus.REQUESTED_RANGE_NOT_SATISFIABLE,
                 "BOARD_MEDIA_RANGE_INVALID",
-                "요청한 첨부파일 구간을 제공할 수 없습니다."
+                "요청한 첨부파일 구간을 제공할 수 없습니다.",
+                headers
         );
     }
 
@@ -1849,6 +2053,29 @@ public class PostService {
         );
     }
 
+    private BoardException tooManyMedia() {
+        return badRequest(
+                "게시글에는 사진과 동영상을 합해 최대 "
+                        + MAX_MEDIA_COUNT + "개까지 첨부할 수 있습니다."
+        );
+    }
+
+    private BoardException mediaTooLarge(boolean image) {
+        return badRequest(
+                image
+                        ? "사진은 한 파일당 20MB 이하만 첨부할 수 있습니다."
+                        : "동영상은 한 파일당 100MB 이하만 첨부할 수 있습니다."
+        );
+    }
+
+    private BoardException mediaStagingFailed(String message) {
+        return new BoardException(
+                HttpStatus.INTERNAL_SERVER_ERROR,
+                "BOARD_MEDIA_STAGING_FAILED",
+                message
+        );
+    }
+
     private BoardException publicRestaurantNotFound() {
         return new BoardException(
                 HttpStatus.NOT_FOUND,
@@ -1881,6 +2108,12 @@ public class PostService {
         );
     }
 
+    private record StagedMedia(
+            Path path,
+            long fileSize
+    ) {
+    }
+
     private record MediaTypeInfo(
             boolean image,
             String databaseType,
@@ -1904,7 +2137,7 @@ public class PostService {
             long end,
             boolean partial,
             boolean download,
-            byte[] data
+            long contentLength
     ) {
     }
 
@@ -1918,20 +2151,18 @@ public class PostService {
             Long accountId,
             String nickname,
             String accountLabel,
+            LocalDateTime lastPublicActivityAt,
             long postCount,
             long commentCount,
+            long reviewCount,
             List<AuthorRecentPostResponse> recentPosts,
             List<AuthorRecentCommentResponse> recentComments,
-            long newsPostCount,
-            long newsCommentCount,
-            List<AuthorRecentPostResponse> recentNewsPosts,
-            List<AuthorRecentCommentResponse> recentNewsComments
+            List<AuthorRecentReviewResponse> recentReviews
     ) {
         public AuthorSummaryResponse {
             recentPosts = List.copyOf(recentPosts);
             recentComments = List.copyOf(recentComments);
-            recentNewsPosts = List.copyOf(recentNewsPosts);
-            recentNewsComments = List.copyOf(recentNewsComments);
+            recentReviews = List.copyOf(recentReviews);
         }
     }
 
@@ -1949,6 +2180,19 @@ public class PostService {
             Long postId,
             String postTitle,
             String content,
+            BoardType boardType,
+            PostCategory category,
+            LocalDateTime createdAt
+    ) {
+    }
+
+    public record AuthorRecentReviewResponse(
+            Long reviewId,
+            String restaurantSource,
+            Long storeId,
+            String restaurantName,
+            byte rating,
+            String content,
             LocalDateTime createdAt
     ) {
     }
@@ -1961,6 +2205,8 @@ public class PostService {
             String authorNickname,
             long likeCount,
             boolean likedByCurrentUser,
+            long viewCount,
+            boolean edited,
             LocalDateTime createdAt
     ) {
     }

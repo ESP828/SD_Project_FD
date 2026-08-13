@@ -11,6 +11,7 @@ public record PresetDetailResponse(
         long favoriteCount,
         boolean favoriteByCurrentUser,
         boolean isOwner,
+        boolean isPublic,
         String imageUrl,
         LocalDateTime createdAt,
         long restaurantCount,

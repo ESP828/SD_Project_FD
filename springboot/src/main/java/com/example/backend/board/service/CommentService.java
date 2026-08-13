@@ -12,23 +12,33 @@ import com.example.backend.board.dto.response.CommentResponse;
 import com.example.backend.board.exception.BoardException;
 import com.example.backend.board.mapper.BoardResponseMapper;
 import com.example.backend.board.policy.BoardAccessPolicy;
+import com.example.backend.board.query.BoardReferenceQueryRepository;
 import com.example.backend.board.repository.CommentRepository;
 import com.example.backend.board.repository.PostRepository;
+import jakarta.annotation.PostConstruct;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.DirectoryStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -42,7 +52,6 @@ public class CommentService {
 
     private static final int MAX_PAGE_SIZE = 100;
     private static final int MAX_COMMENT_IMAGE_BYTES = 5 * 1024 * 1024;
-    private static final int COMMENT_IMAGE_CHUNK_BYTES = 1024 * 1024;
     private static final int MAX_COMMENT_IMAGE_NAME_LENGTH = 255;
     private static final Set<String> COMMENT_IMAGE_EXTENSIONS = Set.of(
             "jpg", "jpeg", "png", "gif", "webp"
@@ -70,6 +79,8 @@ public class CommentService {
     private final BoardUserService boardUserService;
     private final BoardAccessPolicy accessPolicy;
     private final BoardResponseMapper responseMapper;
+    private BoardReferenceQueryRepository referenceRepository;
+    private TransactionTemplate commentImageTransactionTemplate;
 
     public CommentService(
             CommentRepository commentRepository,
@@ -83,6 +94,39 @@ public class CommentService {
         this.boardUserService = boardUserService;
         this.accessPolicy = accessPolicy;
         this.responseMapper = responseMapper;
+    }
+
+    @Autowired
+    void configureCommentImageInfrastructure(
+            PlatformTransactionManager transactionManager,
+            BoardReferenceQueryRepository referenceRepository
+    ) {
+        this.commentImageTransactionTemplate = new TransactionTemplate(
+                transactionManager
+        );
+        this.referenceRepository = referenceRepository;
+    }
+
+    @PostConstruct
+    void cleanAbandonedCommentImageStaging() {
+        Path tempDirectory = Path.of(System.getProperty("java.io.tmpdir"));
+        if (!Files.isDirectory(tempDirectory)) {
+            return;
+        }
+        try (DirectoryStream<Path> stagedFiles = Files.newDirectoryStream(
+                tempDirectory,
+                "fooduck-board-comment-image-*.upload"
+        )) {
+            for (Path stagedFile : stagedFiles) {
+                try {
+                    Files.deleteIfExists(stagedFile);
+                } catch (IOException ignored) {
+                    // 다음 실행 또는 운영체제 임시 파일 정리에 맡긴다.
+                }
+            }
+        } catch (IOException ignored) {
+            // 임시 폴더를 읽지 못해도 게시판 기동은 계속한다.
+        }
     }
 
     @Transactional(readOnly = true)
@@ -221,34 +265,27 @@ public class CommentService {
         commentRepository.delete(comment);
     }
 
-    @Transactional
     public void uploadCommentImage(
             Long commentId,
             String encodedOriginalName,
             String declaredContentType,
-            byte[] imageData,
+            InputStream imageData,
+            long declaredContentLength,
             Long currentAccountId
     ) {
-        Account currentAccount = boardUserService.require(currentAccountId);
-        Comment comment = getExistingCommentForUpdate(commentId);
-        assertParentPostReadable(comment, currentAccount);
-        assertOwnerOrAdmin(comment, currentAccount);
-
-        if (imageData == null || imageData.length == 0) {
-            throw badRequest("비어 있는 사진은 첨부할 수 없습니다.");
-        }
-        if (imageData.length > MAX_COMMENT_IMAGE_BYTES) {
-            throw badRequest("댓글 사진은 한 파일당 5MB 이하만 첨부할 수 있습니다.");
-        }
+        TransactionTemplate transactionTemplate =
+                requireCommentImageTransactionTemplate();
+        transactionTemplate.executeWithoutResult(status ->
+                preflightCommentImageUpload(commentId, currentAccountId)
+        );
 
         String originalName = normalizeCommentImageName(encodedOriginalName);
         String extension = findCommentImageExtension(originalName);
         String mimeType = COMMENT_IMAGE_MIME_TYPES.get(extension);
         if (mimeType == null || !COMMENT_IMAGE_EXTENSIONS.contains(extension)) {
-            throw badRequest("댓글에는 JPG, PNG, WEBP, GIF 사진만 첨부할 수 있습니다.");
-        }
-        if (!matchesCommentImageSignature(extension, imageData)) {
-            throw badRequest("파일 확장자와 실제 사진 형식이 일치하지 않습니다.");
+            throw badRequest(
+                    "댓글에는 JPG, PNG, WEBP, GIF 사진만 첨부할 수 있습니다."
+            );
         }
 
         String normalizedContentType = normalizeContentType(declaredContentType);
@@ -258,37 +295,68 @@ public class CommentService {
             throw badRequest("사진 파일의 Content-Type이 올바르지 않습니다.");
         }
 
-        if (commentRepository.initializeCommentImage(
-                commentId,
-                mimeType,
-                originalName,
-                imageData.length
-        ) != 1) {
-            throw notFoundCommentImage();
-        }
-
-        for (int offset = 0; offset < imageData.length;
-             offset += COMMENT_IMAGE_CHUNK_BYTES) {
-            int end = Math.min(
-                    imageData.length,
-                    offset + COMMENT_IMAGE_CHUNK_BYTES
+        validateCommentImageLength(declaredContentLength);
+        StagedCommentImage stagedImage = stageCommentImage(imageData);
+        try {
+            validateCommentImageSignature(extension, stagedImage.path());
+            transactionTemplate.executeWithoutResult(status ->
+                    persistStagedCommentImage(
+                            commentId,
+                            mimeType,
+                            originalName,
+                            stagedImage,
+                            currentAccountId
+                    )
             );
-            byte[] chunk = Arrays.copyOfRange(imageData, offset, end);
-            if (commentRepository.appendCommentImageChunk(commentId, chunk) != 1) {
-                throw new BoardException(
-                        HttpStatus.INTERNAL_SERVER_ERROR,
-                        "BOARD_COMMENT_IMAGE_SAVE_FAILED",
-                        "댓글 사진을 저장하지 못했습니다."
-                );
-            }
+        } finally {
+            deleteStagedCommentImageQuietly(stagedImage.path());
         }
+    }
 
-        Long storedSize = commentRepository.findCommentImageStoredSize(commentId);
-        if (storedSize == null || storedSize != imageData.length) {
+    private void preflightCommentImageUpload(
+            Long commentId,
+            Long currentAccountId
+    ) {
+        Account currentAccount = boardUserService.require(currentAccountId);
+        Comment comment = getExistingCommentForUpdate(commentId);
+        assertParentPostReadable(comment, currentAccount);
+        assertOwnerOrAdmin(comment, currentAccount);
+    }
+
+    private void persistStagedCommentImage(
+            Long commentId,
+            String mimeType,
+            String originalName,
+            StagedCommentImage stagedImage,
+            Long currentAccountId
+    ) {
+        Account currentAccount = boardUserService.require(currentAccountId);
+        Comment comment = getExistingCommentForUpdate(commentId);
+        assertParentPostReadable(comment, currentAccount);
+        assertOwnerOrAdmin(comment, currentAccount);
+
+        try (InputStream inputStream =
+                     Files.newInputStream(stagedImage.path())) {
+            requireReferenceRepository().storeCommentImageData(
+                    commentId,
+                    mimeType,
+                    originalName,
+                    stagedImage.fileSize(),
+                    inputStream
+            );
+        } catch (IOException exception) {
             throw new BoardException(
                     HttpStatus.INTERNAL_SERVER_ERROR,
-                    "BOARD_COMMENT_IMAGE_SIZE_MISMATCH",
-                    "댓글 사진 저장 크기가 일치하지 않습니다."
+                    "BOARD_COMMENT_IMAGE_SAVE_FAILED",
+                    "댓글 사진을 저장하지 못했습니다."
+            );
+        } catch (RuntimeException exception) {
+            throw new BoardException(
+                    HttpStatus.INTERNAL_SERVER_ERROR,
+                    "BOARD_COMMENT_IMAGE_SAVE_FAILED",
+                    exception.getMessage() == null
+                            ? "댓글 사진을 저장하지 못했습니다."
+                            : exception.getMessage()
             );
         }
     }
@@ -309,18 +377,158 @@ public class CommentService {
         if (!comment.hasImage()) {
             throw notFoundCommentImage();
         }
-        byte[] imageData = commentRepository.findCommentImageData(commentId);
-        if (imageData == null || imageData.length == 0) {
+        Long declaredSize = comment.getImageFileSize();
+        Long storedSize = commentRepository.findCommentImageStoredSize(commentId);
+        if (declaredSize == null || declaredSize <= 0
+                || storedSize == null || storedSize <= 0) {
             throw notFoundCommentImage();
+        }
+        if (storedSize.longValue() != declaredSize.longValue()) {
+            throw new BoardException(
+                    HttpStatus.INTERNAL_SERVER_ERROR,
+                    "BOARD_COMMENT_IMAGE_SIZE_MISMATCH",
+                    "댓글 사진 저장 크기가 일치하지 않습니다."
+            );
         }
 
         return new CommentImageDownload(
                 commentId,
                 comment.getImageMimeType(),
                 comment.getImageOriginalName(),
-                comment.getImageFileSize(),
-                imageData
+                declaredSize
         );
+    }
+
+    public void streamCommentImage(
+            Long commentId,
+            long fileSize,
+            OutputStream outputStream
+    ) {
+        long written;
+        try {
+            written = requireReferenceRepository().streamCommentImageBytes(
+                    commentId,
+                    fileSize,
+                    outputStream
+            );
+        } catch (RuntimeException exception) {
+            if (exception instanceof java.io.UncheckedIOException) {
+                throw new BoardException(
+                        HttpStatus.INTERNAL_SERVER_ERROR,
+                        "BOARD_COMMENT_IMAGE_READ_FAILED",
+                        "댓글 사진을 불러오지 못했습니다."
+                );
+            }
+            throw exception;
+        }
+        if (written != fileSize) {
+            throw new BoardException(
+                    HttpStatus.INTERNAL_SERVER_ERROR,
+                    "BOARD_COMMENT_IMAGE_SIZE_MISMATCH",
+                    "댓글 사진 저장 크기가 일치하지 않습니다."
+            );
+        }
+    }
+
+    private void validateCommentImageLength(long declaredContentLength) {
+        if (declaredContentLength == 0) {
+            throw badRequest("비어 있는 사진은 첨부할 수 없습니다.");
+        }
+        if (declaredContentLength > MAX_COMMENT_IMAGE_BYTES) {
+            throw badRequest(
+                    "댓글 사진은 한 파일당 5MB 이하만 첨부할 수 있습니다."
+            );
+        }
+    }
+
+    private StagedCommentImage stageCommentImage(InputStream imageData) {
+        if (imageData == null) {
+            throw badRequest("비어 있는 사진은 첨부할 수 없습니다.");
+        }
+
+        Path stagedImage = null;
+        long fileSize = 0;
+        try {
+            stagedImage = Files.createTempFile(
+                    "fooduck-board-comment-image-",
+                    ".upload"
+            );
+            try (OutputStream outputStream = Files.newOutputStream(stagedImage)) {
+                byte[] buffer = new byte[64 * 1024];
+                int read;
+                while ((read = imageData.read(buffer)) != -1) {
+                    if (fileSize + read > MAX_COMMENT_IMAGE_BYTES) {
+                        throw badRequest(
+                                "댓글 사진은 한 파일당 5MB 이하만 첨부할 수 있습니다."
+                        );
+                    }
+                    outputStream.write(buffer, 0, read);
+                    fileSize += read;
+                }
+            }
+            if (fileSize == 0) {
+                throw badRequest("비어 있는 사진은 첨부할 수 없습니다.");
+            }
+            return new StagedCommentImage(stagedImage, fileSize);
+        } catch (BoardException exception) {
+            deleteStagedCommentImageQuietly(stagedImage);
+            throw exception;
+        } catch (IOException exception) {
+            deleteStagedCommentImageQuietly(stagedImage);
+            throw new BoardException(
+                    HttpStatus.INTERNAL_SERVER_ERROR,
+                    "BOARD_COMMENT_IMAGE_STAGING_FAILED",
+                    "댓글 사진을 서버 처리용 파일로 준비하지 못했습니다."
+            );
+        }
+    }
+
+    private void validateCommentImageSignature(
+            String extension,
+            Path stagedImage
+    ) {
+        byte[] signature;
+        try (InputStream inputStream = Files.newInputStream(stagedImage)) {
+            signature = inputStream.readNBytes(16);
+        } catch (IOException exception) {
+            throw new BoardException(
+                    HttpStatus.INTERNAL_SERVER_ERROR,
+                    "BOARD_COMMENT_IMAGE_READ_FAILED",
+                    "댓글 사진 형식을 확인하지 못했습니다."
+            );
+        }
+        if (!matchesCommentImageSignature(extension, signature)) {
+            throw badRequest("파일 확장자와 실제 사진 형식이 일치하지 않습니다.");
+        }
+    }
+
+    private void deleteStagedCommentImageQuietly(Path stagedImage) {
+        if (stagedImage == null) {
+            return;
+        }
+        try {
+            Files.deleteIfExists(stagedImage);
+        } catch (IOException ignored) {
+            // 요청 처리는 이미 끝났으므로 임시 파일 정리 실패는 무시한다.
+        }
+    }
+
+    private TransactionTemplate requireCommentImageTransactionTemplate() {
+        if (commentImageTransactionTemplate == null) {
+            throw new IllegalStateException(
+                    "댓글 사진 트랜잭션이 초기화되지 않았습니다."
+            );
+        }
+        return commentImageTransactionTemplate;
+    }
+
+    private BoardReferenceQueryRepository requireReferenceRepository() {
+        if (referenceRepository == null) {
+            throw new IllegalStateException(
+                    "댓글 사진 저장소가 초기화되지 않았습니다."
+            );
+        }
+        return referenceRepository;
     }
 
     private String normalizeCommentImageName(String encodedOriginalName) {
@@ -688,9 +896,11 @@ public class CommentService {
             Long commentId,
             String mimeType,
             String originalName,
-            long fileSize,
-            byte[] data
+            long fileSize
     ) {
+    }
+
+    private record StagedCommentImage(Path path, long fileSize) {
     }
 
     private record ReplyTarget(

@@ -10,6 +10,16 @@
   }
 
   const tabs = {
+    presets: {
+      label: "프리셋 리스트",
+      title: "내가 만든 프리셋",
+      description: "현재 계정으로 만든 프리셋을 확인하고 수정할 수 있습니다.",
+      endpoint: "/mypage/presets",
+      countKey: "presetCount",
+      emptyIcon: "bookmarks",
+      emptyTitle: "만든 프리셋이 없습니다.",
+      emptyCopy: "프리셋 페이지에서 나만의 맛집 목록을 만들어 보세요.",
+    },
     favorites: {
       label: "찜한 가게",
       title: "찜한 가게",
@@ -65,7 +75,7 @@
   const requestedTab = new URLSearchParams(window.location.search).get("tab");
   const activeTab = Object.prototype.hasOwnProperty.call(tabs, requestedTab)
     ? requestedTab
-    : "favorites";
+    : "presets";
   const activeConfig = tabs[activeTab];
 
   function element(tag, className, text) {
@@ -81,6 +91,12 @@
 
   function boardDetailPath(postId) {
     return `/pages/board/detail.html?postId=${encodeURIComponent(postId)}`;
+  }
+
+  function presetDetailPath(presetId, edit = false) {
+    const query = new URLSearchParams({ presetId });
+    if (edit) query.set("edit", "1");
+    return `/pages/presset/detail.html?${query.toString()}`;
   }
 
   function searchPath(name) {
@@ -148,6 +164,29 @@
     );
     if (item.description) card.append(element("p", "", item.description));
     card.append(createFooter(item.createdAt, href, "가게 찾아보기 →"));
+    return card;
+  }
+
+  function presetCard(item) {
+    const card = element("article", "mypage-detail-card");
+    const href = presetDetailPath(item.presetId);
+    card.append(createCardTop(item.title || "제목 없는 프리셋", item.category || "카테고리 없음", href));
+
+    const meta = element("div", "mypage-detail-meta");
+    meta.append(
+      element("span", "", `맛집 ${Number(item.restaurantCount || 0).toLocaleString("ko-KR")}곳`),
+      element("span", "", `찜 ${Number(item.favoriteCount || 0).toLocaleString("ko-KR")}`),
+      element("span", "", `조회 ${Number(item.viewCount || 0).toLocaleString("ko-KR")}`),
+    );
+    card.append(meta);
+
+    const tags = Array.isArray(item.tags)
+      ? item.tags.map((tag) => tag.tagName || tag.name).filter(Boolean)
+      : [];
+    if (tags.length) {
+      card.append(element("p", "mypage-detail-preset-tags", tags.map((tag) => `#${tag}`).join(" ")));
+    }
+    card.append(createFooter(item.createdAt, presetDetailPath(item.presetId, true), "수정하기 →"));
     return card;
   }
 
@@ -223,6 +262,7 @@
 
     const list = element("div", "mypage-detail-list");
     const renderer = {
+      presets: presetCard,
       favorites: favoriteCard,
       reviews: reviewCard,
       posts: postCard,

@@ -23,6 +23,7 @@ public class BoardExceptionHandler {
     public ResponseEntity<ApiResponse<Void>> handleBoard(BoardException exception) {
         return ResponseEntity
                 .status(exception.getStatus())
+                .headers(exception.getHeaders())
                 .body(ApiResponse.fail(exception.getCode(), exception.getMessage()));
     }
 

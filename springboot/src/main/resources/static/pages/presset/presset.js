@@ -188,7 +188,9 @@
     const goDetail = element("a", "button button-primary preset-card-cta", "맛집 목록 보기");
     goDetail.href = detailPath(preset.presetId);
     const goMap = element("a", "preset-card-map-link", "지도에서 보기 ↗");
-    goMap.href = `/pages/map/index.html?presetId=${encodeURIComponent(preset.presetId)}`;
+    const mapQuery = new URLSearchParams({ presetId: preset.presetId });
+    if (preset.isOwner) mapQuery.set("edit", "1");
+    goMap.href = `/pages/map/index.html?${mapQuery.toString()}`;
     actions.append(goDetail, goMap);
 
     card.append(body, actions);
