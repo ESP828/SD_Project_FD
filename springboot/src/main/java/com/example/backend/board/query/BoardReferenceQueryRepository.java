@@ -757,58 +757,35 @@ public class BoardReferenceQueryRepository {
         return rows.stream().findFirst();
     }
 
-    public long streamPostMediaBytes(
+    public byte[] readPostMediaChunk(
             Long postMediaId,
             long zeroBasedStart,
-            long length,
-            OutputStream outputStream
+            int length
     ) {
-        Long written = jdbcTemplate.getJdbcTemplate().execute(
-                (ConnectionCallback<Long>) connection -> {
-            try (PreparedStatement statement = connection.prepareStatement(
-                    """
-                    select substring(media_data, ?, ?)
-                      from post_media
-                     where post_media_id = ?
-                       and media_data is not null
-                    """
-            )) {
-                long totalWritten = 0;
-                while (totalWritten < length) {
-                    long chunkLength = Math.min(
-                            BLOB_READ_CHUNK_BYTES,
-                            length - totalWritten
-                    );
-                    statement.setLong(
-                            1,
-                            zeroBasedStart + totalWritten + 1
-                    );
-                    statement.setLong(2, chunkLength);
-                    statement.setLong(3, postMediaId);
-                    try (ResultSet resultSet = statement.executeQuery()) {
-                        if (!resultSet.next()) {
-                            break;
-                        }
-                        try (InputStream inputStream =
-                                     resultSet.getBinaryStream(1)) {
-                            long chunkWritten = copyBinaryStream(
-                                    inputStream,
-                                    outputStream,
-                                    chunkLength
-                            );
-                            totalWritten += chunkWritten;
-                            if (chunkWritten != chunkLength) {
-                                break;
-                            }
-                        } catch (IOException exception) {
-                            throw new UncheckedIOException(exception);
-                        }
+        if (length < 1) {
+            return new byte[0];
+        }
+        byte[] data = jdbcTemplate.query(
+                """
+                select substring(media_data, :startPosition, :chunkLength)
+                  from post_media
+                 where post_media_id = :postMediaId
+                   and media_data is not null
+                """,
+                Map.of(
+                        "startPosition", zeroBasedStart + 1,
+                        "chunkLength", length,
+                        "postMediaId", postMediaId
+                ),
+                resultSet -> {
+                    if (!resultSet.next()) {
+                        return new byte[0];
                     }
+                    byte[] chunk = resultSet.getBytes(1);
+                    return chunk == null ? new byte[0] : chunk;
                 }
-                return totalWritten;
-            }
-        });
-        return written == null ? 0L : written;
+        );
+        return data == null ? new byte[0] : data;
     }
 
     public long streamCommentImageBytes(

@@ -346,6 +346,10 @@ public class PostController {
                     value = HttpHeaders.RANGE,
                     required = false
             ) String range,
+            @RequestHeader(
+                    value = HttpHeaders.IF_NONE_MATCH,
+                    required = false
+            ) String ifNoneMatch,
             @RequestParam(defaultValue = "false") boolean download,
             Authentication authentication,
             HttpServletResponse response
@@ -357,6 +361,21 @@ public class PostController {
                 BoardAuthentication.accountId(authentication)
         );
 
+        String etag = "\"board-media-" + media.postMediaId()
+                + "-" + media.totalSize() + "\"";
+        response.setHeader(HttpHeaders.ACCEPT_RANGES, "bytes");
+        response.setHeader(
+                HttpHeaders.CACHE_CONTROL,
+                "private, max-age=3600, no-transform"
+        );
+        response.setHeader(HttpHeaders.ETAG, etag);
+        response.setHeader(HttpHeaders.VARY, HttpHeaders.RANGE);
+
+        if (matchesIfNoneMatch(ifNoneMatch, etag)) {
+            response.setStatus(HttpStatus.NOT_MODIFIED.value());
+            return;
+        }
+
         response.setStatus(
                 media.partial()
                         ? HttpStatus.PARTIAL_CONTENT.value()
@@ -364,17 +383,6 @@ public class PostController {
         );
         response.setContentType(resolveMediaType(media.mimeType()).toString());
         response.setContentLengthLong(media.contentLength());
-        response.setHeader(HttpHeaders.ACCEPT_RANGES, "bytes");
-        response.setHeader(
-                HttpHeaders.CACHE_CONTROL,
-                "private, max-age=3600, no-transform"
-        );
-        response.setHeader(
-                HttpHeaders.ETAG,
-                "\"board-media-" + media.postMediaId()
-                        + "-" + media.totalSize() + "\""
-        );
-        response.setHeader(HttpHeaders.VARY, HttpHeaders.RANGE);
         response.setHeader(
                 HttpHeaders.CONTENT_DISPOSITION,
                 (media.download()
@@ -507,6 +515,25 @@ public class PostController {
                         BoardAuthentication.accountId(authentication)
                 )
         );
+    }
+
+    private boolean matchesIfNoneMatch(String ifNoneMatch, String etag) {
+        if (ifNoneMatch == null || ifNoneMatch.isBlank()) {
+            return false;
+        }
+        for (String rawCandidate : ifNoneMatch.split(",")) {
+            String candidate = rawCandidate.strip();
+            if ("*".equals(candidate)) {
+                return true;
+            }
+            if (candidate.startsWith("W/")) {
+                candidate = candidate.substring(2).strip();
+            }
+            if (etag.equals(candidate)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private MediaType resolveMediaType(String mimeType) {

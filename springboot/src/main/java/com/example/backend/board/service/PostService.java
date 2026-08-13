@@ -32,6 +32,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -43,7 +44,6 @@ import org.springframework.transaction.support.TransactionTemplate;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.io.UncheckedIOException;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.DirectoryStream;
@@ -95,6 +95,7 @@ public class PostService {
     private static final int INITIAL_MEDIA_RANGE_BYTES = 8 * 1024 * 1024;
     private static final int STREAM_MEDIA_RANGE_BYTES = 8 * 1024 * 1024;
     private static final int SUFFIX_MEDIA_RANGE_BYTES = 4 * 1024 * 1024;
+    private static final int MEDIA_DB_READ_CHUNK_BYTES = 1024 * 1024;
     private static final int MAX_ORIGINAL_NAME_LENGTH = 255;
 
     private static final Set<String> IMAGE_EXTENSIONS = Set.of(
@@ -1360,21 +1361,34 @@ public class PostService {
             long contentLength,
             OutputStream outputStream
     ) throws IOException {
-        try {
-            long written = referenceRepository.streamPostMediaBytes(
-                    postMediaId,
-                    zeroBasedStart,
-                    contentLength,
-                    outputStream
+        long written = 0;
+        while (written < contentLength) {
+            int requestedLength = (int) Math.min(
+                    MEDIA_DB_READ_CHUNK_BYTES,
+                    contentLength - written
             );
-            if (written != contentLength) {
-                throw new IOException(
-                        "첨부파일 데이터를 모두 전송하지 못했습니다. expected="
-                                + contentLength + ", actual=" + written
-                );
+            byte[] chunk = referenceRepository.readPostMediaChunk(
+                    postMediaId,
+                    zeroBasedStart + written,
+                    requestedLength
+            );
+            if (chunk.length == 0) {
+                break;
             }
-        } catch (UncheckedIOException exception) {
-            throw exception.getCause();
+
+            // DB 조회가 끝나 커넥션이 반환된 뒤 HTTP 응답으로 보낸다.
+            outputStream.write(chunk);
+            written += chunk.length;
+            if (chunk.length != requestedLength) {
+                break;
+            }
+        }
+
+        if (written != contentLength) {
+            throw new IOException(
+                    "첨부파일 데이터를 모두 전송하지 못했습니다. expected="
+                            + contentLength + ", actual=" + written
+            );
         }
     }
 
@@ -1797,13 +1811,13 @@ public class PostService {
             return new ByteRange(0, totalSize - 1, false);
         }
         if (!rangeHeader.startsWith("bytes=") || rangeHeader.contains(",")) {
-            throw rangeNotSatisfiable();
+            throw rangeNotSatisfiable(totalSize);
         }
 
         String value = rangeHeader.substring("bytes=".length()).strip();
         int dash = value.indexOf('-');
         if (dash < 0) {
-            throw rangeNotSatisfiable();
+            throw rangeNotSatisfiable(totalSize);
         }
 
         String startValue = value.substring(0, dash).strip();
@@ -1814,7 +1828,7 @@ public class PostService {
             if (startValue.isEmpty()) {
                 long suffixLength = Long.parseLong(endValue);
                 if (suffixLength < 1) {
-                    throw rangeNotSatisfiable();
+                    throw rangeNotSatisfiable(totalSize);
                 }
                 suffixLength = Math.min(
                         suffixLength,
@@ -1825,7 +1839,7 @@ public class PostService {
             } else {
                 start = Long.parseLong(startValue);
                 if (start < 0 || start >= totalSize) {
-                    throw rangeNotSatisfiable();
+                    throw rangeNotSatisfiable(totalSize);
                 }
                 int maximumRangeBytes = start == 0
                         ? INITIAL_MEDIA_RANGE_BYTES
@@ -1838,20 +1852,27 @@ public class PostService {
                         ? maximumEnd
                         : Math.min(Long.parseLong(endValue), maximumEnd);
                 if (end < start) {
-                    throw rangeNotSatisfiable();
+                    throw rangeNotSatisfiable(totalSize);
                 }
             }
             return new ByteRange(start, end, true);
         } catch (NumberFormatException exception) {
-            throw rangeNotSatisfiable();
+            throw rangeNotSatisfiable(totalSize);
         }
     }
 
-    private BoardException rangeNotSatisfiable() {
+    private BoardException rangeNotSatisfiable(long totalSize) {
+        HttpHeaders headers = new HttpHeaders();
+        headers.set(HttpHeaders.ACCEPT_RANGES, "bytes");
+        headers.set(
+                HttpHeaders.CONTENT_RANGE,
+                "bytes */" + Math.max(0, totalSize)
+        );
         return new BoardException(
                 HttpStatus.REQUESTED_RANGE_NOT_SATISFIABLE,
                 "BOARD_MEDIA_RANGE_INVALID",
-                "요청한 첨부파일 구간을 제공할 수 없습니다."
+                "요청한 첨부파일 구간을 제공할 수 없습니다.",
+                headers
         );
     }
 
