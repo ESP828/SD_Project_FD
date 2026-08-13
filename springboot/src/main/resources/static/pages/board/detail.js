@@ -428,6 +428,7 @@
   let detailLoginStorageHandler = null;
   let pendingDetailLoginAction = null;
   let detailLoginSuccessMessage = "로그인되었습니다.";
+  let detailLogoutInFlight = false;
   let activeReplyForm = null;
   let activeReplyPreviewUrl = null;
   let activeCommentEditForm = null;
@@ -564,6 +565,29 @@
         onSuccess: () => window.location.reload(),
       });
     });
+  }
+
+  function initializeDetailLogoutEntryPoint() {
+    document.addEventListener("click", async (event) => {
+      const button = event.target.closest(".site-header [data-logout]");
+      if (!button || !session.authenticated) return;
+
+      // 공통 헤더는 로그아웃 후 홈으로 이동한다. 상세 화면에서는 그 동작을
+      // 먼저 가로채 현재 게시글 URL을 유지한 채 인증 상태만 새로 반영한다.
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      if (detailLogoutInFlight) return;
+      detailLogoutInFlight = true;
+      button.disabled = true;
+
+      try {
+        await Api.logout();
+      } catch (_error) {
+        Api.clearToken();
+      } finally {
+        window.location.reload();
+      }
+    }, true);
   }
 
   function clearCommentImageSelection() {
@@ -2583,6 +2607,7 @@
   });
 
   initializeDetailLoginEntryPoints();
+  initializeDetailLogoutEntryPoint();
   initializeScrollTopButton();
   loadPage();
 })();
