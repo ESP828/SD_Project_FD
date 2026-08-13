@@ -136,38 +136,6 @@ public interface CommentRepository extends JpaRepository<Comment, Long> {
             @Param("status") CommentStatus status
     );
 
-    @Modifying(flushAutomatically = true)
-    @Query(value = """
-            update post_comment
-               set image_data = x'',
-                   image_mime_type = :mimeType,
-                   image_original_name = :originalName,
-                   image_file_size = :fileSize
-             where comment_id = :commentId
-               and status = 'ACTIVE'
-            """, nativeQuery = true)
-    int initializeCommentImage(
-            @Param("commentId") Long commentId,
-            @Param("mimeType") String mimeType,
-            @Param("originalName") String originalName,
-            @Param("fileSize") long fileSize
-    );
-
-    @Modifying(flushAutomatically = true)
-    @Query(value = """
-            update post_comment
-               set image_data = concat(
-                       coalesce(image_data, x''),
-                       :imageChunk
-                   )
-             where comment_id = :commentId
-               and status = 'ACTIVE'
-            """, nativeQuery = true)
-    int appendCommentImageChunk(
-            @Param("commentId") Long commentId,
-            @Param("imageChunk") byte[] imageChunk
-    );
-
     @Query(value = """
             select octet_length(image_data)
               from post_comment
@@ -175,16 +143,6 @@ public interface CommentRepository extends JpaRepository<Comment, Long> {
                and status = 'ACTIVE'
             """, nativeQuery = true)
     Long findCommentImageStoredSize(@Param("commentId") Long commentId);
-
-    @Query(value = """
-            select image_data
-              from post_comment
-             where comment_id = :commentId
-               and status = 'ACTIVE'
-               and image_file_size is not null
-               and image_file_size > 0
-            """, nativeQuery = true)
-    byte[] findCommentImageData(@Param("commentId") Long commentId);
 
     @Modifying(flushAutomatically = true)
     @Query("""

@@ -6,12 +6,13 @@ import com.example.backend.board.dto.response.CommentPageResponse;
 import com.example.backend.board.dto.response.CommentResponse;
 import com.example.backend.board.service.CommentService;
 import com.example.backend.global.response.ApiResponse;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
-import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -26,6 +27,8 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.io.IOException;
+import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 
 @RestController
@@ -79,47 +82,62 @@ public class CommentController {
                     value = HttpHeaders.CONTENT_TYPE,
                     required = false
             ) String contentType,
-            @RequestBody byte[] imageData,
-            Authentication authentication
-    ) {
+            Authentication authentication,
+            HttpServletRequest request
+    ) throws IOException {
         commentService.uploadCommentImage(
                 commentId,
                 encodedFileName,
                 contentType,
-                imageData,
+                request.getInputStream(),
+                request.getContentLengthLong(),
                 BoardAuthentication.accountId(authentication)
         );
         return ApiResponse.success("댓글 사진이 등록되었습니다.", null);
     }
 
     @GetMapping("/comments/{commentId}/image")
-    public ResponseEntity<byte[]> getCommentImage(
+    public void getCommentImage(
             @PathVariable Long commentId,
-            Authentication authentication
-    ) {
+            Authentication authentication,
+            HttpServletResponse response
+    ) throws IOException {
         CommentService.CommentImageDownload image =
                 commentService.getCommentImage(
                         commentId,
                         BoardAuthentication.accountId(authentication)
                 );
 
-        HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(resolveMediaType(image.mimeType()));
-        headers.setContentLength(image.data().length);
-        headers.setCacheControl("private, max-age=3600, no-transform");
-        headers.setETag(
+        response.setStatus(HttpStatus.OK.value());
+        response.setContentType(resolveMediaType(image.mimeType()).toString());
+        response.setContentLengthLong(image.fileSize());
+        response.setHeader(
+                HttpHeaders.CACHE_CONTROL,
+                "private, max-age=3600, no-transform"
+        );
+        response.setHeader(
+                HttpHeaders.ETAG,
                 "\"board-comment-image-" + image.commentId()
                         + "-" + image.fileSize() + "\""
         );
-        headers.setContentDisposition(
+        response.setHeader(
+                HttpHeaders.CONTENT_DISPOSITION,
                 ContentDisposition.inline()
                         .filename(
                                 image.originalName(),
                                 StandardCharsets.UTF_8
                         )
                         .build()
+                        .toString()
         );
-        return new ResponseEntity<>(image.data(), headers, HttpStatus.OK);
+
+        OutputStream outputStream = response.getOutputStream();
+        commentService.streamCommentImage(
+                image.commentId(),
+                image.fileSize(),
+                outputStream
+        );
+        outputStream.flush();
     }
 
     @PutMapping("/comments/{commentId}")
