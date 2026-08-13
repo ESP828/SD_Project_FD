@@ -33,26 +33,6 @@
     return node;
   }
 
-  function parseCategoryTokens(category) {
-    const tokens = [];
-    (category || "").split(",").forEach((part) => {
-      const value = part.trim();
-      if (value && !tokens.includes(value)) tokens.push(value);
-    });
-    return tokens;
-  }
-
-  function createCategoryBadges(category) {
-    const group = element("div", "preset-category-group");
-    const tokens = parseCategoryTokens(category);
-    if (!tokens.length) {
-      group.append(element("span", "preset-category", "테마"));
-      return group;
-    }
-    tokens.forEach((token) => group.append(element("span", "preset-category", token)));
-    return group;
-  }
-
   function detailPath(presetId) {
     return `/pages/presset/detail.html?presetId=${encodeURIComponent(presetId)}`;
   }
@@ -121,26 +101,48 @@
     }
   }
 
-  function createCard(preset, rank) {
-    const card = element("article", "preset-card");
-    const visualLink = element("a", "preset-card-visual");
-    visualLink.href = detailPath(preset.presetId);
-    visualLink.setAttribute("aria-label", `${preset.title || "보물지도"} 상세 보기`);
-    if (preset.imageUrl) {
-      visualLink.append(safeImage(
-        preset.imageUrl,
+  function createRouteMap(preset) {
+    const map = element("a", "preset-card-map");
+    map.href = detailPath(preset.presetId);
+    map.setAttribute("aria-label", `${preset.title || "보물지도"} 상세 보기`);
+
+    const stops = Array.isArray(preset.thumbnailImageUrls) ? preset.thumbnailImageUrls.slice(0, 3) : [];
+    if (!stops.length) {
+      map.append(imagePlaceholder("preset-image-placeholder preset-card-map-placeholder"));
+      return map;
+    }
+
+    const anchors = [[18, 26], [58, 50], [18, 78]];
+    if (stops.length > 1) {
+      const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+      svg.setAttribute("class", "preset-card-map-path");
+      svg.setAttribute("viewBox", "0 0 100 100");
+      svg.setAttribute("preserveAspectRatio", "none");
+      const polyline = document.createElementNS("http://www.w3.org/2000/svg", "polyline");
+      polyline.setAttribute("points", anchors.slice(0, stops.length).map(([x, y]) => `${x},${y}`).join(" "));
+      svg.append(polyline);
+      map.append(svg);
+    }
+
+    stops.forEach((url, index) => {
+      const stop = element("div", `preset-card-map-stop preset-card-map-stop--${index + 1}`);
+      stop.append(element("span", "preset-card-map-badge", String(index + 1)));
+      stop.append(safeImage(
+        url,
         preset.title,
-        "preset-card-image",
-        "preset-image-placeholder preset-card-image-placeholder",
+        "preset-card-map-thumb",
+        "preset-image-placeholder preset-card-map-thumb-placeholder",
       ));
-    } else {
-      visualLink.append(imagePlaceholder(
-        "preset-image-placeholder preset-card-image-placeholder",
-      ));
-    }
-    if (Number.isInteger(rank)) {
-      visualLink.append(element("span", "preset-card-rank", String(rank)));
-    }
+      map.append(stop);
+    });
+
+    return map;
+  }
+
+  function createCard(preset) {
+    const card = element("article", "preset-card");
+    card.append(createRouteMap(preset));
+
     const favorite = element("button", "preset-favorite-button", preset.favoriteByCurrentUser ? "♥" : "♡");
     favorite.type = "button";
     favorite.classList.toggle("is-active", preset.favoriteByCurrentUser);
@@ -151,16 +153,17 @@
       event.stopPropagation();
       toggleFavorite(favorite, preset);
     });
-    card.append(visualLink, favorite);
+    card.append(favorite);
 
     const body = element("div", "preset-card-body");
-    body.append(createCategoryBadges(preset.category));
+    const tags = element("div", "preset-card-chip-list");
+    (preset.tags || []).slice(0, 3).forEach((tag) => tags.append(element("span", "preset-card-chip", tag.tagName)));
+    if (tags.childElementCount) body.append(tags);
+
+    body.append(element("p", "preset-card-eyebrow", "보물지도"));
     const titleLink = element("a", "preset-card-title", preset.title || "이름 없는 보물지도");
     titleLink.href = detailPath(preset.presetId);
     body.append(titleLink);
-    const tags = element("div", "preset-tag-list");
-    (preset.tags || []).forEach((tag) => tags.append(element("span", "preset-tag", `#${tag.tagName}`)));
-    if (tags.childElementCount) body.append(tags);
 
     const meta = element("div", "preset-card-meta");
     meta.append(
@@ -170,9 +173,9 @@
     body.append(meta);
 
     const actions = element("div", "preset-card-actions");
-    const goDetail = element("a", "button button-primary preset-card-cta", "맛집 목록 보기");
+    const goDetail = element("a", "button button-primary preset-card-cta", "목록 둘러보기");
     goDetail.href = detailPath(preset.presetId);
-    const goMap = element("a", "preset-card-map-link", "지도에서 보기 ↗");
+    const goMap = element("a", "preset-card-map-link", "지도에서 보기");
     const mapQuery = new URLSearchParams({ presetId: preset.presetId });
     if (preset.isOwner) mapQuery.set("edit", "1");
     goMap.href = `/pages/map/index.html?${mapQuery.toString()}`;
@@ -238,8 +241,7 @@
       empty.append(element("h3", "", "조건에 맞는 보물지도가 없습니다."), element("p", "", "다른 태그나 검색어를 선택해 보세요."));
       list.append(empty);
     } else {
-      const base = (pageData.number || pageData.page || 0) * (pageData.size || state.size || presets.length);
-      presets.forEach((preset, index) => list.append(createCard(preset, base + index + 1)));
+      presets.forEach((preset) => list.append(createCard(preset)));
     }
     renderPagination(pageData);
   }
