@@ -84,16 +84,15 @@ public class RecommendationService {
 
         for (PublicRestaurant restaurant : candidates) {
             String name = restaurant.getName() != null ? restaurant.getName() : "";
-            String categoryGroup = restaurant.getCategoryGroup() != null ? restaurant.getCategoryGroup() : "";
-            String categoryMedium = restaurant.getCategoryMediumName() != null ? restaurant.getCategoryMediumName() : "";
+            String categoryLarge = restaurant.getCategoryLargeName() != null ? restaurant.getCategoryLargeName() : "";
             String categorySmall = restaurant.getCategorySmallName() != null ? restaurant.getCategorySmallName() : "";
 
             boolean isDirectCategoryMatch = false;
             String matchedCategoryToken = "";
             if (parsedQuery.categoryTokens() != null && !parsedQuery.categoryTokens().isEmpty()) {
                 for (String catToken : parsedQuery.categoryTokens()) {
-                    if (name.contains(catToken) || categoryGroup.contains(catToken) ||
-                        categoryMedium.contains(catToken) || categorySmall.contains(catToken)) {
+                    if (name.contains(catToken) || categoryLarge.contains(catToken) ||
+                        categorySmall.contains(catToken)) {
                         isDirectCategoryMatch = true;
                         matchedCategoryToken = catToken;
                         break;
@@ -115,7 +114,7 @@ public class RecommendationService {
 
             boolean isFastfood = name.contains("맥도날드") || name.contains("버거킹") ||
                                  name.contains("롯데리아") || name.contains("KFC") ||
-                                 categoryMedium.contains("패스트푸드");
+                                 categorySmall.contains("버거") || categorySmall.contains("치킨") || categorySmall.contains("피자");
             if (isFastfood && !isDirectCategoryMatch) {
                 filteredOutCount++;
                 continue;
@@ -152,8 +151,7 @@ public class RecommendationService {
                     "PUBLIC",
                     restaurant.getPublicRestaurantId(),
                     name,
-                    restaurant.getCategoryGroup() != null ? restaurant.getCategoryGroup()
-                            : restaurant.getCategoryMediumName() != null ? restaurant.getCategoryMediumName() : restaurant.getCategoryLargeName(),
+                    restaurant.getCategorySmallName() != null ? restaurant.getCategorySmallName() : restaurant.getCategoryLargeName(),
                     restaurant.getRoadAddress(),
                     restaurant.getLatitude() != null ? restaurant.getLatitude().doubleValue() : null,
                     restaurant.getLongitude() != null ? restaurant.getLongitude().doubleValue() : null,
@@ -292,7 +290,7 @@ public class RecommendationService {
                     "PUBLIC",
                     candidate.getPublicRestaurantId(),
                     candidate.getName(),
-                    candidate.getCategoryMediumName() != null ? candidate.getCategoryMediumName() : candidate.getCategoryLargeName(),
+                    candidate.getCategorySmallName() != null ? candidate.getCategorySmallName() : candidate.getCategoryLargeName(),
                     candidate.getRoadAddress(),
                     candidate.getLatitude() != null ? candidate.getLatitude().doubleValue() : null,
                     candidate.getLongitude() != null ? candidate.getLongitude().doubleValue() : null,

@@ -229,7 +229,6 @@
         name: restaurant.name || "연결된 가게",
         category:
           restaurant.categorySmallName ||
-          restaurant.categoryMediumName ||
           restaurant.categoryLargeName ||
           null,
         address: restaurant.roadAddress || restaurant.lotAddress || "주소 정보 없음",

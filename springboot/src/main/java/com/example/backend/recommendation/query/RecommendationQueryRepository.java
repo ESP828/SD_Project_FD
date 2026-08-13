@@ -17,7 +17,7 @@ public class RecommendationQueryRepository {
     private static final String FAVORITES_BY_ACCOUNT_SQL = """
             select coalesce(r.restaurant_id, pr.public_restaurant_id) as restaurant_id,
                    coalesce(r.name, pr.name) as restaurant_name,
-                   coalesce(rc.name, pr.category_medium_name, pr.category_large_name, '') as category_name,
+                   coalesce(rc.name, pr.category_small_name, pr.category_large_name, '') as category_name,
                    coalesce(r.address, pr.road_address, '') as address,
                    coalesce(r.description, '') as description,
                    coalesce(r.latitude, pr.latitude) as latitude,

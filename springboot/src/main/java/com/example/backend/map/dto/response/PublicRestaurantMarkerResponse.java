@@ -12,11 +12,9 @@ public record PublicRestaurantMarkerResponse(
         Double lon
 ) {
     public static PublicRestaurantMarkerResponse from(PublicRestaurant restaurant) {
-        String categoryName = restaurant.getCategoryGroup() != null
-                ? restaurant.getCategoryGroup()
-                : restaurant.getCategorySmallName() != null
-                        ? restaurant.getCategorySmallName()
-                        : restaurant.getCategoryMediumName();
+        String categoryName = restaurant.getCategorySmallName() != null
+                ? restaurant.getCategorySmallName()
+                : restaurant.getCategoryLargeName();
         return new PublicRestaurantMarkerResponse(
                 restaurant.getPublicRestaurantId(),
                 restaurant.getName(),

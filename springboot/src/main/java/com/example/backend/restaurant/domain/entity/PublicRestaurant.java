@@ -44,17 +44,11 @@ public class PublicRestaurant {
     @Column(name = "category_medium_code", length = 10)
     private String categoryMediumCode;
 
-    @Column(name = "category_medium_name", length = 50)
-    private String categoryMediumName;
-
     @Column(name = "category_small_code", length = 10)
     private String categorySmallCode;
 
     @Column(name = "category_small_name", length = 50)
     private String categorySmallName;
-
-    @Column(name = "category_group", length = 20)
-    private String categoryGroup;
 
     @Column(name = "sido_name", length = 30)
     private String sidoName;
@@ -97,7 +91,6 @@ public class PublicRestaurant {
             String categoryLargeCode,
             String categoryLargeName,
             String categoryMediumCode,
-            String categoryMediumName,
             String categorySmallCode,
             String categorySmallName,
             String sidoName,
@@ -113,7 +106,6 @@ public class PublicRestaurant {
         this.categoryLargeCode = categoryLargeCode;
         this.categoryLargeName = categoryLargeName;
         this.categoryMediumCode = categoryMediumCode;
-        this.categoryMediumName = categoryMediumName;
         this.categorySmallCode = categorySmallCode;
         this.categorySmallName = categorySmallName;
         this.sidoName = sidoName;
@@ -165,20 +157,12 @@ public class PublicRestaurant {
         return categoryMediumCode;
     }
 
-    public String getCategoryMediumName() {
-        return categoryMediumName;
-    }
-
     public String getCategorySmallCode() {
         return categorySmallCode;
     }
 
     public String getCategorySmallName() {
         return categorySmallName;
-    }
-
-    public String getCategoryGroup() {
-        return categoryGroup;
     }
 
     public String getSidoName() {
