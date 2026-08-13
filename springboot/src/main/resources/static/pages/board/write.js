@@ -107,6 +107,50 @@
     );
   }
 
+  function initializeEditorNavigationGuard() {
+    document.addEventListener("click", (event) => {
+      if (allowEditorNavigation || event.defaultPrevented) return;
+      if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
+        return;
+      }
+
+      const link = event.target.closest("a[href]");
+      if (!link || link.hasAttribute("download")) return;
+      if (link.target && link.target.toLowerCase() !== "_self") return;
+
+      const rawHref = link.getAttribute("href");
+      if (!rawHref || rawHref.startsWith("javascript:")) return;
+
+      let targetUrl;
+      try {
+        targetUrl = new URL(link.href, window.location.href);
+      } catch (_error) {
+        return;
+      }
+
+      const currentUrl = new URL(window.location.href);
+      const sameDocument =
+        targetUrl.origin === currentUrl.origin &&
+        targetUrl.pathname === currentUrl.pathname &&
+        targetUrl.search === currentUrl.search;
+      if (sameDocument && targetUrl.hash !== currentUrl.hash) return;
+
+      if (!hasUnsavedEditorChanges()) return;
+
+      event.preventDefault();
+      if (!confirmEditorLeave()) return;
+
+      // 내부 링크 이동은 직접 확인한 뒤 beforeunload에서 같은 경고가
+      // 한 번 더 뜨지 않도록 잠시 허용한다. 실제 이동이 취소되면
+      // 다음 이벤트 루프에서 다시 보호 상태로 돌린다.
+      allowEditorNavigation = true;
+      window.location.assign(targetUrl.href);
+      window.setTimeout(() => {
+        allowEditorNavigation = false;
+      }, 0);
+    }, true);
+  }
+
   function initializeWriteLogoutEntryPoint() {
     document.addEventListener("click", async (event) => {
       const button = event.target.closest(".site-header [data-logout]");
@@ -783,13 +827,16 @@
   window.addEventListener("beforeunload", (event) => {
     if (allowEditorNavigation || !hasUnsavedEditorChanges()) return;
     event.preventDefault();
-    event.returnValue = "";
+    // 최신 브라우저는 사용자 지정 문구 대신 자체 경고문을 표시한다.
+    // returnValue도 함께 설정해 새로고침/뒤로가기 보호를 유지한다.
+    event.returnValue = true;
   });
 
   window.addEventListener("pagehide", () => {
     selectedMedia.forEach((entry) => URL.revokeObjectURL(entry.previewUrl));
   });
 
+  initializeEditorNavigationGuard();
   initializeWriteLogoutEntryPoint();
   initializeEditor();
 })();
