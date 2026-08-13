@@ -99,6 +99,10 @@ public class CommentController {
     @GetMapping("/comments/{commentId}/image")
     public void getCommentImage(
             @PathVariable Long commentId,
+            @RequestHeader(
+                    value = HttpHeaders.IF_NONE_MATCH,
+                    required = false
+            ) String ifNoneMatch,
             Authentication authentication,
             HttpServletResponse response
     ) throws IOException {
@@ -108,18 +112,23 @@ public class CommentController {
                         BoardAuthentication.accountId(authentication)
                 );
 
+        String etag = "\"board-comment-image-" + image.commentId()
+                + "-" + image.updatedAt()
+                + "-" + image.fileSize() + "\"";
+        response.setHeader(
+                HttpHeaders.CACHE_CONTROL,
+                "private, no-cache, no-transform"
+        );
+        response.setHeader(HttpHeaders.ETAG, etag);
+
+        if (matchesIfNoneMatch(ifNoneMatch, etag)) {
+            response.setStatus(HttpStatus.NOT_MODIFIED.value());
+            return;
+        }
+
         response.setStatus(HttpStatus.OK.value());
         response.setContentType(resolveMediaType(image.mimeType()).toString());
         response.setContentLengthLong(image.fileSize());
-        response.setHeader(
-                HttpHeaders.CACHE_CONTROL,
-                "private, max-age=3600, no-transform"
-        );
-        response.setHeader(
-                HttpHeaders.ETAG,
-                "\"board-comment-image-" + image.commentId()
-                        + "-" + image.fileSize() + "\""
-        );
         response.setHeader(
                 HttpHeaders.CONTENT_DISPOSITION,
                 ContentDisposition.inline()
@@ -168,6 +177,25 @@ public class CommentController {
                 BoardAuthentication.accountId(authentication)
         );
         return ApiResponse.success("댓글이 삭제되었습니다.", null);
+    }
+
+    private boolean matchesIfNoneMatch(String ifNoneMatch, String etag) {
+        if (ifNoneMatch == null || ifNoneMatch.isBlank()) {
+            return false;
+        }
+        for (String rawCandidate : ifNoneMatch.split(",")) {
+            String candidate = rawCandidate.strip();
+            if ("*".equals(candidate)) {
+                return true;
+            }
+            if (candidate.startsWith("W/")) {
+                candidate = candidate.substring(2).strip();
+            }
+            if (etag.equals(candidate)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private MediaType resolveMediaType(String mimeType) {

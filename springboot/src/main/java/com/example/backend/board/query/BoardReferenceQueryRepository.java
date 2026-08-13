@@ -13,8 +13,6 @@ import org.springframework.transaction.annotation.Transactional;
 import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.OutputStream;
-import java.io.UncheckedIOException;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.Types;
@@ -788,80 +786,36 @@ public class BoardReferenceQueryRepository {
         return data == null ? new byte[0] : data;
     }
 
-    public long streamCommentImageBytes(
+    public byte[] readCommentImageChunk(
             Long commentId,
-            long length,
-            OutputStream outputStream
+            long zeroBasedStart,
+            int length
     ) {
-        Long written = jdbcTemplate.getJdbcTemplate().execute(
-                (ConnectionCallback<Long>) connection -> {
-            try (PreparedStatement statement = connection.prepareStatement(
-                    """
-                    select substring(image_data, ?, ?)
-                      from post_comment
-                     where comment_id = ?
-                       and status = 'ACTIVE'
-                       and image_data is not null
-                    """
-            )) {
-                long totalWritten = 0;
-                while (totalWritten < length) {
-                    long chunkLength = Math.min(
-                            BLOB_READ_CHUNK_BYTES,
-                            length - totalWritten
-                    );
-                    statement.setLong(1, totalWritten + 1);
-                    statement.setLong(2, chunkLength);
-                    statement.setLong(3, commentId);
-                    try (ResultSet resultSet = statement.executeQuery()) {
-                        if (!resultSet.next()) {
-                            break;
-                        }
-                        try (InputStream inputStream =
-                                     resultSet.getBinaryStream(1)) {
-                            long chunkWritten = copyBinaryStream(
-                                    inputStream,
-                                    outputStream,
-                                    chunkLength
-                            );
-                            totalWritten += chunkWritten;
-                            if (chunkWritten != chunkLength) {
-                                break;
-                            }
-                        } catch (IOException exception) {
-                            throw new UncheckedIOException(exception);
-                        }
+        if (length < 1) {
+            return new byte[0];
+        }
+        byte[] data = jdbcTemplate.query(
+                """
+                select substring(image_data, :startPosition, :chunkLength)
+                  from post_comment
+                 where comment_id = :commentId
+                   and status = 'ACTIVE'
+                   and image_data is not null
+                """,
+                Map.of(
+                        "startPosition", zeroBasedStart + 1,
+                        "chunkLength", length,
+                        "commentId", commentId
+                ),
+                resultSet -> {
+                    if (!resultSet.next()) {
+                        return new byte[0];
                     }
+                    byte[] chunk = resultSet.getBytes(1);
+                    return chunk == null ? new byte[0] : chunk;
                 }
-                return totalWritten;
-            }
-        });
-        return written == null ? 0L : written;
-    }
-
-    private long copyBinaryStream(
-            InputStream inputStream,
-            OutputStream outputStream,
-            long maximumBytes
-    ) throws IOException {
-        if (inputStream == null || maximumBytes <= 0) {
-            return 0L;
-        }
-        byte[] buffer = new byte[64 * 1024];
-        long written = 0;
-        while (written < maximumBytes) {
-            int requested = (int) Math.min(
-                    buffer.length,
-                    maximumBytes - written
-            );
-            int read = inputStream.read(buffer, 0, requested);
-            if (read < 0) {
-                break;
-            }
-            outputStream.write(buffer, 0, read);
-            written += read;
-        }
-        return written;
+        );
+        return data == null ? new byte[0] : data;
     }
 
     public int deletePostMedia(Long postId, Long postMediaId) {
