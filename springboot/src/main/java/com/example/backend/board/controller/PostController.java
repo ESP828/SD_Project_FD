@@ -10,6 +10,7 @@ import com.example.backend.board.exception.BoardException;
 import com.example.backend.board.service.PostService;
 import com.example.backend.global.response.ApiResponse;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
@@ -33,6 +34,7 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.io.IOException;
+import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 
@@ -338,15 +340,16 @@ public class PostController {
     }
 
     @GetMapping("/media/{postMediaId}")
-    public ResponseEntity<byte[]> getMedia(
+    public void getMedia(
             @PathVariable Long postMediaId,
             @RequestHeader(
                     value = HttpHeaders.RANGE,
                     required = false
             ) String range,
             @RequestParam(defaultValue = "false") boolean download,
-            Authentication authentication
-    ) {
+            Authentication authentication,
+            HttpServletResponse response
+    ) throws IOException {
         PostService.MediaDownload media = postService.getMedia(
                 postMediaId,
                 range,
@@ -354,17 +357,26 @@ public class PostController {
                 BoardAuthentication.accountId(authentication)
         );
 
-        HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(resolveMediaType(media.mimeType()));
-        headers.setContentLength(media.data().length);
-        headers.set(HttpHeaders.ACCEPT_RANGES, "bytes");
-        headers.setCacheControl("private, max-age=3600, no-transform");
-        headers.setETag(
+        response.setStatus(
+                media.partial()
+                        ? HttpStatus.PARTIAL_CONTENT.value()
+                        : HttpStatus.OK.value()
+        );
+        response.setContentType(resolveMediaType(media.mimeType()).toString());
+        response.setContentLengthLong(media.contentLength());
+        response.setHeader(HttpHeaders.ACCEPT_RANGES, "bytes");
+        response.setHeader(
+                HttpHeaders.CACHE_CONTROL,
+                "private, max-age=3600, no-transform"
+        );
+        response.setHeader(
+                HttpHeaders.ETAG,
                 "\"board-media-" + media.postMediaId()
                         + "-" + media.totalSize() + "\""
         );
-        headers.set(HttpHeaders.VARY, HttpHeaders.RANGE);
-        headers.setContentDisposition(
+        response.setHeader(HttpHeaders.VARY, HttpHeaders.RANGE);
+        response.setHeader(
+                HttpHeaders.CONTENT_DISPOSITION,
                 (media.download()
                         ? ContentDisposition.attachment()
                         : ContentDisposition.inline())
@@ -373,22 +385,24 @@ public class PostController {
                                 StandardCharsets.UTF_8
                         )
                         .build()
+                        .toString()
         );
         if (media.partial()) {
-            headers.set(
+            response.setHeader(
                     HttpHeaders.CONTENT_RANGE,
                     "bytes " + media.start() + "-" + media.end()
                             + "/" + media.totalSize()
             );
         }
 
-        return new ResponseEntity<>(
-                media.data(),
-                headers,
-                media.partial()
-                        ? HttpStatus.PARTIAL_CONTENT
-                        : HttpStatus.OK
+        OutputStream outputStream = response.getOutputStream();
+        postService.streamMedia(
+                media.postMediaId(),
+                media.start(),
+                media.contentLength(),
+                outputStream
         );
+        outputStream.flush();
     }
 
     @DeleteMapping("/{postId}/media/{postMediaId}")

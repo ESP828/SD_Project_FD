@@ -12,6 +12,8 @@ import org.springframework.transaction.annotation.Transactional;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
+import java.io.UncheckedIOException;
 import java.sql.Types;
 import java.time.LocalDateTime;
 import java.util.Collection;
@@ -693,12 +695,13 @@ public class BoardReferenceQueryRepository {
         return rows.stream().findFirst();
     }
 
-    public byte[] readPostMediaBytes(
+    public long streamPostMediaBytes(
             Long postMediaId,
             long zeroBasedStart,
-            int length
+            long length,
+            OutputStream outputStream
     ) {
-        List<byte[]> rows = jdbcTemplate.query(
+        return jdbcTemplate.query(
                 """
                 select substring(media_data, :oneBasedStart, :length)
                   from post_media
@@ -709,9 +712,34 @@ public class BoardReferenceQueryRepository {
                         .addValue("postMediaId", postMediaId)
                         .addValue("oneBasedStart", zeroBasedStart + 1)
                         .addValue("length", length),
-                (resultSet, rowNumber) -> resultSet.getBytes(1)
+                resultSet -> {
+                    if (!resultSet.next()) {
+                        return 0L;
+                    }
+                    try (InputStream inputStream = resultSet.getBinaryStream(1)) {
+                        if (inputStream == null) {
+                            return 0L;
+                        }
+                        byte[] buffer = new byte[64 * 1024];
+                        long written = 0;
+                        while (written < length) {
+                            int requested = (int) Math.min(
+                                    buffer.length,
+                                    length - written
+                            );
+                            int read = inputStream.read(buffer, 0, requested);
+                            if (read < 0) {
+                                break;
+                            }
+                            outputStream.write(buffer, 0, read);
+                            written += read;
+                        }
+                        return written;
+                    } catch (IOException exception) {
+                        throw new UncheckedIOException(exception);
+                    }
+                }
         );
-        return rows.stream().findFirst().orElse(null);
     }
 
     public int deletePostMedia(Long postId, Long postMediaId) {

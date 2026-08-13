@@ -42,6 +42,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.io.UncheckedIOException;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -1277,28 +1278,42 @@ public class PostService {
         }
 
         ByteRange range = resolveByteRange(rangeHeader, media.fileSize());
-        int requestedLength = Math.toIntExact(range.end() - range.start() + 1);
-        byte[] bytes = referenceRepository.readPostMediaBytes(
-                postMediaId,
-                range.start(),
-                requestedLength
-        );
-        if (bytes == null || bytes.length == 0) {
-            throw notFound("첨부파일 데이터가 없습니다.");
-        }
-
-        long actualEnd = range.start() + bytes.length - 1;
+        long contentLength = range.end() - range.start() + 1;
         return new MediaDownload(
                 media.postMediaId(),
                 media.mimeType(),
                 media.originalName(),
                 media.fileSize(),
                 range.start(),
-                actualEnd,
+                range.end(),
                 range.partial(),
                 download,
-                bytes
+                contentLength
         );
+    }
+
+    public void streamMedia(
+            Long postMediaId,
+            long zeroBasedStart,
+            long contentLength,
+            OutputStream outputStream
+    ) throws IOException {
+        try {
+            long written = referenceRepository.streamPostMediaBytes(
+                    postMediaId,
+                    zeroBasedStart,
+                    contentLength,
+                    outputStream
+            );
+            if (written != contentLength) {
+                throw new IOException(
+                        "첨부파일 데이터를 모두 전송하지 못했습니다. expected="
+                                + contentLength + ", actual=" + written
+                );
+            }
+        } catch (UncheckedIOException exception) {
+            throw exception.getCause();
+        }
     }
 
     @Transactional
@@ -2039,7 +2054,7 @@ public class PostService {
             long end,
             boolean partial,
             boolean download,
-            byte[] data
+            long contentLength
     ) {
     }
 
