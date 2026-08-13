@@ -43,9 +43,33 @@
   let selectedMedia = [];
   let selectedMediaSequence = 0;
   let mediaBusy = false;
+  let writeLogoutInFlight = false;
   const removedMediaIds = new Set();
 
   if (!form) return;
+
+  function initializeWriteLogoutEntryPoint() {
+    document.addEventListener("click", async (event) => {
+      const button = event.target.closest(".site-header [data-logout]");
+      if (!button || !session.authenticated) return;
+
+      // 공통 헤더는 로그아웃 뒤 홈으로 이동한다. 게시글 작성 화면에서는
+      // 작성 권한이 사라지므로 현재 게시판 목록으로 돌아가도록 먼저 처리한다.
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      if (writeLogoutInFlight) return;
+      writeLogoutInFlight = true;
+      button.disabled = true;
+
+      try {
+        await Api.logout();
+      } catch (_error) {
+        Api.clearToken();
+      } finally {
+        window.location.assign(board.listPath(boardTypeSelect?.value || "GENERAL"));
+      }
+    }, true);
+  }
 
   function populateOptions() {
     boardTypeSelect.replaceChildren();
@@ -694,5 +718,6 @@
     selectedMedia.forEach((entry) => URL.revokeObjectURL(entry.previewUrl));
   });
 
+  initializeWriteLogoutEntryPoint();
   initializeEditor();
 })();
