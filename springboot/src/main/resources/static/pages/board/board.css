@@ -3144,11 +3144,21 @@ body.is-image-viewer-open {
 }
 
 @media (max-width: 720px) {
+  .board-toast {
+    right: 12px;
+    bottom: calc(max(10px, env(safe-area-inset-bottom)) + 78px);
+    max-width: min(380px, calc(100% - 24px));
+  }
+
   .board-scroll-top {
     right: 16px;
-    bottom: 16px;
+    bottom: calc(max(10px, env(safe-area-inset-bottom)) + 78px);
     width: 44px;
     height: 44px;
+  }
+
+  .board-toast:not([hidden]) ~ .board-scroll-top {
+    bottom: calc(max(10px, env(safe-area-inset-bottom)) + 154px);
   }
 }
 

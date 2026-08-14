@@ -30,24 +30,25 @@
 
     <section class="container board-content" aria-labelledby="board-heading">
       <div class="board-tabs" role="tablist" aria-label="커뮤니티 구분">
-        <button class="board-tab is-active" type="button" role="tab"
-                aria-selected="true" data-board-type="GENERAL">
+        <button id="board-tab-general" class="board-tab is-active" type="button" role="tab"
+                aria-selected="true" aria-controls="board-tabpanel" data-board-type="GENERAL">
           일반 커뮤니티
         </button>
         <button id="business-board-tab" class="board-tab" type="button" role="tab"
-                aria-selected="false" data-board-type="BUSINESS" hidden>
+                aria-selected="false" aria-controls="board-tabpanel" data-board-type="BUSINESS" hidden>
           사업자 커뮤니티
         </button>
-        <button class="board-tab" type="button" role="tab"
-                aria-selected="false" data-board-type="BEST">
+        <button id="board-tab-best" class="board-tab" type="button" role="tab"
+                aria-selected="false" aria-controls="board-tabpanel" data-board-type="BEST">
           베스트 커뮤니티
         </button>
-        <button class="board-tab" type="button" role="tab"
-                aria-selected="false" data-board-type="POPULAR">
+        <button id="board-tab-popular" class="board-tab" type="button" role="tab"
+                aria-selected="false" aria-controls="board-tabpanel" data-board-type="POPULAR">
           인기 이야기
         </button>
       </div>
 
+      <div id="board-tabpanel" role="tabpanel" aria-labelledby="board-tab-general">
       <form id="board-search-form" class="board-toolbar" role="search">
         <label>
           <span class="sr-only">카테고리</span>
@@ -131,6 +132,7 @@
             <p>비로그인·일반 회원은 일반 커뮤니티만 볼 수 있습니다. 사업자 게시판은 승인된 사업자와 관리자에게만 열립니다.</p>
           </section>
         </aside>
+      </div>
       </div>
     </section>
   </main>
