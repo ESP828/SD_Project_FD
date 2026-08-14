@@ -818,13 +818,23 @@
     return state;
   }
 
+  function seedNewsCommentCount(news) {
+    if (news?.postId == null) return null;
+    const state = getNewsCommentState(news.postId);
+    const listCount = Number(news.commentCount);
+    if (!state.loaded && Number.isFinite(listCount)) {
+      state.totalCount = Math.max(0, listCount);
+    }
+    return state;
+  }
+
   function newsCommentsToggleHtml(news) {
     if (news?.postId == null) return "";
     const postId = String(news.postId);
-    const state = newsCommentStates.get(postId);
+    const state = seedNewsCommentCount(news);
     const label = state?.open
       ? "댓글 닫기"
-      : state?.loaded
+      : state?.totalCount != null
         ? `댓글 ${Math.max(0, Number(state.totalCount) || 0)}개`
         : "댓글 보기";
     return `
@@ -861,7 +871,7 @@
     button.setAttribute("aria-expanded", String(state.open));
     button.textContent = state.open
       ? "댓글 닫기"
-      : state.loaded
+      : state.totalCount != null
         ? `댓글 ${Math.max(0, Number(state.totalCount) || 0)}개`
         : "댓글 보기";
   }
