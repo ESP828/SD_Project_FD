@@ -7,6 +7,8 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigInteger;
+
 import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -22,6 +24,15 @@ class MyPageActivityQueryRepositoryTest {
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
+
+    @Test
+    void convertsMysqlUnsignedBigintIdentifierToNullableLong() {
+        assertAll(
+                () -> assertEquals(37L, MyPageActivityQueryRepository.toNullableLong(BigInteger.valueOf(37))),
+                () -> assertEquals(37L, MyPageActivityQueryRepository.toNullableLong(37L)),
+                () -> assertNull(MyPageActivityQueryRepository.toNullableLong(null))
+        );
+    }
 
     @Test
     void returnsEmptyDetailListsWhenTheAccountHasNoActivity() {
