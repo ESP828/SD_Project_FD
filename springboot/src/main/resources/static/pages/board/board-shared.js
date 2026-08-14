@@ -1008,7 +1008,7 @@
       `height=${Math.round(height)}`,
       `left=${left}`,
       `top=${top}`,
-      "resizable=yes",
+      "resizable=no",
       "scrollbars=yes",
     ].join(",");
   }
