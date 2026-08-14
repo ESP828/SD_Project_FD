@@ -1145,21 +1145,29 @@
   function newsCommentImageNode(comment) {
     if (!comment?.hasImage || !comment?.imageUrl) return null;
     const wrap = newsCommentElement("div", "comment-image-wrap");
-    const link = document.createElement("a");
-    link.href = comment.imageUrl;
-    link.target = "_blank";
-    link.rel = "noopener";
-    link.setAttribute("aria-label", `${comment.imageOriginalName || "댓글 첨부 사진"} 새 창에서 보기`);
     const image = new Image();
     image.className = "comment-image";
     image.src = comment.imageUrl;
     image.alt = comment.imageOriginalName || "댓글 첨부 사진";
     image.loading = "lazy";
+    image.tabIndex = 0;
+    image.setAttribute("role", "button");
+    image.setAttribute(
+      "aria-label",
+      `${comment.imageOriginalName || "댓글 첨부 사진"} 크게 보기`,
+    );
+    image.addEventListener("click", () => {
+      openNewsImageViewer(image);
+    });
+    image.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter" && event.key !== " ") return;
+      event.preventDefault();
+      openNewsImageViewer(image);
+    });
     image.addEventListener("error", () => {
       wrap.replaceChildren(newsCommentElement("span", "comment-image-error", "사진을 불러오지 못했습니다."));
     }, { once: true });
-    link.append(image);
-    wrap.append(link);
+    wrap.append(image);
     return wrap;
   }
 
@@ -1394,6 +1402,29 @@
     }
   }
 
+  function shouldIgnoreNewsCommentAreaReplyClick(event, item) {
+    const target = event.target;
+    if (!(target instanceof Element)) return true;
+
+    if (target.closest(
+      "button, a, input, textarea, select, label, [role='button'], .comment-actions, .comment-reply-form",
+    )) {
+      return true;
+    }
+
+    const selection = window.getSelection();
+    if (
+      selection &&
+      !selection.isCollapsed &&
+      selection.toString().trim() &&
+      selection.containsNode(item, true)
+    ) {
+      return true;
+    }
+
+    return false;
+  }
+
   function renderNewsCommentItem(postId, comment, options = {}) {
     const item = newsCommentElement(
       "article",
@@ -1429,6 +1460,12 @@
       actions.append(remove);
     }
     item.append(actions);
+    item.classList.add("comment-item--replyable");
+    item.addEventListener("click", (event) => {
+      if (item.querySelector(":scope > .store-news-comment-reply-form")) return;
+      if (shouldIgnoreNewsCommentAreaReplyClick(event, item)) return;
+      openNewsReplyComposer(postId, comment, item);
+    });
     return item;
   }
 
