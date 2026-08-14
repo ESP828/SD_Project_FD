@@ -547,26 +547,23 @@
 .preset-card-actions {
   display: flex;
   min-width: 0;
-  flex-direction: column;
-  justify-content: center;
-  gap: 9px;
-  padding: 70px 24px 24px;
-  border-left: 1px solid var(--color-line);
-  background: #fffdf9;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-top: 4px;
 }
 
 .preset-card-actions .button {
-  width: 100%;
-  min-height: 43px;
-  padding: 0 14px;
+  min-height: 44px;
+  padding: 0 20px;
   border-radius: 12px;
-  font-size: 0.78rem;
+  font-size: 0.85rem;
 }
 
 .preset-list {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  gap: 18px;
+  gap: 20px;
 }
 
 .preset-list--state {
@@ -577,13 +574,14 @@
   position: relative;
   display: grid;
   overflow: hidden;
-  grid-template-columns: 280px minmax(0, 1fr) 190px;
-  min-height: 242px;
+  grid-template-columns: minmax(0, 46%) minmax(0, 1fr);
+  min-height: 300px;
   border: 1px solid var(--color-line);
-  border-radius: 24px;
+  border-radius: 22px;
   background: #fff;
-  box-shadow: 0 8px 24px rgba(15, 43, 77, 0.055);
+  box-shadow: 0 6px 20px rgba(15, 43, 77, 0.05);
   transition: transform 180ms ease, border-color 180ms ease, box-shadow 180ms ease;
+  cursor: pointer;
 }
 
 .preset-favorite-button,
@@ -623,7 +621,7 @@
 .preset-card-map {
   position: relative;
   display: block;
-  min-height: 242px;
+  min-height: 300px;
   overflow: hidden;
   background:
     radial-gradient(circle at 12% 18%, rgba(255, 152, 0, 0.08), transparent 40%),
@@ -651,7 +649,7 @@
 }
 
 .preset-card-map-placeholder {
-  min-height: 242px;
+  min-height: 300px;
 }
 
 .preset-card-cover {
@@ -691,50 +689,50 @@
 }
 
 .preset-card-map-stop--1 {
-  top: 26%;
-  left: 18%;
+  top: 24%;
+  left: 26%;
 }
 
 .preset-card-map-stop--2 {
   top: 50%;
-  left: 58%;
+  left: 68%;
 }
 
 .preset-card-map-stop--3 {
   top: 78%;
-  left: 18%;
+  left: 26%;
 }
 
 .preset-card-map-badge {
   position: absolute;
   z-index: 3;
-  top: -6px;
-  left: -6px;
+  top: -7px;
+  left: -7px;
   display: grid;
-  width: 20px;
-  height: 20px;
+  width: 26px;
+  height: 26px;
   place-items: center;
   border: 2px solid #fff;
   border-radius: 50%;
   color: #fff;
   background: var(--color-orange);
   box-shadow: 0 3px 8px rgba(15, 43, 77, 0.22);
-  font-size: 0.68rem;
+  font-size: 0.76rem;
   font-weight: 900;
 }
 
 .preset-card-map-thumb,
 .preset-card-map-thumb-placeholder {
-  width: 56px;
-  height: 56px;
-  border: 2px solid #fff;
-  border-radius: 14px;
+  width: 108px;
+  height: 108px;
+  border: 3px solid #fff;
+  border-radius: 18px;
   object-fit: cover;
-  box-shadow: 0 6px 14px rgba(15, 43, 77, 0.18);
+  box-shadow: 0 8px 20px rgba(15, 43, 77, 0.2);
 }
 
 .preset-card-map-thumb-placeholder {
-  font-size: 0.6rem;
+  font-size: 0.68rem;
 }
 
 .preset-thumbnail-placeholder {
@@ -767,7 +765,7 @@
   min-width: 0;
   justify-content: center;
   flex-direction: column;
-  padding: 28px 30px;
+  padding: 30px 36px 30px 32px;
 }
 
 .preset-card-body h3 {
@@ -775,15 +773,35 @@
   font-size: 1.3rem;
 }
 
+.preset-card-badge {
+  display: inline-flex;
+  width: fit-content;
+  align-items: center;
+  margin-bottom: 12px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  color: var(--color-orange-dark, #b45309);
+  background: #fff8ee;
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
 .preset-card-title {
-  display: block;
+  display: -webkit-box;
   overflow: hidden;
   margin-bottom: 8px;
-  color: var(--color-navy);
-  font-size: clamp(1.25rem, 2vw, 1.52rem);
-  font-weight: 900;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  color: #102a4c;
+  font-size: clamp(1.3rem, 2vw, 1.6rem);
+  font-weight: 800;
+  line-height: 1.32;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.preset-card-divider {
+  height: 1px;
+  margin: 14px 0;
+  background: #eceff3;
 }
 
 .preset-card-title:hover {
@@ -834,23 +852,11 @@
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 8px 14px;
-  padding-top: 13px;
-  border-top: 1px solid var(--color-line);
-  color: var(--color-subtle);
-  font-size: 0.74rem;
-}
-
-.preset-card-map-link {
-  display: grid;
-  min-height: 43px;
-  place-items: center;
-  padding: 0 14px;
-  border: 1px solid var(--color-line);
-  border-radius: 12px;
-  color: var(--color-navy);
-  font-size: 0.78rem;
-  font-weight: 800;
+  gap: 8px 18px;
+  margin-bottom: 18px;
+  color: var(--color-muted);
+  font-size: 0.84rem;
+  font-weight: 700;
 }
 
 .preset-card-map-link:hover {
@@ -1049,7 +1055,7 @@
 .preset-restaurant-card {
   display: grid;
   overflow: hidden;
-  grid-template-columns: 220px minmax(0, 1fr) 168px;
+  grid-template-columns: minmax(0, 34%) minmax(0, 1fr) 168px;
   align-items: stretch;
 }
 
@@ -1077,7 +1083,7 @@
 
 .preset-restaurant-visual {
   position: relative;
-  min-height: 250px;
+  min-height: 320px;
   background: var(--color-cream);
 }
 
@@ -1164,35 +1170,11 @@
   }
 
   .preset-card {
-    grid-template-columns: 230px minmax(0, 1fr);
-  }
-
-  .preset-card-map {
-    grid-row: 1 / span 2;
+    grid-template-columns: minmax(0, 42%) minmax(0, 1fr);
   }
 
   .preset-card-body {
-    padding-right: 72px;
-  }
-
-  .preset-card-actions {
-    grid-column: 2;
-    flex-direction: row;
-    align-items: center;
-    justify-content: flex-start;
-    padding: 16px 24px 22px;
-    border-top: 1px solid var(--color-line);
-    border-left: 0;
-    background: #fff;
-  }
-
-  .preset-card-actions .button {
-    width: auto;
-    min-width: 138px;
-  }
-
-  .preset-card-map-link {
-    margin: 0 0 0 4px;
+    padding: 24px 28px;
   }
 }
 
@@ -1213,7 +1195,7 @@
   }
 
   .preset-restaurant-visual {
-    min-height: 300px;
+    min-height: 320px;
   }
 }
 
@@ -1300,33 +1282,24 @@
 
   .preset-card-map {
     grid-row: auto;
-    height: 210px;
-    min-height: 210px;
+    height: 260px;
+    min-height: 260px;
   }
 
   .preset-card-map-placeholder {
-    min-height: 210px;
+    min-height: 260px;
   }
 
   .preset-card-body {
-    padding: 24px;
+    padding: 22px 22px 24px;
   }
 
   .preset-card-actions {
-    grid-column: 1;
     flex-wrap: wrap;
-    padding: 18px 24px 24px;
   }
 
   .preset-card-actions .button {
-    min-width: 0;
     flex: 1 1 150px;
-  }
-
-  .preset-card-map-link {
-    width: 100%;
-    margin: 3px 0 0;
-    text-align: center;
   }
 
   .preset-detail-copy,

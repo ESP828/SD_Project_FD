@@ -16,10 +16,12 @@ public record PresetSummaryResponse(
         boolean isOwner,
         LocalDateTime createdAt,
         List<PresetTagResponse> tags,
-        List<String> thumbnailImageUrls
+        List<String> thumbnailImageUrls,
+        List<Long> thumbnailRestaurantIds
 ) {
     public PresetSummaryResponse {
         tags = List.copyOf(tags);
         thumbnailImageUrls = List.copyOf(thumbnailImageUrls);
+        thumbnailRestaurantIds = List.copyOf(thumbnailRestaurantIds);
     }
 }
