@@ -54,11 +54,7 @@
   let postRequestGeneration = 0;
   let bestRequestGeneration = 0;
   let unansweredRequestGeneration = 0;
-  let boardLoginPopup = null;
-  let boardLoginPollTimer = null;
-  let boardLoginLayoutFrame = null;
-  let boardLoginPopupDocument = null;
-  let boardLoginStorageHandler = null;
+  let boardAuthPopupController = null;
   let pendingBoardLoginAction = null;
   let boardLogoutInFlight = false;
 
@@ -69,6 +65,7 @@
   const {
     authorIdentity,
     categoryLabel,
+    createAuthPopupController,
     detailPath,
     element,
     formatDate,
@@ -130,136 +127,30 @@
     return `/pages/board/detail.html?${params.toString()}`;
   }
 
-  function stopBoardLoginWatch({ closePopup = false, clearPendingAction = false } = {}) {
-    if (boardLoginPollTimer) {
-      window.clearInterval(boardLoginPollTimer);
-      boardLoginPollTimer = null;
-    }
-    if (boardLoginLayoutFrame) {
-      window.cancelAnimationFrame(boardLoginLayoutFrame);
-      boardLoginLayoutFrame = null;
-    }
-    boardLoginPopupDocument = null;
-    if (boardLoginStorageHandler) {
-      window.removeEventListener("storage", boardLoginStorageHandler);
-      boardLoginStorageHandler = null;
-    }
-    if (closePopup && boardLoginPopup && !boardLoginPopup.closed) {
-      try {
-        boardLoginPopup.close();
-      } catch (_error) {
-        // 브라우저가 창 제어를 제한하면 그대로 둔다.
-      }
-    }
-    boardLoginPopup = null;
-    if (clearPendingAction) pendingBoardLoginAction = null;
-  }
-
-  function completeBoardLoginIfReady() {
-    if (!Api.getToken()) return false;
-    const action = pendingBoardLoginAction;
-    pendingBoardLoginAction = null;
-    stopBoardLoginWatch({ closePopup: true });
-    if (typeof action === "function") window.setTimeout(action, 0);
-    return true;
-  }
-
-  function applyBoardLoginPopupLayout(popup) {
-    if (!popup || popup.closed) return false;
-    try {
-      if (popup.location.pathname !== "/pages/auth/login.html") return false;
-      const documentRef = popup.document;
-      if (!documentRef?.head) return false;
-
-      if (!documentRef.getElementById("fooduck-board-login-popup-style")) {
-        const style = documentRef.createElement("style");
-        style.id = "fooduck-board-login-popup-style";
-        style.textContent = `
-          .quick-remote,
-          .site-header .header-actions {
-            display: none !important;
-          }
-        `;
-        documentRef.head.appendChild(style);
-      }
-
-      if (boardLoginPopupDocument !== documentRef) {
-        boardLoginPopupDocument = documentRef;
-        try {
-          popup.addEventListener("pagehide", () => {
-            const previousDocument = documentRef;
-            window.setTimeout(() => {
-              if (!boardLoginPopup || boardLoginPopup !== popup || popup.closed) return;
-              startBoardLoginPopupLayoutWatch(popup, previousDocument);
-            }, 0);
-          }, { once: true });
-        } catch (_error) {
-          // 새로고침 감지는 아래 로그인 상태 확인 주기에서도 다시 보정한다.
-        }
-      }
-      return true;
-    } catch (_error) {
-      // 로그인 문서가 준비될 때까지 다음 animation frame에서 다시 적용한다.
-      return false;
-    }
-  }
-
-  function startBoardLoginPopupLayoutWatch(popup, previousDocument = null) {
-    if (boardLoginLayoutFrame) {
-      window.cancelAnimationFrame(boardLoginLayoutFrame);
-      boardLoginLayoutFrame = null;
-    }
-
-    const applyWhenReady = () => {
-      boardLoginLayoutFrame = null;
-      if (!popup || popup.closed || popup !== boardLoginPopup) return;
-      try {
-        if (previousDocument && popup.document === previousDocument) {
-          boardLoginLayoutFrame = window.requestAnimationFrame(applyWhenReady);
-          return;
-        }
-      } catch (_error) {
-        // 새 문서가 준비될 때까지 다음 frame에서 다시 확인한다.
-      }
-      if (applyBoardLoginPopupLayout(popup)) return;
-      boardLoginLayoutFrame = window.requestAnimationFrame(applyWhenReady);
-    };
-
-    applyWhenReady();
+  function ensureBoardAuthPopupController() {
+    if (boardAuthPopupController) return boardAuthPopupController;
+    boardAuthPopupController = createAuthPopupController({
+      popupName: "fooduck-board-list-login",
+      onAuthenticated: () => {
+        const action = pendingBoardLoginAction;
+        pendingBoardLoginAction = null;
+        if (typeof action === "function") window.setTimeout(action, 0);
+      },
+      onClosed: () => {
+        pendingBoardLoginAction = null;
+      },
+      onBlocked: ({ loginUrl }) => {
+        pendingBoardLoginAction = null;
+        // 팝업이 막힌 환경에서는 현재 창의 일반 로그인 화면으로 이어간다.
+        window.location.assign(loginUrl);
+      },
+    });
+    return boardAuthPopupController;
   }
 
   function openBoardLogin({ nextPath = listUrlFromState(), onSuccess = null } = {}) {
-    stopBoardLoginWatch({ closePopup: true, clearPendingAction: true });
     pendingBoardLoginAction = typeof onSuccess === "function" ? onSuccess : null;
-    const loginUrl = `/pages/auth/login.html?next=${encodeURIComponent(nextPath)}`;
-    const popup = window.open(
-      loginUrl,
-      "fooduck-board-list-login",
-      "popup=yes,width=520,height=760,resizable=yes,scrollbars=yes",
-    );
-    if (!popup) {
-      pendingBoardLoginAction = null;
-      window.alert("로그인 창을 열 수 없습니다. 이 사이트의 팝업을 허용한 뒤 다시 시도해 주세요.");
-      return false;
-    }
-    boardLoginPopup = popup;
-    startBoardLoginPopupLayoutWatch(boardLoginPopup);
-    boardLoginStorageHandler = (event) => {
-      if (event.key === "accessToken" && event.newValue) completeBoardLoginIfReady();
-    };
-    window.addEventListener("storage", boardLoginStorageHandler);
-    boardLoginPollTimer = window.setInterval(() => {
-      if (completeBoardLoginIfReady()) return;
-      if (boardLoginPopup?.closed) {
-        stopBoardLoginWatch({ clearPendingAction: true });
-        return;
-      }
-      if (!applyBoardLoginPopupLayout(boardLoginPopup) && !boardLoginLayoutFrame) {
-        startBoardLoginPopupLayoutWatch(boardLoginPopup);
-      }
-    }, 300);
-    popup.focus();
-    return true;
+    return ensureBoardAuthPopupController().open({ nextPath });
   }
 
   function initializeBoardAuthEntryPoints() {
@@ -907,6 +798,11 @@
 
   window.addEventListener("pageshow", (event) => {
     if (event.persisted) loadBoardContent();
+  });
+
+  window.addEventListener("pagehide", () => {
+    boardAuthPopupController?.stop({ closePopup: true });
+    pendingBoardLoginAction = null;
   });
 
   initializeBoardAuthEntryPoints();

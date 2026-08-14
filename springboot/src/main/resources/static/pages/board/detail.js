@@ -60,6 +60,7 @@
   const {
     authorIdentity,
     categoryLabel,
+    createAuthPopupController,
     detailPath,
     element,
     formatDate,
@@ -423,11 +424,7 @@
   let commentImagePreviewUrl = null;
   let pendingCommentImageRetry = null;
   let commentImageRetryNotice = null;
-  let detailLoginPopup = null;
-  let detailLoginPollTimer = null;
-  let detailLoginLayoutFrame = null;
-  let detailLoginPopupDocument = null;
-  let detailLoginStorageHandler = null;
+  let detailAuthPopupController = null;
   let pendingDetailLoginAction = null;
   let detailLoginSuccessMessage = "로그인되었습니다.";
   let detailLogoutInFlight = false;
@@ -459,98 +456,9 @@
     }
   }
 
-  function stopDetailLoginWatch({ closePopup = false, clearPendingAction = false } = {}) {
-    if (detailLoginPollTimer) {
-      window.clearInterval(detailLoginPollTimer);
-      detailLoginPollTimer = null;
-    }
-    if (detailLoginLayoutFrame) {
-      window.cancelAnimationFrame(detailLoginLayoutFrame);
-      detailLoginLayoutFrame = null;
-    }
-    detailLoginPopupDocument = null;
-    if (detailLoginStorageHandler) {
-      window.removeEventListener("storage", detailLoginStorageHandler);
-      detailLoginStorageHandler = null;
-    }
-    if (closePopup && detailLoginPopup && !detailLoginPopup.closed) {
-      try {
-        detailLoginPopup.close();
-      } catch (_error) {
-        // 브라우저가 창 제어를 제한하면 그대로 둔다.
-      }
-    }
-    detailLoginPopup = null;
-    if (clearPendingAction) pendingDetailLoginAction = null;
-  }
-
-  function applyDetailLoginPopupLayout(popup) {
-    if (!popup || popup.closed) return false;
-    try {
-      if (popup.location.pathname !== "/pages/auth/login.html") return false;
-      const documentRef = popup.document;
-      if (!documentRef?.head) return false;
-
-      if (!documentRef.getElementById("fooduck-board-login-popup-style")) {
-        const style = documentRef.createElement("style");
-        style.id = "fooduck-board-login-popup-style";
-        style.textContent = `
-          .quick-remote,
-          .site-header .header-actions {
-            display: none !important;
-          }
-        `;
-        documentRef.head.appendChild(style);
-      }
-
-      if (detailLoginPopupDocument !== documentRef) {
-        detailLoginPopupDocument = documentRef;
-        try {
-          popup.addEventListener("pagehide", () => {
-            const previousDocument = documentRef;
-            window.setTimeout(() => {
-              if (!detailLoginPopup || detailLoginPopup !== popup || popup.closed) return;
-              startDetailLoginPopupLayoutWatch(popup, previousDocument);
-            }, 0);
-          }, { once: true });
-        } catch (_error) {
-          // 새로고침 감지는 아래 로그인 상태 확인 주기에서도 다시 보정한다.
-        }
-      }
-      return true;
-    } catch (_error) {
-      // 로그인 문서가 준비될 때까지 다음 animation frame에서 다시 적용한다.
-      return false;
-    }
-  }
-
-  function startDetailLoginPopupLayoutWatch(popup, previousDocument = null) {
-    if (detailLoginLayoutFrame) {
-      window.cancelAnimationFrame(detailLoginLayoutFrame);
-      detailLoginLayoutFrame = null;
-    }
-
-    const applyWhenReady = () => {
-      detailLoginLayoutFrame = null;
-      if (!popup || popup.closed || popup !== detailLoginPopup) return;
-      try {
-        if (previousDocument && popup.document === previousDocument) {
-          detailLoginLayoutFrame = window.requestAnimationFrame(applyWhenReady);
-          return;
-        }
-      } catch (_error) {
-        // 새 문서가 준비될 때까지 다음 frame에서 다시 확인한다.
-      }
-      if (applyDetailLoginPopupLayout(popup)) return;
-      detailLoginLayoutFrame = window.requestAnimationFrame(applyWhenReady);
-    };
-
-    applyWhenReady();
-  }
-
-  function completeDetailLoginIfReady() {
+  function handleDetailLoginAuthenticated() {
     const token = Api.getToken();
-    if (!token) return false;
+    if (!token) return;
     const payload = decodeAccessToken(token) || {};
     session.authenticated = true;
     session.accountId = Number(payload.sub) || session.accountId || null;
@@ -570,7 +478,6 @@
     const message = detailLoginSuccessMessage;
     pendingDetailLoginAction = null;
     detailLoginSuccessMessage = "로그인되었습니다.";
-    stopDetailLoginWatch({ closePopup: true });
     showToast(toast, message);
     if (typeof action === "function") {
       window.setTimeout(() => {
@@ -586,52 +493,57 @@
         }
       }, 0);
     }
-    return true;
+  }
+
+  async function continueDetailLoginWithoutPopup(loginUrl) {
+    if (hasUnsavedDetailDrafts()) {
+      const confirmed = await confirmBoardAction({
+        title: "현재 화면에서 로그인할까요?",
+        message: "로그인 팝업이 차단되었습니다. 현재 화면에서 로그인하면 작성 중인 댓글·답글·수정 내용과 첨부한 사진은 저장되지 않습니다.",
+        confirmLabel: "로그인으로 이동",
+        danger: false,
+        iconName: "login",
+      });
+      if (!confirmed) {
+        pendingDetailLoginAction = null;
+        detailLoginSuccessMessage = "로그인되었습니다.";
+        showToast(toast, "팝업을 허용한 뒤 다시 로그인해 주세요.", true);
+        return;
+      }
+    }
+
+    pendingDetailLoginAction = null;
+    detailLoginSuccessMessage = "로그인되었습니다.";
+    allowDetailNavigation = true;
+    window.location.assign(loginUrl);
+  }
+
+  function ensureDetailAuthPopupController() {
+    if (detailAuthPopupController) return detailAuthPopupController;
+    detailAuthPopupController = createAuthPopupController({
+      popupName: "fooduck-board-detail-login",
+      onAuthenticated: handleDetailLoginAuthenticated,
+      onClosed: () => {
+        pendingDetailLoginAction = null;
+        detailLoginSuccessMessage = "로그인되었습니다.";
+        showToast(toast, "로그인이 취소되었습니다.", true);
+      },
+      onBlocked: ({ loginUrl }) => {
+        void continueDetailLoginWithoutPopup(loginUrl);
+      },
+    });
+    return detailAuthPopupController;
+  }
+
+  function completeDetailLoginIfReady() {
+    return ensureDetailAuthPopupController().completeIfReady();
   }
 
   function openDetailLogin({ onSuccess = null, successMessage = "로그인되었습니다." } = {}) {
     const nextPath = `${window.location.pathname}${window.location.search}`;
-    const loginUrl = `/pages/auth/login.html?next=${encodeURIComponent(nextPath)}`;
-    stopDetailLoginWatch({ closePopup: true, clearPendingAction: true });
     pendingDetailLoginAction = typeof onSuccess === "function" ? onSuccess : null;
     detailLoginSuccessMessage = successMessage;
-
-    const popup = window.open(
-      loginUrl,
-      "fooduck-board-detail-login",
-      "popup=yes,width=520,height=760,resizable=yes,scrollbars=yes",
-    );
-    if (!popup) {
-      pendingDetailLoginAction = null;
-      detailLoginSuccessMessage = "로그인되었습니다.";
-      showToast(
-        toast,
-        "로그인 창을 열 수 없습니다. 이 사이트의 팝업을 허용한 뒤 다시 시도해 주세요.",
-        true,
-      );
-      return false;
-    }
-
-    detailLoginPopup = popup;
-    startDetailLoginPopupLayoutWatch(detailLoginPopup);
-    detailLoginStorageHandler = (event) => {
-      if (event.key === "accessToken" && event.newValue) completeDetailLoginIfReady();
-    };
-    window.addEventListener("storage", detailLoginStorageHandler);
-    detailLoginPollTimer = window.setInterval(() => {
-      if (completeDetailLoginIfReady()) return;
-      if (detailLoginPopup?.closed) {
-        stopDetailLoginWatch({ clearPendingAction: true });
-        detailLoginSuccessMessage = "로그인되었습니다.";
-        showToast(toast, "로그인이 취소되었습니다.", true);
-        return;
-      }
-      if (!applyDetailLoginPopupLayout(detailLoginPopup) && !detailLoginLayoutFrame) {
-        startDetailLoginPopupLayoutWatch(detailLoginPopup);
-      }
-    }, 300);
-    popup.focus();
-    return true;
+    return ensureDetailAuthPopupController().open({ nextPath });
   }
 
   function initializeDetailLoginEntryPoints() {
@@ -2698,7 +2610,9 @@
   commentForm.addEventListener("submit", async (event) => {
     event.preventDefault();
     if (!session.authenticated) {
-      if (!completeDetailLoginIfReady()) {
+      if (completeDetailLoginIfReady()) {
+        window.setTimeout(() => commentForm.requestSubmit(), 0);
+      } else {
         openDetailLogin({
           successMessage: "로그인되었습니다. 작성 중인 댓글을 등록합니다.",
           onSuccess: () => commentForm.requestSubmit(),
@@ -2844,7 +2758,8 @@
     clearMediaPoll();
     clearCommentImageSelection();
     clearCommentImageRetryNotice();
-    stopDetailLoginWatch({ closePopup: true, clearPendingAction: true });
+    detailAuthPopupController?.stop({ closePopup: true });
+    pendingDetailLoginAction = null;
     closeReplyComposer();
     document.querySelector(".detail-image-viewer")?.remove();
     document.body.classList.remove("is-image-viewer-open");
