@@ -1074,6 +1074,7 @@
         style.id = BOARD_AUTH_POPUP_STYLE_ID;
         style.textContent = `
           .quick-remote,
+          .site-header #site-nav,
           .site-header .header-actions {
             display: none !important;
           }
