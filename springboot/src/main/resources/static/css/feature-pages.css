@@ -25,9 +25,12 @@
 }
 
 .feature-hero--cream {
-  background:
-    radial-gradient(circle at 85% 20%, rgba(255, 152, 0, 0.17), transparent 28%),
-    var(--color-cream);
+  padding: 58px 0;
+  background: var(--color-cream) url("/images/search-hero-background.png") center / cover no-repeat;
+}
+
+.feature-hero--cream::after {
+  display: none;
 }
 
 .feature-hero--navy {
