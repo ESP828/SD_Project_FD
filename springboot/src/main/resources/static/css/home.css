@@ -202,51 +202,8 @@
   background: linear-gradient(180deg, #fffaf1 0%, #fff 100%);
 }
 
-.home-treasure-banner {
-  position: relative;
-  overflow: hidden;
-  padding-block: 46px;
-  background:
-    radial-gradient(circle 130px at 92% -10%, #f6e9d8 0%, #f6e9d8 55%, rgba(246, 233, 216, 0) 100%),
-    radial-gradient(circle 90px at 4% 120%, #f6e9d8 0%, #f6e9d8 55%, rgba(246, 233, 216, 0) 100%),
-    #fdf8f0;
-}
-
-.home-treasure-banner-inner {
-  position: relative;
-  z-index: 1;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 24px;
-}
-
-.home-treasure-banner-copy h2 {
-  margin-bottom: 6px;
-  font-size: clamp(1.35rem, 2.4vw, 1.7rem);
-}
-
-.home-treasure-banner-copy p:last-child {
-  margin-bottom: 0;
-  color: var(--color-muted);
-  font-size: 0.95rem;
-}
-
-.home-treasure-banner .button-primary {
-  flex: 0 0 auto;
-}
-
 .home-section.home-section--preset {
   padding-block: 64px;
-}
-
-.home-preset-heading {
-  align-items: flex-end;
-}
-
-.home-preset-heading p:last-child {
-  margin: 8px 0 0;
-  color: var(--color-muted);
 }
 
 .home-preset-carousel {
@@ -254,6 +211,31 @@
   display: flex;
   align-items: center;
   gap: 12px;
+}
+
+/* 캐러셀 위 배너 영역: 사진과 겹치지 않는 독립된 줄, 배경 없음 */
+.home-preset-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 28px;
+}
+
+.home-preset-banner-copy .eyebrow {
+  margin-bottom: 10px;
+}
+
+.home-preset-banner h2 {
+  margin: 0;
+  color: var(--color-navy);
+  font-size: clamp(1.5rem, 2.4vw, 2.1rem);
+  font-weight: 800;
+  line-height: 1.25;
+}
+
+.home-preset-banner .button-primary {
+  flex: 0 0 auto;
 }
 
 .home-preset-list {
@@ -713,14 +695,6 @@
   .service-card {
     min-height: 330px;
   }
-
-  /* .home-preset-heading의 align-items: flex-end가 뒤에서 로드되는 home.css라서
-     common.css의 좁은 화면용 .section-header{flex-start} 규칙을 덮어써 텍스트가
-     오른쪽으로 밀리는 문제가 있었음 -> 좁은 화면에서는 다시 왼쪽 정렬로 되돌림 */
-  .home-preset-heading {
-    align-items: flex-start;
-  }
-
 }
 
 /* 팀 요구: 홈 배너는 부유 카드 없이 원본 푸드덕 캐릭터만 사용한다. */
@@ -860,12 +834,13 @@
 }
 
 @media (max-width: 760px) {
-  .home-treasure-banner-inner {
+  .home-preset-banner {
     flex-direction: column;
     align-items: flex-start;
+    gap: 16px;
   }
 
-  .home-treasure-banner .button-primary {
+  .home-preset-banner .button-primary {
     width: 100%;
   }
 
