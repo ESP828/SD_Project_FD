@@ -835,7 +835,7 @@
     const label = state?.open
       ? "댓글 닫기"
       : state?.totalCount != null
-        ? `댓글 ${Math.max(0, Number(state.totalCount) || 0)}개`
+        ? `댓글 ${Math.max(0, Number(state.totalCount) || 0)}개 보기`
         : "댓글 보기";
     return `
       <button type="button" class="button button-sm button-secondary store-news-comments-toggle"
@@ -872,7 +872,7 @@
     button.textContent = state.open
       ? "댓글 닫기"
       : state.totalCount != null
-        ? `댓글 ${Math.max(0, Number(state.totalCount) || 0)}개`
+        ? `댓글 ${Math.max(0, Number(state.totalCount) || 0)}개 보기`
         : "댓글 보기";
   }
 
@@ -2481,6 +2481,12 @@
     return ![401, 403, 404].includes(Number(error?.status));
   }
 
+  function newsCacheHasCommentCounts(cached) {
+    const items = Array.isArray(cached?.data?.content) ? cached.data.content : [];
+    return items.every((item) => item?.commentCount != null
+      && Number.isFinite(Number(item.commentCount)));
+  }
+
   function renderNewsCachedNotice() {
     const card = panels.news.querySelector(".store-section-card");
     if (!card || card.querySelector(".store-news-cache-notice")) return;
@@ -2502,7 +2508,10 @@
       size: String(NEWS_PAGE_SIZE),
     });
     const path = `${newsApiPath()}?${requestParams.toString()}`;
-    const cached = board?.readBoardCache?.(path) || null;
+    const cachedCandidate = board?.readBoardCache?.(path) || null;
+    const cached = newsCacheHasCommentCounts(cachedCandidate)
+      ? cachedCandidate
+      : null;
 
     clearNewsMediaPolls();
     newsMediaGeneration += 1;
