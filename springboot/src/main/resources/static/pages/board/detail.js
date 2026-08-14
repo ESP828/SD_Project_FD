@@ -426,6 +426,7 @@
   let detailLoginPopup = null;
   let detailLoginPollTimer = null;
   let detailLoginLayoutFrame = null;
+  let detailLoginPopupDocument = null;
   let detailLoginStorageHandler = null;
   let pendingDetailLoginAction = null;
   let detailLoginSuccessMessage = "로그인되었습니다.";
@@ -467,6 +468,7 @@
       window.cancelAnimationFrame(detailLoginLayoutFrame);
       detailLoginLayoutFrame = null;
     }
+    detailLoginPopupDocument = null;
     if (detailLoginStorageHandler) {
       window.removeEventListener("storage", detailLoginStorageHandler);
       detailLoginStorageHandler = null;
@@ -488,17 +490,33 @@
       if (popup.location.pathname !== "/pages/auth/login.html") return false;
       const documentRef = popup.document;
       if (!documentRef?.head) return false;
-      if (documentRef.getElementById("fooduck-board-login-popup-style")) return true;
 
-      const style = documentRef.createElement("style");
-      style.id = "fooduck-board-login-popup-style";
-      style.textContent = `
-        .quick-remote,
-        .site-header .header-actions {
-          display: none !important;
+      if (!documentRef.getElementById("fooduck-board-login-popup-style")) {
+        const style = documentRef.createElement("style");
+        style.id = "fooduck-board-login-popup-style";
+        style.textContent = `
+          .quick-remote,
+          .site-header .header-actions {
+            display: none !important;
+          }
+        `;
+        documentRef.head.appendChild(style);
+      }
+
+      if (detailLoginPopupDocument !== documentRef) {
+        detailLoginPopupDocument = documentRef;
+        try {
+          popup.addEventListener("pagehide", () => {
+            const previousDocument = documentRef;
+            window.setTimeout(() => {
+              if (!detailLoginPopup || detailLoginPopup !== popup || popup.closed) return;
+              startDetailLoginPopupLayoutWatch(popup, previousDocument);
+            }, 0);
+          }, { once: true });
+        } catch (_error) {
+          // 새로고침 감지는 아래 로그인 상태 확인 주기에서도 다시 보정한다.
         }
-      `;
-      documentRef.head.appendChild(style);
+      }
       return true;
     } catch (_error) {
       // 로그인 문서가 준비될 때까지 다음 animation frame에서 다시 적용한다.
@@ -506,7 +524,7 @@
     }
   }
 
-  function startDetailLoginPopupLayoutWatch(popup) {
+  function startDetailLoginPopupLayoutWatch(popup, previousDocument = null) {
     if (detailLoginLayoutFrame) {
       window.cancelAnimationFrame(detailLoginLayoutFrame);
       detailLoginLayoutFrame = null;
@@ -515,6 +533,14 @@
     const applyWhenReady = () => {
       detailLoginLayoutFrame = null;
       if (!popup || popup.closed || popup !== detailLoginPopup) return;
+      try {
+        if (previousDocument && popup.document === previousDocument) {
+          detailLoginLayoutFrame = window.requestAnimationFrame(applyWhenReady);
+          return;
+        }
+      } catch (_error) {
+        // 새 문서가 준비될 때까지 다음 frame에서 다시 확인한다.
+      }
       if (applyDetailLoginPopupLayout(popup)) return;
       detailLoginLayoutFrame = window.requestAnimationFrame(applyWhenReady);
     };
@@ -599,6 +625,9 @@
         detailLoginSuccessMessage = "로그인되었습니다.";
         showToast(toast, "로그인이 취소되었습니다.", true);
         return;
+      }
+      if (!applyDetailLoginPopupLayout(detailLoginPopup) && !detailLoginLayoutFrame) {
+        startDetailLoginPopupLayoutWatch(detailLoginPopup);
       }
     }, 300);
     popup.focus();

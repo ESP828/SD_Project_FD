@@ -57,6 +57,7 @@
   let boardLoginPopup = null;
   let boardLoginPollTimer = null;
   let boardLoginLayoutFrame = null;
+  let boardLoginPopupDocument = null;
   let boardLoginStorageHandler = null;
   let pendingBoardLoginAction = null;
   let boardLogoutInFlight = false;
@@ -138,6 +139,7 @@
       window.cancelAnimationFrame(boardLoginLayoutFrame);
       boardLoginLayoutFrame = null;
     }
+    boardLoginPopupDocument = null;
     if (boardLoginStorageHandler) {
       window.removeEventListener("storage", boardLoginStorageHandler);
       boardLoginStorageHandler = null;
@@ -168,17 +170,33 @@
       if (popup.location.pathname !== "/pages/auth/login.html") return false;
       const documentRef = popup.document;
       if (!documentRef?.head) return false;
-      if (documentRef.getElementById("fooduck-board-login-popup-style")) return true;
 
-      const style = documentRef.createElement("style");
-      style.id = "fooduck-board-login-popup-style";
-      style.textContent = `
-        .quick-remote,
-        .site-header .header-actions {
-          display: none !important;
+      if (!documentRef.getElementById("fooduck-board-login-popup-style")) {
+        const style = documentRef.createElement("style");
+        style.id = "fooduck-board-login-popup-style";
+        style.textContent = `
+          .quick-remote,
+          .site-header .header-actions {
+            display: none !important;
+          }
+        `;
+        documentRef.head.appendChild(style);
+      }
+
+      if (boardLoginPopupDocument !== documentRef) {
+        boardLoginPopupDocument = documentRef;
+        try {
+          popup.addEventListener("pagehide", () => {
+            const previousDocument = documentRef;
+            window.setTimeout(() => {
+              if (!boardLoginPopup || boardLoginPopup !== popup || popup.closed) return;
+              startBoardLoginPopupLayoutWatch(popup, previousDocument);
+            }, 0);
+          }, { once: true });
+        } catch (_error) {
+          // 새로고침 감지는 아래 로그인 상태 확인 주기에서도 다시 보정한다.
         }
-      `;
-      documentRef.head.appendChild(style);
+      }
       return true;
     } catch (_error) {
       // 로그인 문서가 준비될 때까지 다음 animation frame에서 다시 적용한다.
@@ -186,7 +204,7 @@
     }
   }
 
-  function startBoardLoginPopupLayoutWatch(popup) {
+  function startBoardLoginPopupLayoutWatch(popup, previousDocument = null) {
     if (boardLoginLayoutFrame) {
       window.cancelAnimationFrame(boardLoginLayoutFrame);
       boardLoginLayoutFrame = null;
@@ -195,6 +213,14 @@
     const applyWhenReady = () => {
       boardLoginLayoutFrame = null;
       if (!popup || popup.closed || popup !== boardLoginPopup) return;
+      try {
+        if (previousDocument && popup.document === previousDocument) {
+          boardLoginLayoutFrame = window.requestAnimationFrame(applyWhenReady);
+          return;
+        }
+      } catch (_error) {
+        // 새 문서가 준비될 때까지 다음 frame에서 다시 확인한다.
+      }
       if (applyBoardLoginPopupLayout(popup)) return;
       boardLoginLayoutFrame = window.requestAnimationFrame(applyWhenReady);
     };
@@ -227,6 +253,9 @@
       if (boardLoginPopup?.closed) {
         stopBoardLoginWatch({ clearPendingAction: true });
         return;
+      }
+      if (!applyBoardLoginPopupLayout(boardLoginPopup) && !boardLoginLayoutFrame) {
+        startBoardLoginPopupLayoutWatch(boardLoginPopup);
       }
     }, 300);
     popup.focus();
