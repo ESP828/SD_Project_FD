@@ -113,8 +113,8 @@ public class MyPageActivityQueryRepository {
                 parameters(accountId),
                 (resultSet, rowNumber) -> new FavoriteItem(
                         resultSet.getString("restaurant_source"),
-                        (Long) resultSet.getObject("restaurant_id"),
-                        (Long) resultSet.getObject("public_restaurant_id"),
+                        toNullableLong(resultSet.getObject("restaurant_id")),
+                        toNullableLong(resultSet.getObject("public_restaurant_id")),
                         resultSet.getString("restaurant_name"),
                         resultSet.getString("category_name"),
                         resultSet.getString("address"),
@@ -165,8 +165,8 @@ public class MyPageActivityQueryRepository {
                 (resultSet, rowNumber) -> new ReviewItem(
                         resultSet.getLong("review_id"),
                         resultSet.getString("restaurant_source"),
-                        (Long) resultSet.getObject("restaurant_id"),
-                        (Long) resultSet.getObject("public_restaurant_id"),
+                        toNullableLong(resultSet.getObject("restaurant_id")),
+                        toNullableLong(resultSet.getObject("public_restaurant_id")),
                         resultSet.getString("restaurant_name"),
                         resultSet.getInt("rating"),
                         resultSet.getString("content"),
@@ -279,6 +279,10 @@ public class MyPageActivityQueryRepository {
     private long count(String sql, MapSqlParameterSource parameters) {
         Long value = jdbcTemplate.queryForObject(sql, parameters, Long.class);
         return value == null ? 0 : value;
+    }
+
+    static Long toNullableLong(Object value) {
+        return value == null ? null : ((Number) value).longValue();
     }
 
     public record ActivityCounts(
