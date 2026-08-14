@@ -435,6 +435,9 @@
   let activeReplyPreviewUrl = null;
   let activeCommentEditForm = null;
   let replyDiscardPromptOpen = false;
+  let commentEditDiscardPromptOpen = false;
+  let detailLeavePromptOpen = false;
+  let allowDetailNavigation = false;
   let currentCommentPage = 0;
   let totalCommentPages = 0;
   let commentPageLoading = false;
@@ -579,8 +582,11 @@
       event.preventDefault();
       event.stopImmediatePropagation();
       if (detailLogoutInFlight) return;
+      if (!(await confirmDetailPageLeave())) return;
+
       detailLogoutInFlight = true;
       button.disabled = true;
+      allowDetailNavigation = true;
 
       try {
         await Api.logout();
@@ -589,6 +595,94 @@
       } finally {
         window.location.reload();
       }
+    }, true);
+  }
+
+  function mainCommentHasDraft() {
+    return Boolean(commentContent?.value.trim() || selectedCommentImage);
+  }
+
+  function commentEditorHasDraft(form = activeCommentEditForm) {
+    if (!form) return false;
+    const textarea = form.querySelector(".comment-edit-textarea");
+    const initialValue = form.dataset.initialValue || "";
+    return Boolean(
+      textarea && textarea.value.trim() !== initialValue.trim()
+    );
+  }
+
+  function hasUnsavedDetailDrafts() {
+    return (
+      mainCommentHasDraft() ||
+      replyComposerHasDraft() ||
+      commentEditorHasDraft()
+    );
+  }
+
+  async function confirmDetailPageLeave() {
+    if (!hasUnsavedDetailDrafts()) return true;
+    if (detailLeavePromptOpen) return false;
+
+    detailLeavePromptOpen = true;
+    try {
+      return await confirmBoardAction({
+        title: "작성 중인 내용을 버리고 이동할까요?",
+        message: "입력한 댓글·답글·수정 내용과 첨부한 사진은 저장되지 않습니다.",
+        confirmLabel: "나가기",
+        danger: false,
+        iconName: "edit",
+      });
+    } finally {
+      detailLeavePromptOpen = false;
+    }
+  }
+
+  function initializeDetailNavigationGuard() {
+    document.addEventListener("click", async (event) => {
+      if (allowDetailNavigation || event.defaultPrevented) return;
+      if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
+        return;
+      }
+
+      const link = event.target.closest("a[href]");
+      if (!link || link.hasAttribute("download")) return;
+      if (link.target && link.target.toLowerCase() !== "_self") return;
+
+      // 상세 화면의 로그인 링크는 팝업만 열고 현재 페이지를 떠나지 않는다.
+      if (
+        !session.authenticated &&
+        link.matches('.site-header a.header-auth-button[href^="/pages/auth/login.html"]')
+      ) {
+        return;
+      }
+
+      const rawHref = link.getAttribute("href");
+      if (!rawHref || rawHref.startsWith("javascript:")) return;
+
+      let targetUrl;
+      try {
+        targetUrl = new URL(link.href, window.location.href);
+      } catch (_error) {
+        return;
+      }
+
+      const currentUrl = new URL(window.location.href);
+      const sameDocument =
+        targetUrl.origin === currentUrl.origin &&
+        targetUrl.pathname === currentUrl.pathname &&
+        targetUrl.search === currentUrl.search;
+      if (sameDocument && targetUrl.hash !== currentUrl.hash) return;
+      if (!hasUnsavedDetailDrafts()) return;
+
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      if (!(await confirmDetailPageLeave())) return;
+
+      allowDetailNavigation = true;
+      window.location.assign(targetUrl.href);
+      window.setTimeout(() => {
+        allowDetailNavigation = false;
+      }, 0);
     }, true);
   }
 
@@ -733,13 +827,15 @@
         invalidateBoardCache();
         clearCommentImageRetryNotice();
         showToast(toast, `${retry.label || "댓글"} 사진이 등록되었습니다.`);
-        try {
-          await loadCommentPage(currentCommentPage, {
-            highlightCommentId: retry.commentId,
-            scrollToHighlight: false,
-          });
-        } catch (reloadError) {
-          showToast(toast, reloadError.message, true);
+        if (!replyComposerHasDraft() && !commentEditorHasDraft()) {
+          try {
+            await loadCommentPage(currentCommentPage, {
+              highlightCommentId: retry.commentId,
+              scrollToHighlight: false,
+            });
+          } catch (reloadError) {
+            showToast(toast, reloadError.message, true);
+          }
         }
       } catch (retryError) {
         retryButton.disabled = false;
@@ -1568,6 +1664,8 @@
   }
 
   async function deletePost() {
+    if (!(await confirmDetailPageLeave())) return;
+
     const newsPost = isNewsPost();
     const deletePath = newsPost ? newsDeletePath(state.post) : `/board/posts/${postId}`;
     const returnPath = newsPost
@@ -1590,6 +1688,7 @@
       const payload = await Api.delete(deletePath);
       invalidateBoardCache();
       window.alert(payload.message);
+      allowDetailNavigation = true;
       window.location.assign(returnPath);
     } catch (error) {
       showToast(toast, error.message, true);
@@ -1654,6 +1753,47 @@
     if (actions) actions.hidden = false;
     activeCommentEditForm.remove();
     activeCommentEditForm = null;
+  }
+
+  async function confirmCommentEditorDiscard(nextCommentId = null) {
+    if (!activeCommentEditForm) return true;
+    if (
+      nextCommentId != null &&
+      String(activeCommentEditForm.dataset.editCommentId || "") === String(nextCommentId)
+    ) {
+      activeCommentEditForm
+        .querySelector(".comment-edit-textarea")
+        ?.focus({ preventScroll: true });
+      return false;
+    }
+    if (!commentEditorHasDraft(activeCommentEditForm)) {
+      closeCommentEditor();
+      return true;
+    }
+    if (commentEditDiscardPromptOpen) return false;
+
+    const currentForm = activeCommentEditForm;
+    commentEditDiscardPromptOpen = true;
+    try {
+      const discard = await confirmBoardAction({
+        title: "수정 중인 댓글을 버릴까요?",
+        message: "바꾼 내용은 저장되지 않습니다.",
+        confirmLabel: "내용 버리기",
+        danger: false,
+        iconName: "edit",
+      });
+      if (!discard || activeCommentEditForm !== currentForm) return false;
+      closeCommentEditor();
+      return true;
+    } finally {
+      commentEditDiscardPromptOpen = false;
+    }
+  }
+
+  async function confirmInlineCommentDraftDiscard() {
+    if (!(await confirmReplyComposerDiscard(null))) return false;
+    if (!(await confirmCommentEditorDiscard(null))) return false;
+    return true;
   }
 
   function commentImageNode(comment) {
@@ -1726,7 +1866,7 @@
       });
       return;
     }
-    closeCommentEditor();
+    if (!(await confirmCommentEditorDiscard(null))) return;
     if (!(await confirmReplyComposerDiscard(comment.commentId))) return;
 
     const rootParentId = comment.parentCommentId || comment.commentId;
@@ -1821,7 +1961,9 @@
       preview.hidden = false;
     });
     removeImage.addEventListener("click", clearReplyImage);
-    cancel.addEventListener("click", closeReplyComposer);
+    cancel.addEventListener("click", async () => {
+      await confirmReplyComposerDiscard(null);
+    });
     textarea.addEventListener("input", () => {
       syncReplySubmitState();
       updateCharacterCount(textarea, characterCount);
@@ -2276,7 +2418,7 @@
   async function goToCommentPage(page) {
     const targetPage = Math.max(0, Math.min(Number(page) || 0, totalCommentPages - 1));
     if (commentPageLoading || targetPage === currentCommentPage) return;
-    if (!(await confirmReplyComposerDiscard(null))) return;
+    if (!(await confirmInlineCommentDraftDiscard())) return;
 
     try {
       await loadCommentPage(targetPage, {
@@ -2315,10 +2457,10 @@
     }
   }
 
-  function editComment(comment, item) {
+  async function editComment(comment, item) {
     if (!item) return;
-    closeReplyComposer();
-    closeCommentEditor();
+    if (!(await confirmReplyComposerDiscard(null))) return;
+    if (!(await confirmCommentEditorDiscard(comment.commentId))) return;
 
     const contentNode = item.querySelector(":scope > .comment-content");
     const actionsNode = item.querySelector(":scope > .comment-actions");
@@ -2334,6 +2476,8 @@
     textarea.rows = 3;
     textarea.value = comment.content || "";
     textarea.setAttribute("aria-label", "댓글 수정 내용");
+    form.dataset.editCommentId = String(comment.commentId);
+    form.dataset.initialValue = textarea.value;
 
     const inputMeta = element("div", "comment-input-meta comment-input-meta--compact");
     inputMeta.append(element("span", "", "Enter로 수정 · Shift + Enter로 줄바꿈"));
@@ -2363,12 +2507,14 @@
     syncEditState();
 
     form.addEventListener("click", (event) => event.stopPropagation());
-    cancel.addEventListener("click", closeCommentEditor);
+    cancel.addEventListener("click", async () => {
+      await confirmCommentEditorDiscard(null);
+    });
     textarea.addEventListener("input", syncEditState);
-    textarea.addEventListener("keydown", (event) => {
+    textarea.addEventListener("keydown", async (event) => {
       if (event.key === "Escape") {
         event.preventDefault();
-        closeCommentEditor();
+        await confirmCommentEditorDiscard(null);
         return;
       }
       if (!isCommentSubmitEnter(event)) return;
@@ -2428,6 +2574,7 @@
       confirmLabel: "댓글 삭제",
     });
     if (!confirmed) return;
+    if (!(await confirmInlineCommentDraftDiscard())) return;
 
     try {
       const payload = await Api.delete(`/board/comments/${comment.commentId}`);
@@ -2609,6 +2756,13 @@
     }
   });
 
+  window.addEventListener("beforeunload", (event) => {
+    if (allowDetailNavigation || !hasUnsavedDetailDrafts()) return;
+    event.preventDefault();
+    // 최신 브라우저는 사용자 지정 문구 대신 자체 경고문을 표시한다.
+    event.returnValue = true;
+  });
+
   window.addEventListener("pagehide", () => {
     mediaPollingDisposed = true;
     clearMediaPoll();
@@ -2628,6 +2782,7 @@
     }
   });
 
+  initializeDetailNavigationGuard();
   initializeDetailLoginEntryPoints();
   initializeDetailLogoutEntryPoint();
   initializeScrollTopButton();
