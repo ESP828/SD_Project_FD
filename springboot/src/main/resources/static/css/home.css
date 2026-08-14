@@ -303,38 +303,36 @@
   display: none;
 }
 
-/* 심플 리스트 카드: 좌측 썸네일 · 중앙 정보 · 우측 이동 버튼 */
+/* 사진 전용 슬라이딩 타일: 평소엔 사진만, 호버 시 흰 배경 위에 제목/정보/버튼 노출 */
 .home-preset-card {
-  display: flex;
-  align-items: center;
+  position: relative;
+  display: block;
   overflow: hidden;
-  flex: 0 0 calc((100% - 20px) / 2);
-  min-width: 400px;
-  aspect-ratio: 2.1 / 1;
-  gap: 20px;
-  padding: 22px 26px;
+  flex: 0 0 auto;
+  width: 300px;
+  aspect-ratio: 1 / 1;
   scroll-snap-align: start;
   border: 1px solid var(--color-line);
   border-radius: 20px;
-  background: #fff;
+  background: var(--color-cream);
   box-shadow: var(--shadow-sm);
   transition: transform 200ms ease, box-shadow 200ms ease, border-color 200ms ease;
 }
 
-.home-preset-card:hover {
+.home-preset-card:hover,
+.home-preset-card:focus-within {
   transform: translateY(-4px);
   border-color: rgba(255, 152, 0, 0.3);
   box-shadow: var(--shadow-card);
 }
 
 .home-preset-visual {
-  position: relative;
+  position: absolute;
+  inset: 0;
   overflow: hidden;
-  width: auto;
+  width: 100%;
   height: 100%;
-  aspect-ratio: 1 / 1;
-  flex: 0 0 auto;
-  border-radius: 16px;
+  border-radius: 0;
   background: var(--color-cream);
 }
 
@@ -345,22 +343,37 @@
 }
 
 .home-preset-body {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
   display: flex;
   overflow: hidden;
-  flex: 1 1 auto;
-  min-width: 0;
   flex-direction: column;
+  justify-content: flex-end;
   gap: 8px;
+  padding: 22px 20px 56px;
+  background: linear-gradient(to top, #fff 0%, rgba(255, 255, 255, 0.94) 55%, rgba(255, 255, 255, 0) 100%);
+  opacity: 0;
+  transform: translateY(10px);
+  transition: opacity 220ms ease, transform 220ms ease;
+  pointer-events: none;
+}
+
+.home-preset-card:hover .home-preset-body,
+.home-preset-card:focus-within .home-preset-body {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
 }
 
 .home-preset-body h3 {
   overflow: hidden;
   display: -webkit-box;
-  margin-bottom: 14px;
+  margin-bottom: 4px;
   color: var(--color-navy);
-  font-size: 2.1rem;
-  font-weight: 600;
-  line-height: 1.25;
+  font-size: 1.22rem;
+  font-weight: 700;
+  line-height: 1.3;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
 }
@@ -370,8 +383,8 @@
   display: -webkit-box;
   margin-bottom: 0;
   color: var(--color-muted);
-  font-size: 0.98rem;
-  line-height: 1.5;
+  font-size: 0.85rem;
+  line-height: 1.45;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
 }
@@ -379,7 +392,7 @@
 .home-preset-tags {
   display: flex;
   overflow: hidden;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
   gap: 5px;
 }
 
@@ -390,7 +403,7 @@
   border-radius: 999px;
   color: var(--color-orange-dark);
   background: var(--color-orange-soft);
-  font-size: 0.78rem;
+  font-size: 0.72rem;
   font-weight: 800;
   white-space: nowrap;
   text-overflow: ellipsis;
@@ -412,7 +425,7 @@
   gap: 8px;
   margin-top: 2px;
   color: var(--color-subtle);
-  font-size: 0.88rem;
+  font-size: 0.8rem;
   font-weight: 750;
   white-space: nowrap;
 }
@@ -423,24 +436,32 @@
 }
 
 .home-preset-arrow {
+  position: absolute;
+  z-index: 3;
+  right: 16px;
+  bottom: 18px;
   display: grid;
-  width: 36px;
-  height: 36px;
-  flex: 0 0 auto;
+  width: 38px;
+  height: 38px;
   place-items: center;
   border-radius: 50%;
-  color: var(--color-subtle);
-  background: transparent;
-  transition: transform 200ms ease, color 200ms ease;
+  color: #fff;
+  background: var(--color-orange);
+  opacity: 0;
+  transform: translateY(10px);
+  transition: opacity 220ms ease, transform 220ms ease;
+  pointer-events: none;
 }
 
 .home-preset-arrow .material-symbols-rounded {
   font-size: 18px;
 }
 
-.home-preset-card:hover .home-preset-arrow {
-  color: var(--color-muted);
-  transform: translateX(3px);
+.home-preset-card:hover .home-preset-arrow,
+.home-preset-card:focus-within .home-preset-arrow {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
 }
 
 .home-preset-state {
@@ -728,9 +749,6 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .home-preset-card {
-    flex-basis: calc((100% - 20px) / 2);
-  }
 }
 
 @media (max-width: 760px) {
@@ -743,7 +761,7 @@
   }
 
   .home-preset-card {
-    flex-basis: 86%;
+    width: 240px;
   }
 }
 

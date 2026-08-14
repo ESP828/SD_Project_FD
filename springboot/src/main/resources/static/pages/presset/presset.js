@@ -93,7 +93,7 @@
       button.setAttribute("aria-label", preset.favoriteByCurrentUser ? "보물지도 찜 해제" : "보물지도 찜");
       button.textContent = preset.favoriteByCurrentUser ? "♥" : "♡";
       button.closest(".preset-card")?.querySelector("[data-favorite-count]")
-        ?.replaceChildren(document.createTextNode(`저장 ${preset.favoriteCount}`));
+        ?.replaceChildren(document.createTextNode(`♡ 저장 ${preset.favoriteCount}`));
     } catch (error) {
       alert(error.message);
     } finally {
@@ -101,12 +101,15 @@
     }
   }
 
-  function createRouteMap(preset) {
-    const map = element("a", "preset-card-map");
-    map.href = detailPath(preset.presetId);
-    map.setAttribute("aria-label", `${preset.title || "보물지도"} 상세 보기`);
+  function restaurantDetailPath(restaurantId) {
+    return `/pages/restaurant/detail.html?source=owned&id=${encodeURIComponent(restaurantId)}`;
+  }
 
+  function createRouteMap(preset) {
     if (preset.imageUrl) {
+      const map = element("a", "preset-card-map");
+      map.href = detailPath(preset.presetId);
+      map.setAttribute("aria-label", `${preset.title || "보물지도"} 상세 보기`);
       map.append(safeImage(
         preset.imageUrl,
         preset.title,
@@ -116,7 +119,11 @@
       return map;
     }
 
-    const stops = Array.isArray(preset.thumbnailImageUrls) ? preset.thumbnailImageUrls.slice(0, 3) : [];
+    const map = element("div", "preset-card-map");
+
+    const urls = Array.isArray(preset.thumbnailImageUrls) ? preset.thumbnailImageUrls.slice(0, 3) : [];
+    const restaurantIds = Array.isArray(preset.thumbnailRestaurantIds) ? preset.thumbnailRestaurantIds : [];
+    const stops = urls.map((url, index) => ({ url, restaurantId: restaurantIds[index] }));
     if (!stops.length) {
       map.append(imagePlaceholder("preset-image-placeholder preset-card-map-placeholder"));
       return map;
@@ -134,8 +141,16 @@
       map.append(svg);
     }
 
-    stops.forEach((url, index) => {
-      const stop = element("div", `preset-card-map-stop preset-card-map-stop--${index + 1}`);
+    stops.forEach(({ url, restaurantId }, index) => {
+      const stop = element(
+        restaurantId ? "a" : "div",
+        `preset-card-map-stop preset-card-map-stop--${index + 1}`,
+      );
+      if (restaurantId) {
+        stop.href = restaurantDetailPath(restaurantId);
+        stop.setAttribute("aria-label", "식당 상세 보기");
+        stop.addEventListener("click", (event) => event.stopPropagation());
+      }
       stop.append(element("span", "preset-card-map-badge", String(index + 1)));
       stop.append(safeImage(
         url,
@@ -166,31 +181,51 @@
     card.append(favorite);
 
     const body = element("div", "preset-card-body");
-    const tags = element("div", "preset-card-chip-list");
-    (preset.tags || []).slice(0, 3).forEach((tag) => tags.append(element("span", "preset-card-chip", tag.tagName)));
-    if (tags.childElementCount) body.append(tags);
+
+    const badge = element("span", "preset-card-badge", `📍 ${preset.category || "보물지도"}`);
+    body.append(badge);
 
     const titleLink = element("a", "preset-card-title", preset.title || "이름 없는 보물지도");
     titleLink.href = detailPath(preset.presetId);
     body.append(titleLink);
 
+    const tags = element("div", "preset-card-chip-list");
+    (preset.tags || []).slice(0, 3).forEach((tag) => tags.append(element("span", "preset-card-chip", tag.tagName)));
+    if (tags.childElementCount) body.append(tags);
+
+    body.append(element("div", "preset-card-divider"));
+
     const meta = element("div", "preset-card-meta");
-    meta.append(
-      element("span", "", `🍴 맛집 ${preset.restaurantCount || 0}곳`),
-      element("span", "", `👁 조회 ${Number(preset.viewCount || 0).toLocaleString("ko-KR")}`),
-    );
+    meta.append(element("span", "", `🍴 맛집 ${preset.restaurantCount || 0}곳`));
+    meta.append(element("span", "", `👁 조회 ${Number(preset.viewCount || 0).toLocaleString("ko-KR")}`));
+    if (Number.isFinite(preset.favoriteCount)) {
+      const favoriteCount = element(
+        "span",
+        "",
+        `♡ 저장 ${Number(preset.favoriteCount || 0).toLocaleString("ko-KR")}`,
+      );
+      favoriteCount.setAttribute("data-favorite-count", "");
+      meta.append(favoriteCount);
+    }
     body.append(meta);
 
     const actions = element("div", "preset-card-actions");
-    const goDetail = element("a", "button button-primary preset-card-cta", "목록 둘러보기");
+    const goDetail = element("a", "button button-primary preset-card-cta", "둘러보기 →");
     goDetail.href = detailPath(preset.presetId);
-    const goMap = element("a", "preset-card-map-link", "지도에서 보기");
+    const goMap = element("a", "button button-secondary preset-card-map-link", "지도에서 보기");
     const mapQuery = new URLSearchParams({ presetId: preset.presetId });
     if (preset.isOwner) mapQuery.set("edit", "1");
     goMap.href = `/pages/map/index.html?${mapQuery.toString()}`;
     actions.append(goDetail, goMap);
+    body.append(actions);
 
-    card.append(body, actions);
+    card.append(body);
+
+    card.addEventListener("click", (event) => {
+      if (event.target.closest("a, button")) return;
+      location.assign(detailPath(preset.presetId));
+    });
+
     return card;
   }
 

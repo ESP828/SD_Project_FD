@@ -107,14 +107,19 @@
     if (prevButton) prevButton.hidden = true;
     if (nextButton) nextButton.hidden = true;
 
-    let paused = false;
-    list.addEventListener("pointerenter", () => { paused = true; });
-    list.addEventListener("pointerleave", () => { paused = false; });
-    list.addEventListener("touchstart", () => { paused = true; }, { passive: true });
-    list.addEventListener("touchend", () => { paused = false; });
+    // 카드 이미지의 네이티브 드래그 제스처가 포인터를 캡처해 pointerleave가 유실되면
+    // 이전 방식(enter/leave 이벤트로 paused 플래그를 토글)은 영영 멈춘 것처럼 보였다.
+    // 매 프레임 :hover/포커스 상태를 직접 계산해 상태가 어긋날 여지를 없앤다.
+    list.querySelectorAll("img").forEach((img) => {
+      img.draggable = false;
+    });
+
+    function isPaused() {
+      return list.matches(":hover") || list.contains(document.activeElement);
+    }
 
     function step() {
-      if (!paused) {
+      if (!isPaused()) {
         const loopPoint = list.scrollWidth / 2;
         list.scrollLeft += 0.6;
         if (list.scrollLeft >= loopPoint) {

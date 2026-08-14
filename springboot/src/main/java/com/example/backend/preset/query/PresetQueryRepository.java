@@ -555,22 +555,29 @@ public class PresetQueryRepository {
         }
         List<Long> presetIds = rows.stream().map(PresetSummaryRow::presetId).toList();
         Map<Long, List<PresetTagResponse>> tags = findTagsByPresetIds(presetIds);
-        Map<Long, List<String>> thumbnails = findThumbnailsByPresetIds(presetIds);
-        return rows.stream().map(row -> new PresetSummaryResponse(
-                row.presetId(),
-                row.title(),
-                row.category(),
-                row.imageUrl(),
-                row.viewCount(),
-                row.displayOrder(),
-                row.restaurantCount(),
-                row.favoriteCount(),
-                row.favoriteByCurrentUser(),
-                accountId != null && accountId.equals(row.accountId()),
-                row.createdAt(),
-                tags.getOrDefault(row.presetId(), List.of()),
-                thumbnails.getOrDefault(row.presetId(), List.of())
-        )).toList();
+        Map<Long, List<PresetThumbnail>> thumbnails = findThumbnailsByPresetIds(presetIds);
+        return rows.stream().map(row -> {
+            List<PresetThumbnail> presetThumbnails = thumbnails.getOrDefault(row.presetId(), List.of());
+            return new PresetSummaryResponse(
+                    row.presetId(),
+                    row.title(),
+                    row.category(),
+                    row.imageUrl(),
+                    row.viewCount(),
+                    row.displayOrder(),
+                    row.restaurantCount(),
+                    row.favoriteCount(),
+                    row.favoriteByCurrentUser(),
+                    accountId != null && accountId.equals(row.accountId()),
+                    row.createdAt(),
+                    tags.getOrDefault(row.presetId(), List.of()),
+                    presetThumbnails.stream().map(PresetThumbnail::imageUrl).toList(),
+                    presetThumbnails.stream().map(PresetThumbnail::restaurantId).toList()
+            );
+        }).toList();
+    }
+
+    private record PresetThumbnail(Long restaurantId, String imageUrl) {
     }
 
     private Map<Long, List<PresetTagResponse>> findTagsByPresetIds(List<Long> presetIds) {
@@ -589,9 +596,9 @@ public class PresetQueryRepository {
         return result;
     }
 
-    private Map<Long, List<String>> findThumbnailsByPresetIds(List<Long> presetIds) {
+    private Map<Long, List<PresetThumbnail>> findThumbnailsByPresetIds(List<Long> presetIds) {
         String sql = """
-                select pr.preset_id, ri.image_url
+                select pr.preset_id, r.restaurant_id, ri.image_url
                   from preset_restaurant pr
                   join restaurant r
                     on r.restaurant_id = pr.owner_restaurant_id and r.status = 'ACTIVE'
@@ -608,13 +615,13 @@ public class PresetQueryRepository {
                  where pr.preset_id in (:presetIds)
                  order by pr.preset_id, pr.display_order, r.restaurant_id
                 """;
-        Map<Long, List<String>> result = new HashMap<>();
+        Map<Long, List<PresetThumbnail>> result = new HashMap<>();
         jdbcTemplate.query(sql, new MapSqlParameterSource("presetIds", presetIds), rs -> {
-            List<String> images = result.computeIfAbsent(
+            List<PresetThumbnail> images = result.computeIfAbsent(
                     rs.getLong("preset_id"), ignored -> new ArrayList<>()
             );
             if (images.size() < 3) {
-                images.add(rs.getString("image_url"));
+                images.add(new PresetThumbnail(rs.getLong("restaurant_id"), rs.getString("image_url")));
             }
         });
         return result;
