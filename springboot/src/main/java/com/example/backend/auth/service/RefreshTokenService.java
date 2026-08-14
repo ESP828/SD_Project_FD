@@ -64,6 +64,7 @@ public class RefreshTokenService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.INVALID_REFRESH_TOKEN));
         existing.revoke();
         Account account = accountRepository.findById(existing.getAccountId())
+                .filter(Account::isActive)
                 .orElseThrow(() -> new BusinessException(ErrorCode.INVALID_REFRESH_TOKEN));
         return new Rotated(account, issue(account));
     }

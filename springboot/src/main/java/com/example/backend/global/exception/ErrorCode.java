@@ -53,6 +53,7 @@ OWNER_NOT_FOUND(
     INVALID_BUSINESS_NUMBER(HttpStatus.BAD_REQUEST, "BUSINESS_INVALID_NUMBER", "사업자등록번호 형식이 올바르지 않습니다."),
     BUSINESS_REGISTRATION_MISMATCH(HttpStatus.BAD_REQUEST, "BUSINESS_REGISTRATION_MISMATCH", "국세청에 등록된 사업자 정보와 일치하지 않습니다. 사업자등록번호·대표자명·개업일자를 확인해 주세요."),
     REVIEW_ALREADY_EXISTS(HttpStatus.CONFLICT, "REVIEW_ALREADY_EXISTS", "이미 이 가게에 리뷰를 작성했습니다."),
+    REVIEW_NOT_FOUND(HttpStatus.NOT_FOUND, "REVIEW_NOT_FOUND", "리뷰를 찾을 수 없습니다."),
     RESTAURANT_NEWS_FORBIDDEN(HttpStatus.FORBIDDEN, "RESTAURANT_NEWS_FORBIDDEN", "가게 사장님만 소식을 등록할 수 있습니다."),
     PRESET_OWNER_REQUIRED(HttpStatus.FORBIDDEN, "PRESET_OWNER_REQUIRED", "작성자 본인만 Presset을 수정할 수 있습니다."),
     PRESET_RESTAURANT_LIMIT_EXCEEDED(HttpStatus.CONFLICT, "PRESET_RESTAURANT_LIMIT_EXCEEDED", "한 프리셋에는 최대 15개의 맛집만 담을 수 있습니다."),

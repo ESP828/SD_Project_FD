@@ -107,6 +107,22 @@
     return `/pages/search/index.html?q=${encodeURIComponent(name || "")}`;
   }
 
+  function restaurantDetailPath(item) {
+    const source = String(item.restaurantSource || "").toUpperCase();
+    const restaurantId = Number(item.restaurantId);
+    const publicRestaurantId = Number(item.publicRestaurantId);
+
+    if ((source === "PUBLIC" || restaurantId <= 0) && publicRestaurantId > 0) {
+      const query = new URLSearchParams({ source: "public", id: String(publicRestaurantId) });
+      return `/pages/restaurant/detail.html?${query.toString()}`;
+    }
+    if (restaurantId > 0) {
+      const query = new URLSearchParams({ source: "owned", id: String(restaurantId) });
+      return `/pages/restaurant/detail.html?${query.toString()}`;
+    }
+    return searchPath(item.restaurantName);
+  }
+
   function formatDate(value) {
     if (!value) return "날짜 정보 없음";
     const date = new Date(value);
@@ -161,13 +177,13 @@
 
   function favoriteCard(item) {
     const card = element("article", "mypage-detail-card");
-    const href = searchPath(item.restaurantName);
+    const href = restaurantDetailPath(item);
     card.append(
       createCardTop(item.restaurantName || "이름 없는 가게", item.categoryName || "카테고리 없음", href),
       element("p", "", item.address || "주소 정보 없음"),
     );
     if (item.description) card.append(element("p", "", item.description));
-    card.append(createFooter(item.createdAt, href, "가게 찾아보기 →"));
+    card.append(createFooter(item.createdAt, href, "가게 보기 →"));
     return card;
   }
 
@@ -196,14 +212,110 @@
 
   function reviewCard(item) {
     const card = element("article", "mypage-detail-card");
-    const href = searchPath(item.restaurantName);
+    const href = restaurantDetailPath(item);
+    const footer = element("div", "mypage-detail-card-footer");
+    const actions = element("div", "mypage-detail-card-actions");
+    const viewLink = element("a", "button button-sm button-secondary", "가게 보기");
+    const editButton = element("button", "button button-sm button-secondary", "수정");
+    const deleteButton = element(
+      "button",
+      "button button-sm button-secondary mypage-review-delete",
+      "삭제",
+    );
+    viewLink.href = href;
+    editButton.type = "button";
+    deleteButton.type = "button";
+    editButton.addEventListener("click", () => openReviewEditor(card, item, href));
+    deleteButton.addEventListener("click", () => deleteReview(item, deleteButton));
+    actions.append(viewLink, editButton, deleteButton);
+    footer.append(element("time", "", formatDate(item.createdAt)), actions);
     card.append(createCardTop(item.restaurantName || "음식점", "내 리뷰", href));
     card.append(
       element("p", "mypage-detail-stars", "★".repeat(Math.max(0, Math.min(5, item.rating || 0)))),
       element("p", "", item.content || "작성한 리뷰 내용이 없습니다."),
-      createFooter(item.createdAt, href, "가게 찾아보기 →"),
+      footer,
     );
     return card;
+  }
+
+  function openReviewEditor(card, item, href) {
+    const form = element("form", "mypage-review-edit");
+    const ratingField = element("label", "mypage-review-field");
+    const rating = document.createElement("select");
+    rating.name = "rating";
+    rating.required = true;
+    for (let value = 5; value >= 1; value -= 1) {
+      const option = element("option", "", `${value}점`);
+      option.value = String(value);
+      option.selected = value === Number(item.rating);
+      rating.append(option);
+    }
+    ratingField.append(element("span", "", "별점"), rating);
+
+    const contentField = element("label", "mypage-review-field");
+    const reviewContent = document.createElement("textarea");
+    reviewContent.name = "content";
+    reviewContent.maxLength = 1000;
+    reviewContent.rows = 5;
+    reviewContent.value = item.content || "";
+    contentField.append(element("span", "", "리뷰 내용"), reviewContent);
+
+    const status = element("p", "mypage-review-status");
+    status.setAttribute("role", "status");
+    const actions = element("div", "mypage-detail-card-actions");
+    const cancelButton = element("button", "button button-sm button-secondary", "취소");
+    const saveButton = element("button", "button button-sm button-primary", "저장");
+    cancelButton.type = "button";
+    saveButton.type = "submit";
+    actions.append(cancelButton, saveButton);
+    form.append(ratingField, contentField, status, actions);
+
+    cancelButton.addEventListener("click", () => render(state.overview, state.items));
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      saveButton.disabled = true;
+      cancelButton.disabled = true;
+      status.className = "mypage-review-status";
+      status.textContent = "저장하고 있습니다.";
+      try {
+        const payload = await Api.put(`/reviews/${encodeURIComponent(item.reviewId)}`, {
+          rating: Number(rating.value),
+          content: reviewContent.value,
+        });
+        const updated = payload.data || {};
+        item.rating = Number(updated.rating ?? rating.value);
+        item.content = updated.content ?? reviewContent.value;
+        item.updatedAt = updated.updatedAt || new Date().toISOString();
+        render(state.overview, state.items);
+      } catch (error) {
+        status.classList.add("is-error");
+        status.textContent = error.message || "리뷰를 수정하지 못했습니다.";
+        saveButton.disabled = false;
+        cancelButton.disabled = false;
+      }
+    });
+
+    card.replaceChildren(
+      createCardTop(item.restaurantName || "음식점", "리뷰 수정", href),
+      form,
+    );
+    reviewContent.focus();
+  }
+
+  async function deleteReview(item, button) {
+    if (!window.confirm("이 리뷰를 삭제할까요?")) return;
+    button.disabled = true;
+    try {
+      await Api.delete(`/reviews/${encodeURIComponent(item.reviewId)}`);
+      state.items = state.items.filter(
+        (candidate) => String(candidate.reviewId) !== String(item.reviewId),
+      );
+      state.overview.reviewCount = Math.max(0, Number(state.overview.reviewCount || 0) - 1);
+      render(state.overview, state.items);
+    } catch (error) {
+      button.disabled = false;
+      window.alert(error.message || "리뷰를 삭제하지 못했습니다.");
+    }
   }
 
   function postCard(item) {

@@ -85,6 +85,22 @@ public class Review {
         return new Review(null, Objects.requireNonNull(publicRestaurant), account, rating, content);
     }
 
+    public void update(byte rating, String content) {
+        if (status != Status.ACTIVE) {
+            throw new IllegalStateException("삭제된 리뷰는 수정할 수 없습니다.");
+        }
+        this.rating = rating;
+        this.content = content;
+    }
+
+    public void delete() {
+        if (status == Status.DELETED) {
+            return;
+        }
+        status = Status.DELETED;
+        deletedAt = LocalDateTime.now();
+    }
+
     @PrePersist
     void onCreate() {
         LocalDateTime now = LocalDateTime.now();
@@ -131,6 +147,10 @@ public class Review {
 
     public LocalDateTime getUpdatedAt() {
         return updatedAt;
+    }
+
+    public LocalDateTime getDeletedAt() {
+        return deletedAt;
     }
 
     public enum Status {

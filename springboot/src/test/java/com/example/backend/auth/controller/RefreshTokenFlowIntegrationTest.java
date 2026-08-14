@@ -1,6 +1,9 @@
 package com.example.backend.auth.controller;
 
+import com.example.backend.auth.domain.entity.Account;
 import com.example.backend.auth.domain.entity.EmailVerification;
+import com.example.backend.auth.domain.type.AccountStatus;
+import com.example.backend.auth.repository.AccountRepository;
 import com.example.backend.auth.repository.EmailVerificationRepository;
 import jakarta.servlet.http.Cookie;
 import org.junit.jupiter.api.Test;
@@ -12,12 +15,16 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.transaction.annotation.Transactional;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 
 import java.time.LocalDateTime;
 
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -38,6 +45,12 @@ class RefreshTokenFlowIntegrationTest {
 
     @Autowired
     private EmailVerificationRepository emailVerificationRepository;
+
+    @Autowired
+    private AccountRepository accountRepository;
+
+    @Autowired
+    private ObjectMapper objectMapper;
 
     private void verifyEmail(String email) {
         EmailVerification verification = new EmailVerification(
@@ -118,5 +131,60 @@ class RefreshTokenFlowIntegrationTest {
                 .andReturn();
 
         assertNull(loginResult.getResponse().getCookie(REFRESH_COOKIE));
+    }
+
+    @Test
+    void withdrawalImmediatelyBlocksAccessRefreshAndLogin() throws Exception {
+        verifyEmail("withdrawflow@example.com");
+        signup("withdrawflow", "withdrawflow@example.com", "탈퇴흐름회원");
+
+        MvcResult loginResult = mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "loginId": "withdrawflow",
+                                  "password": "correct-password1!",
+                                  "rememberLogin": true
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andReturn();
+        Cookie refreshCookie = loginResult.getResponse().getCookie(REFRESH_COOKIE);
+        JsonNode loginBody = objectMapper.readTree(loginResult.getResponse().getContentAsString());
+        String accessToken = loginBody.at("/data/token").asText();
+        assertNotNull(refreshCookie);
+
+        mockMvc.perform(patch("/api/mypage/account/withdraw")
+                        .header("Authorization", "Bearer " + accessToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "currentPassword": "correct-password1!",
+                                  "confirmation": "회원탈퇴"
+                                }
+                                """))
+                .andExpect(status().isOk());
+
+        Account account = accountRepository.findByLoginId("withdrawflow").orElseThrow();
+        assertTrue(account.getDeletedAt() != null);
+        assertTrue(account.getStatus() == AccountStatus.WITHDRAWN);
+
+        mockMvc.perform(get("/api/mypage/overview")
+                        .header("Authorization", "Bearer " + accessToken))
+                .andExpect(status().isUnauthorized());
+        mockMvc.perform(post("/api/auth/refresh").cookie(refreshCookie))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("AUTH_INVALID_REFRESH_TOKEN"));
+        mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "loginId": "withdrawflow",
+                                  "password": "correct-password1!",
+                                  "rememberLogin": false
+                                }
+                                """))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("AUTH_ACCOUNT_UNAVAILABLE"));
     }
 }

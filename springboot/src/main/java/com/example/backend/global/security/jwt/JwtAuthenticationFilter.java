@@ -1,5 +1,7 @@
 package com.example.backend.global.security.jwt;
 
+import com.example.backend.auth.domain.type.AccountStatus;
+import com.example.backend.auth.repository.AccountRepository;
 import com.example.backend.global.security.principal.AuthenticatedAccount;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -18,9 +20,11 @@ import java.util.List;
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtProvider jwtProvider;
+    private final AccountRepository accountRepository;
 
-    public JwtAuthenticationFilter(JwtProvider jwtProvider) {
+    public JwtAuthenticationFilter(JwtProvider jwtProvider, AccountRepository accountRepository) {
         this.jwtProvider = jwtProvider;
+        this.accountRepository = accountRepository;
     }
 
     @Override
@@ -34,6 +38,10 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 && SecurityContextHolder.getContext().getAuthentication() == null
                 && jwtProvider.validateToken(token)) {
             Long accountId = jwtProvider.getAccountId(token);
+            if (!accountRepository.existsByAccountIdAndStatus(accountId, AccountStatus.ACTIVE)) {
+                filterChain.doFilter(request, response);
+                return;
+            }
             String loginId = jwtProvider.getLoginId(token);
             List<String> authorities = jwtProvider.getAuthorities(token);
             AuthenticatedAccount principal = new AuthenticatedAccount(accountId, loginId, authorities);

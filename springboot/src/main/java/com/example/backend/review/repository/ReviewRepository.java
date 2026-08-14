@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.util.List;
+import java.util.Optional;
 
 public interface ReviewRepository extends JpaRepository<Review, Long> {
 
@@ -35,6 +36,13 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
             + "AND r.account.accountId = :accountId AND r.status = 'ACTIVE'")
     boolean existsActiveByPublicRestaurantIdAndAccountId(
             @Param("publicRestaurantId") Long publicRestaurantId,
+            @Param("accountId") Long accountId
+    );
+
+    @Query("SELECT r FROM Review r WHERE r.reviewId = :reviewId "
+            + "AND r.account.accountId = :accountId AND r.status = 'ACTIVE'")
+    Optional<Review> findActiveOwnedReview(
+            @Param("reviewId") Long reviewId,
             @Param("accountId") Long accountId
     );
 }

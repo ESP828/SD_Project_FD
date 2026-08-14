@@ -9,6 +9,7 @@ public record BusinessOverviewResponse(
         long newsCount,
         long reviewCount,
         long favoriteCount,
+        Double averageRating,
         List<RestaurantSummary> restaurants
 ) {
     public BusinessOverviewResponse {
@@ -24,6 +25,7 @@ public record BusinessOverviewResponse(
             long newsCount,
             long reviewCount,
             long favoriteCount,
+            Double averageRating,
             LocalDateTime createdAt
     ) {
     }

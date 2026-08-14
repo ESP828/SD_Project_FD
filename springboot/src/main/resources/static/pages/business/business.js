@@ -40,6 +40,12 @@
     return new Intl.NumberFormat("ko-KR").format(Number(value) || 0);
   }
 
+  function formatRating(value) {
+    if (value === null || value === undefined || value === "") return "-";
+    const rating = Number(value);
+    return Number.isFinite(rating) ? rating.toFixed(1) : "-";
+  }
+
   function formatDate(value) {
     if (!value) return "날짜 정보 없음";
     const date = new Date(value);
@@ -51,13 +57,14 @@
     }).format(date);
   }
 
-  function metric(label, value, href, linkText = "상세 보기 →") {
+  function metric(label, value, href, linkText = "상세 보기 →", formatter = formatNumber) {
     const card = element("a", "activity-card");
+    const displayValue = formatter(value);
     card.href = href;
-    card.setAttribute("aria-label", `${label} ${formatNumber(value)} ${linkText.replace("→", "")}`);
+    card.setAttribute("aria-label", `${label} ${displayValue} ${linkText.replace("→", "")}`);
     card.append(
       element("span", "", label),
-      element("strong", "", formatNumber(value)),
+      element("strong", "", displayValue),
       element("em", "", linkText),
     );
     return card;
@@ -237,7 +244,7 @@
       element(
         "small",
         "",
-        `리뷰 ${formatNumber(restaurant.reviewCount)} · 찜 ${formatNumber(restaurant.favoriteCount)} · ${formatDate(restaurant.createdAt)} 등록`,
+        `평점 ${formatRating(restaurant.averageRating)} · 리뷰 ${formatNumber(restaurant.reviewCount)} · 찜 ${formatNumber(restaurant.favoriteCount)} · ${formatDate(restaurant.createdAt)} 등록`,
       ),
     );
     const actions = element("div", "management-preview-actions");
@@ -258,6 +265,13 @@
       metric("가게 소식", data.newsCount, "/pages/business/detail.html?tab=news"),
       metric("받은 리뷰", data.reviewCount, "/pages/business/detail.html?tab=reviews"),
       metric("찜 받은 수", data.favoriteCount, "/pages/business/detail.html?tab=favorites"),
+      metric(
+        "평균 평점",
+        data.averageRating,
+        "/pages/business/detail.html?tab=reviews",
+        "리뷰 보기 →",
+        formatRating,
+      ),
     );
 
     const restaurantList = element("div", "management-preview-list");

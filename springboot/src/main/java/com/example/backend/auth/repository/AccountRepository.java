@@ -1,6 +1,7 @@
 package com.example.backend.auth.repository;
 
 import com.example.backend.auth.domain.entity.Account;
+import com.example.backend.auth.domain.type.AccountStatus;
 import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
@@ -28,6 +29,8 @@ public interface AccountRepository extends JpaRepository<Account, Long> {
     boolean existsByEmail(String email);
 
     boolean existsByNickname(String nickname);
+
+    boolean existsByAccountIdAndStatus(Long accountId, AccountStatus status);
 
     /**
      * 관리자 계정 목록: 아이디·닉네임·이메일 검색과 최고 권한(account_authority의 MAX authority_id) 필터를 지원한다.
