@@ -167,6 +167,34 @@
     }).format(date);
   }
 
+  function isCurrentAuthorAccount(accountId) {
+    const session = window.FooduckSession;
+    return Boolean(
+      session?.authenticated
+      && Number(session.accountId) === Number(accountId),
+    );
+  }
+
+  function safeInternalPath(value) {
+    if (!value) return null;
+    try {
+      const url = new URL(value, window.location.origin);
+      if (url.origin !== window.location.origin) return null;
+      return `${url.pathname}${url.search}${url.hash}`;
+    } catch (_error) {
+      return null;
+    }
+  }
+
+  function authorNotificationLabel(type) {
+    return {
+      COMMENT: "새 댓글",
+      POST_LIKE_MILESTONE: "게시글 추천",
+      BUSINESS_APPROVED: "사업자 승인",
+      BUSINESS_REJECTED: "사업자 반려",
+    }[type] || "알림";
+  }
+
   function categoryLabel(value) {
     return categoryLabels[value] || value || "카테고리 없음";
   }
@@ -400,7 +428,9 @@
     );
 
     const tabs = element("div", "author-menu-skeleton-tabs");
-    for (let index = 0; index < 3; index += 1) {
+    const tabCount = isCurrentAuthorAccount(author?.authorAccountId) ? 4 : 3;
+    if (tabCount === 4) tabs.classList.add("author-menu-skeleton-tabs--with-notifications");
+    for (let index = 0; index < tabCount; index += 1) {
       tabs.append(element("span", "author-menu-skeleton-tab"));
     }
 
@@ -546,6 +576,100 @@
     return section;
   }
 
+  function authorMenuNotificationLoadingSection() {
+    const section = element("section", "author-menu-recent author-menu-notifications");
+    section.append(element("strong", "author-menu-recent-title", "최근 알림"));
+    const loading = element("div", "author-menu-notification-loading");
+    loading.setAttribute("role", "status");
+    loading.setAttribute("aria-live", "polite");
+    const loadingIcon = icon("notifications");
+    loadingIcon.classList.add("author-menu-notification-loading-icon");
+    loading.append(
+      loadingIcon,
+      element("span", "author-menu-notification-loading-text", "알림을 불러오는 중입니다."),
+    );
+    section.append(loading);
+    return section;
+  }
+
+  function authorMenuNotificationErrorSection(onRetry) {
+    const section = element("section", "author-menu-recent author-menu-notifications");
+    section.append(element("strong", "author-menu-recent-title", "최근 알림"));
+    const error = authorMenuEmptyState(
+      "error",
+      "알림을 불러오지 못했습니다",
+      "잠시 후 다시 시도해 주세요.",
+    );
+    if (typeof onRetry === "function") {
+      const retry = element("button", "author-menu-notification-retry", "다시 시도");
+      retry.type = "button";
+      retry.addEventListener("click", onRetry);
+      error.append(retry);
+    }
+    section.append(error);
+    return section;
+  }
+
+  function authorMenuRecentNotificationSection(notifications, onActivate) {
+    const section = element("section", "author-menu-recent author-menu-notifications");
+    section.append(element("strong", "author-menu-recent-title", "최근 알림"));
+    const items = Array.isArray(notifications) ? notifications.slice(0, 5) : [];
+    if (items.length === 0) {
+      section.append(authorMenuEmptyState(
+        "notifications_off",
+        "아직 알림이 없습니다",
+        "새 알림이 도착하면 내 프로필에서 바로 확인할 수 있습니다.",
+      ));
+      return section;
+    }
+
+    const list = element("ul", "author-menu-recent-list");
+    items.forEach((notification) => {
+      const item = element("li", "author-menu-recent-item");
+      const href = safeInternalPath(notification.targetUrl);
+      const control = element(
+        href ? "a" : "button",
+        `author-menu-recent-link author-menu-notification-link${notification.read ? " is-read" : " is-unread"}`,
+      );
+      if (href) {
+        control.href = href;
+      } else {
+        control.type = "button";
+      }
+
+      const contentRow = element("span", "author-menu-recent-title-row");
+      contentRow.append(
+        element(
+          "span",
+          `author-menu-source${notification.read ? "" : " author-menu-source--notification-unread"}`,
+          authorNotificationLabel(notification.type),
+        ),
+        element(
+          "span",
+          "author-menu-recent-content",
+          notification.content || "새로운 알림이 도착했습니다.",
+        ),
+      );
+      control.append(
+        contentRow,
+        element(
+          "small",
+          "author-menu-recent-meta",
+          `${notification.read ? "읽음" : "읽지 않음"} · ${formatDate(notification.createdAt)}`,
+        ),
+      );
+      control.addEventListener("click", (event) => {
+        if (typeof onActivate === "function") {
+          onActivate(notification, href, event);
+        }
+      });
+      item.append(control);
+      list.append(item);
+    });
+    section.append(list);
+    return section;
+  }
+
   function authorMenuTab(label, count, key, active) {
     const button = element("button", `author-menu-tab${active ? " is-active" : ""}`);
     button.type = "button";
@@ -555,8 +679,11 @@
     button.setAttribute("aria-controls", "board-author-menu-panel");
     button.setAttribute("aria-selected", active ? "true" : "false");
     button.tabIndex = active ? 0 : -1;
+    const normalizedCount = count === null || count === undefined
+      ? "…"
+      : String(Math.max(0, Number(count) || 0));
     button.append(
-      element("strong", "author-menu-tab-count", String(count || 0)),
+      element("strong", "author-menu-tab-count", normalizedCount),
       element("span", "author-menu-tab-label", label),
     );
     return button;
@@ -565,6 +692,7 @@
   function renderAuthorMenuSummary(summary) {
     const menu = ensureAuthorMenu();
     const nickname = summary.nickname || "작성자";
+    const isCurrentUser = isCurrentAuthorAccount(summary.accountId);
     const header = element("header", "author-menu-header");
     const profile = element("div", "author-menu-profile");
     const avatar = element("span", "author-menu-avatar", Array.from(nickname)[0] || "?");
@@ -604,6 +732,10 @@
       ["댓글", summary.commentCount, "comments"],
       ["리뷰", summary.reviewCount, "reviews"],
     ];
+    if (isCurrentUser) {
+      tabs.classList.add("author-menu-tabs--with-notifications");
+      tabDefinitions.push(["알림", null, "notifications"]);
+    }
     tabDefinitions.forEach(([label, count, key], index) => {
       tabs.append(authorMenuTab(label, count, key, index === 0));
     });
@@ -617,6 +749,9 @@
       comments: authorMenuRecentCommentSection(summary.recentComments),
       reviews: authorMenuRecentReviewSection(summary.recentReviews),
     };
+    if (isCurrentUser) {
+      sections.notifications = authorMenuNotificationLoadingSection();
+    }
     activityPanel.dataset.activeAuthorActivityTab = "posts";
     activityPanel.replaceChildren(sections.posts);
 
@@ -640,6 +775,114 @@
         activityPanel.style.minHeight = `${Math.ceil(maxHeight)}px`;
       }
       activityPanel.style.visibility = "";
+    }
+
+    let notificationItems = [];
+    let notificationLoaded = false;
+    let notificationLoadPromise = null;
+    let notificationCountPromise = null;
+    let notificationUnreadCount = 0;
+
+    function updateNotificationTabCount(count) {
+      if (!isCurrentUser) return;
+      notificationUnreadCount = Math.max(0, Number(count) || 0);
+      const countElement = tabs.querySelector(
+        '[data-author-activity-tab="notifications"] .author-menu-tab-count',
+      );
+      if (countElement) {
+        countElement.textContent = notificationUnreadCount > 99
+          ? "99+"
+          : String(notificationUnreadCount);
+      }
+    }
+
+    function refreshAuthorNotificationCount() {
+      if (!isCurrentUser) return Promise.resolve(0);
+      if (notificationCountPromise) return notificationCountPromise;
+      notificationCountPromise = Api.get("/notifications/unread-count")
+        .then((payload) => {
+          const count = Math.max(0, Number(payload?.data?.count) || 0);
+          updateNotificationTabCount(count);
+          return count;
+        })
+        .finally(() => {
+          notificationCountPromise = null;
+        });
+      return notificationCountPromise;
+    }
+
+    function replaceNotificationSection(section) {
+      if (!isCurrentUser) return;
+      sections.notifications = section;
+      if (activityPanel.dataset.activeAuthorActivityTab === "notifications") {
+        authorActivitySwitchId += 1;
+        activityPanel.getAnimations({ subtree: true }).forEach((animation) => animation.cancel());
+        activityPanel.replaceChildren(section);
+        stabilizeAuthorActivityPanelHeight();
+      }
+    }
+
+    function renderLoadedNotifications() {
+      replaceNotificationSection(authorMenuRecentNotificationSection(
+        notificationItems,
+        handleNotificationActivation,
+      ));
+    }
+
+    async function handleNotificationActivation(notification, href, event) {
+      if (href) event.preventDefault();
+      if (!notification.read) {
+        try {
+          const payload = await Api.patch(
+            `/notifications/${encodeURIComponent(notification.notificationId)}/read`,
+          );
+          Object.assign(notification, payload?.data || {}, { read: true });
+          updateNotificationTabCount(Math.max(0, notificationUnreadCount - 1));
+          renderLoadedNotifications();
+          window.FooduckNotifications?.refreshUnreadCount();
+        } catch (_error) {
+          if (!href) {
+            window.alert("알림을 읽음 처리하지 못했습니다.");
+          }
+          // 읽음 처리 실패가 안전한 내부 화면 이동을 막지는 않는다.
+        }
+      }
+      if (href) {
+        window.location.assign(href);
+      }
+    }
+
+    function loadAuthorNotifications({ force = false } = {}) {
+      if (!isCurrentUser) return Promise.resolve();
+      if (notificationLoaded && !force) return Promise.resolve();
+      if (notificationLoadPromise && !force) return notificationLoadPromise;
+
+      replaceNotificationSection(authorMenuNotificationLoadingSection());
+      notificationLoadPromise = Promise.all([
+        Api.get("/notifications"),
+        refreshAuthorNotificationCount().catch(() => notificationUnreadCount),
+      ])
+        .then(([payload]) => {
+          notificationItems = Array.isArray(payload?.data) ? payload.data : [];
+          notificationLoaded = true;
+          renderLoadedNotifications();
+        })
+        .catch(() => {
+          notificationLoaded = false;
+          replaceNotificationSection(authorMenuNotificationErrorSection(() => {
+            loadAuthorNotifications({ force: true });
+          }));
+        })
+        .finally(() => {
+          notificationLoadPromise = null;
+        });
+      return notificationLoadPromise;
+    }
+
+    if (isCurrentUser) {
+      refreshAuthorNotificationCount().catch(() => {
+        // 미읽음 수를 불러오지 못해도 공개 활동 프로필은 정상적으로 유지한다.
+      });
     }
 
     async function switchAuthorActivityPanel(key) {
@@ -716,6 +959,9 @@
       activityPanel.setAttribute("aria-labelledby", button.id);
       if (moveFocus) button.focus({ preventScroll: true });
       switchAuthorActivityPanel(key);
+      if (key === "notifications") {
+        loadAuthorNotifications();
+      }
     }
 
     tabs.addEventListener("click", (event) => {
@@ -741,8 +987,6 @@
     });
 
     const footer = element("div", "author-menu-footer");
-    const isCurrentUser = Number(window.FooduckSession?.accountId)
-      === Number(summary.accountId);
     if (isCurrentUser) {
       const myPageLink = element("a", "author-menu-link", "마이페이지");
       myPageLink.href = "/pages/mypage/index.html#notifications";
@@ -847,7 +1091,9 @@
     trigger.setAttribute("aria-controls", "board-author-menu");
     trigger.setAttribute("aria-expanded", "false");
     trigger.setAttribute("aria-label", `${author.authorNickname || "작성자"} 프로필 보기`);
-    trigger.dataset.authorActivityTooltip = "작성자 프로필 보기 · 글 · 댓글 · 리뷰 확인";
+    trigger.dataset.authorActivityTooltip = isCurrentAuthorAccount(author.authorAccountId)
+      ? "내 프로필 보기 · 글 · 댓글 · 리뷰 · 알림 확인"
+      : "작성자 프로필 보기 · 글 · 댓글 · 리뷰 확인";
     trigger.addEventListener("mouseenter", () => showAuthorActivityTooltip(trigger));
     trigger.addEventListener("mouseleave", closeAuthorActivityTooltip);
     trigger.addEventListener("focus", () => showAuthorActivityTooltip(trigger));

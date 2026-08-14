@@ -1268,6 +1268,10 @@
   background: #f5f7f9;
 }
 
+.author-menu-skeleton-tabs--with-notifications {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
 .author-menu-skeleton-tab {
   height: 54px;
   border-radius: 9px;
@@ -1423,6 +1427,10 @@
   border: 1px solid rgba(27, 43, 61, 0.09);
   border-radius: 13px;
   background: #f5f7f9;
+}
+
+.author-menu-tabs--with-notifications {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
 .author-menu-tab {
@@ -1591,6 +1599,81 @@
   line-height: 1.45;
 }
 
+.author-menu-notification-link {
+  width: 100%;
+  margin: 0;
+  font: inherit;
+  text-align: left;
+}
+
+button.author-menu-notification-link {
+  appearance: none;
+  background: transparent;
+  cursor: pointer;
+}
+
+.author-menu-notification-link.is-unread {
+  border-color: rgba(229, 111, 0, 0.12);
+  background: #fffaf3;
+}
+
+.author-menu-source--notification-unread {
+  color: var(--color-orange-dark, #c85d00);
+  background: var(--color-orange-soft);
+}
+
+.author-menu-notification-loading {
+  display: grid;
+  min-height: 118px;
+  place-items: center;
+  align-content: center;
+  gap: 7px;
+  padding: 20px 16px 16px;
+  border: 1px dashed rgba(27, 43, 61, 0.14);
+  border-radius: 12px;
+  color: var(--color-subtle);
+  background: #fafbfc;
+  text-align: center;
+}
+
+.author-menu-notification-loading-icon {
+  display: inline-flex;
+  width: 34px;
+  height: 34px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  color: var(--color-orange-dark);
+  background: var(--color-orange-soft);
+  font-size: 18px !important;
+}
+
+.author-menu-notification-loading-text {
+  font-size: 0.66rem;
+  font-weight: 750;
+}
+
+.author-menu-notification-retry {
+  min-height: 32px;
+  margin-top: 4px;
+  padding: 5px 12px;
+  border: 1px solid rgba(27, 43, 61, 0.12);
+  border-radius: 9px;
+  color: var(--color-navy);
+  background: #fff;
+  font: inherit;
+  font-size: 0.66rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.author-menu-notification-retry:hover,
+.author-menu-notification-retry:focus-visible {
+  border-color: rgba(229, 111, 0, 0.26);
+  background: #fff8ee;
+  outline: none;
+}
+
 .author-menu-empty {
   display: grid;
   justify-items: center;
@@ -1756,6 +1839,10 @@
 
   .author-menu-tab {
     min-height: 50px;
+  }
+
+  .author-menu-tabs--with-notifications .author-menu-tab {
+    padding-inline: 4px;
   }
 }
 
