@@ -80,6 +80,10 @@
     return item?.edited === true;
   }
 
+  function canUseCacheAfterError(error) {
+    return ![401, 403, 404].includes(Number(error?.status));
+  }
+
   const boardToast = document.createElement("div");
   boardToast.className = "board-toast";
   boardToast.setAttribute("role", "status");
@@ -491,7 +495,7 @@
       renderPosts(pageData);
     } catch (error) {
       if (generation !== postRequestGeneration) return;
-      if (!cached) {
+      if (!cached || !canUseCacheAfterError(error)) {
         renderListError(error);
       } else {
         renderCachedContentNotice();
@@ -553,7 +557,7 @@
       renderBestPosts(posts);
     } catch (error) {
       if (generation !== bestRequestGeneration) return;
-      if (!cached) {
+      if (!cached || !canUseCacheAfterError(error)) {
         bestPostList.replaceChildren(
           element("li", "best-loading", error.message || "불러오지 못했습니다."),
         );
@@ -632,7 +636,7 @@
       renderUnansweredPosts(posts);
     } catch (error) {
       if (generation !== unansweredRequestGeneration) return;
-      if (!cached) {
+      if (!cached || !canUseCacheAfterError(error)) {
         unansweredPostList.replaceChildren(
           element("li", "best-loading", error.message || "불러오지 못했습니다."),
         );
@@ -702,6 +706,7 @@
   function switchBoard(boardType) {
     if (!["GENERAL", "BUSINESS", "BEST", "POPULAR"].includes(boardType)) return;
     if (boardType === "BUSINESS" && !businessAccessAllowed) return;
+    if (boardType === state.boardType) return;
     state.boardType = boardType;
     if (["GENERAL", "BUSINESS"].includes(boardType)) {
       state.lastBoardType = boardType;
@@ -733,7 +738,6 @@
 
       const nextTab = visibleTabs[nextIndex];
       nextTab.focus({ preventScroll: true });
-      switchBoard(nextTab.dataset.boardType);
     });
   });
 

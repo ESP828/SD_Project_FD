@@ -532,7 +532,7 @@
     categorySelect.disabled = newsPost;
     cancelLink.href = newsPost
       ? newsDetailPath(postId)
-      : board.detailPath(postId);
+      : pathWithListReturn(board.detailPath(postId));
     window.history.replaceState(
       {},
       "",

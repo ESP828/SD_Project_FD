@@ -28,6 +28,8 @@
   let mediaPollGeneration = 0;
   let mediaPollingHalted = false;
   let mediaPollingDisposed = false;
+  let postDeleteInFlight = false;
+  const commentDeleteInFlight = new Set();
 
   const detailContent = document.getElementById("post-detail-content");
   const listLink = document.getElementById("detail-list-link");
@@ -75,6 +77,10 @@
 
   function isEdited(item) {
     return item?.edited === true;
+  }
+
+  function canUseCacheAfterError(error) {
+    return ![401, 403, 404].includes(Number(error?.status));
   }
 
   function safeBoardListReturnPath(value) {
@@ -919,7 +925,7 @@
       writeBoardCache(path, posts);
       renderRelatedPosts(posts);
     } catch (error) {
-      if (!cached) {
+      if (!cached || !canUseCacheAfterError(error)) {
         relatedPostList.replaceChildren(
           element("li", "best-loading", error.message || "불러오지 못했습니다."),
         );
@@ -994,7 +1000,7 @@
       writeBoardCache(path, posts);
       renderUnansweredPosts(posts);
     } catch (error) {
-      if (!cached) {
+      if (!cached || !canUseCacheAfterError(error)) {
         unansweredPostList.replaceChildren(
           element("li", "best-loading", error.message || "불러오지 못했습니다."),
         );
@@ -1625,7 +1631,7 @@
       writeBoardCache(path, payload.data);
       renderPost(payload.data);
     } catch (error) {
-      if (!cached?.data) throw error;
+      if (!cached?.data || !canUseCacheAfterError(error)) throw error;
       const cachedViewCount = Number(cached.data.viewCount) || 0;
       renderPost({
         ...cached.data,
@@ -1697,28 +1703,38 @@
     }
   }
 
-  async function deletePost() {
-    if (!(await confirmDetailPageLeave())) return;
+  async function deletePost(event) {
+    if (postDeleteInFlight) return;
 
-    const newsPost = isNewsPost();
-    const deletePath = newsPost ? newsDeletePath(state.post) : `/board/posts/${postId}`;
-    const returnPath = newsPost
-      ? restaurantNewsPath(state.post)
-      : communityReturnPath(state.post);
-    if (!deletePath || !returnPath) {
-      showToast(toast, "가게 소식의 식당 정보를 확인할 수 없습니다.", true);
-      return;
-    }
-    const message = newsPost
-      ? "이 가게 소식과 연결된 댓글과 추천도 함께 삭제됩니다."
-      : "이 게시글과 연결된 댓글과 추천도 함께 삭제됩니다.";
-    const confirmed = await confirmBoardAction({
-      title: newsPost ? "가게 소식을 삭제할까요?" : "게시글을 삭제할까요?",
-      message,
-      confirmLabel: newsPost ? "가게 소식 삭제" : "게시글 삭제",
-    });
-    if (!confirmed) return;
+    postDeleteInFlight = true;
+    const deleteButton = event?.currentTarget instanceof HTMLButtonElement
+      ? event.currentTarget
+      : null;
+    if (deleteButton) deleteButton.disabled = true;
+    let navigationStarted = false;
+
     try {
+      if (!(await confirmDetailPageLeave())) return;
+
+      const newsPost = isNewsPost();
+      const deletePath = newsPost ? newsDeletePath(state.post) : `/board/posts/${postId}`;
+      const returnPath = newsPost
+        ? restaurantNewsPath(state.post)
+        : communityReturnPath(state.post);
+      if (!deletePath || !returnPath) {
+        showToast(toast, "가게 소식의 식당 정보를 확인할 수 없습니다.", true);
+        return;
+      }
+      const message = newsPost
+        ? "이 가게 소식과 연결된 댓글과 추천도 함께 삭제됩니다."
+        : "이 게시글과 연결된 댓글과 추천도 함께 삭제됩니다.";
+      const confirmed = await confirmBoardAction({
+        title: newsPost ? "가게 소식을 삭제할까요?" : "게시글을 삭제할까요?",
+        message,
+        confirmLabel: newsPost ? "가게 소식 삭제" : "게시글 삭제",
+      });
+      if (!confirmed) return;
+
       const payload = await Api.delete(deletePath);
       invalidateBoardCache();
       if (newsPost) {
@@ -1735,9 +1751,15 @@
         }
       }
       allowDetailNavigation = true;
+      navigationStarted = true;
       window.location.assign(returnPath);
     } catch (error) {
       showToast(toast, error.message, true);
+    } finally {
+      if (!navigationStarted) {
+        postDeleteInFlight = false;
+        if (deleteButton?.isConnected) deleteButton.disabled = false;
+      }
     }
   }
 
@@ -2147,7 +2169,7 @@
         actionButton(
           "삭제",
           "comment-action",
-          () => deleteComment(comment, hasReplies),
+          (event) => deleteComment(comment, hasReplies, event.currentTarget),
         ),
       );
     }
@@ -2429,7 +2451,7 @@
       writeBoardCache(path, pageData);
       return pageData;
     } catch (error) {
-      if (cached) {
+      if (cached && canUseCacheAfterError(error)) {
         showToast(
           toast,
           "최신 댓글을 불러오지 못해 잠시 저장된 댓글을 보여드리고 있습니다.",
@@ -2620,24 +2642,32 @@
     textarea.setSelectionRange(textarea.value.length, textarea.value.length);
   }
 
-  async function deleteComment(comment, hasReplies = false) {
-    const confirmed = await confirmBoardAction({
-      title: "댓글을 삭제할까요?",
-      message: hasReplies
-        ? "이 댓글에 달린 답글도 함께 삭제되며, 삭제한 내용은 되돌릴 수 없습니다."
-        : "삭제한 댓글은 되돌릴 수 없습니다.",
-      confirmLabel: "댓글 삭제",
-    });
-    if (!confirmed) return;
-    if (!(await confirmInlineCommentDraftDiscard())) return;
+  async function deleteComment(comment, hasReplies = false, deleteButton = null) {
+    const commentId = Number(comment?.commentId);
+    if (!Number.isFinite(commentId) || commentDeleteInFlight.has(commentId)) return;
 
+    commentDeleteInFlight.add(commentId);
+    if (deleteButton instanceof HTMLButtonElement) deleteButton.disabled = true;
     try {
-      const payload = await Api.delete(`/board/comments/${comment.commentId}`);
+      const confirmed = await confirmBoardAction({
+        title: "댓글을 삭제할까요?",
+        message: hasReplies
+          ? "이 댓글에 달린 답글도 함께 삭제되며, 삭제한 내용은 되돌릴 수 없습니다."
+          : "삭제한 댓글은 되돌릴 수 없습니다.",
+        confirmLabel: "댓글 삭제",
+      });
+      if (!confirmed) return;
+      if (!(await confirmInlineCommentDraftDiscard())) return;
+
+      const payload = await Api.delete(`/board/comments/${commentId}`);
       invalidateBoardCache();
       showToast(toast, payload.message);
       await loadCommentPage(currentCommentPage);
     } catch (error) {
       showToast(toast, error.message, true);
+    } finally {
+      commentDeleteInFlight.delete(commentId);
+      if (deleteButton?.isConnected) deleteButton.disabled = false;
     }
   }
 
