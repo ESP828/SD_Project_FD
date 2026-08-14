@@ -23,3 +23,4 @@ public class RestClientConfig {
         return RestClient.builder().requestFactory(requestFactory);
     }
 }
+

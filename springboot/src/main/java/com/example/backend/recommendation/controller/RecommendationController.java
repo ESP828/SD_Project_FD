@@ -27,9 +27,6 @@ public class RecommendationController {
         this.recommendationService = recommendationService;
     }
 
-    /**
-     * 기존 추천 목록 조회 API
-     */
     @GetMapping
     public ApiResponse<RecommendationPageResponse> getRecommendations(
             @AuthenticationPrincipal AuthenticatedAccount account,
@@ -39,9 +36,6 @@ public class RecommendationController {
         return ApiResponse.success(recommendationPreviewService.getPage(accountId, rankingSort));
     }
 
-    /**
-     * 자연어 기반 맛집 추천 API
-     */
     @PostMapping("/query")
     public ResponseEntity<ApiResponse<NaturalLanguageRecommendationResponse>> recommendByQuery(
             @RequestBody NaturalLanguageRecommendationRequest request
@@ -51,7 +45,7 @@ public class RecommendationController {
     }
 
     /**
-     * 💡 나를 위한 맛집 (개인화 추천 API)
+     * 💡 나를 위한 맛집 (Java 단독 연산 개인화 추천 API)
      */
     @GetMapping("/personal")
     public ResponseEntity<ApiResponse<PersonalRecommendationResponse>> getPersonalRecommendations(
@@ -61,10 +55,8 @@ public class RecommendationController {
             @RequestParam(required = false, defaultValue = "3000") Double radiusMeters,
             @RequestParam(required = false, defaultValue = "10") int limit
     ) {
-        Long accountId = account != null ? account.accountId() : null;
-
         PersonalRecommendationResponse response = recommendationService.recommendForUser(
-                accountId, latitude, longitude, radiusMeters, limit
+                account, latitude, longitude, radiusMeters, limit
         );
 
         return ResponseEntity.ok(ApiResponse.success(response));

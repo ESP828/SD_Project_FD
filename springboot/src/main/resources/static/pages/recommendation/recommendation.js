@@ -109,8 +109,8 @@ const RecommendationPage = {
       const result = await res.json();
       console.log("📥 [개인화 추천 API 응답]:", result);
 
-      // 찜 데이터가 없는 경우
-      if (!result.data || !result.data.hasPreferenceData || result.data.items.length === 0) {
+      // 데이터가 없거나 비로그인/콜드스타트 처리
+      if (!result.data || !result.data.items || result.data.items.length === 0) {
         container.innerHTML = `
           <div style="text-align: center; padding: 40px 0;">
             <img src="/images/characters/cooking.png" alt="오리" style="width: 120px; margin-bottom: 16px; opacity: 0.9;" />
@@ -122,29 +122,37 @@ const RecommendationPage = {
         return;
       }
 
-      // 찜 데이터가 있는 경우: 카드 목록으로 렌더링!
+      // 추천 데이터가 있는 경우
       const items = result.data.items;
+      const summaryText = result.data.userPreferenceSummary || result.data.summary || '회원 맞춤 추천 맛집';
+
       let html = `
         <div style="margin-bottom: 16px; padding: 10px 14px; background: #fff8e1; border-radius: 8px; color: #f39c12; font-size: 13px; font-weight: bold;">
-          📢 ${result.data.userPreferenceSummary}
+          📢 ${summaryText}
         </div>
         <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px;">
       `;
 
       items.forEach(item => {
-        const reason = (item.reasons && item.reasons.length > 0) ? item.reasons[0] : '회원님 취향 맞춤 맛집';
+        // 사유 뱃지 여러 개 처리
+        const reasonBadges = (item.reasons && item.reasons.length > 0)
+          ? item.reasons.map(r => `<span style="font-size: 11px; color: #2e7d32; background: #e8f5e9; padding: 2px 6px; border-radius: 4px; margin-right: 4px;">💡 ${r}</span>`).join('')
+          : `<span style="font-size: 11px; color: #2e7d32;">💡 회원님 취향 맞춤 맛집</span>`;
+
+        const distanceKm = item.distanceMeters ? (item.distanceMeters / 1000).toFixed(1) : '0.0';
+
         html += `
           <div class="surface-card" style="border: 1px solid #eee; padding: 14px; border-radius: 12px; background: #fafafa;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-              <div style="display: flex; align-items: baseline; gap: 10px;">
-                <h4 style="margin: 0; font-size: 18px; font-weight: bold;">${item.restaurantName}</h4>
-                <h4 style="margin: 0; font-size: 13px; color: #ff9800;">(약${(item.distanceMeters / 1000).toFixed(1)}km)</h4>
-                </div>
+              <div style="display: flex; align-items: baseline; gap: 6px;">
+                <h4 style="margin: 0; font-size: 17px; font-weight: bold;">${item.restaurantName}</h4>
+                <span style="font-size: 12px; color: #ff9800; font-weight: bold;">(약${distanceKm}km)</span>
+              </div>
               <span style="font-size: 11px; background: #ffe0b2; color: #e65100; padding: 2px 6px; border-radius: 4px;">${item.categoryName || '음식점'}</span>
             </div>
             <p style="font-size: 12px; color: #666; margin: 4px 0 8px 0;">📍 ${item.address}</p>
-            <div style="display: flex; justify-content: space-between; align-items: center;">
-              <span style="font-size: 11px; color: #2e7d32; font-weight: bold;">💡 ${reason}</span>
+            <div style="display: flex; flex-wrap: wrap; gap: 4px; align-items: center; margin-top: 6px;">
+              ${reasonBadges}
             </div>
           </div>
         `;
