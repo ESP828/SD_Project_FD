@@ -8,6 +8,10 @@
 
   const writeParams = new URLSearchParams(window.location.search);
   const requestedReturnTo = writeParams.get("returnTo");
+  const requestedNewsPageValue = Number.parseInt(writeParams.get("newsPage"), 10);
+  const requestedNewsPage = Number.isInteger(requestedNewsPageValue) && requestedNewsPageValue >= 0
+    ? requestedNewsPageValue
+    : 0;
 
   const MAX_MEDIA_COUNT = 10;
   const MAX_IMAGE_BYTES = 20 * 1024 * 1024;
@@ -232,6 +236,7 @@
     const params = new URLSearchParams({
       postId: String(targetPostId),
       from: "NEWS",
+      newsPage: String(requestedNewsPage),
     });
     return `/pages/board/detail.html?${params.toString()}`;
   }
@@ -240,6 +245,7 @@
     const params = new URLSearchParams({
       postId: String(targetPostId),
       from: "NEWS",
+      newsPage: String(requestedNewsPage),
     });
     return `/pages/board/write.html?${params.toString()}`;
   }
@@ -251,6 +257,7 @@
       source: target.source,
       id: String(target.id),
       tab: "news",
+      newsPage: String(requestedNewsPage),
     });
     return `/pages/restaurant/detail.html?${params.toString()}`;
   }

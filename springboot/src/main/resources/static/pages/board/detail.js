@@ -7,6 +7,10 @@
   const fromBest = sourceView === "BEST";
   const fromPopular = sourceView === "POPULAR";
   const requestedReturnTo = detailParams.get("returnTo");
+  const requestedNewsPageValue = Number.parseInt(detailParams.get("newsPage"), 10);
+  const requestedNewsPage = Number.isInteger(requestedNewsPageValue) && requestedNewsPageValue >= 0
+    ? requestedNewsPageValue
+    : 0;
   const state = { post: null };
   const MEDIA_POLL_BASE_DELAY = 2500;
   const MEDIA_POLL_MAX_DELAY = 15000;
@@ -216,6 +220,7 @@
       source: target.source,
       id: String(target.id),
       tab: "news",
+      newsPage: String(requestedNewsPage),
     });
     return `/pages/restaurant/detail.html?${params.toString()}`;
   }
@@ -406,6 +411,7 @@
     const params = new URLSearchParams({
       postId: String(post.postId),
       from: "NEWS",
+      newsPage: String(requestedNewsPage),
     });
     return `/pages/board/write.html?${params.toString()}`;
   }
