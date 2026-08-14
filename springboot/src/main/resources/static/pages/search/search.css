@@ -418,3 +418,95 @@
     flex-direction: column;
   }
 }
+/* ----------------------------------------------------
+   1. 검색창 오른쪽 내부 패딩(여백) 넓히기
+   버튼이 2개가 들어가므로 패딩을 54px -> 108px로 변경
+---------------------------------------------------- */
+.search-input-wrap input {
+  padding-left: 48px;
+  padding-right: 108px; /* 기존 54px에서 버튼 2개 분량 공간 확보 */
+}
+
+/* ----------------------------------------------------
+   2. 기존 필터 버튼 위치 수정 (맨 우측 고정)
+---------------------------------------------------- */
+.search-filter-toggle {
+  position: absolute;
+  top: 50%;
+  right: 8px; /* 가장 오른쪽 끝 */
+  display: inline-flex;
+  width: 42px;
+  min-height: 42px;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0;
+  border: 1px solid rgba(255, 152, 0, 0.28);
+  border-radius: 11px;
+  color: var(--color-orange-dark);
+  background: var(--color-orange-soft);
+  font-size: 0;
+  font-weight: 800;
+  transform: translateY(-50%);
+  transition: border-color 160ms ease, background 160ms ease;
+  cursor: pointer;
+}
+
+.search-filter-toggle:hover,
+.search-filter-toggle[aria-expanded="true"] {
+  border-color: rgba(255, 152, 0, 0.58);
+  background: #ffe6bb;
+}
+
+.search-filter-toggle .material-symbols-rounded {
+  position: static;
+  color: currentColor;
+  font-size: 19px;
+  transform: none;
+}
+
+/* ----------------------------------------------------
+   3. 신규 추가: AI 검색 버튼 (필터 버튼 왼쪽에 위치)
+---------------------------------------------------- */
+.ai-search-toggle {
+  position: absolute;
+  top: 50%;
+  right: 56px; /* 필터 버튼 너비(42px) + 간격(6px) + 우측 여백(8px) = 56px 위치 */
+  display: inline-flex;
+  height: 42px;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  padding: 0 10px;
+  border: 1px solid rgba(255, 152, 0, 0.3);
+  border-radius: 11px;
+  color: #d97706;
+  background: #fff8ed;
+  font-size: 0.78rem;
+  font-weight: 850;
+  transform: translateY(-50%);
+  transition: all 160ms ease;
+  cursor: pointer;
+}
+
+.ai-search-toggle .material-symbols-rounded {
+  position: static;
+  color: currentColor;
+  font-size: 18px;
+  transform: none;
+}
+
+/* AI 버튼 Hover 상태 */
+.ai-search-toggle:hover {
+  border-color: rgba(255, 152, 0, 0.6);
+  background: #ffedd5;
+}
+
+/* AI 모드 활성화(ON)되었을 때 스타일 포인트 */
+.ai-search-toggle.is-active,
+.ai-search-toggle[aria-pressed="true"] {
+  border-color: transparent;
+  color: #ffffff;
+  background: linear-gradient(135deg, #ff9800, #ff5722);
+  box-shadow: 0 2px 8px rgba(255, 87, 34, 0.25);
+}

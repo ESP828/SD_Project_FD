@@ -136,13 +136,15 @@ const RecommendationPage = {
         html += `
           <div class="surface-card" style="border: 1px solid #eee; padding: 14px; border-radius: 12px; background: #fafafa;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-              <h4 style="margin: 0; font-size: 15px; font-weight: bold;">${item.restaurantName}</h4>
+              <div style="display: flex; align-items: baseline; gap: 10px;">
+                <h4 style="margin: 0; font-size: 18px; font-weight: bold;">${item.restaurantName}</h4>
+                <h4 style="margin: 0; font-size: 13px; color: #ff9800;">(약${(item.distanceMeters / 1000).toFixed(1)}km)</h4>
+                </div>
               <span style="font-size: 11px; background: #ffe0b2; color: #e65100; padding: 2px 6px; border-radius: 4px;">${item.categoryName || '음식점'}</span>
             </div>
             <p style="font-size: 12px; color: #666; margin: 4px 0 8px 0;">📍 ${item.address}</p>
             <div style="display: flex; justify-content: space-between; align-items: center;">
               <span style="font-size: 11px; color: #2e7d32; font-weight: bold;">💡 ${reason}</span>
-              <span style="font-size: 11px; color: #888;">약 ${item.distanceMeters}m</span>
             </div>
           </div>
         `;
