@@ -986,7 +986,7 @@
   const BOARD_AUTH_POPUP_STYLE_ID = "fooduck-board-auth-popup-style";
   const BOARD_AUTH_POPUP_POLL_MS = 300;
   const BOARD_AUTH_POPUP_LAYOUT_WATCH_MS = 1200;
-  const BOARD_AUTH_POPUP_LAYOUT_RETRY_MS = 4;
+  const BOARD_AUTH_POPUP_LAYOUT_RETRY_MS = 0;
 
   function safeBoardAuthNextPath(nextPath) {
     const value = String(nextPath || "").trim();
@@ -1117,10 +1117,8 @@
           try {
             popup.addEventListener("pagehide", () => {
               const previousDocument = documentRef;
-              window.setTimeout(() => {
-                if (!popup || popup.closed) return;
-                startLayoutWatch(previousDocument);
-              }, 0);
+              if (!popup || popup.closed) return;
+              startLayoutWatch(previousDocument);
             }, { once: true });
           } catch (_error) {
             // 문서가 바뀌는 시점은 아래 주기 확인에서도 다시 보정한다.
