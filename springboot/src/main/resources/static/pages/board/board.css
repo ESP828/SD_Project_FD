@@ -2602,6 +2602,16 @@
 }
 
 @media (max-width: 720px) {
+  .detail-heading .detail-meta {
+    column-gap: 12px;
+    row-gap: 8px;
+  }
+
+  .detail-heading .detail-meta .author-identity {
+    flex: 0 0 100%;
+    min-width: 0;
+  }
+
   .board-sub-hero-grid {
     min-height: auto;
     grid-template-columns: 1fr;
@@ -3312,4 +3322,16 @@ body.is-image-viewer-open {
   .comment-upload-retry__actions {
     justify-content: flex-end;
   }
+}
+
+/* 서버 응답 실패 시 sessionStorage 캐시를 보여주는 안내 */
+.board-cache-notice {
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  border-radius: 10px;
+  background: rgba(248, 250, 252, 0.96);
+  color: #475569;
+  font-size: 0.9rem;
+  line-height: 1.45;
 }

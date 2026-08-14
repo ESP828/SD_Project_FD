@@ -7,12 +7,17 @@
   const fromBest = sourceView === "BEST";
   const fromPopular = sourceView === "POPULAR";
   const requestedReturnTo = detailParams.get("returnTo");
+  const requestedNewsPageValue = Number.parseInt(detailParams.get("newsPage"), 10);
+  const requestedNewsPage = Number.isInteger(requestedNewsPageValue) && requestedNewsPageValue >= 0
+    ? requestedNewsPageValue
+    : 0;
   const state = { post: null };
   const MEDIA_POLL_BASE_DELAY = 2500;
   const MEDIA_POLL_MAX_DELAY = 15000;
   const MEDIA_POLL_MAX_FAILURES = 5;
   const COMMENT_IMAGE_MAX_BYTES = 5 * 1024 * 1024;
   const COMMENT_PAGE_SIZE = 5;
+  const BOARD_FLASH_KEY = "fooduck:board:flash:v1";
   const COMMENT_IMAGE_TYPES = new Set([
     "image/jpeg",
     "image/png",
@@ -27,6 +32,8 @@
   let mediaPollGeneration = 0;
   let mediaPollingHalted = false;
   let mediaPollingDisposed = false;
+  let postDeleteInFlight = false;
+  const commentDeleteInFlight = new Set();
 
   const detailContent = document.getElementById("post-detail-content");
   const listLink = document.getElementById("detail-list-link");
@@ -60,6 +67,7 @@
   const {
     authorIdentity,
     categoryLabel,
+    createAuthPopupController,
     detailPath,
     element,
     formatDate,
@@ -73,6 +81,10 @@
 
   function isEdited(item) {
     return item?.edited === true;
+  }
+
+  function canUseCacheAfterError(error) {
+    return ![401, 403, 404].includes(Number(error?.status));
   }
 
   function safeBoardListReturnPath(value) {
@@ -208,6 +220,7 @@
       source: target.source,
       id: String(target.id),
       tab: "news",
+      newsPage: String(requestedNewsPage),
     });
     return `/pages/restaurant/detail.html?${params.toString()}`;
   }
@@ -398,6 +411,7 @@
     const params = new URLSearchParams({
       postId: String(post.postId),
       from: "NEWS",
+      newsPage: String(requestedNewsPage),
     });
     return `/pages/board/write.html?${params.toString()}`;
   }
@@ -423,9 +437,7 @@
   let commentImagePreviewUrl = null;
   let pendingCommentImageRetry = null;
   let commentImageRetryNotice = null;
-  let detailLoginPopup = null;
-  let detailLoginPollTimer = null;
-  let detailLoginStorageHandler = null;
+  let detailAuthPopupController = null;
   let pendingDetailLoginAction = null;
   let detailLoginSuccessMessage = "로그인되었습니다.";
   let detailLogoutInFlight = false;
@@ -435,6 +447,9 @@
   let activeReplyPreviewUrl = null;
   let activeCommentEditForm = null;
   let replyDiscardPromptOpen = false;
+  let commentEditDiscardPromptOpen = false;
+  let detailLeavePromptOpen = false;
+  let allowDetailNavigation = false;
   let currentCommentPage = 0;
   let totalCommentPages = 0;
   let commentPageLoading = false;
@@ -454,29 +469,9 @@
     }
   }
 
-  function stopDetailLoginWatch({ closePopup = false, clearPendingAction = false } = {}) {
-    if (detailLoginPollTimer) {
-      window.clearInterval(detailLoginPollTimer);
-      detailLoginPollTimer = null;
-    }
-    if (detailLoginStorageHandler) {
-      window.removeEventListener("storage", detailLoginStorageHandler);
-      detailLoginStorageHandler = null;
-    }
-    if (closePopup && detailLoginPopup && !detailLoginPopup.closed) {
-      try {
-        detailLoginPopup.close();
-      } catch (_error) {
-        // 브라우저가 창 제어를 제한하면 그대로 둔다.
-      }
-    }
-    detailLoginPopup = null;
-    if (clearPendingAction) pendingDetailLoginAction = null;
-  }
-
-  function completeDetailLoginIfReady() {
+  function handleDetailLoginAuthenticated() {
     const token = Api.getToken();
-    if (!token) return false;
+    if (!token) return;
     const payload = decodeAccessToken(token) || {};
     session.authenticated = true;
     session.accountId = Number(payload.sub) || session.accountId || null;
@@ -496,7 +491,6 @@
     const message = detailLoginSuccessMessage;
     pendingDetailLoginAction = null;
     detailLoginSuccessMessage = "로그인되었습니다.";
-    stopDetailLoginWatch({ closePopup: true });
     showToast(toast, message);
     if (typeof action === "function") {
       window.setTimeout(() => {
@@ -512,47 +506,57 @@
         }
       }, 0);
     }
-    return true;
+  }
+
+  async function continueDetailLoginWithoutPopup(loginUrl) {
+    if (hasUnsavedDetailDrafts()) {
+      const confirmed = await confirmBoardAction({
+        title: "현재 화면에서 로그인할까요?",
+        message: "로그인 팝업이 차단되었습니다. 현재 화면에서 로그인하면 작성 중인 댓글·답글·수정 내용과 첨부한 사진은 저장되지 않습니다.",
+        confirmLabel: "로그인으로 이동",
+        danger: false,
+        iconName: "login",
+      });
+      if (!confirmed) {
+        pendingDetailLoginAction = null;
+        detailLoginSuccessMessage = "로그인되었습니다.";
+        showToast(toast, "팝업을 허용한 뒤 다시 로그인해 주세요.", true);
+        return;
+      }
+    }
+
+    pendingDetailLoginAction = null;
+    detailLoginSuccessMessage = "로그인되었습니다.";
+    allowDetailNavigation = true;
+    window.location.assign(loginUrl);
+  }
+
+  function ensureDetailAuthPopupController() {
+    if (detailAuthPopupController) return detailAuthPopupController;
+    detailAuthPopupController = createAuthPopupController({
+      popupName: "fooduck-board-detail-login",
+      onAuthenticated: handleDetailLoginAuthenticated,
+      onClosed: () => {
+        pendingDetailLoginAction = null;
+        detailLoginSuccessMessage = "로그인되었습니다.";
+        showToast(toast, "로그인이 취소되었습니다.", true);
+      },
+      onBlocked: ({ loginUrl }) => {
+        void continueDetailLoginWithoutPopup(loginUrl);
+      },
+    });
+    return detailAuthPopupController;
+  }
+
+  function completeDetailLoginIfReady() {
+    return ensureDetailAuthPopupController().completeIfReady();
   }
 
   function openDetailLogin({ onSuccess = null, successMessage = "로그인되었습니다." } = {}) {
     const nextPath = `${window.location.pathname}${window.location.search}`;
-    const loginUrl = `/pages/auth/login.html?next=${encodeURIComponent(nextPath)}`;
-    stopDetailLoginWatch({ closePopup: true, clearPendingAction: true });
     pendingDetailLoginAction = typeof onSuccess === "function" ? onSuccess : null;
     detailLoginSuccessMessage = successMessage;
-
-    const popup = window.open(
-      loginUrl,
-      "fooduck-board-detail-login",
-      "popup=yes,width=520,height=760,resizable=yes,scrollbars=yes",
-    );
-    if (!popup) {
-      pendingDetailLoginAction = null;
-      detailLoginSuccessMessage = "로그인되었습니다.";
-      showToast(
-        toast,
-        "로그인 창을 열 수 없습니다. 이 사이트의 팝업을 허용한 뒤 다시 시도해 주세요.",
-        true,
-      );
-      return false;
-    }
-
-    detailLoginPopup = popup;
-    detailLoginStorageHandler = (event) => {
-      if (event.key === "accessToken" && event.newValue) completeDetailLoginIfReady();
-    };
-    window.addEventListener("storage", detailLoginStorageHandler);
-    detailLoginPollTimer = window.setInterval(() => {
-      if (completeDetailLoginIfReady()) return;
-      if (detailLoginPopup?.closed) {
-        stopDetailLoginWatch({ clearPendingAction: true });
-        detailLoginSuccessMessage = "로그인되었습니다.";
-        showToast(toast, "로그인이 취소되었습니다.", true);
-      }
-    }, 300);
-    popup.focus();
-    return true;
+    return ensureDetailAuthPopupController().open({ nextPath });
   }
 
   function initializeDetailLoginEntryPoints() {
@@ -579,8 +583,11 @@
       event.preventDefault();
       event.stopImmediatePropagation();
       if (detailLogoutInFlight) return;
+      if (!(await confirmDetailPageLeave())) return;
+
       detailLogoutInFlight = true;
       button.disabled = true;
+      allowDetailNavigation = true;
 
       try {
         await Api.logout();
@@ -589,6 +596,94 @@
       } finally {
         window.location.reload();
       }
+    }, true);
+  }
+
+  function mainCommentHasDraft() {
+    return Boolean(commentContent?.value.trim() || selectedCommentImage);
+  }
+
+  function commentEditorHasDraft(form = activeCommentEditForm) {
+    if (!form) return false;
+    const textarea = form.querySelector(".comment-edit-textarea");
+    const initialValue = form.dataset.initialValue || "";
+    return Boolean(
+      textarea && textarea.value.trim() !== initialValue.trim()
+    );
+  }
+
+  function hasUnsavedDetailDrafts() {
+    return (
+      mainCommentHasDraft() ||
+      replyComposerHasDraft() ||
+      commentEditorHasDraft()
+    );
+  }
+
+  async function confirmDetailPageLeave() {
+    if (!hasUnsavedDetailDrafts()) return true;
+    if (detailLeavePromptOpen) return false;
+
+    detailLeavePromptOpen = true;
+    try {
+      return await confirmBoardAction({
+        title: "작성 중인 내용을 버리고 이동할까요?",
+        message: "입력한 댓글·답글·수정 내용과 첨부한 사진은 저장되지 않습니다.",
+        confirmLabel: "나가기",
+        danger: false,
+        iconName: "edit",
+      });
+    } finally {
+      detailLeavePromptOpen = false;
+    }
+  }
+
+  function initializeDetailNavigationGuard() {
+    document.addEventListener("click", async (event) => {
+      if (allowDetailNavigation || event.defaultPrevented) return;
+      if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
+        return;
+      }
+
+      const link = event.target.closest("a[href]");
+      if (!link || link.hasAttribute("download")) return;
+      if (link.target && link.target.toLowerCase() !== "_self") return;
+
+      // 상세 화면의 로그인 링크는 팝업만 열고 현재 페이지를 떠나지 않는다.
+      if (
+        !session.authenticated &&
+        link.matches('.site-header a.header-auth-button[href^="/pages/auth/login.html"]')
+      ) {
+        return;
+      }
+
+      const rawHref = link.getAttribute("href");
+      if (!rawHref || rawHref.startsWith("javascript:")) return;
+
+      let targetUrl;
+      try {
+        targetUrl = new URL(link.href, window.location.href);
+      } catch (_error) {
+        return;
+      }
+
+      const currentUrl = new URL(window.location.href);
+      const sameDocument =
+        targetUrl.origin === currentUrl.origin &&
+        targetUrl.pathname === currentUrl.pathname &&
+        targetUrl.search === currentUrl.search;
+      if (sameDocument && targetUrl.hash !== currentUrl.hash) return;
+      if (!hasUnsavedDetailDrafts()) return;
+
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      if (!(await confirmDetailPageLeave())) return;
+
+      allowDetailNavigation = true;
+      window.location.assign(targetUrl.href);
+      window.setTimeout(() => {
+        allowDetailNavigation = false;
+      }, 0);
     }, true);
   }
 
@@ -733,13 +828,15 @@
         invalidateBoardCache();
         clearCommentImageRetryNotice();
         showToast(toast, `${retry.label || "댓글"} 사진이 등록되었습니다.`);
-        try {
-          await loadCommentPage(currentCommentPage, {
-            highlightCommentId: retry.commentId,
-            scrollToHighlight: false,
-          });
-        } catch (reloadError) {
-          showToast(toast, reloadError.message, true);
+        if (!replyComposerHasDraft() && !commentEditorHasDraft()) {
+          try {
+            await loadCommentPage(currentCommentPage, {
+              highlightCommentId: retry.commentId,
+              scrollToHighlight: false,
+            });
+          } catch (reloadError) {
+            showToast(toast, reloadError.message, true);
+          }
         }
       } catch (retryError) {
         retryButton.disabled = false;
@@ -834,7 +931,7 @@
       writeBoardCache(path, posts);
       renderRelatedPosts(posts);
     } catch (error) {
-      if (!cached) {
+      if (!cached || !canUseCacheAfterError(error)) {
         relatedPostList.replaceChildren(
           element("li", "best-loading", error.message || "불러오지 못했습니다."),
         );
@@ -909,7 +1006,7 @@
       writeBoardCache(path, posts);
       renderUnansweredPosts(posts);
     } catch (error) {
-      if (!cached) {
+      if (!cached || !canUseCacheAfterError(error)) {
         unansweredPostList.replaceChildren(
           element("li", "best-loading", error.message || "불러오지 못했습니다."),
         );
@@ -1317,7 +1414,7 @@
     mediaPollDelay = MEDIA_POLL_BASE_DELAY;
     mediaPollFailures = 0;
     mediaPollingHalted = false;
-    if (Array.isArray(mediaItems) && mediaItems.some(isVideoMedia)) {
+    if (Array.isArray(mediaItems) && mediaItems.some(isProcessingMedia)) {
       scheduleMediaPoll(0);
     }
   }
@@ -1374,7 +1471,7 @@
       mediaPollInFlight = false;
       if (generation !== mediaPollGeneration) {
         if (Array.isArray(state.post?.media) &&
-            state.post.media.some(isVideoMedia)) {
+            state.post.media.some(isProcessingMedia)) {
           scheduleMediaPoll(0);
         }
       } else if (shouldContinue) {
@@ -1427,7 +1524,9 @@
       ),
       element("span", "", `조회 ${post.viewCount || 0}`),
     );
-    meta.append(element("span", "", `추천 ${post.likeCount || 0}`));
+    const likeMeta = element("span", "detail-like-count", `추천 ${post.likeCount || 0}`);
+    likeMeta.dataset.likeCount = "true";
+    meta.append(likeMeta);
     heading.append(meta);
     detailContent.append(heading);
 
@@ -1465,12 +1564,19 @@
     actions.append(likeButton);
     const canManage = newsPost
       ? post.newsManageableByCurrentUser === true && Boolean(newsTarget)
-      : (!fromBest && post.ownedByCurrentUser) || session.isAdmin;
+      : post.ownedByCurrentUser || session.isAdmin;
     if (canManage) {
       const editLink = element("a", "button button-sm button-secondary", "수정");
-      editLink.href = newsPost
-        ? newsWritePath(post)
-        : board.writePath(post.boardType, post.postId);
+      if (newsPost) {
+        editLink.href = newsWritePath(post);
+      } else {
+        const editUrl = new URL(
+          board.writePath(post.boardType, post.postId),
+          window.location.origin,
+        );
+        editUrl.searchParams.set("returnTo", communityReturnPath(post));
+        editLink.href = `${editUrl.pathname}${editUrl.search}`;
+      }
       actions.append(
         editLink,
         actionButton("삭제", "button button-sm button-danger", deletePost),
@@ -1531,8 +1637,45 @@
       writeBoardCache(path, payload.data);
       renderPost(payload.data);
     } catch (error) {
-      if (!cached?.data) throw error;
-      renderPost(cached.data);
+      if (!cached?.data || !canUseCacheAfterError(error)) throw error;
+      const cachedViewCount = Number(cached.data.viewCount) || 0;
+      renderPost({
+        ...cached.data,
+        viewCount: cachedViewCount + 1,
+      });
+      showToast(
+        toast,
+        "최신 내용을 불러오지 못해 잠시 저장된 게시글을 보여드리고 있습니다.",
+      );
+    }
+  }
+
+  function updateLikeUi({ liked, likeCount }) {
+    if (!state.post) return;
+    const parsedLikeCount = Number(likeCount);
+    const nextLikeCount = Number.isFinite(parsedLikeCount)
+      ? Math.max(0, parsedLikeCount)
+      : Number(state.post.likeCount) || 0;
+    state.post = {
+      ...state.post,
+      likedByCurrentUser: Boolean(liked),
+      likeCount: nextLikeCount,
+    };
+
+    const likeMeta = detailContent.querySelector('[data-like-count="true"]');
+    if (likeMeta) likeMeta.textContent = `추천 ${state.post.likeCount}`;
+
+    if (activeLikeButton) {
+      activeLikeButton.textContent =
+        `${state.post.likedByCurrentUser ? "추천 취소" : "추천"} · ${state.post.likeCount}`;
+      activeLikeButton.classList.toggle(
+        "button-primary",
+        state.post.likedByCurrentUser,
+      );
+      activeLikeButton.classList.toggle(
+        "button-secondary",
+        !state.post.likedByCurrentUser,
+      );
     }
   }
 
@@ -1553,9 +1696,8 @@
         ? await Api.delete(`/board/posts/${postId}/like`)
         : await Api.post(`/board/posts/${postId}/like`, {});
       invalidateBoardCache();
-      renderPost({
-        ...state.post,
-        likedByCurrentUser: payload.data.liked,
+      updateLikeUi({
+        liked: payload.data.liked,
         likeCount: payload.data.likeCount,
       });
       showToast(toast, payload.message);
@@ -1567,32 +1709,63 @@
     }
   }
 
-  async function deletePost() {
-    const newsPost = isNewsPost();
-    const deletePath = newsPost ? newsDeletePath(state.post) : `/board/posts/${postId}`;
-    const returnPath = newsPost
-      ? restaurantNewsPath(state.post)
-      : communityReturnPath(state.post);
-    if (!deletePath || !returnPath) {
-      showToast(toast, "가게 소식의 식당 정보를 확인할 수 없습니다.", true);
-      return;
-    }
-    const message = newsPost
-      ? "이 가게 소식과 연결된 댓글과 추천도 함께 삭제됩니다."
-      : "이 게시글과 연결된 댓글과 추천도 함께 삭제됩니다.";
-    const confirmed = await confirmBoardAction({
-      title: newsPost ? "가게 소식을 삭제할까요?" : "게시글을 삭제할까요?",
-      message,
-      confirmLabel: newsPost ? "가게 소식 삭제" : "게시글 삭제",
-    });
-    if (!confirmed) return;
+  async function deletePost(event) {
+    if (postDeleteInFlight) return;
+
+    postDeleteInFlight = true;
+    const deleteButton = event?.currentTarget instanceof HTMLButtonElement
+      ? event.currentTarget
+      : null;
+    if (deleteButton) deleteButton.disabled = true;
+    let navigationStarted = false;
+
     try {
+      if (!(await confirmDetailPageLeave())) return;
+
+      const newsPost = isNewsPost();
+      const deletePath = newsPost ? newsDeletePath(state.post) : `/board/posts/${postId}`;
+      const returnPath = newsPost
+        ? restaurantNewsPath(state.post)
+        : communityReturnPath(state.post);
+      if (!deletePath || !returnPath) {
+        showToast(toast, "가게 소식의 식당 정보를 확인할 수 없습니다.", true);
+        return;
+      }
+      const message = newsPost
+        ? "이 가게 소식과 연결된 댓글과 추천도 함께 삭제됩니다."
+        : "이 게시글과 연결된 댓글과 추천도 함께 삭제됩니다.";
+      const confirmed = await confirmBoardAction({
+        title: newsPost ? "가게 소식을 삭제할까요?" : "게시글을 삭제할까요?",
+        message,
+        confirmLabel: newsPost ? "가게 소식 삭제" : "게시글 삭제",
+      });
+      if (!confirmed) return;
+
       const payload = await Api.delete(deletePath);
       invalidateBoardCache();
-      window.alert(payload.message);
+      if (newsPost) {
+        // 가게 소식은 게시판 밖 식당 화면으로 돌아가므로 기존 완료 안내를 유지한다.
+        window.alert(payload.message);
+      } else {
+        try {
+          window.sessionStorage.setItem(
+            BOARD_FLASH_KEY,
+            payload.message || "게시글이 삭제되었습니다.",
+          );
+        } catch (_error) {
+          // 저장 공간을 사용할 수 없어도 삭제 완료 후 이동은 계속한다.
+        }
+      }
+      allowDetailNavigation = true;
+      navigationStarted = true;
       window.location.assign(returnPath);
     } catch (error) {
       showToast(toast, error.message, true);
+    } finally {
+      if (!navigationStarted) {
+        postDeleteInFlight = false;
+        if (deleteButton?.isConnected) deleteButton.disabled = false;
+      }
     }
   }
 
@@ -1654,6 +1827,47 @@
     if (actions) actions.hidden = false;
     activeCommentEditForm.remove();
     activeCommentEditForm = null;
+  }
+
+  async function confirmCommentEditorDiscard(nextCommentId = null) {
+    if (!activeCommentEditForm) return true;
+    if (
+      nextCommentId != null &&
+      String(activeCommentEditForm.dataset.editCommentId || "") === String(nextCommentId)
+    ) {
+      activeCommentEditForm
+        .querySelector(".comment-edit-textarea")
+        ?.focus({ preventScroll: true });
+      return false;
+    }
+    if (!commentEditorHasDraft(activeCommentEditForm)) {
+      closeCommentEditor();
+      return true;
+    }
+    if (commentEditDiscardPromptOpen) return false;
+
+    const currentForm = activeCommentEditForm;
+    commentEditDiscardPromptOpen = true;
+    try {
+      const discard = await confirmBoardAction({
+        title: "수정 중인 댓글을 버릴까요?",
+        message: "바꾼 내용은 저장되지 않습니다.",
+        confirmLabel: "내용 버리기",
+        danger: false,
+        iconName: "edit",
+      });
+      if (!discard || activeCommentEditForm !== currentForm) return false;
+      closeCommentEditor();
+      return true;
+    } finally {
+      commentEditDiscardPromptOpen = false;
+    }
+  }
+
+  async function confirmInlineCommentDraftDiscard() {
+    if (!(await confirmReplyComposerDiscard(null))) return false;
+    if (!(await confirmCommentEditorDiscard(null))) return false;
+    return true;
   }
 
   function commentImageNode(comment) {
@@ -1726,7 +1940,7 @@
       });
       return;
     }
-    closeCommentEditor();
+    if (!(await confirmCommentEditorDiscard(null))) return;
     if (!(await confirmReplyComposerDiscard(comment.commentId))) return;
 
     const rootParentId = comment.parentCommentId || comment.commentId;
@@ -1821,7 +2035,9 @@
       preview.hidden = false;
     });
     removeImage.addEventListener("click", clearReplyImage);
-    cancel.addEventListener("click", closeReplyComposer);
+    cancel.addEventListener("click", async () => {
+      await confirmReplyComposerDiscard(null);
+    });
     textarea.addEventListener("input", () => {
       syncReplySubmitState();
       updateCharacterCount(textarea, characterCount);
@@ -1959,7 +2175,7 @@
         actionButton(
           "삭제",
           "comment-action",
-          () => deleteComment(comment, hasReplies),
+          (event) => deleteComment(comment, hasReplies, event.currentTarget),
         ),
       );
     }
@@ -2241,7 +2457,16 @@
       writeBoardCache(path, pageData);
       return pageData;
     } catch (error) {
-      if (cached) return cached.data || {};
+      if (cached && canUseCacheAfterError(error)) {
+        showToast(
+          toast,
+          "최신 댓글을 불러오지 못해 잠시 저장된 댓글을 보여드리고 있습니다.",
+        );
+        announceCommentStatus(
+          "최신 댓글을 불러오지 못해 저장된 댓글을 표시했습니다.",
+        );
+        return cached.data || {};
+      }
       throw error;
     }
   }
@@ -2276,7 +2501,7 @@
   async function goToCommentPage(page) {
     const targetPage = Math.max(0, Math.min(Number(page) || 0, totalCommentPages - 1));
     if (commentPageLoading || targetPage === currentCommentPage) return;
-    if (!(await confirmReplyComposerDiscard(null))) return;
+    if (!(await confirmInlineCommentDraftDiscard())) return;
 
     try {
       await loadCommentPage(targetPage, {
@@ -2315,10 +2540,10 @@
     }
   }
 
-  function editComment(comment, item) {
+  async function editComment(comment, item) {
     if (!item) return;
-    closeReplyComposer();
-    closeCommentEditor();
+    if (!(await confirmReplyComposerDiscard(null))) return;
+    if (!(await confirmCommentEditorDiscard(comment.commentId))) return;
 
     const contentNode = item.querySelector(":scope > .comment-content");
     const actionsNode = item.querySelector(":scope > .comment-actions");
@@ -2334,6 +2559,8 @@
     textarea.rows = 3;
     textarea.value = comment.content || "";
     textarea.setAttribute("aria-label", "댓글 수정 내용");
+    form.dataset.editCommentId = String(comment.commentId);
+    form.dataset.initialValue = textarea.value;
 
     const inputMeta = element("div", "comment-input-meta comment-input-meta--compact");
     inputMeta.append(element("span", "", "Enter로 수정 · Shift + Enter로 줄바꿈"));
@@ -2363,12 +2590,14 @@
     syncEditState();
 
     form.addEventListener("click", (event) => event.stopPropagation());
-    cancel.addEventListener("click", closeCommentEditor);
+    cancel.addEventListener("click", async () => {
+      await confirmCommentEditorDiscard(null);
+    });
     textarea.addEventListener("input", syncEditState);
-    textarea.addEventListener("keydown", (event) => {
+    textarea.addEventListener("keydown", async (event) => {
       if (event.key === "Escape") {
         event.preventDefault();
-        closeCommentEditor();
+        await confirmCommentEditorDiscard(null);
         return;
       }
       if (!isCommentSubmitEnter(event)) return;
@@ -2419,23 +2648,32 @@
     textarea.setSelectionRange(textarea.value.length, textarea.value.length);
   }
 
-  async function deleteComment(comment, hasReplies = false) {
-    const confirmed = await confirmBoardAction({
-      title: "댓글을 삭제할까요?",
-      message: hasReplies
-        ? "이 댓글에 달린 답글도 함께 삭제되며, 삭제한 내용은 되돌릴 수 없습니다."
-        : "삭제한 댓글은 되돌릴 수 없습니다.",
-      confirmLabel: "댓글 삭제",
-    });
-    if (!confirmed) return;
+  async function deleteComment(comment, hasReplies = false, deleteButton = null) {
+    const commentId = Number(comment?.commentId);
+    if (!Number.isFinite(commentId) || commentDeleteInFlight.has(commentId)) return;
 
+    commentDeleteInFlight.add(commentId);
+    if (deleteButton instanceof HTMLButtonElement) deleteButton.disabled = true;
     try {
-      const payload = await Api.delete(`/board/comments/${comment.commentId}`);
+      const confirmed = await confirmBoardAction({
+        title: "댓글을 삭제할까요?",
+        message: hasReplies
+          ? "이 댓글에 달린 답글도 함께 삭제되며, 삭제한 내용은 되돌릴 수 없습니다."
+          : "삭제한 댓글은 되돌릴 수 없습니다.",
+        confirmLabel: "댓글 삭제",
+      });
+      if (!confirmed) return;
+      if (!(await confirmInlineCommentDraftDiscard())) return;
+
+      const payload = await Api.delete(`/board/comments/${commentId}`);
       invalidateBoardCache();
       showToast(toast, payload.message);
       await loadCommentPage(currentCommentPage);
     } catch (error) {
       showToast(toast, error.message, true);
+    } finally {
+      commentDeleteInFlight.delete(commentId);
+      if (deleteButton?.isConnected) deleteButton.disabled = false;
     }
   }
 
@@ -2475,7 +2713,9 @@
   commentForm.addEventListener("submit", async (event) => {
     event.preventDefault();
     if (!session.authenticated) {
-      if (!completeDetailLoginIfReady()) {
+      if (completeDetailLoginIfReady()) {
+        window.setTimeout(() => commentForm.requestSubmit(), 0);
+      } else {
         openDetailLogin({
           successMessage: "로그인되었습니다. 작성 중인 댓글을 등록합니다.",
           onSuccess: () => commentForm.requestSubmit(),
@@ -2609,12 +2849,20 @@
     }
   });
 
+  window.addEventListener("beforeunload", (event) => {
+    if (allowDetailNavigation || !hasUnsavedDetailDrafts()) return;
+    event.preventDefault();
+    // 최신 브라우저는 사용자 지정 문구 대신 자체 경고문을 표시한다.
+    event.returnValue = true;
+  });
+
   window.addEventListener("pagehide", () => {
     mediaPollingDisposed = true;
     clearMediaPoll();
     clearCommentImageSelection();
     clearCommentImageRetryNotice();
-    stopDetailLoginWatch({ closePopup: true, clearPendingAction: true });
+    detailAuthPopupController?.stop({ closePopup: true });
+    pendingDetailLoginAction = null;
     closeReplyComposer();
     document.querySelector(".detail-image-viewer")?.remove();
     document.body.classList.remove("is-image-viewer-open");
@@ -2628,6 +2876,7 @@
     }
   });
 
+  initializeDetailNavigationGuard();
   initializeDetailLoginEntryPoints();
   initializeDetailLogoutEntryPoint();
   initializeScrollTopButton();

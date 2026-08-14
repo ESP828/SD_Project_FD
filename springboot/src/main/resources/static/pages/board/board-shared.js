@@ -976,6 +976,301 @@
     return false;
   }
 
+  const BOARD_AUTH_POPUP_PATHS = new Set([
+    "/pages/auth/login.html",
+    "/pages/auth/signup.html",
+    "/pages/auth/find-id.html",
+    "/pages/auth/find-password.html",
+    "/pages/auth/oauth-callback.html",
+  ]);
+  const BOARD_AUTH_POPUP_STYLE_ID = "fooduck-board-auth-popup-style";
+  const BOARD_AUTH_POPUP_POLL_MS = 300;
+  const BOARD_AUTH_POPUP_LAYOUT_WATCH_MS = 1200;
+  const BOARD_AUTH_POPUP_LAYOUT_RETRY_MS = 0;
+
+  function safeBoardAuthNextPath(nextPath) {
+    const value = String(nextPath || "").trim();
+    return value.startsWith("/") && !value.startsWith("//") ? value : "/";
+  }
+
+  function boardAuthPopupFeatures() {
+    const screenRef = window.screen || {};
+    const availableWidth = Number(screenRef.availWidth) || 1024;
+    const availableHeight = Number(screenRef.availHeight) || 900;
+    const availableLeft = Number(screenRef.availLeft) || 0;
+    const availableTop = Number(screenRef.availTop) || 0;
+    const width = Math.max(320, Math.min(540, availableWidth - 32));
+    const height = Math.max(360, Math.min(860, availableHeight - 56));
+    const left = Math.round(availableLeft + Math.max(0, (availableWidth - width) / 2));
+    const top = Math.round(availableTop + Math.max(0, (availableHeight - height) / 2));
+    return [
+      "popup=yes",
+      `width=${Math.round(width)}`,
+      `height=${Math.round(height)}`,
+      `left=${left}`,
+      `top=${top}`,
+      "resizable=no",
+      "scrollbars=yes",
+    ].join(",");
+  }
+
+  function createAuthPopupController({
+    popupName,
+    onAuthenticated = null,
+    onClosed = null,
+    onBlocked = null,
+  } = {}) {
+    let popup = null;
+    let pollTimer = null;
+    let layoutTimer = null;
+    let popupDocument = null;
+    let popupMutationObserver = null;
+    let storageHandler = null;
+    let activeNextPath = "/";
+
+    function stop({ closePopup = false } = {}) {
+      if (pollTimer) {
+        window.clearInterval(pollTimer);
+        pollTimer = null;
+      }
+      if (layoutTimer) {
+        window.clearTimeout(layoutTimer);
+        layoutTimer = null;
+      }
+      if (popupMutationObserver) {
+        popupMutationObserver.disconnect();
+        popupMutationObserver = null;
+      }
+      if (storageHandler) {
+        window.removeEventListener("storage", storageHandler);
+        storageHandler = null;
+      }
+      if (closePopup && popup && !popup.closed) {
+        try {
+          popup.close();
+        } catch (_error) {
+          // 브라우저가 창 제어를 제한하면 열린 창은 그대로 둔다.
+        }
+      }
+      popup = null;
+      popupDocument = null;
+    }
+
+    function syncAuthPopupLinks(documentRef) {
+      if (!documentRef?.querySelectorAll) return;
+      documentRef.querySelectorAll('a[href^="/pages/auth/"]').forEach((link) => {
+        try {
+          const targetUrl = new URL(link.href, window.location.origin);
+          if (!BOARD_AUTH_POPUP_PATHS.has(targetUrl.pathname)) return;
+          if (!targetUrl.searchParams.has("next")) {
+            targetUrl.searchParams.set("next", activeNextPath);
+            link.href = `${targetUrl.pathname}${targetUrl.search}${targetUrl.hash}`;
+          }
+        } catch (_error) {
+          // 주소를 해석할 수 없는 링크는 원래 동작을 유지한다.
+        }
+      });
+    }
+
+    function hideAuthPopupElements(rootRef) {
+      if (!rootRef) return;
+      const selector = ".quick-remote, #site-nav, .header-actions";
+      const elements = [];
+
+      if (rootRef.nodeType === 1 && rootRef.matches?.(selector)) {
+        elements.push(rootRef);
+      }
+      rootRef.querySelectorAll?.(selector).forEach((elementRef) => elements.push(elementRef));
+
+      elements.forEach((elementRef) => {
+        elementRef.hidden = true;
+        elementRef.style.setProperty("display", "none", "important");
+      });
+    }
+
+    function ensureAuthPopupStyle(documentRef) {
+      if (!documentRef?.head) return false;
+      if (documentRef.getElementById(BOARD_AUTH_POPUP_STYLE_ID)) return true;
+
+      const style = documentRef.createElement("style");
+      style.id = BOARD_AUTH_POPUP_STYLE_ID;
+      style.textContent = `
+        .quick-remote,
+        #site-nav,
+        .header-actions {
+          display: none !important;
+        }
+      `;
+      documentRef.head.prepend(style);
+      return true;
+    }
+
+    function observeAuthPopupDocument(documentRef) {
+      if (!documentRef || popupDocument === documentRef && popupMutationObserver) return;
+
+      if (popupMutationObserver) popupMutationObserver.disconnect();
+      const MutationObserverRef = documentRef.defaultView?.MutationObserver || window.MutationObserver;
+      popupMutationObserver = new MutationObserverRef((mutations) => {
+        ensureAuthPopupStyle(documentRef);
+        for (const mutation of mutations) {
+          mutation.addedNodes.forEach((nodeRef) => hideAuthPopupElements(nodeRef));
+        }
+      });
+
+      popupMutationObserver.observe(documentRef, {
+        childList: true,
+        subtree: true,
+      });
+    }
+
+    function prepareAuthPopupDocument(documentRef) {
+      if (!documentRef) return false;
+
+      // 새 문서를 잡는 즉시 감시부터 붙인다. head/body가 만들어지는 과정에서
+      // 대상 요소가 추가되면 다음 화면을 그리기 전에 바로 숨길 수 있다.
+      observeAuthPopupDocument(documentRef);
+      ensureAuthPopupStyle(documentRef);
+      hideAuthPopupElements(documentRef);
+
+      syncAuthPopupLinks(documentRef);
+      if (documentRef.readyState === "loading") {
+        documentRef.addEventListener("DOMContentLoaded", () => {
+          ensureAuthPopupStyle(documentRef);
+          hideAuthPopupElements(documentRef);
+          syncAuthPopupLinks(documentRef);
+        }, { once: true });
+      }
+      return true;
+    }
+
+    function applyPopupLayout() {
+      if (!popup || popup.closed) return "closed";
+      try {
+        const popupHref = popup.location.href;
+        const pathname = popup.location.pathname;
+        if (popupHref === "about:blank") return "pending";
+        if (!BOARD_AUTH_POPUP_PATHS.has(pathname)) {
+          return pathname === "/" || pathname === "" ? "pending" : "other";
+        }
+
+        const documentRef = popup.document;
+        if (!prepareAuthPopupDocument(documentRef)) return "pending";
+
+        if (popupDocument !== documentRef) {
+          popupDocument = documentRef;
+          try {
+            popup.addEventListener("pagehide", () => {
+              const previousDocument = documentRef;
+              if (!popup || popup.closed) return;
+              startLayoutWatch(previousDocument);
+            }, { once: true });
+          } catch (_error) {
+            // 문서가 바뀌는 시점은 아래 주기 확인에서도 다시 보정한다.
+          }
+        }
+        return "applied";
+      } catch (_error) {
+        // 소셜 로그인처럼 다른 출처의 화면으로 이동한 동안에는 관여하지 않는다.
+        return "foreign";
+      }
+    }
+
+    function startLayoutWatch(previousDocument = null) {
+      if (layoutTimer) {
+        window.clearTimeout(layoutTimer);
+        layoutTimer = null;
+      }
+      const startedAt = window.performance?.now?.() ?? Date.now();
+
+      const scheduleNext = () => {
+        layoutTimer = window.setTimeout(applyWhenReady, BOARD_AUTH_POPUP_LAYOUT_RETRY_MS);
+      };
+
+      const applyWhenReady = () => {
+        layoutTimer = null;
+        if (!popup || popup.closed) return;
+        const now = window.performance?.now?.() ?? Date.now();
+        if (now - startedAt > BOARD_AUTH_POPUP_LAYOUT_WATCH_MS) return;
+
+        if (previousDocument) {
+          try {
+            if (popup.document === previousDocument) {
+              scheduleNext();
+              return;
+            }
+          } catch (_error) {
+            // 다른 출처로 이동한 경우 빠른 확인은 멈추고 주기 확인에 맡긴다.
+            return;
+          }
+        }
+
+        const status = applyPopupLayout();
+        if (status === "applied" || status === "other" || status === "foreign" || status === "closed") {
+          return;
+        }
+        scheduleNext();
+      };
+
+      applyWhenReady();
+    }
+
+    function completeIfReady() {
+      if (!Api.getToken()) return false;
+      stop({ closePopup: true });
+      if (typeof onAuthenticated === "function") onAuthenticated();
+      return true;
+    }
+
+    function open({ nextPath = window.location.pathname + window.location.search } = {}) {
+      stop({ closePopup: true });
+      activeNextPath = safeBoardAuthNextPath(nextPath);
+      const loginUrl = `/pages/auth/login.html?next=${encodeURIComponent(activeNextPath)}`;
+      const openedPopup = window.open(
+        loginUrl,
+        popupName || "fooduck-board-auth-login",
+        boardAuthPopupFeatures(),
+      );
+
+      if (!openedPopup) {
+        if (typeof onBlocked === "function") {
+          onBlocked({ loginUrl, nextPath: activeNextPath });
+        }
+        return false;
+      }
+
+      popup = openedPopup;
+      startLayoutWatch();
+      storageHandler = (event) => {
+        if (event.key === "accessToken" && event.newValue) completeIfReady();
+      };
+      window.addEventListener("storage", storageHandler);
+      pollTimer = window.setInterval(() => {
+        if (completeIfReady()) return;
+        if (!popup || popup.closed) {
+          stop();
+          if (typeof onClosed === "function") onClosed();
+          return;
+        }
+
+        const status = applyPopupLayout();
+        if (status === "pending" && !layoutTimer) startLayoutWatch();
+      }, BOARD_AUTH_POPUP_POLL_MS);
+
+      try {
+        popup.focus();
+      } catch (_error) {
+        // 포커스를 옮길 수 없어도 로그인 창 자체는 그대로 사용한다.
+      }
+      return true;
+    }
+
+    return {
+      completeIfReady,
+      open,
+      stop,
+    };
+  }
+
   function mapHref(restaurant) {
     const params = new URLSearchParams({
       q: restaurant?.name || "맛집",
@@ -1003,6 +1298,7 @@
     authorIdentity,
     canUseBusinessBoard,
     categoryLabel,
+    createAuthPopupController,
     detailPath,
     element,
     formatDate,

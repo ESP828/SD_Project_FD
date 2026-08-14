@@ -52,6 +52,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -1471,7 +1472,7 @@ public class PostService {
                     normalizedContent
             );
             postRepository.save(post);
-            RestaurantNewsItemResponse response = toRestaurantNewsItem(post, false);
+            RestaurantNewsItemResponse response = toRestaurantNewsItem(post, false, 0L);
             completePostSubmissionAfterTransaction(submissionKey);
             return response;
         } catch (RuntimeException | Error exception) {
@@ -1485,17 +1486,20 @@ public class PostService {
             Account currentAccount
     ) {
         List<Post> posts = page.getContent();
+        List<Long> postIds = posts.stream().map(Post::getPostId).toList();
         Set<Long> likedPostIds = currentAccount == null || posts.isEmpty()
                 ? Set.of()
                 : Set.copyOf(postLikeRepository.findLikedPostIds(
                         currentAccount.getAccountId(),
-                        posts.stream().map(Post::getPostId).toList()
+                        postIds
                 ));
+        Map<Long, Long> commentCounts = loadRestaurantNewsCommentCounts(postIds);
         return new RestaurantNewsPageResponse(
                 posts.stream()
                         .map(post -> toRestaurantNewsItem(
                                 post,
-                                likedPostIds.contains(post.getPostId())
+                                likedPostIds.contains(post.getPostId()),
+                                commentCounts.getOrDefault(post.getPostId(), 0L)
                         ))
                         .toList(),
                 page.getNumber(),
@@ -1509,7 +1513,8 @@ public class PostService {
 
     private RestaurantNewsItemResponse toRestaurantNewsItem(
             Post post,
-            boolean likedByCurrentUser
+            boolean likedByCurrentUser,
+            long commentCount
     ) {
         return new RestaurantNewsItemResponse(
                 post.getPostId(),
@@ -1519,10 +1524,28 @@ public class PostService {
                 post.getAuthor().getNickname(),
                 post.getLikeCount(),
                 likedByCurrentUser,
+                commentCount,
                 post.getViewCount(),
                 post.isEdited(),
                 post.getCreatedAt()
         );
+    }
+
+    private Map<Long, Long> loadRestaurantNewsCommentCounts(List<Long> postIds) {
+        if (postIds.isEmpty()) {
+            return Map.of();
+        }
+        Map<Long, Long> counts = new HashMap<>();
+        for (Object[] row : commentRepository.countActiveCommentsByPostIds(
+                postIds,
+                CommentStatus.ACTIVE
+        )) {
+            counts.put(
+                    ((Number) row[0]).longValue(),
+                    ((Number) row[1]).longValue()
+            );
+        }
+        return counts;
     }
 
     private String normalizeNewsTitle(String title) {
@@ -2221,6 +2244,7 @@ public class PostService {
             String authorNickname,
             long likeCount,
             boolean likedByCurrentUser,
+            long commentCount,
             long viewCount,
             boolean edited,
             LocalDateTime createdAt

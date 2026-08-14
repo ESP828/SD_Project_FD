@@ -54,11 +54,10 @@
   let postRequestGeneration = 0;
   let bestRequestGeneration = 0;
   let unansweredRequestGeneration = 0;
-  let boardLoginPopup = null;
-  let boardLoginPollTimer = null;
-  let boardLoginStorageHandler = null;
+  let boardAuthPopupController = null;
   let pendingBoardLoginAction = null;
   let boardLogoutInFlight = false;
+  const BOARD_FLASH_KEY = "fooduck:board:flash:v1";
 
   if (!session || !board || !boardList || !searchForm) {
     return;
@@ -67,16 +66,55 @@
   const {
     authorIdentity,
     categoryLabel,
+    createAuthPopupController,
     detailPath,
     element,
     formatDate,
     icon,
     readBoardCache,
+    showToast,
     writeBoardCache,
   } = board;
 
   function isEdited(item) {
     return item?.edited === true;
+  }
+
+  function canUseCacheAfterError(error) {
+    return ![401, 403, 404].includes(Number(error?.status));
+  }
+
+  const boardToast = document.createElement("div");
+  boardToast.className = "board-toast";
+  boardToast.setAttribute("role", "status");
+  boardToast.setAttribute("aria-live", "polite");
+  boardToast.hidden = true;
+  document.body.append(boardToast);
+
+  function consumeBoardFlashMessage() {
+    try {
+      const message = window.sessionStorage.getItem(BOARD_FLASH_KEY);
+      if (!message) return;
+      window.sessionStorage.removeItem(BOARD_FLASH_KEY);
+      showToast(boardToast, message);
+    } catch (_error) {
+      // 저장 공간을 사용할 수 없는 환경에서는 안내 없이 기존 흐름을 유지한다.
+    }
+  }
+
+  function renderCachedContentNotice() {
+    if (boardList.querySelector(".board-cache-notice")) return;
+    const notice = element(
+      "div",
+      "board-cache-notice",
+      "최신 내용을 불러오지 못해 잠시 저장된 게시글을 보여드리고 있습니다.",
+    );
+    notice.setAttribute("role", "status");
+    boardList.prepend(notice);
+  }
+
+  function prefersReducedMotion() {
+    return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   }
 
   function syncSearchControls() {
@@ -128,60 +166,30 @@
     return `/pages/board/detail.html?${params.toString()}`;
   }
 
-  function stopBoardLoginWatch({ closePopup = false, clearPendingAction = false } = {}) {
-    if (boardLoginPollTimer) {
-      window.clearInterval(boardLoginPollTimer);
-      boardLoginPollTimer = null;
-    }
-    if (boardLoginStorageHandler) {
-      window.removeEventListener("storage", boardLoginStorageHandler);
-      boardLoginStorageHandler = null;
-    }
-    if (closePopup && boardLoginPopup && !boardLoginPopup.closed) {
-      try {
-        boardLoginPopup.close();
-      } catch (_error) {
-        // 브라우저가 창 제어를 제한하면 그대로 둔다.
-      }
-    }
-    boardLoginPopup = null;
-    if (clearPendingAction) pendingBoardLoginAction = null;
-  }
-
-  function completeBoardLoginIfReady() {
-    if (!Api.getToken()) return false;
-    const action = pendingBoardLoginAction;
-    pendingBoardLoginAction = null;
-    stopBoardLoginWatch({ closePopup: true });
-    if (typeof action === "function") window.setTimeout(action, 0);
-    return true;
+  function ensureBoardAuthPopupController() {
+    if (boardAuthPopupController) return boardAuthPopupController;
+    boardAuthPopupController = createAuthPopupController({
+      popupName: "fooduck-board-list-login",
+      onAuthenticated: () => {
+        const action = pendingBoardLoginAction;
+        pendingBoardLoginAction = null;
+        if (typeof action === "function") window.setTimeout(action, 0);
+      },
+      onClosed: () => {
+        pendingBoardLoginAction = null;
+      },
+      onBlocked: ({ loginUrl }) => {
+        pendingBoardLoginAction = null;
+        // 팝업이 막힌 환경에서는 현재 창의 일반 로그인 화면으로 이어간다.
+        window.location.assign(loginUrl);
+      },
+    });
+    return boardAuthPopupController;
   }
 
   function openBoardLogin({ nextPath = listUrlFromState(), onSuccess = null } = {}) {
-    stopBoardLoginWatch({ closePopup: true, clearPendingAction: true });
     pendingBoardLoginAction = typeof onSuccess === "function" ? onSuccess : null;
-    const loginUrl = `/pages/auth/login.html?next=${encodeURIComponent(nextPath)}`;
-    const popup = window.open(
-      loginUrl,
-      "fooduck-board-list-login",
-      "popup=yes,width=520,height=760,resizable=yes,scrollbars=yes",
-    );
-    if (!popup) {
-      pendingBoardLoginAction = null;
-      window.alert("로그인 창을 열 수 없습니다. 이 사이트의 팝업을 허용한 뒤 다시 시도해 주세요.");
-      return false;
-    }
-    boardLoginPopup = popup;
-    boardLoginStorageHandler = (event) => {
-      if (event.key === "accessToken" && event.newValue) completeBoardLoginIfReady();
-    };
-    window.addEventListener("storage", boardLoginStorageHandler);
-    boardLoginPollTimer = window.setInterval(() => {
-      if (completeBoardLoginIfReady()) return;
-      if (boardLoginPopup?.closed) stopBoardLoginWatch({ clearPendingAction: true });
-    }, 300);
-    popup.focus();
-    return true;
+    return ensureBoardAuthPopupController().open({ nextPath });
   }
 
   function initializeBoardAuthEntryPoints() {
@@ -406,7 +414,10 @@
     state.page = page;
     syncListUrl("push");
     loadPosts();
-    document.querySelector(".board-content")?.scrollIntoView({ behavior: "smooth" });
+    document.querySelector(".board-content")?.scrollIntoView({
+      behavior: prefersReducedMotion() ? "auto" : "smooth",
+      block: "start",
+    });
   }
 
   function normalizePostPage(data) {
@@ -484,7 +495,11 @@
       renderPosts(pageData);
     } catch (error) {
       if (generation !== postRequestGeneration) return;
-      if (!cached) renderListError(error);
+      if (!cached || !canUseCacheAfterError(error)) {
+        renderListError(error);
+      } else {
+        renderCachedContentNotice();
+      }
     }
   }
 
@@ -542,7 +557,7 @@
       renderBestPosts(posts);
     } catch (error) {
       if (generation !== bestRequestGeneration) return;
-      if (!cached) {
+      if (!cached || !canUseCacheAfterError(error)) {
         bestPostList.replaceChildren(
           element("li", "best-loading", error.message || "불러오지 못했습니다."),
         );
@@ -621,7 +636,7 @@
       renderUnansweredPosts(posts);
     } catch (error) {
       if (generation !== unansweredRequestGeneration) return;
-      if (!cached) {
+      if (!cached || !canUseCacheAfterError(error)) {
         unansweredPostList.replaceChildren(
           element("li", "best-loading", error.message || "불러오지 못했습니다."),
         );
@@ -671,6 +686,7 @@
       const active = tab.dataset.boardType === state.boardType;
       tab.classList.toggle("is-active", active);
       tab.setAttribute("aria-selected", String(active));
+      tab.tabIndex = active ? 0 : -1;
     });
     boardHeading.textContent = isBest
       ? "베스트 커뮤니티"
@@ -690,6 +706,7 @@
   function switchBoard(boardType) {
     if (!["GENERAL", "BUSINESS", "BEST", "POPULAR"].includes(boardType)) return;
     if (boardType === "BUSINESS" && !businessAccessAllowed) return;
+    if (boardType === state.boardType) return;
     state.boardType = boardType;
     if (["GENERAL", "BUSINESS"].includes(boardType)) {
       state.lastBoardType = boardType;
@@ -699,8 +716,29 @@
     loadBoardContent();
   }
 
-  document.querySelectorAll("[data-board-type]").forEach((tab) => {
+  const boardTabs = Array.from(document.querySelectorAll("[data-board-type]"));
+  boardTabs.forEach((tab) => {
     tab.addEventListener("click", () => switchBoard(tab.dataset.boardType));
+    tab.addEventListener("keydown", (event) => {
+      if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+      const visibleTabs = boardTabs.filter((candidate) => !candidate.hidden);
+      const currentIndex = visibleTabs.indexOf(tab);
+      if (currentIndex < 0 || !visibleTabs.length) return;
+
+      event.preventDefault();
+      let nextIndex = currentIndex;
+      if (event.key === "Home") nextIndex = 0;
+      if (event.key === "End") nextIndex = visibleTabs.length - 1;
+      if (event.key === "ArrowLeft") {
+        nextIndex = (currentIndex - 1 + visibleTabs.length) % visibleTabs.length;
+      }
+      if (event.key === "ArrowRight") {
+        nextIndex = (currentIndex + 1) % visibleTabs.length;
+      }
+
+      const nextTab = visibleTabs[nextIndex];
+      nextTab.focus({ preventScroll: true });
+    });
   });
 
   searchForm.addEventListener("submit", (event) => {
@@ -764,10 +802,9 @@
     }, { passive: true });
 
     button.addEventListener("click", () => {
-      const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
       window.scrollTo({
         top: 0,
-        behavior: reduceMotion ? "auto" : "smooth",
+        behavior: prefersReducedMotion() ? "auto" : "smooth",
       });
     });
 
@@ -831,7 +868,13 @@
     if (event.persisted) loadBoardContent();
   });
 
+  window.addEventListener("pagehide", () => {
+    boardAuthPopupController?.stop({ closePopup: true });
+    pendingBoardLoginAction = null;
+  });
+
   initializeBoardAuthEntryPoints();
   initializeScrollTopButton();
+  consumeBoardFlashMessage();
   initializeBoard();
 })();

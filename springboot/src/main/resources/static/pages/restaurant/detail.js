@@ -9,6 +9,10 @@
   const source = params.get("source") === "public" ? "public" : "owned";
   const id = params.get("id");
   const requestedTab = params.get("tab");
+  const requestedNewsPageValue = Number.parseInt(params.get("newsPage"), 10);
+  const requestedNewsPage = Number.isInteger(requestedNewsPageValue) && requestedNewsPageValue >= 0
+    ? requestedNewsPageValue
+    : 0;
 
   if (!id) {
     showError("가게 정보를 찾을 수 없습니다.");
@@ -73,8 +77,18 @@
   let tabOrder = [];
   let storeId = null;
   let isOwner = false;
-  let newsPage = 0;
-  const NEWS_PAGE_SIZE = 10;
+  let newsPage = requestedTab === "news" ? requestedNewsPage : 0;
+  const NEWS_PAGE_SIZE = 4;
+  const NEWS_COMMENT_PAGE_SIZE = 5;
+  const NEWS_COMMENT_ALL_PAGE_SIZE = 100;
+  const NEWS_COMMENT_IMAGE_MAX_BYTES = 5 * 1024 * 1024;
+  const NEWS_COMMENT_IMAGE_TYPES = new Set([
+    "image/jpeg",
+    "image/png",
+    "image/gif",
+    "image/webp",
+  ]);
+  const NEWS_COMMENT_IMAGE_NAME_PATTERN = /\.(?:jpe?g|png|gif|webp)$/i;
   const NEWS_MAX_MEDIA_COUNT = 10;
   const NEWS_MAX_IMAGE_BYTES = 20 * 1024 * 1024;
   const NEWS_MAX_VIDEO_BYTES = 100 * 1024 * 1024;
@@ -89,9 +103,17 @@
   let newsSelectedMedia = [];
   let newsSelectedMediaSequence = 0;
   let newsMediaBusy = false;
+  let newsCreatedPostId = null;
+  let newsRequestGeneration = 0;
+  const newsCommentStates = new Map();
+  const newsCommentEditInFlight = new Set();
+  const newsCommentDeleteInFlight = new Set();
+  const newsMediaPollTimers = new Map();
   const session = window.FooduckSession || {};
-  const isLoggedIn = Boolean(session.authenticated);
-  const isAdmin = Boolean(session.isAdmin);
+  let isLoggedIn = Boolean(session.authenticated);
+  let isAdmin = Boolean(session.isAdmin);
+  let newsCommentAuthPopupController = null;
+  let pendingNewsCommentLoginAction = null;
   let newsSummaryResizeTicking = false;
 
   window.addEventListener("resize", () => {
@@ -115,6 +137,7 @@
 
   function activateTab(key) {
     if (!tabOrder.includes(key)) return;
+    const previousTab = activeTab;
     activeTab = key;
     tabsEl.querySelectorAll("[data-tab]").forEach((button) => {
       button.classList.toggle("is-active", button.dataset.tab === key);
@@ -122,11 +145,15 @@
     Object.entries(panels).forEach(([panelKey, panel]) => {
       panel.hidden = panelKey !== key;
     });
+    if (previousTab === "news" && key !== "news") {
+      clearNewsMediaPolls();
+    }
     if (!loadedTabs.has(key)) {
       loadedTabs.add(key);
       loadTabContent(key);
     } else if (key === "news") {
       scheduleNewsSummaryTruncationCheck();
+      resumeNewsMediaPolling();
     }
   }
 
@@ -290,6 +317,7 @@
     const query = new URLSearchParams({
       postId: String(postId),
       from: "NEWS",
+      newsPage: String(newsPage),
     });
     return `/pages/board/${pageName}.html?${query.toString()}`;
   }
@@ -464,7 +492,7 @@
     return `
       <article class="detail-media-item store-news-media-item store-news-media-item--video">
         <div class="detail-media-video store-news-media-video">
-          <video src="${safeUrl}" controls preload="auto" aria-label="${name}"></video>
+          <video src="${safeUrl}" controls preload="metadata" aria-label="${name}"></video>
           <div class="detail-media-loading" role="status" aria-live="polite">
             <span class="material-symbols-rounded detail-media-loading__icon" aria-hidden="true">progress_activity</span>
             <span class="detail-media-loading__text">동영상을 불러오는 중...</span>
@@ -478,55 +506,83 @@
     `;
   }
 
-  function newsMediaHtml(mediaItems) {
-    if (!Array.isArray(mediaItems) || mediaItems.length === 0) return "";
+  function newsMediaKey(media, index) {
+    const id = media?.postMediaId ?? media?.mediaId ?? media?.id;
+    if (id != null) return `id-${String(id)}`;
+    return `index-${index}-${String(media?.originalName || "media")}`;
+  }
 
-    const readyImages = mediaItems.filter((media) =>
+  function newsReadyImages(mediaItems) {
+    return mediaItems.filter((media) =>
       newsMediaStatus(media) === "READY" &&
       String(media?.mediaType || "").toUpperCase() === "IMAGE" &&
       Boolean(newsMediaUrl(media))
     );
-    const secondaryItems = mediaItems.filter((media) => !readyImages.includes(media));
+  }
 
-    let imageGrid = "";
-    if (readyImages.length > 0) {
-      const countClass = readyImages.length === 1
-        ? "is-count-1"
-        : readyImages.length === 2
-          ? "is-count-2"
-          : readyImages.length === 3
-            ? "is-count-3"
-            : readyImages.length === 4
-              ? "is-count-4"
-              : "is-count-many";
-      imageGrid = `
-        <div class="store-news-media-images ${countClass}" aria-label="첨부 이미지 ${readyImages.length}장">
-          ${readyImages.map(newsReadyImageHtml).join("")}
-        </div>
-      `;
-    }
+  function newsImageGridHtml(readyImages) {
+    if (readyImages.length === 0) return "";
+    const countClass = readyImages.length === 1
+      ? "is-count-1"
+      : readyImages.length === 2
+        ? "is-count-2"
+        : readyImages.length === 3
+          ? "is-count-3"
+          : readyImages.length === 4
+            ? "is-count-4"
+            : "is-count-many";
+    return `
+      <div class="store-news-media-images ${countClass}" aria-label="첨부 이미지 ${readyImages.length}장">
+        ${readyImages.map(newsReadyImageHtml).join("")}
+      </div>
+    `;
+  }
 
-    const secondaryHtml = secondaryItems.map((media) => {
-      const status = newsMediaStatus(media);
-      if (status !== "READY") return newsMediaProcessingHtml(media, status);
-      return newsReadyVideoHtml(media);
-    }).join("");
+  function newsSecondaryMediaHtml(media) {
+    const status = newsMediaStatus(media);
+    if (status !== "READY") return newsMediaProcessingHtml(media, status);
+    return newsReadyVideoHtml(media);
+  }
 
-    return `${imageGrid}${secondaryHtml ? `<div class="store-news-media-secondary">${secondaryHtml}</div>` : ""}`;
+  function newsMediaSignature(media) {
+    const status = newsMediaStatus(media);
+    return [
+      status,
+      Math.round(Number(media?.processingProgress) || 0),
+      String(media?.processingMessage || ""),
+      String(media?.mediaType || ""),
+      newsMediaUrl(media),
+      Number(media?.fileSize) || 0,
+      String(media?.originalName || ""),
+    ].join("|");
+  }
+
+  function createNewsMediaNode(media, key) {
+    const template = document.createElement("template");
+    template.innerHTML = newsSecondaryMediaHtml(media).trim();
+    const node = template.content.firstElementChild;
+    if (!node) return null;
+    node.dataset.newsMediaKey = key;
+    node.dataset.newsMediaSignature = newsMediaSignature(media);
+    return node;
   }
 
   function bindNewsMediaRuntime(host) {
     window.FooduckIcons?.enhance(host);
     host.querySelectorAll("[data-news-image-viewer]").forEach((button) => {
+      if (button.dataset.newsViewerBound === "true") return;
       const image = button.querySelector("img");
       if (!image) return;
+      button.dataset.newsViewerBound = "true";
       button.addEventListener("click", () => openNewsImageViewer(image));
     });
 
     host.querySelectorAll(".store-news-media-video").forEach((frame) => {
+      if (frame.dataset.newsVideoBound === "true") return;
       const video = frame.querySelector("video");
       const loading = frame.querySelector(".detail-media-loading");
       if (!video || !loading) return;
+      frame.dataset.newsVideoBound = "true";
 
       const finishLoading = () => {
         loading.hidden = true;
@@ -562,6 +618,117 @@
       .find((node) => node.dataset.newsMediaPostId === target) || null;
   }
 
+  function clearNewsMediaPoll(postId) {
+    const key = String(postId ?? "");
+    const timer = newsMediaPollTimers.get(key);
+    if (timer != null) window.clearTimeout(timer);
+    newsMediaPollTimers.delete(key);
+  }
+
+  function clearNewsMediaPolls() {
+    newsMediaPollTimers.forEach((timer) => window.clearTimeout(timer));
+    newsMediaPollTimers.clear();
+  }
+
+  function canPollNewsMedia() {
+    return activeTab === "news" && !panels.news.hidden && document.visibilityState !== "hidden";
+  }
+
+  function scheduleNewsMediaPoll(postId, generation, attempt) {
+    clearNewsMediaPoll(postId);
+    if (!canPollNewsMedia() || attempt >= 120) return;
+    const key = String(postId);
+    const timer = window.setTimeout(() => {
+      newsMediaPollTimers.delete(key);
+      if (canPollNewsMedia()) void loadNewsMedia(postId, generation, attempt);
+    }, 2500);
+    newsMediaPollTimers.set(key, timer);
+  }
+
+  function updateNewsMediaHost(host, mediaItems) {
+    const readyImages = newsReadyImages(mediaItems);
+    const imageSignature = readyImages.map((media, index) => [
+      newsMediaKey(media, index),
+      newsMediaUrl(media),
+    ].join(":" )).join("|");
+    let imageGrid = host.querySelector(":scope > .store-news-media-images");
+    if (host.dataset.newsImageSignature !== imageSignature) {
+      const html = newsImageGridHtml(readyImages).trim();
+      if (html) {
+        const template = document.createElement("template");
+        template.innerHTML = html;
+        const nextGrid = template.content.firstElementChild;
+        if (imageGrid) imageGrid.replaceWith(nextGrid);
+        else host.prepend(nextGrid);
+        imageGrid = nextGrid;
+        bindNewsMediaRuntime(nextGrid);
+      } else if (imageGrid) {
+        imageGrid.remove();
+        imageGrid = null;
+      }
+      host.dataset.newsImageSignature = imageSignature;
+    }
+
+    const readyImageSet = new Set(readyImages);
+    const secondaryItems = mediaItems
+      .map((media, index) => ({ media, index }))
+      .filter(({ media }) => !readyImageSet.has(media));
+    let secondary = host.querySelector(":scope > .store-news-media-secondary");
+    if (secondaryItems.length > 0 && !secondary) {
+      secondary = document.createElement("div");
+      secondary.className = "store-news-media-secondary";
+      host.append(secondary);
+    }
+
+    if (secondary) {
+      const expectedKeys = new Set();
+      secondaryItems.forEach(({ media, index }) => {
+        const key = newsMediaKey(media, index);
+        expectedKeys.add(key);
+        const signature = newsMediaSignature(media);
+        const existing = [...secondary.children]
+          .find((node) => node.dataset.newsMediaKey === key) || null;
+        if (existing?.dataset.newsMediaSignature === signature) return;
+
+        const nextNode = createNewsMediaNode(media, key);
+        if (!nextNode) return;
+        if (existing) existing.replaceWith(nextNode);
+        else secondary.append(nextNode);
+        bindNewsMediaRuntime(nextNode);
+      });
+      [...secondary.children].forEach((node) => {
+        if (!expectedKeys.has(node.dataset.newsMediaKey || "")) node.remove();
+      });
+      if (secondary.childElementCount === 0) {
+        secondary.remove();
+        secondary = null;
+      }
+    }
+
+    host.hidden = !(imageGrid || secondary);
+  }
+
+  function renderNewsMediaError(host, postId) {
+    host.hidden = false;
+    host.querySelector(".store-news-media-load-error")?.remove();
+    const errorView = document.createElement("div");
+    errorView.className = "store-news-media-load-error";
+    errorView.setAttribute("role", "status");
+    errorView.innerHTML = `
+      <span>첨부파일을 불러오지 못했습니다.</span>
+      <button type="button" class="button button-secondary button-sm"
+              data-news-media-retry="${escapeHtml(postId)}">다시 시도</button>
+    `;
+    host.append(errorView);
+    errorView.querySelector("[data-news-media-retry]")?.addEventListener("click", () => {
+      errorView.remove();
+      if (host.childElementCount === 0) {
+        host.innerHTML = '<div class="store-news-media-loading">첨부파일을 불러오는 중입니다.</div>';
+      }
+      void loadNewsMedia(postId, newsMediaGeneration, 0);
+    });
+  }
+
   let newsMediaGeneration = 0;
 
   async function loadNewsMedia(postId, generation, attempt = 0) {
@@ -576,29 +743,1380 @@
       );
       if (generation !== newsMediaGeneration) return;
       const mediaItems = Array.isArray(response.data) ? response.data : [];
-      const html = newsMediaHtml(mediaItems);
-      host.innerHTML = html;
-      host.hidden = !html;
-      if (html) bindNewsMediaRuntime(host);
+      host.querySelector(".store-news-media-loading")?.remove();
+      host.querySelector(".store-news-media-load-error")?.remove();
+      updateNewsMediaHost(host, mediaItems);
 
       const processing = mediaItems.some((media) => {
         const status = newsMediaStatus(media);
         return status === "QUEUED" || status === "PROCESSING";
       });
-      if (processing && attempt < 120) {
-        window.setTimeout(() => loadNewsMedia(postId, generation, attempt + 1), 2500);
-      }
+      host.dataset.newsMediaProcessing = String(processing);
+      if (processing) scheduleNewsMediaPoll(postId, generation, attempt + 1);
+      else clearNewsMediaPoll(postId);
     } catch (_error) {
-      host.hidden = true;
+      if (generation !== newsMediaGeneration) return;
+      clearNewsMediaPoll(postId);
+      renderNewsMediaError(host, postId);
     }
   }
 
   function bindNewsMedia(items) {
     const generation = newsMediaGeneration;
     items.forEach((news) => {
-      if (news?.postId != null) {
-        void loadNewsMedia(news.postId, generation);
+      if (news?.postId != null) void loadNewsMedia(news.postId, generation);
+    });
+  }
+
+  function resumeNewsMediaPolling() {
+    if (!canPollNewsMedia()) return;
+    const generation = newsMediaGeneration;
+    panels.news.querySelectorAll('[data-news-media-processing="true"]').forEach((host) => {
+      const postId = host.dataset.newsMediaPostId;
+      if (postId) void loadNewsMedia(postId, generation, 0);
+    });
+  }
+
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "hidden") {
+      clearNewsMediaPolls();
+    } else if (activeTab === "news") {
+      resumeNewsMediaPolling();
+    }
+  });
+
+  function newsRestaurantReturnPath() {
+    const url = new URL(window.location.href);
+    url.searchParams.set("tab", "news");
+    url.searchParams.set("newsPage", String(newsPage));
+    return `${url.pathname}${url.search}`;
+  }
+
+  function getNewsCommentState(postId) {
+    const key = String(postId);
+    let state = newsCommentStates.get(key);
+    if (!state) {
+      state = {
+        postId: key,
+        open: false,
+        loaded: false,
+        loading: false,
+        page: 0,
+        totalPages: 0,
+        totalCount: null,
+        pageData: null,
+        allLoaded: false,
+        allComments: null,
+        allLoading: false,
+        imageRetry: null,
+        generation: 0,
+        expandedReplyIds: new Set(),
+        cacheNotice: "",
+        errorMessage: "",
+      };
+      newsCommentStates.set(key, state);
+    }
+    return state;
+  }
+
+  function seedNewsCommentCount(news) {
+    if (news?.postId == null) return null;
+    const state = getNewsCommentState(news.postId);
+    const listCount = Number(news.commentCount);
+    if (!state.loaded && Number.isFinite(listCount)) {
+      state.totalCount = Math.max(0, listCount);
+    }
+    return state;
+  }
+
+  function newsCommentsToggleHtml(news) {
+    if (news?.postId == null) return "";
+    const postId = String(news.postId);
+    const state = seedNewsCommentCount(news);
+    const label = state?.open
+      ? "댓글 닫기"
+      : state?.totalCount != null
+        ? `댓글 ${Math.max(0, Number(state.totalCount) || 0)}개 보기`
+        : "댓글 보기";
+    return `
+      <button type="button" class="button button-sm button-secondary store-news-comments-toggle"
+              data-news-comments-toggle="${escapeHtml(postId)}"
+              aria-controls="store-news-comments-${escapeHtml(postId)}"
+              aria-expanded="${state?.open === true}">${label}</button>
+    `;
+  }
+
+  function newsCommentsPanelHtml(news) {
+    if (news?.postId == null) return "";
+    const postId = String(news.postId);
+    const state = newsCommentStates.get(postId);
+    return `
+      <section class="store-news-comments-panel" id="store-news-comments-${escapeHtml(postId)}"
+               data-news-comments-post-id="${escapeHtml(postId)}"${state?.open === true ? "" : " hidden"}>
+        <div class="store-news-comments-body" data-news-comments-body="${escapeHtml(postId)}"></div>
+      </section>
+    `;
+  }
+
+  function newsCommentElement(tagName, className = "", text = "") {
+    const node = document.createElement(tagName);
+    if (className) node.className = className;
+    if (text !== "") node.textContent = text;
+    return node;
+  }
+
+  function syncNewsCommentToggle(postId) {
+    const state = newsCommentStates.get(String(postId));
+    const button = panels.news.querySelector(`[data-news-comments-toggle="${CSS.escape(String(postId))}"]`);
+    if (!button || !state) return;
+    button.setAttribute("aria-expanded", String(state.open));
+    button.textContent = state.open
+      ? "댓글 닫기"
+      : state.totalCount != null
+        ? `댓글 ${Math.max(0, Number(state.totalCount) || 0)}개 보기`
+        : "댓글 보기";
+  }
+
+  let newsCommentToast = null;
+
+  function showNewsCommentToast(message, isError = false) {
+    if (!message) return;
+    if (!newsCommentToast) {
+      newsCommentToast = document.createElement("div");
+      newsCommentToast.className = "board-toast";
+      newsCommentToast.setAttribute("role", "status");
+      newsCommentToast.setAttribute("aria-live", "polite");
+      newsCommentToast.hidden = true;
+      document.body.append(newsCommentToast);
+    }
+    if (typeof window.FooduckBoard?.showToast === "function") {
+      window.FooduckBoard.showToast(newsCommentToast, message, isError);
+    } else {
+      window.alert(message);
+    }
+  }
+
+  function decodeNewsAccessToken(token) {
+    try {
+      const encoded = String(token || "").split(".")[1];
+      if (!encoded) return null;
+      const normalized = encoded.replace(/-/g, "+").replace(/_/g, "/");
+      const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, "=");
+      const binary = window.atob(padded);
+      const bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0));
+      return JSON.parse(new TextDecoder().decode(bytes));
+    } catch (_error) {
+      return null;
+    }
+  }
+
+  function markNewsCommentAuthenticated() {
+    const token = Api.getToken();
+    if (!token) return false;
+    const payload = decodeNewsAccessToken(token) || {};
+    isLoggedIn = true;
+    try {
+      session.authenticated = true;
+      session.loginId = payload.loginId || session.loginId || null;
+      const authorities = Array.isArray(payload.authorities) ? payload.authorities : [];
+      isAdmin = authorities.includes("ROLE_ADMIN") || Boolean(session.isAdmin);
+      session.isAdmin = isAdmin;
+    } catch (_error) {
+      // 공통 세션 객체를 직접 갱신할 수 없는 경우에도 현재 댓글 작성은 계속한다.
+    }
+    return true;
+  }
+
+  function ensureNewsCommentAuthPopupController() {
+    if (newsCommentAuthPopupController) return newsCommentAuthPopupController;
+    const createController = window.FooduckBoard?.createAuthPopupController;
+    if (typeof createController !== "function") return null;
+    newsCommentAuthPopupController = createController({
+      popupName: "fooduck-store-news-comment-login",
+      onAuthenticated: () => {
+        markNewsCommentAuthenticated();
+        const action = pendingNewsCommentLoginAction;
+        pendingNewsCommentLoginAction = null;
+        showNewsCommentToast("로그인되었습니다. 댓글 작성을 이어갑니다.");
+        if (typeof action === "function") window.setTimeout(action, 0);
+      },
+      onClosed: () => {
+        pendingNewsCommentLoginAction = null;
+        showNewsCommentToast("로그인이 취소되었습니다.", true);
+      },
+      onBlocked: ({ loginUrl }) => {
+        const confirmed = !hasNewsInlineCommentDraft() || window.confirm(
+          "로그인 팝업이 차단되었습니다. 현재 화면에서 로그인하면 작성 중인 댓글·답글과 첨부한 사진은 저장되지 않습니다. 로그인 화면으로 이동하시겠습니까?",
+        );
+        if (!confirmed) {
+          pendingNewsCommentLoginAction = null;
+          showNewsCommentToast("팝업을 허용한 뒤 다시 로그인해 주세요.", true);
+          return;
+        }
+        window.location.assign(loginUrl);
+      },
+    });
+    return newsCommentAuthPopupController;
+  }
+
+  function openNewsCommentLogin(onSuccess = null) {
+    if (markNewsCommentAuthenticated()) {
+      if (typeof onSuccess === "function") window.setTimeout(onSuccess, 0);
+      return true;
+    }
+    pendingNewsCommentLoginAction = typeof onSuccess === "function" ? onSuccess : null;
+    const controller = ensureNewsCommentAuthPopupController();
+    if (controller) {
+      controller.open({ nextPath: newsRestaurantReturnPath() });
+      return false;
+    }
+    window.FooduckBoard?.requireLogin?.(newsRestaurantReturnPath());
+    return false;
+  }
+
+  function isNewsCommentSubmitEnter(event) {
+    return (
+      event.key === "Enter" &&
+      !event.shiftKey &&
+      !event.isComposing &&
+      event.keyCode !== 229
+    );
+  }
+
+  function updateNewsCommentCharacterCount(target, counter) {
+    if (!target || !counter) return;
+    const maxLength = Number(target.maxLength) > 0 ? Number(target.maxLength) : 1000;
+    const length = target.value.length;
+    counter.textContent = `${length} / ${maxLength}`;
+    counter.classList.toggle("is-near-limit", length >= Math.floor(maxLength * 0.8));
+  }
+
+  function validateNewsCommentImage(file) {
+    if (!file) return null;
+    if (file.size < 1) return "비어 있는 사진은 첨부할 수 없습니다.";
+    if (file.size > NEWS_COMMENT_IMAGE_MAX_BYTES) {
+      return "댓글 사진은 5MB 이하만 첨부할 수 있습니다.";
+    }
+    if (!NEWS_COMMENT_IMAGE_NAME_PATTERN.test(file.name || "") ||
+        (file.type && !NEWS_COMMENT_IMAGE_TYPES.has(file.type))) {
+      return "댓글에는 JPG, PNG, WEBP, GIF 사진만 첨부할 수 있습니다.";
+    }
+    return null;
+  }
+
+  async function uploadNewsCommentImage(commentId, file) {
+    const headers = {
+      Accept: "application/json",
+      "Content-Type": file.type || "application/octet-stream",
+      "X-File-Name": encodeURIComponent(file.name || "comment-image"),
+    };
+    const token = Api.getToken();
+    if (token) headers.Authorization = `Bearer ${token}`;
+
+    const response = await fetch(
+      `/api/board/comments/${encodeURIComponent(commentId)}/image`,
+      {
+        method: "POST",
+        headers,
+        body: file,
+        credentials: "same-origin",
+      },
+    );
+    const responseType = response.headers.get("content-type") || "";
+    const payload = responseType.includes("application/json")
+      ? await response.json()
+      : await response.text();
+
+    if (!response.ok) {
+      if (response.status === 401) Api.clearToken();
+      const message = typeof payload === "object" && payload
+        ? payload.message
+        : `댓글 사진 업로드에 실패했습니다. (${response.status})`;
+      throw new Error(message || "댓글 사진 업로드에 실패했습니다.");
+    }
+    return payload;
+  }
+
+  function newsInlineCommentDrafts(scope = panels.news) {
+    return [...scope.querySelectorAll("textarea[data-news-comment-draft]")].filter((textarea) => {
+      const initial = String(textarea.dataset.initialValue || "").trim();
+      return textarea.value.trim() !== initial;
+    });
+  }
+
+  function newsInlineCommentImageDraftForms(scope = panels.news) {
+    return [...scope.querySelectorAll('[data-news-comment-image-draft="true"]')];
+  }
+
+  function hasNewsInlineCommentDraft(scope = panels.news) {
+    return newsInlineCommentDrafts(scope).length > 0 ||
+      newsInlineCommentImageDraftForms(scope).length > 0;
+  }
+
+  function discardNewsInlineCommentDrafts(scope = panels.news, except = null) {
+    newsInlineCommentDrafts(scope).forEach((textarea) => {
+      if (textarea === except) return;
+      textarea.value = textarea.dataset.initialValue || "";
+      textarea.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    newsInlineCommentImageDraftForms(scope).forEach((form) => {
+      if (except && form.contains(except)) return;
+      if (typeof form._clearNewsCommentImage === "function") {
+        form._clearNewsCommentImage();
       }
+    });
+    scope.querySelectorAll(".store-news-comment-edit-form").forEach((form) => {
+      if (except && form.contains(except)) return;
+      closeNewsCommentEditor(form);
+    });
+  }
+
+  function confirmNewsInlineCommentDraftDiscard(scope, message = "작성 중인 댓글이나 답글이 있습니다. 작성 내용을 버리고 이동하시겠습니까?") {
+    if (!hasNewsInlineCommentDraft(scope)) return true;
+    return window.confirm(message);
+  }
+
+  function newsCommentPageButtons(state) {
+    const nav = newsCommentElement("nav", "comment-pagination");
+    nav.setAttribute("aria-label", "가게 소식 댓글 페이지");
+    if (state.totalPages <= 1) {
+      nav.hidden = true;
+      return nav;
+    }
+
+    const makeButton = (label, page, options = {}) => {
+      const button = newsCommentElement(
+        "button",
+        options.direction
+          ? "comment-page-button comment-page-button--direction"
+          : "comment-page-button",
+        label,
+      );
+      button.type = "button";
+      if (options.current) {
+        button.classList.add("is-current");
+        button.setAttribute("aria-current", "page");
+      }
+      if (options.label) button.setAttribute("aria-label", options.label);
+      button.disabled = Boolean(options.disabled || options.current || state.loading);
+      button.addEventListener("click", () => {
+        const panel = panels.news.querySelector(`[data-news-comments-post-id="${CSS.escape(state.postId)}"]`);
+        if (panel && !confirmNewsInlineCommentDraftDiscard(
+          panel,
+          "작성 중인 댓글이나 답글이 있습니다. 작성 내용을 버리고 댓글 페이지를 이동하시겠습니까?",
+        )) return;
+        void loadNewsComments(state.postId, page);
+      });
+      return button;
+    };
+
+    nav.append(makeButton("이전", state.page - 1, {
+      direction: true,
+      disabled: state.page <= 0,
+      label: "이전 댓글 페이지",
+    }));
+
+    const start = Math.max(0, Math.min(state.page - 2, state.totalPages - 5));
+    const end = Math.min(state.totalPages, start + 5);
+    for (let page = start; page < end; page += 1) {
+      nav.append(makeButton(String(page + 1), page, {
+        current: page === state.page,
+        label: `${page + 1}번째 댓글 페이지`,
+      }));
+    }
+
+    nav.append(makeButton("다음", state.page + 1, {
+      direction: true,
+      disabled: state.page >= state.totalPages - 1,
+      label: "다음 댓글 페이지",
+    }));
+    return nav;
+  }
+
+  function bindNewsCommentAuthor(host, comment) {
+    const board = window.FooduckBoard;
+    if (board?.authorIdentity && comment?.authorAccountId && comment?.authorNickname) {
+      host.replaceChildren(board.authorIdentity(comment, {
+        showNickname: true,
+        showAuthorMenu: true,
+        authorMenuContext: "NEWS",
+        authorActivityCueMode: "full",
+      }));
+      return;
+    }
+    host.textContent = comment?.authorNickname || comment?.authorLoginId || "작성자";
+  }
+
+  function newsCommentImageNode(comment) {
+    if (!comment?.hasImage || !comment?.imageUrl) return null;
+    const wrap = newsCommentElement("div", "comment-image-wrap");
+    const image = new Image();
+    image.className = "comment-image";
+    image.src = comment.imageUrl;
+    image.alt = comment.imageOriginalName || "댓글 첨부 사진";
+    image.loading = "lazy";
+    image.tabIndex = 0;
+    image.setAttribute("role", "button");
+    image.setAttribute(
+      "aria-label",
+      `${comment.imageOriginalName || "댓글 첨부 사진"} 크게 보기`,
+    );
+    image.addEventListener("click", () => {
+      openNewsImageViewer(image);
+    });
+    image.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter" && event.key !== " ") return;
+      event.preventDefault();
+      openNewsImageViewer(image);
+    });
+    image.addEventListener("error", () => {
+      wrap.replaceChildren(newsCommentElement("span", "comment-image-error", "사진을 불러오지 못했습니다."));
+    }, { once: true });
+    wrap.append(image);
+    return wrap;
+  }
+
+  function newsReplyTargetName(comment) {
+    const raw = comment?.authorNickname || comment?.authorLoginId || "작성자";
+    return String(raw).replace(/^@+/, "").trim() || "작성자";
+  }
+
+  function openNewsReplyComposer(postId, comment, mountTarget) {
+    if (!isLoggedIn) {
+      openNewsCommentLogin(() => openNewsReplyComposer(postId, comment, mountTarget));
+      return;
+    }
+    const panel = mountTarget.closest("[data-news-comments-post-id]");
+    if (!panel) return;
+    if (!confirmCloseNewsCommentEditor(panel)) return;
+    const mainDrafts = newsInlineCommentDrafts(panel).filter((textarea) => !textarea.closest(".store-news-comment-reply-form"));
+    const mainImageDrafts = newsInlineCommentImageDraftForms(panel).filter((form) => !form.classList.contains("store-news-comment-reply-form"));
+    if (mainDrafts.length > 0 || mainImageDrafts.length > 0) {
+      if (!window.confirm("작성 중인 댓글을 버리고 답글을 작성하시겠습니까?")) return;
+      mainDrafts.forEach((textarea) => {
+        textarea.value = textarea.dataset.initialValue || "";
+        textarea.dispatchEvent(new Event("input", { bubbles: true }));
+      });
+      mainImageDrafts.forEach((form) => form._clearNewsCommentImage?.());
+    }
+    const existing = panel.querySelector(".store-news-comment-reply-form");
+    if (existing) {
+      if (!confirmNewsInlineCommentDraftDiscard(
+        existing,
+        "작성 중인 답글을 버리고 다른 답글을 작성하시겠습니까?",
+      )) return;
+      existing._clearNewsCommentImage?.();
+      existing.remove();
+    }
+
+    const targetName = newsReplyTargetName(comment);
+    const rootParentId = comment.parentCommentId || comment.commentId;
+    let selectedImage = null;
+    let previewUrl = null;
+
+    const form = newsCommentElement("form", "comment-reply-form store-news-comment-reply-form");
+    const target = newsCommentElement("div", "comment-reply-target", `@${targetName}님에게 답글 남기기`);
+    const textarea = document.createElement("textarea");
+    textarea.className = "comment-reply-textarea";
+    textarea.maxLength = 1000;
+    textarea.rows = 3;
+    textarea.value = `@${targetName} `;
+    textarea.dataset.newsCommentDraft = "true";
+    textarea.dataset.initialValue = textarea.value;
+    textarea.setAttribute("aria-label", `${targetName}님에게 답글`);
+
+    const inputMeta = newsCommentElement("div", "comment-input-meta comment-input-meta--compact");
+    inputMeta.append(newsCommentElement("span", "", "Enter로 등록 · Shift + Enter로 줄바꿈"));
+    const characterCount = newsCommentElement("span", "comment-character-count");
+    inputMeta.append(characterCount);
+    updateNewsCommentCharacterCount(textarea, characterCount);
+
+    const tools = newsCommentElement("div", "comment-image-tools");
+    const fileInput = document.createElement("input");
+    fileInput.type = "file";
+    fileInput.className = "sr-only";
+    fileInput.accept = ".jpg,.jpeg,.png,.gif,.webp,image/jpeg,image/png,image/gif,image/webp";
+    const imageButton = newsCommentElement("button", "comment-image-select", "사진 첨부");
+    imageButton.type = "button";
+    tools.append(fileInput, imageButton, newsCommentElement("span", "", "사진 1장 · 최대 5MB"));
+
+    const preview = newsCommentElement("div", "comment-image-preview");
+    preview.hidden = true;
+    const previewImage = new Image();
+    previewImage.alt = "답글 첨부 사진 미리보기";
+    const previewCopy = newsCommentElement("div", "comment-image-preview-copy");
+    const previewName = newsCommentElement("strong");
+    const previewSize = newsCommentElement("span");
+    previewCopy.append(previewName, previewSize);
+    const removeImage = newsCommentElement("button", "comment-image-remove", "선택 취소");
+    removeImage.type = "button";
+    preview.append(previewImage, previewCopy, removeImage);
+
+    const row = newsCommentElement("div", "comment-reply-submit-row");
+    const cancel = newsCommentElement("button", "comment-action", "취소");
+    cancel.type = "button";
+    const submit = newsCommentElement("button", "button button-sm button-primary", "답글 등록");
+    submit.type = "submit";
+    submit.disabled = true;
+    row.append(cancel, submit);
+
+    const hasBody = () => {
+      const value = textarea.value.trim();
+      return Boolean(value && value !== `@${targetName}`);
+    };
+    const sync = () => {
+      submit.disabled = !hasBody();
+      updateNewsCommentCharacterCount(textarea, characterCount);
+    };
+    const clearImage = () => {
+      selectedImage = null;
+      fileInput.value = "";
+      if (previewUrl) {
+        URL.revokeObjectURL(previewUrl);
+        previewUrl = null;
+      }
+      previewImage.removeAttribute("src");
+      previewName.textContent = "";
+      previewSize.textContent = "";
+      preview.hidden = true;
+      form.dataset.newsCommentImageDraft = "false";
+    };
+    form._clearNewsCommentImage = clearImage;
+
+    imageButton.addEventListener("click", () => fileInput.click());
+    fileInput.addEventListener("change", () => {
+      const file = fileInput.files?.[0] || null;
+      const error = validateNewsCommentImage(file);
+      if (error) {
+        showNewsCommentToast(error, true);
+        clearImage();
+        return;
+      }
+      clearImage();
+      if (!file) return;
+      selectedImage = file;
+      previewUrl = URL.createObjectURL(file);
+      previewImage.src = previewUrl;
+      previewImage.alt = `${file.name || "답글 첨부 사진"} 미리보기`;
+      previewName.textContent = file.name || "첨부 사진";
+      previewSize.textContent = newsFormatBytes(file.size);
+      preview.hidden = false;
+      form.dataset.newsCommentImageDraft = "true";
+    });
+    removeImage.addEventListener("click", clearImage);
+
+    textarea.addEventListener("input", sync);
+    textarea.addEventListener("keydown", (event) => {
+      if (!isNewsCommentSubmitEnter(event)) return;
+      event.preventDefault();
+      if (!submit.disabled) form.requestSubmit();
+    });
+    cancel.addEventListener("click", () => {
+      if (!confirmNewsInlineCommentDraftDiscard(form, "작성 중인 답글을 버리시겠습니까?")) return;
+      clearImage();
+      form.remove();
+    });
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      if (!hasBody()) return;
+      const otherDrafts = newsInlineCommentDrafts(panel).filter((candidate) => candidate !== textarea);
+      const otherImageDrafts = newsInlineCommentImageDraftForms(panel).filter((candidate) => candidate !== form);
+      if (otherDrafts.length > 0 || otherImageDrafts.length > 0) {
+        if (!window.confirm("작성 중인 다른 댓글을 버리고 이 답글을 등록하시겠습니까?")) return;
+        discardNewsInlineCommentDrafts(panel, textarea);
+      }
+
+      const imageFile = selectedImage;
+      submit.disabled = true;
+      textarea.disabled = true;
+      imageButton.disabled = true;
+      try {
+        const payload = await Api.post(`/board/posts/${encodeURIComponent(postId)}/comments`, {
+          content: textarea.value.trim(),
+          parentCommentId: rootParentId,
+        });
+        const createdCommentId = payload.data?.commentId;
+        let imageUploadError = null;
+        if (imageFile && createdCommentId) {
+          try {
+            await uploadNewsCommentImage(createdCommentId, imageFile);
+          } catch (error) {
+            imageUploadError = error;
+          }
+        }
+
+        window.FooduckBoard?.invalidateBoardCache?.();
+        clearImage();
+        const state = getNewsCommentState(postId);
+        state.expandedReplyIds.add(String(rootParentId));
+        if (imageUploadError && createdCommentId) {
+          state.imageRetry = {
+            commentId: createdCommentId,
+            file: imageFile,
+            label: "답글",
+            errorMessage: imageUploadError.message || "사진만 다시 올릴 수 있습니다.",
+          };
+          showNewsCommentToast(`답글은 등록됐지만 사진 업로드에 실패했습니다. ${state.imageRetry.errorMessage}`, true);
+        } else {
+          showNewsCommentToast(imageFile ? "답글과 사진이 등록되었습니다." : "답글이 등록되었습니다.");
+        }
+        if (state.allLoaded) await loadAllNewsComments(postId);
+        else await loadNewsComments(postId, state.page);
+      } catch (error) {
+        textarea.disabled = false;
+        submit.disabled = false;
+        imageButton.disabled = false;
+        const status = panel.querySelector("[data-news-comment-status]");
+        if (status) status.textContent = error.message || "답글 등록에 실패했습니다.";
+      }
+    });
+
+    form.append(target, textarea, inputMeta, tools, preview, row);
+    mountTarget.append(form);
+    textarea.focus();
+    textarea.setSelectionRange(textarea.value.length, textarea.value.length);
+  }
+
+  function closeNewsCommentEditor(form) {
+    if (!(form instanceof HTMLFormElement)) return;
+    const item = form.closest(".comment-item");
+    const content = item?.querySelector(":scope > .comment-content");
+    const actions = item?.querySelector(":scope > .comment-actions");
+    if (content) content.hidden = false;
+    if (actions) actions.hidden = false;
+    form.remove();
+  }
+
+  function newsCommentEditorHasDraft(form) {
+    if (!(form instanceof HTMLFormElement)) return false;
+    const textarea = form.querySelector(".comment-edit-textarea");
+    if (!(textarea instanceof HTMLTextAreaElement)) return false;
+    return textarea.value.trim() !== String(textarea.dataset.initialValue || "").trim();
+  }
+
+  function confirmCloseNewsCommentEditor(panel, nextCommentId = null) {
+    const form = panel?.querySelector(".store-news-comment-edit-form");
+    if (!(form instanceof HTMLFormElement)) return true;
+    const currentId = String(form.dataset.editCommentId || "");
+    if (nextCommentId != null && currentId === String(nextCommentId)) {
+      form.querySelector(".comment-edit-textarea")?.focus({ preventScroll: true });
+      return false;
+    }
+    if (newsCommentEditorHasDraft(form) && !window.confirm(
+      "수정 중인 댓글이 있습니다. 바꾼 내용을 버리고 계속하시겠습니까?",
+    )) return false;
+    closeNewsCommentEditor(form);
+    return true;
+  }
+
+  async function editNewsComment(postId, comment, item) {
+    const commentId = Number(comment?.commentId);
+    if (!Number.isFinite(commentId) || newsCommentEditInFlight.has(commentId)) return;
+    if (!(comment?.ownedByCurrentUser || isAdmin)) return;
+
+    const panel = item?.closest("[data-news-comments-post-id]");
+    if (!panel) return;
+    if (!confirmCloseNewsCommentEditor(panel, commentId)) return;
+
+    const otherDrafts = newsInlineCommentDrafts(panel);
+    const otherImageDrafts = newsInlineCommentImageDraftForms(panel);
+    if (otherDrafts.length > 0 || otherImageDrafts.length > 0) {
+      if (!window.confirm(
+        "작성 중인 댓글이나 답글이 있습니다. 작성 내용을 버리고 이 댓글을 수정하시겠습니까?",
+      )) return;
+      discardNewsInlineCommentDrafts(panel);
+    }
+
+    const contentNode = item.querySelector(":scope > .comment-content");
+    const actionsNode = item.querySelector(":scope > .comment-actions");
+    const dateNode = item.querySelector(":scope > .comment-top .comment-date");
+    if (!contentNode || !actionsNode) return;
+
+    const form = newsCommentElement("form", "comment-edit-form store-news-comment-edit-form");
+    form.dataset.editCommentId = String(commentId);
+
+    const textarea = document.createElement("textarea");
+    textarea.className = "comment-edit-textarea";
+    textarea.maxLength = 1000;
+    textarea.rows = 3;
+    textarea.value = comment.content || "";
+    textarea.dataset.newsCommentDraft = "true";
+    textarea.dataset.initialValue = textarea.value;
+    textarea.setAttribute("aria-label", "댓글 수정 내용");
+
+    const inputMeta = newsCommentElement("div", "comment-input-meta comment-input-meta--compact");
+    inputMeta.append(newsCommentElement("span", "", "Enter로 수정 · Shift + Enter로 줄바꿈"));
+    const characterCount = newsCommentElement("span", "comment-character-count");
+    inputMeta.append(characterCount);
+    updateNewsCommentCharacterCount(textarea, characterCount);
+
+    const actions = newsCommentElement("div", "comment-edit-actions");
+    const cancel = newsCommentElement("button", "button button-sm button-secondary", "취소");
+    cancel.type = "button";
+    const save = newsCommentElement("button", "button button-sm button-primary", "수정 완료");
+    save.type = "submit";
+    actions.append(cancel, save);
+    form.append(textarea, inputMeta, actions);
+
+    const sync = () => {
+      const content = textarea.value.trim();
+      const original = String(comment.content || "").trim();
+      save.disabled = !content || content === original || newsCommentEditInFlight.has(commentId);
+      updateNewsCommentCharacterCount(textarea, characterCount);
+    };
+
+    contentNode.hidden = true;
+    actionsNode.hidden = true;
+    contentNode.after(form);
+    sync();
+
+    form.addEventListener("click", (event) => event.stopPropagation());
+    textarea.addEventListener("input", sync);
+    cancel.addEventListener("click", () => {
+      if (newsCommentEditorHasDraft(form) && !window.confirm("수정 중인 내용을 버리시겠습니까?")) return;
+      closeNewsCommentEditor(form);
+    });
+    textarea.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        cancel.click();
+        return;
+      }
+      if (!isNewsCommentSubmitEnter(event)) return;
+      event.preventDefault();
+      if (!save.disabled) form.requestSubmit();
+    });
+
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const content = textarea.value.trim();
+      const original = String(comment.content || "").trim();
+      if (!content) {
+        showNewsCommentToast("댓글 내용을 입력해 주세요.", true);
+        return;
+      }
+      if (content === original) {
+        closeNewsCommentEditor(form);
+        return;
+      }
+      if (newsCommentEditInFlight.has(commentId)) return;
+
+      newsCommentEditInFlight.add(commentId);
+      save.disabled = true;
+      cancel.disabled = true;
+      textarea.disabled = true;
+      try {
+        const payload = await Api.put(`/board/comments/${encodeURIComponent(commentId)}`, { content });
+        window.FooduckBoard?.invalidateBoardCache?.();
+        const updated = payload.data || {};
+        Object.assign(comment, updated, {
+          content: updated.content ?? content,
+          edited: updated.edited ?? true,
+        });
+        contentNode.textContent = comment.content;
+        if (dateNode) {
+          dateNode.textContent = `${formatDate(comment.createdAt, { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })} · 수정됨`;
+        }
+        closeNewsCommentEditor(form);
+        showNewsCommentToast(payload.message || "댓글이 수정되었습니다.");
+      } catch (error) {
+        showNewsCommentToast(error.message || "댓글 수정에 실패했습니다.", true);
+        cancel.disabled = false;
+        textarea.disabled = false;
+      } finally {
+        newsCommentEditInFlight.delete(commentId);
+        if (form.isConnected) sync();
+      }
+    });
+
+    textarea.focus({ preventScroll: true });
+    textarea.setSelectionRange(textarea.value.length, textarea.value.length);
+  }
+
+  async function deleteNewsComment(postId, comment, hasReplies, button) {
+    const commentId = Number(comment?.commentId);
+    if (!Number.isFinite(commentId) || newsCommentDeleteInFlight.has(commentId)) return;
+    const panel = button.closest("[data-news-comments-post-id]");
+    if (panel && !confirmNewsInlineCommentDraftDiscard(
+      panel,
+      "작성 중인 댓글이나 답글이 있습니다. 작성 내용을 버리고 댓글을 삭제하시겠습니까?",
+    )) return;
+    const message = hasReplies
+      ? "이 댓글과 달린 답글을 함께 삭제하시겠습니까?"
+      : "이 댓글을 삭제하시겠습니까?";
+    if (!window.confirm(message)) return;
+
+    newsCommentDeleteInFlight.add(commentId);
+    button.disabled = true;
+    try {
+      await Api.delete(`/board/comments/${encodeURIComponent(commentId)}`);
+      window.FooduckBoard?.invalidateBoardCache?.();
+      const state = getNewsCommentState(postId);
+      if (state.allLoaded) await loadAllNewsComments(postId);
+      else await loadNewsComments(postId, state.page);
+    } catch (error) {
+      const panel = button.closest("[data-news-comments-post-id]");
+      const status = panel?.querySelector("[data-news-comment-status]");
+      if (status) status.textContent = error.message || "댓글 삭제에 실패했습니다.";
+    } finally {
+      newsCommentDeleteInFlight.delete(commentId);
+      if (button.isConnected) button.disabled = false;
+    }
+  }
+
+  function shouldIgnoreNewsCommentAreaReplyClick(event, item) {
+    const target = event.target;
+    if (!(target instanceof Element)) return true;
+
+    if (target.closest(
+      "button, a, input, textarea, select, label, [role='button'], .comment-actions, .comment-reply-form",
+    )) {
+      return true;
+    }
+
+    const selection = window.getSelection();
+    if (
+      selection &&
+      !selection.isCollapsed &&
+      selection.toString().trim() &&
+      selection.containsNode(item, true)
+    ) {
+      return true;
+    }
+
+    return false;
+  }
+
+  function renderNewsCommentItem(postId, comment, options = {}) {
+    const item = newsCommentElement(
+      "article",
+      options.isReply ? "comment-item comment-reply" : "comment-item",
+    );
+    item.id = `store-news-comment-${comment.commentId}`;
+
+    const top = newsCommentElement("div", "comment-top");
+    const author = newsCommentElement("span", "comment-author");
+    bindNewsCommentAuthor(author, comment);
+    const date = newsCommentElement(
+      "span",
+      "comment-date",
+      `${formatDate(comment.createdAt, { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })}${comment.edited ? " · 수정됨" : ""}`,
+    );
+    top.append(author, date);
+
+    const contentNode = newsCommentElement("p", "comment-content", comment.content || "");
+    item.append(top, contentNode);
+    const image = newsCommentImageNode(comment);
+    if (image) item.append(image);
+
+    const actions = newsCommentElement("div", "comment-actions");
+    const reply = newsCommentElement("button", "comment-action", "답글");
+    reply.type = "button";
+    reply.addEventListener("click", () => openNewsReplyComposer(postId, comment, item));
+    actions.append(reply);
+
+    if (comment.ownedByCurrentUser || isAdmin) {
+      const edit = newsCommentElement("button", "comment-action", "수정");
+      edit.type = "button";
+      edit.addEventListener("click", () => editNewsComment(postId, comment, item));
+      const remove = newsCommentElement("button", "comment-action", "삭제");
+      remove.type = "button";
+      remove.addEventListener("click", () => deleteNewsComment(postId, comment, Boolean(options.hasReplies), remove));
+      actions.append(edit, remove);
+    }
+    item.append(actions);
+    item.classList.add("comment-item--replyable");
+    item.addEventListener("click", (event) => {
+      if (item.querySelector(":scope > .store-news-comment-reply-form")) return;
+      if (shouldIgnoreNewsCommentAreaReplyClick(event, item)) return;
+      openNewsReplyComposer(postId, comment, item);
+    });
+    return item;
+  }
+
+  function appendNewsCommentThreads(postId, list, comments, state) {
+    const repliesByParent = new Map();
+    comments.forEach((comment) => {
+      if (!comment.parentCommentId) return;
+      const key = String(comment.parentCommentId);
+      const replies = repliesByParent.get(key) || [];
+      replies.push(comment);
+      repliesByParent.set(key, replies);
+    });
+
+    comments.filter((comment) => !comment.parentCommentId).forEach((comment) => {
+      const replies = repliesByParent.get(String(comment.commentId)) || [];
+      const thread = newsCommentElement("section", "comment-thread");
+      thread.append(renderNewsCommentItem(postId, comment, { hasReplies: replies.length > 0 }));
+      if (replies.length) {
+        const key = String(comment.commentId);
+        const expanded = state.expandedReplyIds.has(key);
+        const toggle = newsCommentElement(
+          "button",
+          "comment-replies-toggle",
+          expanded ? `답글 ${replies.length}개 숨기기` : `답글 ${replies.length}개 보기`,
+        );
+        toggle.type = "button";
+        toggle.setAttribute("aria-expanded", String(expanded));
+        const repliesHost = newsCommentElement("div", "comment-replies");
+        repliesHost.hidden = !expanded;
+        replies.forEach((reply) => {
+          repliesHost.append(renderNewsCommentItem(postId, reply, { isReply: true }));
+        });
+        toggle.addEventListener("click", () => {
+          const willExpand = repliesHost.hidden;
+          repliesHost.hidden = !willExpand;
+          toggle.setAttribute("aria-expanded", String(willExpand));
+          toggle.textContent = willExpand
+            ? `답글 ${replies.length}개 숨기기`
+            : `답글 ${replies.length}개 보기`;
+          if (willExpand) state.expandedReplyIds.add(key);
+          else state.expandedReplyIds.delete(key);
+        });
+        thread.append(toggle, repliesHost);
+      }
+      list.append(thread);
+    });
+  }
+
+  function renderNewsCommentImageRetry(postId, state) {
+    const retry = state.imageRetry;
+    if (!retry?.commentId || !retry?.file) return null;
+
+    const notice = newsCommentElement("div", "comment-upload-retry");
+    const copy = newsCommentElement("div", "comment-upload-retry__copy");
+    copy.append(
+      newsCommentElement("strong", "", `${retry.label || "댓글"}은 등록됐지만 사진을 올리지 못했습니다.`),
+      newsCommentElement("span", "", retry.errorMessage || "사진만 다시 올릴 수 있습니다."),
+    );
+    const actions = newsCommentElement("div", "comment-upload-retry__actions");
+    const retryButton = newsCommentElement("button", "button button-sm button-primary", "사진 다시 올리기");
+    const dismissButton = newsCommentElement("button", "button button-sm button-secondary", "닫기");
+    retryButton.type = "button";
+    dismissButton.type = "button";
+
+    retryButton.addEventListener("click", async () => {
+      retryButton.disabled = true;
+      dismissButton.disabled = true;
+      retryButton.textContent = "올리는 중";
+      try {
+        await uploadNewsCommentImage(retry.commentId, retry.file);
+        window.FooduckBoard?.invalidateBoardCache?.();
+        state.imageRetry = null;
+        showNewsCommentToast(`${retry.label || "댓글"} 사진이 등록되었습니다.`);
+        if (state.allLoaded) await loadAllNewsComments(postId);
+        else await loadNewsComments(postId, state.page);
+      } catch (error) {
+        retryButton.disabled = false;
+        dismissButton.disabled = false;
+        retryButton.textContent = "사진 다시 올리기";
+        const message = copy.querySelector("span");
+        if (message) message.textContent = error.message || "사진 업로드에 다시 실패했습니다.";
+      }
+    });
+    dismissButton.addEventListener("click", () => {
+      state.imageRetry = null;
+      notice.remove();
+    });
+    actions.append(retryButton, dismissButton);
+    notice.append(copy, actions);
+    return notice;
+  }
+
+  function renderNewsCommentForm(postId, state) {
+    let selectedImage = null;
+    let previewUrl = null;
+
+    const form = newsCommentElement("form", "comment-form comment-form--bottom store-news-comment-form");
+    const heading = newsCommentElement("div", "comment-form-heading");
+    heading.append(
+      newsCommentElement("strong", "", "댓글 작성"),
+      newsCommentElement("span", "", "이야기를 읽고 의견을 남겨 보세요."),
+    );
+
+    const label = newsCommentElement("label", "sr-only", "댓글 내용");
+    const textareaId = `store-news-comment-content-${postId}`;
+    label.htmlFor = textareaId;
+    const textarea = document.createElement("textarea");
+    textarea.id = textareaId;
+    textarea.maxLength = 1000;
+    textarea.rows = 4;
+    textarea.placeholder = "맛있는 이야기에 댓글을 남겨 보세요.";
+    textarea.dataset.newsCommentDraft = "true";
+    textarea.dataset.initialValue = "";
+
+    const inputMeta = newsCommentElement("div", "comment-input-meta");
+    inputMeta.append(newsCommentElement("span", "", "Enter로 등록 · Shift + Enter로 줄바꿈"));
+    const characterCount = newsCommentElement("span", "comment-character-count");
+    inputMeta.append(characterCount);
+    updateNewsCommentCharacterCount(textarea, characterCount);
+
+    const tools = newsCommentElement("div", "comment-image-tools");
+    const fileInput = document.createElement("input");
+    fileInput.type = "file";
+    fileInput.className = "sr-only";
+    fileInput.accept = ".jpg,.jpeg,.png,.gif,.webp,image/jpeg,image/png,image/gif,image/webp";
+    const imageButton = newsCommentElement("button", "comment-image-select", "사진 첨부");
+    imageButton.type = "button";
+    tools.append(fileInput, imageButton, newsCommentElement("span", "", "사진 1장 · 최대 5MB"));
+
+    const preview = newsCommentElement("div", "comment-image-preview");
+    preview.hidden = true;
+    const previewImage = new Image();
+    previewImage.alt = "댓글 첨부 사진 미리보기";
+    const previewCopy = newsCommentElement("div", "comment-image-preview-copy");
+    const previewName = newsCommentElement("strong");
+    const previewSize = newsCommentElement("span");
+    previewCopy.append(previewName, previewSize);
+    const removeImage = newsCommentElement("button", "comment-image-remove", "선택 취소");
+    removeImage.type = "button";
+    preview.append(previewImage, previewCopy, removeImage);
+
+    const submitRow = newsCommentElement("div", "comment-submit-row");
+    const loginNote = newsCommentElement(
+      "p",
+      "",
+      isLoggedIn
+        ? `@${session.loginId || "소셜 계정"}으로 작성합니다.`
+        : "댓글 등록 시 로그인 화면으로 이동합니다.",
+    );
+    const submit = newsCommentElement("button", "button button-sm button-primary", "댓글 등록");
+    submit.type = "submit";
+    submitRow.append(loginNote, submit);
+
+    const clearImage = () => {
+      selectedImage = null;
+      fileInput.value = "";
+      if (previewUrl) {
+        URL.revokeObjectURL(previewUrl);
+        previewUrl = null;
+      }
+      previewImage.removeAttribute("src");
+      previewName.textContent = "";
+      previewSize.textContent = "";
+      preview.hidden = true;
+      form.dataset.newsCommentImageDraft = "false";
+    };
+    form._clearNewsCommentImage = clearImage;
+
+    imageButton.addEventListener("click", () => fileInput.click());
+    fileInput.addEventListener("change", () => {
+      const file = fileInput.files?.[0] || null;
+      const error = validateNewsCommentImage(file);
+      if (error) {
+        showNewsCommentToast(error, true);
+        clearImage();
+        return;
+      }
+      clearImage();
+      if (!file) return;
+      selectedImage = file;
+      previewUrl = URL.createObjectURL(file);
+      previewImage.src = previewUrl;
+      previewImage.alt = `${file.name || "댓글 첨부 사진"} 미리보기`;
+      previewName.textContent = file.name || "첨부 사진";
+      previewSize.textContent = newsFormatBytes(file.size);
+      preview.hidden = false;
+      form.dataset.newsCommentImageDraft = "true";
+    });
+    removeImage.addEventListener("click", clearImage);
+
+    const syncSubmit = () => {
+      updateNewsCommentCharacterCount(textarea, characterCount);
+    };
+    textarea.addEventListener("input", syncSubmit);
+    textarea.addEventListener("keydown", (event) => {
+      if (!isNewsCommentSubmitEnter(event)) return;
+      event.preventDefault();
+      if (textarea.value.trim()) form.requestSubmit();
+    });
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const value = textarea.value.trim();
+      if (!value) {
+        showNewsCommentToast("댓글 내용을 입력해 주세요.", true);
+        return;
+      }
+      if (!isLoggedIn) {
+        openNewsCommentLogin(() => form.requestSubmit());
+        return;
+      }
+
+      const panel = form.closest("[data-news-comments-post-id]");
+      const otherDrafts = panel
+        ? newsInlineCommentDrafts(panel).filter((candidate) => candidate !== textarea)
+        : [];
+      const otherImageDrafts = panel
+        ? newsInlineCommentImageDraftForms(panel).filter((candidate) => candidate !== form)
+        : [];
+      if (otherDrafts.length > 0 || otherImageDrafts.length > 0) {
+        if (!window.confirm("작성 중인 답글을 버리고 이 댓글을 등록하시겠습니까?")) return;
+        discardNewsInlineCommentDrafts(panel, textarea);
+      }
+
+      const imageFile = selectedImage;
+      textarea.disabled = true;
+      submit.disabled = true;
+      imageButton.disabled = true;
+      try {
+        const payload = await Api.post(`/board/posts/${encodeURIComponent(postId)}/comments`, { content: value });
+        const createdCommentId = payload.data?.commentId;
+        let imageUploadError = null;
+        if (imageFile && createdCommentId) {
+          try {
+            await uploadNewsCommentImage(createdCommentId, imageFile);
+          } catch (error) {
+            imageUploadError = error;
+          }
+        }
+
+        window.FooduckBoard?.invalidateBoardCache?.();
+        textarea.value = "";
+        clearImage();
+        updateNewsCommentCharacterCount(textarea, characterCount);
+        if (imageUploadError && createdCommentId) {
+          state.imageRetry = {
+            commentId: createdCommentId,
+            file: imageFile,
+            label: "댓글",
+            errorMessage: imageUploadError.message || "사진만 다시 올릴 수 있습니다.",
+          };
+          showNewsCommentToast(`댓글은 등록됐지만 사진 업로드에 실패했습니다. ${state.imageRetry.errorMessage}`, true);
+        } else {
+          showNewsCommentToast(imageFile ? "댓글과 사진이 등록되었습니다." : (payload.message || "댓글이 등록되었습니다."));
+        }
+        if (state.allLoaded) {
+          await loadAllNewsComments(postId);
+        } else {
+          const rootCount = Math.max(0, Number(state.pageData?.totalElements) || 0);
+          const targetPage = Math.floor(rootCount / NEWS_COMMENT_PAGE_SIZE);
+          await loadNewsComments(postId, targetPage);
+        }
+      } catch (error) {
+        textarea.disabled = false;
+        submit.disabled = false;
+        imageButton.disabled = false;
+        const panel = form.closest("[data-news-comments-post-id]");
+        const status = panel?.querySelector("[data-news-comment-status]");
+        if (status) status.textContent = error.message || "댓글 등록에 실패했습니다.";
+      }
+    });
+
+    form.append(heading, label, textarea, inputMeta, tools, preview, submitRow);
+    return form;
+  }
+
+  function renderNewsComments(postId) {
+    const state = newsCommentStates.get(String(postId));
+    const body = panels.news.querySelector(`[data-news-comments-body="${CSS.escape(String(postId))}"]`);
+    if (!state || !body) return;
+    body.replaceChildren();
+
+    if (state.loading && !state.loaded) {
+      body.append(newsCommentElement("p", "store-news-comment-loading", "댓글을 불러오는 중입니다."));
+      return;
+    }
+
+    if (!state.loaded || !state.pageData) {
+      if (state.errorMessage) {
+        const error = newsCommentElement("div", "store-news-comment-load-error");
+        error.append(newsCommentElement("span", "", state.errorMessage));
+        const retry = newsCommentElement("button", "button button-secondary button-sm", "다시 시도");
+        retry.type = "button";
+        retry.addEventListener("click", () => loadNewsComments(postId, state.page || 0));
+        error.append(retry);
+        body.append(error);
+      } else {
+        body.append(newsCommentElement("p", "store-news-comment-loading", "댓글 보기를 눌러 댓글을 불러올 수 있습니다."));
+      }
+      return;
+    }
+
+    const header = newsCommentElement("div", "store-news-comments-heading");
+    header.append(newsCommentElement("strong", "", `댓글 ${Math.max(0, Number(state.totalCount) || 0)}개`));
+    if (!state.allLoaded && state.totalPages > 1) {
+      const loadAll = newsCommentElement(
+        "button",
+        "store-news-comments-detail-link",
+        state.allLoading ? "불러오는 중..." : "전체 댓글 불러오기",
+      );
+      loadAll.type = "button";
+      loadAll.disabled = state.allLoading || state.loading;
+      loadAll.addEventListener("click", () => {
+        const panel = loadAll.closest("[data-news-comments-post-id]");
+        if (panel && !confirmNewsInlineCommentDraftDiscard(
+          panel,
+          "작성 중인 댓글이나 답글이 있습니다. 작성 내용을 버리고 전체 댓글을 불러오시겠습니까?",
+        )) return;
+        void loadAllNewsComments(postId);
+      });
+      header.append(loadAll);
+    } else if (state.allLoaded && state.totalCount > NEWS_COMMENT_PAGE_SIZE) {
+      header.append(newsCommentElement("span", "store-news-comments-all-loaded", "전체 댓글을 불러왔습니다."));
+    }
+    body.append(header);
+
+    const status = newsCommentElement("p", "store-news-comment-status", state.cacheNotice || state.errorMessage || "");
+    status.dataset.newsCommentStatus = "true";
+    status.setAttribute("role", "status");
+    body.append(status);
+
+    const imageRetry = renderNewsCommentImageRetry(postId, state);
+    if (imageRetry) body.append(imageRetry);
+
+    const comments = state.allLoaded
+      ? (Array.isArray(state.allComments) ? state.allComments : [])
+      : (Array.isArray(state.pageData.content) ? state.pageData.content : []);
+    const list = newsCommentElement("div", "comment-list store-news-comment-list");
+    if (!comments.length) {
+      list.append(newsCommentElement("p", "comment-empty", "첫 댓글을 남겨 보세요."));
+    } else {
+      appendNewsCommentThreads(postId, list, comments, state);
+    }
+    body.append(list);
+    if (!state.allLoaded) body.append(newsCommentPageButtons(state));
+    body.append(renderNewsCommentForm(postId, state));
+  }
+
+  async function fetchNewsCommentPage(postId, page, size = NEWS_COMMENT_PAGE_SIZE) {
+    const normalizedPage = Math.max(0, Number(page) || 0);
+    const normalizedSize = Math.max(1, Math.min(NEWS_COMMENT_ALL_PAGE_SIZE, Number(size) || NEWS_COMMENT_PAGE_SIZE));
+    const path = `/board/posts/${encodeURIComponent(postId)}/comments?page=${normalizedPage}&size=${normalizedSize}`;
+    const board = window.FooduckBoard;
+    const cached = board?.readBoardCache?.(path) || null;
+    if (cached?.fresh) return { data: cached.data || {}, cacheFallback: false };
+    try {
+      const response = await Api.get(path);
+      const pageData = response.data || {};
+      board?.writeBoardCache?.(path, pageData);
+      return { data: pageData, cacheFallback: false };
+    } catch (error) {
+      if (cached && canUseNewsCacheAfterError(error)) {
+        return { data: cached.data || {}, cacheFallback: true };
+      }
+      throw error;
+    }
+  }
+
+  async function loadNewsComments(postId, page = 0) {
+    const state = getNewsCommentState(postId);
+    const generation = ++state.generation;
+    const requestedPage = Math.max(0, Number(page) || 0);
+    state.loading = true;
+    state.allLoading = false;
+    state.allLoaded = false;
+    state.allComments = null;
+    state.open = true;
+    state.errorMessage = "";
+    syncNewsCommentToggle(postId);
+    renderNewsComments(postId);
+    try {
+      const result = await fetchNewsCommentPage(postId, requestedPage, NEWS_COMMENT_PAGE_SIZE);
+      if (generation !== state.generation) return;
+      const pageData = result.data || {};
+      const totalPages = Math.max(0, Number(pageData.totalPages) || 0);
+      if (totalPages > 0 && requestedPage >= totalPages) {
+        state.loading = false;
+        await loadNewsComments(postId, totalPages - 1);
+        return;
+      }
+      state.page = Math.max(0, Number(pageData.page) || 0);
+      state.totalPages = totalPages;
+      state.totalCount = Math.max(0, Number(pageData.totalCommentCount ?? pageData.totalElements) || 0);
+      state.pageData = pageData;
+      state.loaded = true;
+      state.cacheNotice = result.cacheFallback
+        ? "최신 댓글을 불러오지 못해 잠시 저장된 댓글을 보여드리고 있습니다."
+        : "";
+    } catch (error) {
+      if (generation !== state.generation) return;
+      state.cacheNotice = "";
+      state.errorMessage = error.message || "댓글을 불러오지 못했습니다.";
+      if (!state.loaded) {
+        state.pageData = null;
+        state.totalCount = null;
+      }
+    } finally {
+      if (generation === state.generation) {
+        state.loading = false;
+        syncNewsCommentToggle(postId);
+        renderNewsComments(postId);
+      }
+    }
+  }
+
+  async function loadAllNewsComments(postId) {
+    const state = getNewsCommentState(postId);
+    const generation = ++state.generation;
+    state.loading = true;
+    state.allLoading = true;
+    state.open = true;
+    state.errorMessage = "";
+    syncNewsCommentToggle(postId);
+    renderNewsComments(postId);
+
+    try {
+      const firstResult = await fetchNewsCommentPage(postId, 0, NEWS_COMMENT_ALL_PAGE_SIZE);
+      if (generation !== state.generation) return;
+      const firstPage = firstResult.data || {};
+      const totalPages = Math.max(0, Number(firstPage.totalPages) || 0);
+      const combined = Array.isArray(firstPage.content) ? [...firstPage.content] : [];
+      let usedCacheFallback = firstResult.cacheFallback;
+
+      for (let page = 1; page < totalPages; page += 1) {
+        const result = await fetchNewsCommentPage(postId, page, NEWS_COMMENT_ALL_PAGE_SIZE);
+        if (generation !== state.generation) return;
+        if (Array.isArray(result.data?.content)) combined.push(...result.data.content);
+        usedCacheFallback = usedCacheFallback || result.cacheFallback;
+      }
+
+      state.page = 0;
+      state.totalPages = totalPages;
+      state.totalCount = Math.max(0, Number(firstPage.totalCommentCount ?? firstPage.totalElements) || 0);
+      state.pageData = firstPage;
+      state.allComments = combined;
+      state.allLoaded = true;
+      state.loaded = true;
+      state.cacheNotice = usedCacheFallback
+        ? "최신 댓글 일부를 불러오지 못해 저장된 댓글이 함께 표시될 수 있습니다."
+        : "";
+    } catch (error) {
+      if (generation !== state.generation) return;
+      state.errorMessage = error.message || "전체 댓글을 불러오지 못했습니다.";
+    } finally {
+      if (generation === state.generation) {
+        state.loading = false;
+        state.allLoading = false;
+        syncNewsCommentToggle(postId);
+        renderNewsComments(postId);
+      }
+    }
+  }
+
+  function bindNewsInlineComments() {
+    panels.news.querySelectorAll("[data-news-comments-toggle]").forEach((button) => {
+      const postId = button.dataset.newsCommentsToggle;
+      if (!postId) return;
+      button.addEventListener("click", () => {
+        const state = getNewsCommentState(postId);
+        const panel = panels.news.querySelector(`[data-news-comments-post-id="${CSS.escape(postId)}"]`);
+        if (!panel) return;
+        state.open = !state.open;
+        panel.hidden = !state.open;
+        syncNewsCommentToggle(postId);
+        if (!state.open) return;
+        if (state.loaded) renderNewsComments(postId);
+        else void loadNewsComments(postId, 0);
+      });
+    });
+
+    panels.news.querySelectorAll("[data-news-comments-post-id]").forEach((panel) => {
+      const postId = panel.dataset.newsCommentsPostId;
+      const state = postId ? newsCommentStates.get(postId) : null;
+      if (!state?.open) return;
+      panel.hidden = false;
+      if (state.loaded || state.loading || state.errorMessage) renderNewsComments(postId);
+      else void loadNewsComments(postId, state.page || 0);
     });
   }
 
@@ -643,7 +2161,9 @@
     return `
       <div class="store-write-form store-news-form" id="store-news-form" hidden>
         <h3>소식 작성</h3>
+        <label class="store-news-field-label" for="store-news-title">제목 <span id="store-news-title-count">0/200</span></label>
         <input type="text" id="store-news-title" maxlength="200" placeholder="제목">
+        <label class="store-news-field-label" for="store-news-content">내용 <span id="store-news-content-count">0/10000</span></label>
         <textarea id="store-news-content" maxlength="10000" placeholder="소식 내용을 입력하세요"></textarea>
         <div class="store-news-attachment">
           <div class="store-news-attachment__head">
@@ -697,7 +2217,7 @@
     if (mediaInput) mediaInput.disabled = busy;
     if (submitButton) submitButton.disabled = busy;
     form?.querySelectorAll('input[type="text"], textarea').forEach((field) => {
-      field.disabled = busy;
+      field.disabled = busy || newsCreatedPostId != null;
     });
     renderNewsSelectedMedia();
   }
@@ -849,6 +2369,7 @@
 
   async function uploadNewsSelectedMedia(targetPostId) {
     const failures = [];
+    const failedEntries = [];
     const filesToUpload = [...newsSelectedMedia];
     for (let index = 0; index < filesToUpload.length; index += 1) {
       const entry = filesToUpload[index];
@@ -870,25 +2391,38 @@
             `${entry.file.name} 업로드 중 ${progress} (${index + 1}/${filesToUpload.length})`,
           );
         });
+        URL.revokeObjectURL(entry.previewUrl);
       } catch (error) {
+        failedEntries.push(entry);
         failures.push(`${entry.file.name}: ${error.message || "업로드 실패"}`);
       }
     }
+    newsSelectedMedia = failedEntries;
     return failures;
   }
 
   function bindNewsForm() {
     const toggleButton = document.getElementById("store-news-write-toggle");
     const form = document.getElementById("store-news-form");
+    const titleInput = document.getElementById("store-news-title");
+    const contentInput = document.getElementById("store-news-content");
+    const titleCount = document.getElementById("store-news-title-count");
+    const contentCount = document.getElementById("store-news-content-count");
+    const updateCounts = () => {
+      if (titleCount) titleCount.textContent = `${titleInput?.value.length || 0}/200`;
+      if (contentCount) contentCount.textContent = `${contentInput?.value.length || 0}/10000`;
+    };
+    titleInput?.addEventListener("input", updateCounts);
+    contentInput?.addEventListener("input", updateCounts);
+    updateCounts();
+
     if (toggleButton && form) {
       toggleButton.addEventListener("click", () => {
         const willOpen = form.hidden;
         form.hidden = !willOpen;
         toggleButton.setAttribute("aria-expanded", String(willOpen));
         toggleButton.textContent = willOpen ? "닫기" : "글쓰기";
-        if (willOpen) {
-          document.getElementById("store-news-title")?.focus();
-        }
+        if (willOpen) titleInput?.focus();
       });
     }
 
@@ -904,49 +2438,66 @@
     const submitButton = document.getElementById("store-news-submit");
     if (!submitButton) return;
     submitButton.addEventListener("click", async () => {
-      const title = document.getElementById("store-news-title").value.trim();
-      const content = document.getElementById("store-news-content").value.trim();
-      if (!title || !content) {
+      const title = titleInput?.value.trim() || "";
+      const body = contentInput?.value.trim() || "";
+      const retryingAttachments = newsCreatedPostId != null;
+      if (!retryingAttachments && (!title || !body)) {
         window.alert("제목과 내용을 입력해 주세요.");
         return;
       }
+      if (hasNewsInlineCommentDraft()) {
+        if (!window.confirm("작성 중인 댓글이나 답글이 있습니다. 이를 버리고 가게 소식을 등록하시겠습니까?")) return;
+        discardNewsInlineCommentDrafts();
+      }
+      if (retryingAttachments && newsSelectedMedia.length === 0) {
+        newsCreatedPostId = null;
+        await loadNews(0);
+        return;
+      }
+
       setNewsMediaBusy(true);
-      let createdPostId = null;
       try {
-        setNewsMediaStatus("소식을 등록하는 중입니다.");
-        const created = await Api.post(newsApiPath(), { title, content });
-        createdPostId = created?.data?.postId;
-        if (newsSelectedMedia.length > 0 && createdPostId == null) {
-          throw new Error("소식은 등록되었지만 첨부파일을 연결할 게시글 정보를 확인하지 못했습니다.");
+        if (!retryingAttachments) {
+          setNewsMediaStatus("소식을 등록하는 중입니다.");
+          const created = await Api.post(newsApiPath(), { title, content: body });
+          newsCreatedPostId = created?.data?.postId ?? null;
+          if (newsSelectedMedia.length > 0 && newsCreatedPostId == null) {
+            throw new Error("소식은 등록되었지만 첨부파일을 연결할 게시글 정보를 확인하지 못했습니다.");
+          }
         }
 
-        const failures = createdPostId == null
+        const failures = newsCreatedPostId == null
           ? []
-          : await uploadNewsSelectedMedia(createdPostId);
-
+          : await uploadNewsSelectedMedia(newsCreatedPostId);
         window.FooduckBoard?.invalidateBoardCache?.();
-        resetNewsSelectedMedia();
-        await loadNews(0);
 
         if (failures.length > 0) {
-          window.alert(
-            `소식은 등록되었습니다. 일부 첨부파일 업로드에 실패했습니다.\n\n${failures.join("\n")}\n\n해당 소식의 '수정·첨부'에서 다시 첨부할 수 있습니다.`,
+          setNewsMediaBusy(false);
+          submitButton.textContent = "첨부 다시 시도";
+          setNewsMediaStatus(
+            `소식은 등록되었습니다. 실패한 첨부 ${failures.length}개만 남겨 두었습니다. 다시 시도해 주세요.`,
+            true,
           );
+          return;
         }
+
+        newsCreatedPostId = null;
+        resetNewsSelectedMedia();
+        await loadNews(0);
       } catch (error) {
-        if (createdPostId != null) {
+        if (newsCreatedPostId != null) {
           window.FooduckBoard?.invalidateBoardCache?.();
-          resetNewsSelectedMedia();
-          await loadNews(0);
-          window.alert(
-            `소식은 등록되었지만 첨부파일 처리 중 문제가 발생했습니다.\n${error.message || "첨부파일 업로드에 실패했습니다."}\n\n해당 소식의 '수정·첨부'에서 다시 첨부해 주세요.`,
+          setNewsMediaBusy(false);
+          submitButton.textContent = newsSelectedMedia.length > 0
+            ? "첨부 다시 시도"
+            : "소식 목록 새로고침";
+          setNewsMediaStatus(
+            `소식은 등록되었지만 첨부파일 처리 중 문제가 발생했습니다. ${error.message || "첨부파일 업로드에 실패했습니다."}`,
+            true,
           );
         } else {
           setNewsMediaBusy(false);
-          setNewsMediaStatus(
-            error.message || "소식 등록에 실패했습니다.",
-            true,
-          );
+          setNewsMediaStatus(error.message || "소식 등록에 실패했습니다.", true);
           window.alert(error.message || "소식 등록에 실패했습니다.");
         }
       }
@@ -960,13 +2511,22 @@
     const currentPage = Math.max(0, Number(pageData.page) || 0);
     const first = pageData.first === true || currentPage === 0;
     const last = pageData.last === true || currentPage + 1 >= totalPages;
+    const start = Math.max(0, Math.min(currentPage - 2, totalPages - 5));
+    const end = Math.min(totalPages, start + 5);
+    const pageButtons = [];
+    for (let page = start; page < end; page += 1) {
+      pageButtons.push(`
+        <button type="button" class="store-news-page-button${page === currentPage ? " is-active" : ""}"
+                data-news-page="${page}"${page === currentPage ? ' aria-current="page"' : ""}>${page + 1}</button>
+      `);
+    }
     return `
       <nav class="store-news-pagination" aria-label="소식 페이지">
-        <button type="button" class="button button-secondary button-sm"
-                data-news-page="${currentPage - 1}"${first ? " disabled" : ""}>이전</button>
-        <span>${currentPage + 1} / ${totalPages}</span>
-        <button type="button" class="button button-secondary button-sm"
-                data-news-page="${currentPage + 1}"${last ? " disabled" : ""}>다음</button>
+        <button type="button" class="store-news-page-button" aria-label="이전 페이지"
+                data-news-page="${currentPage - 1}"${first ? " disabled" : ""}>‹</button>
+        ${pageButtons.join("")}
+        <button type="button" class="store-news-page-button" aria-label="다음 페이지"
+                data-news-page="${currentPage + 1}"${last ? " disabled" : ""}>›</button>
       </nav>
     `;
   }
@@ -1006,8 +2566,14 @@
     panels.news.querySelectorAll("[data-news-page]").forEach((button) => {
       button.addEventListener("click", () => {
         const targetPage = Number(button.dataset.newsPage);
-        if (Number.isInteger(targetPage) && targetPage >= 0) {
-          loadNews(targetPage);
+        if (Number.isInteger(targetPage) && targetPage >= 0 && targetPage !== newsPage) {
+          if (!confirmNewsDraftDiscard()) return;
+          void loadNews(targetPage).then(() => {
+            panels.news.querySelector(".store-section-card")?.scrollIntoView({
+              behavior: window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
+              block: "start",
+            });
+          });
         }
       });
     });
@@ -1015,7 +2581,9 @@
       button.addEventListener("click", async () => {
         if (!canWriteNews()) return;
         const postId = button.dataset.newsDelete;
-        if (!postId || !window.confirm("이 소식을 삭제하시겠습니까?")) return;
+        if (!postId) return;
+        if (!confirmNewsDraftDiscard()) return;
+        if (!window.confirm("이 소식을 삭제하시겠습니까?")) return;
 
         const itemCount = Number(button.dataset.newsItemCount);
         button.disabled = true;
@@ -1032,8 +2600,10 @@
         }
       });
     });
+    bindNewsInlineComments();
     document.getElementById("store-news-retry")?.addEventListener("click", () => {
-      loadNews(newsPage);
+      if (!confirmNewsDraftDiscard()) return;
+      void loadNews(newsPage);
     });
   }
 
@@ -1085,8 +2655,12 @@
                 <span class="store-news-author" data-news-author-index="${index}">${escapeHtml(news.authorNickname || "-")}</span>
                 <span class="store-news-date">${formatDate(news.createdAt)}${news.edited ? " · 수정됨" : ""} · 조회 ${Number(news.viewCount || 0).toLocaleString("ko-KR")}</span>
               </div>
-              ${newsLikeButtonHtml(news)}
+              <div class="store-news-engagement">
+                ${newsLikeButtonHtml(news)}
+                ${newsCommentsToggleHtml(news)}
+              </div>
             </div>
+            ${newsCommentsPanelHtml(news)}
           </article>
         `).join("")}</div>`;
     renderNewsCard(bodyHtml, newsPaginationHtml(pageData));
@@ -1105,21 +2679,49 @@
     `);
   }
 
+  function canUseNewsCacheAfterError(error) {
+    return ![401, 403, 404].includes(Number(error?.status));
+  }
+
+  function newsCacheHasCommentCounts(cached) {
+    const items = Array.isArray(cached?.data?.content) ? cached.data.content : [];
+    return items.every((item) => item?.commentCount != null
+      && Number.isFinite(Number(item.commentCount)));
+  }
+
+  function renderNewsCachedNotice() {
+    const card = panels.news.querySelector(".store-section-card");
+    if (!card || card.querySelector(".store-news-cache-notice")) return;
+    const notice = document.createElement("p");
+    notice.className = "store-news-cache-notice";
+    notice.setAttribute("role", "status");
+    notice.textContent = "최신 소식을 불러오지 못해 잠시 저장된 내용을 보여드리고 있습니다.";
+    const header = card.querySelector(".store-news-header");
+    if (header) header.insertAdjacentElement("afterend", notice);
+    else card.prepend(notice);
+  }
+
   async function loadNews(page = newsPage) {
+    const generation = ++newsRequestGeneration;
     const requestedPage = Number.isInteger(page) && page >= 0 ? page : 0;
     const board = window.FooduckBoard;
-    const params = new URLSearchParams({
+    const requestParams = new URLSearchParams({
       page: String(requestedPage),
       size: String(NEWS_PAGE_SIZE),
     });
-    const path = `${newsApiPath()}?${params.toString()}`;
-    const cached = board?.readBoardCache?.(path) || null;
+    const path = `${newsApiPath()}?${requestParams.toString()}`;
+    const cachedCandidate = board?.readBoardCache?.(path) || null;
+    const cached = newsCacheHasCommentCounts(cachedCandidate)
+      ? cachedCandidate
+      : null;
 
+    clearNewsMediaPolls();
     newsMediaGeneration += 1;
     newsPage = requestedPage;
 
     if (cached) {
       const cachedPageData = cached.data || {};
+      if (generation !== newsRequestGeneration) return;
       newsPage = Number.isInteger(cachedPageData.page) && cachedPageData.page >= 0
         ? cachedPageData.page
         : requestedPage;
@@ -1131,19 +2733,32 @@
 
     try {
       const response = await Api.get(path);
+      if (generation !== newsRequestGeneration) return;
       const pageData = response.data || {};
+      const totalPages = Math.max(0, Number(pageData.totalPages) || 0);
+      if (totalPages > 0 && requestedPage >= totalPages) {
+        await loadNews(totalPages - 1);
+        return;
+      }
       board?.writeBoardCache?.(path, pageData);
       newsPage = Number.isInteger(pageData.page) && pageData.page >= 0
         ? pageData.page
         : requestedPage;
 
       if (cached) {
-        // stale 캐시에서 시작한 미디어 조회/polling을 끊고 최신 목록 기준으로 다시 연결한다.
+        clearNewsMediaPolls();
         newsMediaGeneration += 1;
       }
       renderNewsPanel({ ...pageData, page: newsPage });
     } catch (error) {
-      if (!cached) renderNewsError(error);
+      if (generation !== newsRequestGeneration) return;
+      if (!cached || !canUseNewsCacheAfterError(error)) {
+        clearNewsMediaPolls();
+        newsMediaGeneration += 1;
+        renderNewsError(error);
+      } else {
+        renderNewsCachedNotice();
+      }
     }
   }
 
@@ -1276,6 +2891,54 @@
     renderTabs(["menu", "news", "review", "info"]);
     activateTab(tabOrder.includes(requestedTab) ? requestedTab : "menu");
   }
+
+  function hasNewsDraft() {
+    if (!canWriteNews()) return false;
+    if (newsCreatedPostId != null) return newsSelectedMedia.length > 0;
+    const title = document.getElementById("store-news-title")?.value.trim() || "";
+    const body = document.getElementById("store-news-content")?.value.trim() || "";
+    return Boolean(title || body || newsSelectedMedia.length > 0);
+  }
+
+  function discardNewsDraft() {
+    const titleInput = document.getElementById("store-news-title");
+    const contentInput = document.getElementById("store-news-content");
+    if (titleInput) titleInput.value = "";
+    if (contentInput) contentInput.value = "";
+    newsCreatedPostId = null;
+    resetNewsSelectedMedia();
+  }
+
+  function confirmNewsDraftDiscard() {
+    if (newsMediaBusy) {
+      window.alert("가게 소식이나 첨부파일을 저장하는 중입니다. 저장이 끝난 뒤 이동해 주세요.");
+      return false;
+    }
+    const newsDraft = hasNewsDraft();
+    const commentDraft = hasNewsInlineCommentDraft();
+    if (!newsDraft && !commentDraft) return true;
+
+    let message = "작성 중인 내용을 버리고 이동하시겠습니까?";
+    if (newsDraft && commentDraft) {
+      message = "작성 중인 가게 소식과 댓글 또는 답글이 있습니다. 작성 내용을 버리고 이동하시겠습니까?";
+    } else if (commentDraft) {
+      message = "작성 중인 댓글이나 답글이 있습니다. 작성 내용을 버리고 이동하시겠습니까?";
+    } else if (newsCreatedPostId != null) {
+      message = "소식은 등록되었지만 아직 올리지 못한 첨부파일이 있습니다. 남은 첨부파일을 포기하고 이동하시겠습니까?";
+    } else {
+      message = "작성 중인 가게 소식이 있습니다. 작성 내용을 버리고 이동하시겠습니까?";
+    }
+
+    const confirmed = window.confirm(message);
+    if (confirmed && newsDraft) discardNewsDraft();
+    return confirmed;
+  }
+
+  window.addEventListener("beforeunload", (event) => {
+    if (!hasNewsDraft() && !hasNewsInlineCommentDraft()) return;
+    event.preventDefault();
+    event.returnValue = "";
+  });
 
   async function init() {
     try {
