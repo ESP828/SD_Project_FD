@@ -106,6 +106,7 @@
   let newsCreatedPostId = null;
   let newsRequestGeneration = 0;
   const newsCommentStates = new Map();
+  const newsCommentEditInFlight = new Set();
   const newsCommentDeleteInFlight = new Set();
   const newsMediaPollTimers = new Map();
   const session = window.FooduckSession || {};
@@ -1064,6 +1065,10 @@
         form._clearNewsCommentImage();
       }
     });
+    scope.querySelectorAll(".store-news-comment-edit-form").forEach((form) => {
+      if (except && form.contains(except)) return;
+      closeNewsCommentEditor(form);
+    });
   }
 
   function confirmNewsInlineCommentDraftDiscard(scope, message = "작성 중인 댓글이나 답글이 있습니다. 작성 내용을 버리고 이동하시겠습니까?") {
@@ -1183,6 +1188,7 @@
     }
     const panel = mountTarget.closest("[data-news-comments-post-id]");
     if (!panel) return;
+    if (!confirmCloseNewsCommentEditor(panel)) return;
     const mainDrafts = newsInlineCommentDrafts(panel).filter((textarea) => !textarea.closest(".store-news-comment-reply-form"));
     const mainImageDrafts = newsInlineCommentImageDraftForms(panel).filter((form) => !form.classList.contains("store-news-comment-reply-form"));
     if (mainDrafts.length > 0 || mainImageDrafts.length > 0) {
@@ -1371,6 +1377,162 @@
     textarea.setSelectionRange(textarea.value.length, textarea.value.length);
   }
 
+  function closeNewsCommentEditor(form) {
+    if (!(form instanceof HTMLFormElement)) return;
+    const item = form.closest(".comment-item");
+    const content = item?.querySelector(":scope > .comment-content");
+    const actions = item?.querySelector(":scope > .comment-actions");
+    if (content) content.hidden = false;
+    if (actions) actions.hidden = false;
+    form.remove();
+  }
+
+  function newsCommentEditorHasDraft(form) {
+    if (!(form instanceof HTMLFormElement)) return false;
+    const textarea = form.querySelector(".comment-edit-textarea");
+    if (!(textarea instanceof HTMLTextAreaElement)) return false;
+    return textarea.value.trim() !== String(textarea.dataset.initialValue || "").trim();
+  }
+
+  function confirmCloseNewsCommentEditor(panel, nextCommentId = null) {
+    const form = panel?.querySelector(".store-news-comment-edit-form");
+    if (!(form instanceof HTMLFormElement)) return true;
+    const currentId = String(form.dataset.editCommentId || "");
+    if (nextCommentId != null && currentId === String(nextCommentId)) {
+      form.querySelector(".comment-edit-textarea")?.focus({ preventScroll: true });
+      return false;
+    }
+    if (newsCommentEditorHasDraft(form) && !window.confirm(
+      "수정 중인 댓글이 있습니다. 바꾼 내용을 버리고 계속하시겠습니까?",
+    )) return false;
+    closeNewsCommentEditor(form);
+    return true;
+  }
+
+  async function editNewsComment(postId, comment, item) {
+    const commentId = Number(comment?.commentId);
+    if (!Number.isFinite(commentId) || newsCommentEditInFlight.has(commentId)) return;
+    if (!(comment?.ownedByCurrentUser || isAdmin)) return;
+
+    const panel = item?.closest("[data-news-comments-post-id]");
+    if (!panel) return;
+    if (!confirmCloseNewsCommentEditor(panel, commentId)) return;
+
+    const otherDrafts = newsInlineCommentDrafts(panel);
+    const otherImageDrafts = newsInlineCommentImageDraftForms(panel);
+    if (otherDrafts.length > 0 || otherImageDrafts.length > 0) {
+      if (!window.confirm(
+        "작성 중인 댓글이나 답글이 있습니다. 작성 내용을 버리고 이 댓글을 수정하시겠습니까?",
+      )) return;
+      discardNewsInlineCommentDrafts(panel);
+    }
+
+    const contentNode = item.querySelector(":scope > .comment-content");
+    const actionsNode = item.querySelector(":scope > .comment-actions");
+    const dateNode = item.querySelector(":scope > .comment-top .comment-date");
+    if (!contentNode || !actionsNode) return;
+
+    const form = newsCommentElement("form", "comment-edit-form store-news-comment-edit-form");
+    form.dataset.editCommentId = String(commentId);
+
+    const textarea = document.createElement("textarea");
+    textarea.className = "comment-edit-textarea";
+    textarea.maxLength = 1000;
+    textarea.rows = 3;
+    textarea.value = comment.content || "";
+    textarea.dataset.newsCommentDraft = "true";
+    textarea.dataset.initialValue = textarea.value;
+    textarea.setAttribute("aria-label", "댓글 수정 내용");
+
+    const inputMeta = newsCommentElement("div", "comment-input-meta comment-input-meta--compact");
+    inputMeta.append(newsCommentElement("span", "", "Enter로 수정 · Shift + Enter로 줄바꿈"));
+    const characterCount = newsCommentElement("span", "comment-character-count");
+    inputMeta.append(characterCount);
+    updateNewsCommentCharacterCount(textarea, characterCount);
+
+    const actions = newsCommentElement("div", "comment-edit-actions");
+    const cancel = newsCommentElement("button", "button button-sm button-secondary", "취소");
+    cancel.type = "button";
+    const save = newsCommentElement("button", "button button-sm button-primary", "수정 완료");
+    save.type = "submit";
+    actions.append(cancel, save);
+    form.append(textarea, inputMeta, actions);
+
+    const sync = () => {
+      const content = textarea.value.trim();
+      const original = String(comment.content || "").trim();
+      save.disabled = !content || content === original || newsCommentEditInFlight.has(commentId);
+      updateNewsCommentCharacterCount(textarea, characterCount);
+    };
+
+    contentNode.hidden = true;
+    actionsNode.hidden = true;
+    contentNode.after(form);
+    sync();
+
+    form.addEventListener("click", (event) => event.stopPropagation());
+    textarea.addEventListener("input", sync);
+    cancel.addEventListener("click", () => {
+      if (newsCommentEditorHasDraft(form) && !window.confirm("수정 중인 내용을 버리시겠습니까?")) return;
+      closeNewsCommentEditor(form);
+    });
+    textarea.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        cancel.click();
+        return;
+      }
+      if (!isNewsCommentSubmitEnter(event)) return;
+      event.preventDefault();
+      if (!save.disabled) form.requestSubmit();
+    });
+
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const content = textarea.value.trim();
+      const original = String(comment.content || "").trim();
+      if (!content) {
+        showNewsCommentToast("댓글 내용을 입력해 주세요.", true);
+        return;
+      }
+      if (content === original) {
+        closeNewsCommentEditor(form);
+        return;
+      }
+      if (newsCommentEditInFlight.has(commentId)) return;
+
+      newsCommentEditInFlight.add(commentId);
+      save.disabled = true;
+      cancel.disabled = true;
+      textarea.disabled = true;
+      try {
+        const payload = await Api.put(`/board/comments/${encodeURIComponent(commentId)}`, { content });
+        window.FooduckBoard?.invalidateBoardCache?.();
+        const updated = payload.data || {};
+        Object.assign(comment, updated, {
+          content: updated.content ?? content,
+          edited: updated.edited ?? true,
+        });
+        contentNode.textContent = comment.content;
+        if (dateNode) {
+          dateNode.textContent = `${formatDate(comment.createdAt, { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })} · 수정됨`;
+        }
+        closeNewsCommentEditor(form);
+        showNewsCommentToast(payload.message || "댓글이 수정되었습니다.");
+      } catch (error) {
+        showNewsCommentToast(error.message || "댓글 수정에 실패했습니다.", true);
+        cancel.disabled = false;
+        textarea.disabled = false;
+      } finally {
+        newsCommentEditInFlight.delete(commentId);
+        if (form.isConnected) sync();
+      }
+    });
+
+    textarea.focus({ preventScroll: true });
+    textarea.setSelectionRange(textarea.value.length, textarea.value.length);
+  }
+
   async function deleteNewsComment(postId, comment, hasReplies, button) {
     const commentId = Number(comment?.commentId);
     if (!Number.isFinite(commentId) || newsCommentDeleteInFlight.has(commentId)) return;
@@ -1454,10 +1616,13 @@
     actions.append(reply);
 
     if (comment.ownedByCurrentUser || isAdmin) {
+      const edit = newsCommentElement("button", "comment-action", "수정");
+      edit.type = "button";
+      edit.addEventListener("click", () => editNewsComment(postId, comment, item));
       const remove = newsCommentElement("button", "comment-action", "삭제");
       remove.type = "button";
       remove.addEventListener("click", () => deleteNewsComment(postId, comment, Boolean(options.hasReplies), remove));
-      actions.append(remove);
+      actions.append(edit, remove);
     }
     item.append(actions);
     item.classList.add("comment-item--replyable");
