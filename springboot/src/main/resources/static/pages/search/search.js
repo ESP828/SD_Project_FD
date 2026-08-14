@@ -41,19 +41,25 @@
   }
 
   // AI 토글 상태 변경 시 UI 및 내부 상태 업데이트
-  function updateAiToggleUI(active) {
-    isAiMode = active;
-    if (aiSearchToggle) {
-      aiSearchToggle.classList.toggle("is-active", isAiMode);
-      aiSearchToggle.setAttribute("aria-pressed", String(isAiMode));
-    }
-    if (searchSubmitBtn) {
-      searchSubmitBtn.classList.toggle("ai-mode", isAiMode);
-    }
-    if (submitBtnText) {
-      submitBtnText.textContent = isAiMode ? "✨ AI 검색하기" : "검색하기";
-    }
-  }
+  function updateAiToggleUI(active) {
+    isAiMode = active;
+    if (aiSearchToggle) {
+      aiSearchToggle.classList.toggle("is-active", isAiMode);
+      aiSearchToggle.setAttribute("aria-pressed", String(isAiMode));
+    }
+    if (searchSubmitBtn) {
+      searchSubmitBtn.classList.toggle("ai-mode", isAiMode);
+    }
+    if (submitBtnText) {
+      submitBtnText.textContent = isAiMode ? "✨ AI 검색하기" : "검색하기";
+    }
+
+    // 🔥 AI 모드 상태에 따라 빠른 검색 버튼 비활성화/활성화 처리
+    quickButtons.forEach((button) => {
+      button.disabled = isAiMode; // HTML disabled 속성 토글
+      button.classList.toggle("is-disabled", isAiMode); // 스타일용 클래스 토글 (선택)
+    });
+  }
 
   // 마커 아이콘 결정 로직
   function markerFor(place) {
@@ -302,7 +308,7 @@
         latitude: coords.latitude,
         longitude: coords.longitude,
         radiusMeters: 2000,
-        limit: PAGE_SIZE
+        limit: PAGE_SIZE*100
       });
 
       results.removeAttribute("aria-busy");
@@ -376,29 +382,52 @@
     setFilterPanelOpen(filterPanel.hidden);
   });
 
-  // 빠른 카테고리 버튼 클릭
-  quickButtons.forEach((button) => {
-    button.addEventListener("click", () => {
-      const selectedCategory = button.dataset.quickCategory;
-      categorySelect.value = selectedCategory;
-      quickButtons.forEach((item) =>
-        item.classList.toggle("is-active", item === button),
-      );
-      if (isAiMode && !keywordInput.value.trim()) {
-        keywordInput.value = `${selectedCategory} 추천해줘`;
-      }
-      runSearch(0);
-    });
-  });
+// -----------------------------------------------------------------
+  // 빠른 카테고리 버튼 및 Select 조작 (토글 기능 적용)
+  // -----------------------------------------------------------------
 
-  categorySelect.addEventListener("change", () => {
-    quickButtons.forEach((button) =>
-      button.classList.toggle(
-        "is-active",
-        button.dataset.quickCategory === categorySelect.value,
-      ),
-    );
-  });
+  // 1. 빠른 카테고리 버튼 클릭 핸들러
+  quickButtons.forEach((button) => {
+    button.addEventListener("click", () => {
+      const selectedCategory = button.dataset.quickCategory;
+      const isAlreadyActive = button.classList.contains("is-active");
+
+      if (isAlreadyActive) {
+        // 🔥 이미 선택된 버튼을 다시 누른 경우 -> 선택 해제 (초기화)
+        button.classList.remove("is-active");
+        categorySelect.value = ""; // select 선택 해제
+
+        // AI 모드이고 검색창에 'OO 추천해줘' 문구가 자동으로 적혀 있었다면 지워주거나 초기화
+        if (isAiMode && keywordInput.value === `${selectedCategory} 추천해줘`) {
+          keywordInput.value = "";
+        }
+      } else {
+        // 🔥 새 버튼을 누른 경우 -> 해당 카테고리 활성화
+        categorySelect.value = selectedCategory;
+
+        quickButtons.forEach((item) =>
+          item.classList.toggle("is-active", item === button)
+        );
+
+        if (isAiMode && !keywordInput.value.trim()) {
+          keywordInput.value = `${selectedCategory} 추천해줘`;
+        }
+      }
+
+      // 카테고리 상태 변경 후 재검색 실행
+      runSearch(0);
+    });
+  });
+
+  // 2. Select박스 직접 조작 시 퀵 버튼 상태 연동
+  categorySelect.addEventListener("change", () => {
+    quickButtons.forEach((button) =>
+      button.classList.toggle(
+        "is-active",
+        button.dataset.quickCategory === categorySelect.value
+      )
+    );
+  });
 
   previousButton.addEventListener("click", () => {
     if (!isAiMode && currentPage > 0) {
