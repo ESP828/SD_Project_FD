@@ -425,6 +425,7 @@
   let commentImageRetryNotice = null;
   let detailLoginPopup = null;
   let detailLoginPollTimer = null;
+  let detailLoginLayoutFrame = null;
   let detailLoginStorageHandler = null;
   let pendingDetailLoginAction = null;
   let detailLoginSuccessMessage = "로그인되었습니다.";
@@ -462,6 +463,10 @@
       window.clearInterval(detailLoginPollTimer);
       detailLoginPollTimer = null;
     }
+    if (detailLoginLayoutFrame) {
+      window.cancelAnimationFrame(detailLoginLayoutFrame);
+      detailLoginLayoutFrame = null;
+    }
     if (detailLoginStorageHandler) {
       window.removeEventListener("storage", detailLoginStorageHandler);
       detailLoginStorageHandler = null;
@@ -478,11 +483,12 @@
   }
 
   function applyDetailLoginPopupLayout(popup) {
-    if (!popup || popup.closed) return;
+    if (!popup || popup.closed) return false;
     try {
-      if (popup.location.pathname !== "/pages/auth/login.html") return;
+      if (popup.location.pathname !== "/pages/auth/login.html") return false;
       const documentRef = popup.document;
-      if (!documentRef?.head || documentRef.getElementById("fooduck-board-login-popup-style")) return;
+      if (!documentRef?.head) return false;
+      if (documentRef.getElementById("fooduck-board-login-popup-style")) return true;
 
       const style = documentRef.createElement("style");
       style.id = "fooduck-board-login-popup-style";
@@ -493,9 +499,27 @@
         }
       `;
       documentRef.head.appendChild(style);
+      return true;
     } catch (_error) {
-      // 같은 출처의 로그인 문서가 로드되기 전에는 다음 polling 주기에 다시 적용한다.
+      // 로그인 문서가 준비될 때까지 다음 animation frame에서 다시 적용한다.
+      return false;
     }
+  }
+
+  function startDetailLoginPopupLayoutWatch(popup) {
+    if (detailLoginLayoutFrame) {
+      window.cancelAnimationFrame(detailLoginLayoutFrame);
+      detailLoginLayoutFrame = null;
+    }
+
+    const applyWhenReady = () => {
+      detailLoginLayoutFrame = null;
+      if (!popup || popup.closed || popup !== detailLoginPopup) return;
+      if (applyDetailLoginPopupLayout(popup)) return;
+      detailLoginLayoutFrame = window.requestAnimationFrame(applyWhenReady);
+    };
+
+    applyWhenReady();
   }
 
   function completeDetailLoginIfReady() {
@@ -563,7 +587,7 @@
     }
 
     detailLoginPopup = popup;
-    applyDetailLoginPopupLayout(detailLoginPopup);
+    startDetailLoginPopupLayoutWatch(detailLoginPopup);
     detailLoginStorageHandler = (event) => {
       if (event.key === "accessToken" && event.newValue) completeDetailLoginIfReady();
     };
@@ -576,7 +600,6 @@
         showToast(toast, "로그인이 취소되었습니다.", true);
         return;
       }
-      applyDetailLoginPopupLayout(detailLoginPopup);
     }, 300);
     popup.focus();
     return true;

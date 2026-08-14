@@ -56,6 +56,7 @@
   let unansweredRequestGeneration = 0;
   let boardLoginPopup = null;
   let boardLoginPollTimer = null;
+  let boardLoginLayoutFrame = null;
   let boardLoginStorageHandler = null;
   let pendingBoardLoginAction = null;
   let boardLogoutInFlight = false;
@@ -133,6 +134,10 @@
       window.clearInterval(boardLoginPollTimer);
       boardLoginPollTimer = null;
     }
+    if (boardLoginLayoutFrame) {
+      window.cancelAnimationFrame(boardLoginLayoutFrame);
+      boardLoginLayoutFrame = null;
+    }
     if (boardLoginStorageHandler) {
       window.removeEventListener("storage", boardLoginStorageHandler);
       boardLoginStorageHandler = null;
@@ -158,11 +163,12 @@
   }
 
   function applyBoardLoginPopupLayout(popup) {
-    if (!popup || popup.closed) return;
+    if (!popup || popup.closed) return false;
     try {
-      if (popup.location.pathname !== "/pages/auth/login.html") return;
+      if (popup.location.pathname !== "/pages/auth/login.html") return false;
       const documentRef = popup.document;
-      if (!documentRef?.head || documentRef.getElementById("fooduck-board-login-popup-style")) return;
+      if (!documentRef?.head) return false;
+      if (documentRef.getElementById("fooduck-board-login-popup-style")) return true;
 
       const style = documentRef.createElement("style");
       style.id = "fooduck-board-login-popup-style";
@@ -173,9 +179,27 @@
         }
       `;
       documentRef.head.appendChild(style);
+      return true;
     } catch (_error) {
-      // 같은 출처의 로그인 문서가 로드되기 전에는 다음 polling 주기에 다시 적용한다.
+      // 로그인 문서가 준비될 때까지 다음 animation frame에서 다시 적용한다.
+      return false;
     }
+  }
+
+  function startBoardLoginPopupLayoutWatch(popup) {
+    if (boardLoginLayoutFrame) {
+      window.cancelAnimationFrame(boardLoginLayoutFrame);
+      boardLoginLayoutFrame = null;
+    }
+
+    const applyWhenReady = () => {
+      boardLoginLayoutFrame = null;
+      if (!popup || popup.closed || popup !== boardLoginPopup) return;
+      if (applyBoardLoginPopupLayout(popup)) return;
+      boardLoginLayoutFrame = window.requestAnimationFrame(applyWhenReady);
+    };
+
+    applyWhenReady();
   }
 
   function openBoardLogin({ nextPath = listUrlFromState(), onSuccess = null } = {}) {
@@ -193,7 +217,7 @@
       return false;
     }
     boardLoginPopup = popup;
-    applyBoardLoginPopupLayout(boardLoginPopup);
+    startBoardLoginPopupLayoutWatch(boardLoginPopup);
     boardLoginStorageHandler = (event) => {
       if (event.key === "accessToken" && event.newValue) completeBoardLoginIfReady();
     };
@@ -204,7 +228,6 @@
         stopBoardLoginWatch({ clearPendingAction: true });
         return;
       }
-      applyBoardLoginPopupLayout(boardLoginPopup);
     }, 300);
     popup.focus();
     return true;
