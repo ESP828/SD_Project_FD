@@ -2602,6 +2602,16 @@
 }
 
 @media (max-width: 720px) {
+  .detail-heading .detail-meta {
+    column-gap: 12px;
+    row-gap: 8px;
+  }
+
+  .detail-heading .detail-meta .author-identity {
+    flex: 0 0 100%;
+    min-width: 0;
+  }
+
   .board-sub-hero-grid {
     min-height: auto;
     grid-template-columns: 1fr;
