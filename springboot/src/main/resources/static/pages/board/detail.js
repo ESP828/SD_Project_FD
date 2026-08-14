@@ -33,6 +33,7 @@
   let mediaPollingHalted = false;
   let mediaPollingDisposed = false;
   let postDeleteInFlight = false;
+  let cachedFallbackNoticeShown = false;
   const commentDeleteInFlight = new Set();
 
   const detailContent = document.getElementById("post-detail-content");
@@ -85,6 +86,13 @@
 
   function canUseCacheAfterError(error) {
     return ![401, 403, 404].includes(Number(error?.status));
+  }
+
+  function showCachedFallbackNoticeOnce(message =
+    "최신 내용을 불러오지 못해 잠시 저장된 내용을 보여드리고 있습니다.") {
+    if (cachedFallbackNoticeShown) return;
+    cachedFallbackNoticeShown = true;
+    showToast(toast, message);
   }
 
   function safeBoardListReturnPath(value) {
@@ -912,14 +920,16 @@
     });
   }
 
-  async function loadRelatedPosts() {
+  async function loadRelatedPosts(options = {}) {
     if (!relatedPostList) return;
+    const forceRefresh = options.forceRefresh === true;
+    const preserveOnError = options.preserveOnError === true;
     const path = `/board/posts/${postId}/related?size=5`;
     const cached = readBoardCache(path);
     if (cached) {
       renderRelatedPosts(cached.data || []);
-      if (cached.fresh) return;
-    } else {
+      if (cached.fresh && !forceRefresh) return;
+    } else if (!preserveOnError) {
       relatedPostList.replaceChildren(
         element("li", "best-loading", "불러오는 중"),
       );
@@ -931,11 +941,25 @@
       writeBoardCache(path, posts);
       renderRelatedPosts(posts);
     } catch (error) {
-      if (!cached || !canUseCacheAfterError(error)) {
+      if (!canUseCacheAfterError(error)) {
         relatedPostList.replaceChildren(
           element("li", "best-loading", error.message || "불러오지 못했습니다."),
         );
+        return;
       }
+      if (cached) {
+        showCachedFallbackNoticeOnce();
+        return;
+      }
+      if (preserveOnError) {
+        showCachedFallbackNoticeOnce(
+          "최신 게시판 정보를 확인하지 못해 현재 화면을 그대로 유지했습니다.",
+        );
+        return;
+      }
+      relatedPostList.replaceChildren(
+        element("li", "best-loading", error.message || "불러오지 못했습니다."),
+      );
     }
   }
 
@@ -983,8 +1007,10 @@
     });
   }
 
-  async function loadUnansweredPosts() {
+  async function loadUnansweredPosts(options = {}) {
     if (!unansweredPostList || !state.post) return;
+    const forceRefresh = options.forceRefresh === true;
+    const preserveOnError = options.preserveOnError === true;
     const params = new URLSearchParams({
       boardType: state.post.boardType === "BUSINESS" ? "BUSINESS" : "GENERAL",
       size: "4",
@@ -993,8 +1019,8 @@
     const cached = readBoardCache(path);
     if (cached) {
       renderUnansweredPosts(cached.data || []);
-      if (cached.fresh) return;
-    } else {
+      if (cached.fresh && !forceRefresh) return;
+    } else if (!preserveOnError) {
       unansweredPostList.replaceChildren(
         element("li", "best-loading", "불러오는 중"),
       );
@@ -1006,11 +1032,25 @@
       writeBoardCache(path, posts);
       renderUnansweredPosts(posts);
     } catch (error) {
-      if (!cached || !canUseCacheAfterError(error)) {
+      if (!canUseCacheAfterError(error)) {
         unansweredPostList.replaceChildren(
           element("li", "best-loading", error.message || "불러오지 못했습니다."),
         );
+        return;
       }
+      if (cached) {
+        showCachedFallbackNoticeOnce();
+        return;
+      }
+      if (preserveOnError) {
+        showCachedFallbackNoticeOnce(
+          "최신 게시판 정보를 확인하지 못해 현재 화면을 그대로 유지했습니다.",
+        );
+        return;
+      }
+      unansweredPostList.replaceChildren(
+        element("li", "best-loading", error.message || "불러오지 못했습니다."),
+      );
     }
   }
 
@@ -1643,8 +1683,7 @@
         ...cached.data,
         viewCount: cachedViewCount + 1,
       });
-      showToast(
-        toast,
+      showCachedFallbackNoticeOnce(
         "최신 내용을 불러오지 못해 잠시 저장된 게시글을 보여드리고 있습니다.",
       );
     }
@@ -2445,11 +2484,12 @@
     }
   }
 
-  async function fetchCommentPage(page) {
+  async function fetchCommentPage(page, options = {}) {
     const normalizedPage = Math.max(0, Number(page) || 0);
+    const forceRefresh = options.forceRefresh === true;
     const path = `/board/posts/${postId}/comments?page=${normalizedPage}&size=${COMMENT_PAGE_SIZE}`;
     const cached = readBoardCache(path);
-    if (cached?.fresh) return cached.data || {};
+    if (cached?.fresh && !forceRefresh) return cached.data || {};
 
     try {
       const payload = await Api.get(path);
@@ -2458,8 +2498,7 @@
       return pageData;
     } catch (error) {
       if (cached && canUseCacheAfterError(error)) {
-        showToast(
-          toast,
+        showCachedFallbackNoticeOnce(
           "최신 댓글을 불러오지 못해 잠시 저장된 댓글을 보여드리고 있습니다.",
         );
         announceCommentStatus(
@@ -2479,12 +2518,16 @@
     commentList.setAttribute("aria-busy", "true");
     try {
       let requestedPage = Math.max(0, Number(page) || 0);
-      let pageData = await fetchCommentPage(requestedPage);
+      let pageData = await fetchCommentPage(requestedPage, {
+        forceRefresh: options.forceRefresh === true,
+      });
       const pageCount = Math.max(0, Number(pageData.totalPages) || 0);
 
       if (pageCount > 0 && requestedPage >= pageCount) {
         requestedPage = pageCount - 1;
-        pageData = await fetchCommentPage(requestedPage);
+        pageData = await fetchCommentPage(requestedPage, {
+          forceRefresh: options.forceRefresh === true,
+        });
       }
 
       renderComments(pageData, options);
@@ -2868,12 +2911,28 @@
     document.body.classList.remove("is-image-viewer-open");
   });
 
-  window.addEventListener("pageshow", () => {
+  window.addEventListener("pageshow", (event) => {
     mediaPollingDisposed = false;
     if (Array.isArray(state.post?.media) &&
         state.post.media.some(isProcessingMedia)) {
       scheduleMediaPoll(0);
     }
+
+    if (!event.persisted || !state.post) return;
+
+    loadCommentPage(currentCommentPage, { forceRefresh: true }).catch((error) => {
+      if (!canUseCacheAfterError(error)) {
+        renderCommentLoadError(error, currentCommentPage);
+        return;
+      }
+      showCachedFallbackNoticeOnce(
+        "최신 게시판 정보를 확인하지 못해 현재 화면을 그대로 유지했습니다.",
+      );
+    });
+    if (!isNewsPost()) {
+      void loadRelatedPosts({ forceRefresh: true, preserveOnError: true });
+    }
+    void loadUnansweredPosts({ forceRefresh: true, preserveOnError: true });
   });
 
   initializeDetailNavigationGuard();

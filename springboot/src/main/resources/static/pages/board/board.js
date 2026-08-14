@@ -44,6 +44,7 @@
   const bestPostList = document.getElementById("best-post-list");
   const unansweredPostList = document.getElementById("unanswered-post-list");
   const boardHeading = document.getElementById("board-heading");
+  const boardTabPanel = document.getElementById("board-tabpanel");
   const businessTab = document.getElementById("business-board-tab");
   const searchForm = document.getElementById("board-search-form");
   const categorySelect = document.getElementById("board-category");
@@ -57,6 +58,7 @@
   let boardAuthPopupController = null;
   let pendingBoardLoginAction = null;
   let boardLogoutInFlight = false;
+  let cachedFallbackNoticeShown = false;
   const BOARD_FLASH_KEY = "fooduck:board:flash:v1";
 
   if (!session || !board || !boardList || !searchForm) {
@@ -102,7 +104,17 @@
     }
   }
 
+  function showCachedFallbackNoticeOnce() {
+    if (cachedFallbackNoticeShown) return;
+    cachedFallbackNoticeShown = true;
+    showToast(
+      boardToast,
+      "최신 내용을 불러오지 못해 잠시 저장된 내용을 보여드리고 있습니다.",
+    );
+  }
+
   function renderCachedContentNotice() {
+    cachedFallbackNoticeShown = true;
     if (boardList.querySelector(".board-cache-notice")) return;
     const notice = element(
       "div",
@@ -561,6 +573,8 @@
         bestPostList.replaceChildren(
           element("li", "best-loading", error.message || "불러오지 못했습니다."),
         );
+      } else {
+        showCachedFallbackNoticeOnce();
       }
     }
   }
@@ -640,6 +654,8 @@
         unansweredPostList.replaceChildren(
           element("li", "best-loading", error.message || "불러오지 못했습니다."),
         );
+      } else {
+        showCachedFallbackNoticeOnce();
       }
     }
   }
@@ -682,12 +698,17 @@
     const isBest = state.boardType === "BEST";
     const isPopular = state.boardType === "POPULAR";
     const isRankedView = isBest || isPopular;
+    let activeTabId = "board-tab-general";
     document.querySelectorAll("[data-board-type]").forEach((tab) => {
       const active = tab.dataset.boardType === state.boardType;
       tab.classList.toggle("is-active", active);
       tab.setAttribute("aria-selected", String(active));
       tab.tabIndex = active ? 0 : -1;
+      if (active && tab.id) activeTabId = tab.id;
     });
+    if (boardTabPanel) {
+      boardTabPanel.setAttribute("aria-labelledby", activeTabId);
+    }
     boardHeading.textContent = isBest
       ? "베스트 커뮤니티"
       : isPopular
