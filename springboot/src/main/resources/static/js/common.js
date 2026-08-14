@@ -411,7 +411,7 @@
     }).join("");
 
     const authAction = session.authenticated
-      ? `<button class="button button-sm button-orange header-auth-button" type="button" data-logout>
+      ? `<button class="button button-sm button-outline-gray header-auth-button" type="button" data-logout>
            <span class="material-symbols-rounded" aria-hidden="true">logout</span>
            로그아웃
          </button>`
@@ -419,7 +419,7 @@
               href="/pages/auth/signup.html">
            회원가입
          </a>
-         <a class="button button-sm button-navy header-auth-button" href="/pages/auth/login.html">
+         <a class="button button-sm button-orange header-auth-button" href="/pages/auth/login.html">
            로그인
          </a>`;
 

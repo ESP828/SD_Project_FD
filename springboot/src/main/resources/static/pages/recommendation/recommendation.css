@@ -5,10 +5,8 @@
 
 .recommendation-hero {
   overflow: hidden;
-  padding: 64px 0 58px;
-  background:
-    radial-gradient(circle at 86% 30%, rgba(255, 152, 0, 0.19), transparent 26%),
-    var(--color-cream);
+  padding: 58px 0;
+  background: var(--color-cream) url("/images/recommendation-hero-background.png") center / cover no-repeat;
 }
 
 .recommendation-hero-grid {

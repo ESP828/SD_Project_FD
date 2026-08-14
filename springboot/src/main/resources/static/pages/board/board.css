@@ -5,10 +5,8 @@
 
 .board-hero {
   overflow: hidden;
-  padding: 58px 0 48px;
-  background:
-    radial-gradient(circle at 85% 20%, rgba(0, 168, 72, 0.13), transparent 25%),
-    #fff;
+  padding: 58px 0;
+  background: #fff url("/images/board-hero-background.png") center / cover no-repeat;
 }
 
 .board-hero-grid {

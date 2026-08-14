@@ -7,9 +7,7 @@
   overflow: hidden;
   padding: 58px 0;
   border-bottom: 1px solid rgba(255, 152, 0, 0.12);
-  background:
-    radial-gradient(circle at 84% 24%, rgba(255, 152, 0, 0.18), transparent 30%),
-    linear-gradient(135deg, #fffdf8 0%, #fff5e5 100%);
+  background: #fffdf8 url("/images/preset-hero-background.png") center / cover no-repeat;
 }
 
 .preset-hero-grid {
@@ -654,6 +652,15 @@
 
 .preset-card-map-placeholder {
   min-height: 242px;
+}
+
+.preset-card-cover {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .preset-card-map-path {

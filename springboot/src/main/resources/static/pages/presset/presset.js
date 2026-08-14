@@ -106,6 +106,16 @@
     map.href = detailPath(preset.presetId);
     map.setAttribute("aria-label", `${preset.title || "보물지도"} 상세 보기`);
 
+    if (preset.imageUrl) {
+      map.append(safeImage(
+        preset.imageUrl,
+        preset.title,
+        "preset-card-cover",
+        "preset-image-placeholder preset-card-map-placeholder",
+      ));
+      return map;
+    }
+
     const stops = Array.isArray(preset.thumbnailImageUrls) ? preset.thumbnailImageUrls.slice(0, 3) : [];
     if (!stops.length) {
       map.append(imagePlaceholder("preset-image-placeholder preset-card-map-placeholder"));
@@ -160,7 +170,6 @@
     (preset.tags || []).slice(0, 3).forEach((tag) => tags.append(element("span", "preset-card-chip", tag.tagName)));
     if (tags.childElementCount) body.append(tags);
 
-    body.append(element("p", "preset-card-eyebrow", "보물지도"));
     const titleLink = element("a", "preset-card-title", preset.title || "이름 없는 보물지도");
     titleLink.href = detailPath(preset.presetId);
     body.append(titleLink);
