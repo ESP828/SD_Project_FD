@@ -1024,6 +1024,7 @@
     let pollTimer = null;
     let layoutTimer = null;
     let popupDocument = null;
+    let popupMutationObserver = null;
     let storageHandler = null;
     let activeNextPath = "/";
 
@@ -1035,6 +1036,10 @@
       if (layoutTimer) {
         window.clearTimeout(layoutTimer);
         layoutTimer = null;
+      }
+      if (popupMutationObserver) {
+        popupMutationObserver.disconnect();
+        popupMutationObserver = null;
       }
       if (storageHandler) {
         window.removeEventListener("storage", storageHandler);
@@ -1067,32 +1072,71 @@
       });
     }
 
-    function prepareAuthPopupDocument(documentRef) {
-      if (!documentRef?.head) return false;
+    function hideAuthPopupElements(rootRef) {
+      if (!rootRef) return;
+      const selector = ".quick-remote, #site-nav, .header-actions";
+      const elements = [];
 
-      if (!documentRef.getElementById(BOARD_AUTH_POPUP_STYLE_ID)) {
-        const style = documentRef.createElement("style");
-        style.id = BOARD_AUTH_POPUP_STYLE_ID;
-        style.textContent = `
-          .quick-remote,
-          #site-nav,
-          .header-actions {
-            display: none !important;
-          }
-        `;
-        documentRef.head.appendChild(style);
+      if (rootRef.nodeType === 1 && rootRef.matches?.(selector)) {
+        elements.push(rootRef);
       }
+      rootRef.querySelectorAll?.(selector).forEach((elementRef) => elements.push(elementRef));
 
-      documentRef
-        .querySelectorAll?.(".quick-remote, #site-nav, .header-actions")
-        .forEach((elementRef) => {
-          elementRef.hidden = true;
-          elementRef.style.setProperty("display", "none", "important");
-        });
+      elements.forEach((elementRef) => {
+        elementRef.hidden = true;
+        elementRef.style.setProperty("display", "none", "important");
+      });
+    }
+
+    function ensureAuthPopupStyle(documentRef) {
+      if (!documentRef?.head) return false;
+      if (documentRef.getElementById(BOARD_AUTH_POPUP_STYLE_ID)) return true;
+
+      const style = documentRef.createElement("style");
+      style.id = BOARD_AUTH_POPUP_STYLE_ID;
+      style.textContent = `
+        .quick-remote,
+        #site-nav,
+        .header-actions {
+          display: none !important;
+        }
+      `;
+      documentRef.head.prepend(style);
+      return true;
+    }
+
+    function observeAuthPopupDocument(documentRef) {
+      if (!documentRef || popupDocument === documentRef && popupMutationObserver) return;
+
+      if (popupMutationObserver) popupMutationObserver.disconnect();
+      const MutationObserverRef = documentRef.defaultView?.MutationObserver || window.MutationObserver;
+      popupMutationObserver = new MutationObserverRef((mutations) => {
+        ensureAuthPopupStyle(documentRef);
+        for (const mutation of mutations) {
+          mutation.addedNodes.forEach((nodeRef) => hideAuthPopupElements(nodeRef));
+        }
+      });
+
+      popupMutationObserver.observe(documentRef, {
+        childList: true,
+        subtree: true,
+      });
+    }
+
+    function prepareAuthPopupDocument(documentRef) {
+      if (!documentRef) return false;
+
+      // 새 문서를 잡는 즉시 감시부터 붙인다. head/body가 만들어지는 과정에서
+      // 대상 요소가 추가되면 다음 화면을 그리기 전에 바로 숨길 수 있다.
+      observeAuthPopupDocument(documentRef);
+      ensureAuthPopupStyle(documentRef);
+      hideAuthPopupElements(documentRef);
 
       syncAuthPopupLinks(documentRef);
       if (documentRef.readyState === "loading") {
         documentRef.addEventListener("DOMContentLoaded", () => {
+          ensureAuthPopupStyle(documentRef);
+          hideAuthPopupElements(documentRef);
           syncAuthPopupLinks(documentRef);
         }, { once: true });
       }
