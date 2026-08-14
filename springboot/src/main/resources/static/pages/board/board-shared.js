@@ -984,9 +984,8 @@
     "/pages/auth/oauth-callback.html",
   ]);
   const BOARD_AUTH_POPUP_STYLE_ID = "fooduck-board-auth-popup-style";
+  const BOARD_AUTH_POPUP_FRAME_ID = "fooduck-board-auth-popup-frame";
   const BOARD_AUTH_POPUP_POLL_MS = 300;
-  const BOARD_AUTH_POPUP_LAYOUT_WATCH_MS = 1200;
-  const BOARD_AUTH_POPUP_LAYOUT_RETRY_MS = 4;
 
   function safeBoardAuthNextPath(nextPath) {
     const value = String(nextPath || "").trim();
@@ -1014,6 +1013,142 @@
     ].join(",");
   }
 
+  function createAuthPopupShellUrl({ loginUrl, popupName, nextPath }) {
+    const authPaths = JSON.stringify(Array.from(BOARD_AUTH_POPUP_PATHS));
+    const initialUrl = JSON.stringify(loginUrl);
+    const initialNext = JSON.stringify(nextPath);
+    const storageKey = JSON.stringify(`fooduck-board-auth-popup:${popupName || "default"}`);
+    const styleId = JSON.stringify(BOARD_AUTH_POPUP_STYLE_ID);
+    const frameId = JSON.stringify(BOARD_AUTH_POPUP_FRAME_ID);
+    const html = `<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>로그인 · 푸드덕</title>
+  <style>
+    html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; background: #fff; }
+    #${BOARD_AUTH_POPUP_FRAME_ID} { width: 100%; height: 100%; border: 0; display: block; visibility: hidden; background: #fff; }
+  </style>
+</head>
+<body>
+  <iframe id="${BOARD_AUTH_POPUP_FRAME_ID}" title="푸드덕 로그인" referrerpolicy="same-origin"></iframe>
+  <script>
+    (() => {
+      const AUTH_PATHS = new Set(${authPaths});
+      const INITIAL_URL = ${initialUrl};
+      const NEXT_PATH = ${initialNext};
+      const STORAGE_KEY = ${storageKey};
+      const STYLE_ID = ${styleId};
+      const FRAME_ID = ${frameId};
+      const frame = document.getElementById(FRAME_ID);
+
+      function safeAuthUrl(value) {
+        try {
+          const url = new URL(String(value || ""), window.location.origin);
+          if (url.origin !== window.location.origin || !AUTH_PATHS.has(url.pathname)) return null;
+          return url.pathname + url.search + url.hash;
+        } catch (_error) {
+          return null;
+        }
+      }
+
+      function rememberCurrentAuthUrl() {
+        try {
+          const value = safeAuthUrl(frame.contentWindow.location.href);
+          if (value) window.sessionStorage.setItem(STORAGE_KEY, value);
+        } catch (_error) {
+          // 외부 로그인 화면에서는 현재 주소를 읽지 않는다.
+        }
+      }
+
+      function hideFrame() {
+        frame.style.visibility = "hidden";
+      }
+
+      function syncAuthLinks(documentRef) {
+        documentRef.querySelectorAll('a[href^="/pages/auth/"]').forEach((link) => {
+          try {
+            const targetUrl = new URL(link.href, window.location.origin);
+            if (!AUTH_PATHS.has(targetUrl.pathname)) return;
+            if (!targetUrl.searchParams.has("next")) {
+              targetUrl.searchParams.set("next", NEXT_PATH);
+              link.href = targetUrl.pathname + targetUrl.search + targetUrl.hash;
+            }
+          } catch (_error) {
+            // 주소를 해석할 수 없는 링크는 원래 동작을 유지한다.
+          }
+        });
+      }
+
+      function prepareDocument(documentRef) {
+        if (!documentRef?.head) return false;
+        let style = documentRef.getElementById(STYLE_ID);
+        if (!style) {
+          style = documentRef.createElement("style");
+          style.id = STYLE_ID;
+          style.textContent = ".quick-remote, #site-nav, .header-actions { display: none !important; }";
+          documentRef.head.appendChild(style);
+        }
+
+        documentRef.querySelectorAll(".quick-remote, #site-nav, .header-actions").forEach((elementRef) => {
+          elementRef.hidden = true;
+          elementRef.style.setProperty("display", "none", "important");
+        });
+
+        syncAuthLinks(documentRef);
+        return true;
+      }
+
+      function prepareLoadedFrame() {
+        try {
+          const currentUrl = new URL(frame.contentWindow.location.href);
+          if (currentUrl.origin !== window.location.origin || !AUTH_PATHS.has(currentUrl.pathname)) {
+            window.location.replace(currentUrl.href);
+            return;
+          }
+          const documentRef = frame.contentDocument;
+          if (!prepareDocument(documentRef)) return;
+          rememberCurrentAuthUrl();
+
+          const childWindow = frame.contentWindow;
+          childWindow.addEventListener("beforeunload", hideFrame, { once: true });
+          documentRef.addEventListener("click", (event) => {
+            const link = event.target.closest?.("a[href]");
+            if (!link) return;
+            try {
+              const targetUrl = new URL(link.href, window.location.origin);
+              if (targetUrl.origin === window.location.origin && targetUrl.pathname.startsWith("/api/auth/")) {
+                event.preventDefault();
+                hideFrame();
+                window.location.assign(targetUrl.href);
+              }
+            } catch (_error) {
+              // 일반 링크는 원래 동작을 유지한다.
+            }
+          }, true);
+
+          frame.style.visibility = "visible";
+        } catch (_error) {
+          // 다른 출처로 이동한 경우에는 iframe 대신 팝업 전체에서 계속 진행한다.
+          try {
+            window.location.replace(frame.src);
+          } catch (_ignored) {
+            // 이동하지 못해도 현재 창은 그대로 둔다.
+          }
+        }
+      }
+
+      frame.addEventListener("load", prepareLoadedFrame);
+      const rememberedUrl = safeAuthUrl(window.sessionStorage.getItem(STORAGE_KEY));
+      frame.src = rememberedUrl || INITIAL_URL;
+    })();
+  <\/script>
+</body>
+</html>`;
+    return URL.createObjectURL(new Blob([html], { type: "text/html;charset=utf-8" }));
+  }
+
   function createAuthPopupController({
     popupName,
     onAuthenticated = null,
@@ -1022,19 +1157,20 @@
   } = {}) {
     let popup = null;
     let pollTimer = null;
-    let layoutTimer = null;
-    let popupDocument = null;
+    let popupShellUrl = null;
     let storageHandler = null;
     let activeNextPath = "/";
+
+    function releaseShellUrl() {
+      if (!popupShellUrl) return;
+      URL.revokeObjectURL(popupShellUrl);
+      popupShellUrl = null;
+    }
 
     function stop({ closePopup = false } = {}) {
       if (pollTimer) {
         window.clearInterval(pollTimer);
         pollTimer = null;
-      }
-      if (layoutTimer) {
-        window.clearTimeout(layoutTimer);
-        layoutTimer = null;
       }
       if (storageHandler) {
         window.removeEventListener("storage", storageHandler);
@@ -1048,128 +1184,35 @@
         }
       }
       popup = null;
-      popupDocument = null;
+      releaseShellUrl();
     }
 
-    function syncAuthPopupLinks(documentRef) {
-      if (!documentRef?.querySelectorAll) return;
-      documentRef.querySelectorAll('a[href^="/pages/auth/"]').forEach((link) => {
-        try {
-          const targetUrl = new URL(link.href, window.location.origin);
-          if (!BOARD_AUTH_POPUP_PATHS.has(targetUrl.pathname)) return;
-          if (!targetUrl.searchParams.has("next")) {
-            targetUrl.searchParams.set("next", activeNextPath);
-            link.href = `${targetUrl.pathname}${targetUrl.search}${targetUrl.hash}`;
-          }
-        } catch (_error) {
-          // 주소를 해석할 수 없는 링크는 원래 동작을 유지한다.
+    function prepareDirectAuthDocument() {
+      if (!popup || popup.closed) return;
+      try {
+        const pathname = popup.location.pathname;
+        if (!BOARD_AUTH_POPUP_PATHS.has(pathname)) return;
+        const documentRef = popup.document;
+        if (!documentRef?.head) return;
+        if (!documentRef.getElementById(BOARD_AUTH_POPUP_STYLE_ID)) {
+          const style = documentRef.createElement("style");
+          style.id = BOARD_AUTH_POPUP_STYLE_ID;
+          style.textContent = `
+            .quick-remote,
+            #site-nav,
+            .header-actions {
+              display: none !important;
+            }
+          `;
+          documentRef.head.appendChild(style);
         }
-      });
-    }
-
-    function prepareAuthPopupDocument(documentRef) {
-      if (!documentRef?.head) return false;
-
-      if (!documentRef.getElementById(BOARD_AUTH_POPUP_STYLE_ID)) {
-        const style = documentRef.createElement("style");
-        style.id = BOARD_AUTH_POPUP_STYLE_ID;
-        style.textContent = `
-          .quick-remote,
-          #site-nav,
-          .header-actions {
-            display: none !important;
-          }
-        `;
-        documentRef.head.appendChild(style);
-      }
-
-      documentRef
-        .querySelectorAll?.(".quick-remote, #site-nav, .header-actions")
-        .forEach((elementRef) => {
+        documentRef.querySelectorAll(".quick-remote, #site-nav, .header-actions").forEach((elementRef) => {
           elementRef.hidden = true;
           elementRef.style.setProperty("display", "none", "important");
         });
-
-      syncAuthPopupLinks(documentRef);
-      if (documentRef.readyState === "loading") {
-        documentRef.addEventListener("DOMContentLoaded", () => {
-          syncAuthPopupLinks(documentRef);
-        }, { once: true });
-      }
-      return true;
-    }
-
-    function applyPopupLayout() {
-      if (!popup || popup.closed) return "closed";
-      try {
-        const popupHref = popup.location.href;
-        const pathname = popup.location.pathname;
-        if (popupHref === "about:blank") return "pending";
-        if (!BOARD_AUTH_POPUP_PATHS.has(pathname)) {
-          return pathname === "/" || pathname === "" ? "pending" : "other";
-        }
-
-        const documentRef = popup.document;
-        if (!prepareAuthPopupDocument(documentRef)) return "pending";
-
-        if (popupDocument !== documentRef) {
-          popupDocument = documentRef;
-          try {
-            popup.addEventListener("pagehide", () => {
-              const previousDocument = documentRef;
-              window.setTimeout(() => {
-                if (!popup || popup.closed) return;
-                startLayoutWatch(previousDocument);
-              }, 0);
-            }, { once: true });
-          } catch (_error) {
-            // 문서가 바뀌는 시점은 아래 주기 확인에서도 다시 보정한다.
-          }
-        }
-        return "applied";
       } catch (_error) {
-        // 소셜 로그인처럼 다른 출처의 화면으로 이동한 동안에는 관여하지 않는다.
-        return "foreign";
+        // 외부 소셜 로그인 화면에는 관여하지 않는다.
       }
-    }
-
-    function startLayoutWatch(previousDocument = null) {
-      if (layoutTimer) {
-        window.clearTimeout(layoutTimer);
-        layoutTimer = null;
-      }
-      const startedAt = window.performance?.now?.() ?? Date.now();
-
-      const scheduleNext = () => {
-        layoutTimer = window.setTimeout(applyWhenReady, BOARD_AUTH_POPUP_LAYOUT_RETRY_MS);
-      };
-
-      const applyWhenReady = () => {
-        layoutTimer = null;
-        if (!popup || popup.closed) return;
-        const now = window.performance?.now?.() ?? Date.now();
-        if (now - startedAt > BOARD_AUTH_POPUP_LAYOUT_WATCH_MS) return;
-
-        if (previousDocument) {
-          try {
-            if (popup.document === previousDocument) {
-              scheduleNext();
-              return;
-            }
-          } catch (_error) {
-            // 다른 출처로 이동한 경우 빠른 확인은 멈추고 주기 확인에 맡긴다.
-            return;
-          }
-        }
-
-        const status = applyPopupLayout();
-        if (status === "applied" || status === "other" || status === "foreign" || status === "closed") {
-          return;
-        }
-        scheduleNext();
-      };
-
-      applyWhenReady();
     }
 
     function completeIfReady() {
@@ -1183,13 +1226,19 @@
       stop({ closePopup: true });
       activeNextPath = safeBoardAuthNextPath(nextPath);
       const loginUrl = `/pages/auth/login.html?next=${encodeURIComponent(activeNextPath)}`;
-      const openedPopup = window.open(
+      popupShellUrl = createAuthPopupShellUrl({
         loginUrl,
+        popupName: popupName || "fooduck-board-auth-login",
+        nextPath: activeNextPath,
+      });
+      const openedPopup = window.open(
+        popupShellUrl,
         popupName || "fooduck-board-auth-login",
         boardAuthPopupFeatures(),
       );
 
       if (!openedPopup) {
+        releaseShellUrl();
         if (typeof onBlocked === "function") {
           onBlocked({ loginUrl, nextPath: activeNextPath });
         }
@@ -1197,7 +1246,6 @@
       }
 
       popup = openedPopup;
-      startLayoutWatch();
       storageHandler = (event) => {
         if (event.key === "accessToken" && event.newValue) completeIfReady();
       };
@@ -1209,9 +1257,8 @@
           if (typeof onClosed === "function") onClosed();
           return;
         }
-
-        const status = applyPopupLayout();
-        if (status === "pending" && !layoutTimer) startLayoutWatch();
+        // 외부 로그인 뒤 FOODUCK 콜백 화면으로 직접 돌아온 경우에도 공통 메뉴를 숨긴다.
+        prepareDirectAuthDocument();
       }, BOARD_AUTH_POPUP_POLL_MS);
 
       try {
