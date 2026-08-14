@@ -986,6 +986,7 @@
   const BOARD_AUTH_POPUP_STYLE_ID = "fooduck-board-auth-popup-style";
   const BOARD_AUTH_POPUP_POLL_MS = 300;
   const BOARD_AUTH_POPUP_LAYOUT_WATCH_MS = 1200;
+  const BOARD_AUTH_POPUP_LAYOUT_RETRY_MS = 4;
 
   function safeBoardAuthNextPath(nextPath) {
     const value = String(nextPath || "").trim();
@@ -1021,7 +1022,7 @@
   } = {}) {
     let popup = null;
     let pollTimer = null;
-    let layoutFrame = null;
+    let layoutTimer = null;
     let popupDocument = null;
     let storageHandler = null;
     let activeNextPath = "/";
@@ -1031,9 +1032,9 @@
         window.clearInterval(pollTimer);
         pollTimer = null;
       }
-      if (layoutFrame) {
-        window.cancelAnimationFrame(layoutFrame);
-        layoutFrame = null;
+      if (layoutTimer) {
+        window.clearTimeout(layoutTimer);
+        layoutTimer = null;
       }
       if (storageHandler) {
         window.removeEventListener("storage", storageHandler);
@@ -1074,13 +1075,20 @@
         style.id = BOARD_AUTH_POPUP_STYLE_ID;
         style.textContent = `
           .quick-remote,
-          .site-header #site-nav,
-          .site-header .header-actions {
+          #site-nav,
+          .header-actions {
             display: none !important;
           }
         `;
         documentRef.head.appendChild(style);
       }
+
+      documentRef
+        .querySelectorAll?.(".quick-remote, #site-nav, .header-actions")
+        .forEach((elementRef) => {
+          elementRef.hidden = true;
+          elementRef.style.setProperty("display", "none", "important");
+        });
 
       syncAuthPopupLinks(documentRef);
       if (documentRef.readyState === "loading") {
@@ -1126,24 +1134,26 @@
     }
 
     function startLayoutWatch(previousDocument = null) {
-      if (layoutFrame) {
-        window.cancelAnimationFrame(layoutFrame);
-        layoutFrame = null;
+      if (layoutTimer) {
+        window.clearTimeout(layoutTimer);
+        layoutTimer = null;
       }
       const startedAt = window.performance?.now?.() ?? Date.now();
 
-      const applyWhenReady = (frameTime) => {
-        layoutFrame = null;
+      const scheduleNext = () => {
+        layoutTimer = window.setTimeout(applyWhenReady, BOARD_AUTH_POPUP_LAYOUT_RETRY_MS);
+      };
+
+      const applyWhenReady = () => {
+        layoutTimer = null;
         if (!popup || popup.closed) return;
-        const now = Number.isFinite(frameTime)
-          ? frameTime
-          : (window.performance?.now?.() ?? Date.now());
+        const now = window.performance?.now?.() ?? Date.now();
         if (now - startedAt > BOARD_AUTH_POPUP_LAYOUT_WATCH_MS) return;
 
         if (previousDocument) {
           try {
             if (popup.document === previousDocument) {
-              layoutFrame = window.requestAnimationFrame(applyWhenReady);
+              scheduleNext();
               return;
             }
           } catch (_error) {
@@ -1156,10 +1166,10 @@
         if (status === "applied" || status === "other" || status === "foreign" || status === "closed") {
           return;
         }
-        layoutFrame = window.requestAnimationFrame(applyWhenReady);
+        scheduleNext();
       };
 
-      applyWhenReady(startedAt);
+      applyWhenReady();
     }
 
     function completeIfReady() {
@@ -1201,7 +1211,7 @@
         }
 
         const status = applyPopupLayout();
-        if (status === "pending" && !layoutFrame) startLayoutWatch();
+        if (status === "pending" && !layoutTimer) startLayoutWatch();
       }, BOARD_AUTH_POPUP_POLL_MS);
 
       try {
