@@ -11,6 +11,7 @@ import com.example.backend.restaurant.repository.PublicRestaurantRepository;
 import com.example.backend.restaurant.repository.RestaurantRepository;
 import com.example.backend.review.domain.entity.Review;
 import com.example.backend.review.dto.request.ReviewCreateRequest;
+import com.example.backend.review.dto.request.ReviewUpdateRequest;
 import com.example.backend.review.dto.response.ReviewResponse;
 import com.example.backend.review.exception.ReviewAlreadyExistsException;
 import com.example.backend.review.repository.ReviewRepository;
@@ -96,5 +97,22 @@ public class ReviewService {
         reviewRepository.save(review);
 
         return ReviewResponse.from(review);
+    }
+
+    @Transactional
+    public ReviewResponse updateReview(Long reviewId, Long accountId, ReviewUpdateRequest request) {
+        Review review = requireActiveOwnedReview(reviewId, accountId);
+        review.update(request.rating().byteValue(), request.content());
+        return ReviewResponse.from(review);
+    }
+
+    @Transactional
+    public void deleteReview(Long reviewId, Long accountId) {
+        requireActiveOwnedReview(reviewId, accountId).delete();
+    }
+
+    private Review requireActiveOwnedReview(Long reviewId, Long accountId) {
+        return reviewRepository.findActiveOwnedReview(reviewId, accountId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.REVIEW_NOT_FOUND));
     }
 }

@@ -192,6 +192,10 @@
   grid-template-columns: repeat(6, minmax(0, 1fr));
 }
 
+.activity-grid--business {
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+}
+
 .activity-card {
   position: relative;
   padding: 19px;
@@ -409,6 +413,86 @@
 .mypage-action.is-disabled {
   color: var(--color-subtle);
   cursor: not-allowed;
+}
+
+.mypage-danger-panel {
+  border-color: #efc9c5;
+}
+
+.mypage-danger-panel .mypage-panel-header {
+  background: #fff8f7;
+}
+
+.mypage-danger-panel .mypage-panel-header h3 {
+  color: #8f2f29;
+}
+
+.mypage-danger-body {
+  display: grid;
+  gap: 14px;
+  padding: 20px 24px 24px;
+}
+
+.mypage-danger-body > p {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 0.76rem;
+  line-height: 1.65;
+}
+
+.mypage-withdraw-button {
+  width: 100%;
+  color: #9f342d;
+  border-color: #e5b0ab;
+}
+
+.mypage-withdraw-form {
+  display: grid;
+  gap: 13px;
+}
+
+.mypage-withdraw-field input {
+  width: 100%;
+  min-height: 42px;
+  padding: 0 11px;
+  border: 1px solid var(--color-line);
+  border-radius: 11px;
+  outline: none;
+  font: inherit;
+}
+
+.mypage-withdraw-field input:focus {
+  border-color: #b44139;
+  box-shadow: 0 0 0 3px rgba(180, 65, 57, 0.1);
+}
+
+.mypage-withdraw-status {
+  min-height: 1.2em;
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.mypage-withdraw-status.is-error {
+  color: #a83a32;
+}
+
+.mypage-withdraw-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.mypage-withdraw-submit {
+  color: #fff;
+  border-color: #a83a32;
+  background: #a83a32;
+}
+
+.mypage-withdraw-submit:hover,
+.mypage-withdraw-submit:focus-visible {
+  background: #872c27;
 }
 
 .notification-summary {

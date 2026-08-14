@@ -155,6 +155,88 @@
     return node;
   }
 
+  function createWithdrawalPanel(data) {
+    const panel = element("section", "mypage-side-panel mypage-danger-panel");
+    const header = element("div", "mypage-panel-header");
+    const title = element("div");
+    title.append(
+      element("h3", "", "계정 관리"),
+      element("p", "", "탈퇴 후에는 계정으로 다시 로그인할 수 없습니다."),
+    );
+    header.append(title);
+    const body = element("div", "mypage-danger-body");
+
+    function showSummary() {
+      const copy = element(
+        "p",
+        "",
+        "작성한 콘텐츠는 보존되며, 사업자 계정의 운영 중 음식점은 운영 중지됩니다.",
+      );
+      const openButton = element("button", "button button-secondary mypage-withdraw-button", "회원 탈퇴");
+      openButton.type = "button";
+      openButton.addEventListener("click", showForm);
+      body.replaceChildren(copy, openButton);
+    }
+
+    function showForm() {
+      const form = element("form", "mypage-withdraw-form");
+      let password = null;
+      if (data.loginId) {
+        password = input("password", "currentPassword");
+        password.required = true;
+        password.maxLength = 128;
+        password.autocomplete = "current-password";
+        form.append(field("현재 비밀번호", password, "mypage-withdraw-field"));
+      }
+
+      const confirmation = input("text", "confirmation");
+      confirmation.required = true;
+      confirmation.maxLength = 20;
+      confirmation.autocomplete = "off";
+      confirmation.placeholder = "회원탈퇴";
+      form.append(field('확인을 위해 "회원탈퇴" 입력', confirmation, "mypage-withdraw-field"));
+
+      const status = element("p", "mypage-withdraw-status");
+      status.setAttribute("role", "status");
+      const actions = element("div", "mypage-withdraw-actions");
+      const cancelButton = element("button", "button button-secondary button-sm", "취소");
+      const submitButton = element("button", "button button-sm mypage-withdraw-submit", "탈퇴하기");
+      cancelButton.type = "button";
+      submitButton.type = "submit";
+      cancelButton.addEventListener("click", showSummary);
+      actions.append(cancelButton, submitButton);
+      form.append(status, actions);
+
+      form.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        status.className = "mypage-withdraw-status";
+        status.textContent = "회원 탈퇴를 처리하고 있습니다.";
+        submitButton.disabled = true;
+        cancelButton.disabled = true;
+        try {
+          await Api.patch("/mypage/account/withdraw", {
+            currentPassword: password ? password.value : null,
+            confirmation: confirmation.value,
+          });
+          await Api.logout().catch(() => Api.clearToken());
+          window.location.assign("/");
+        } catch (error) {
+          status.classList.add("is-error");
+          status.textContent = error.message || "회원 탈퇴를 처리하지 못했습니다.";
+          submitButton.disabled = false;
+          cancelButton.disabled = false;
+        }
+      });
+
+      body.replaceChildren(form);
+      (password || confirmation).focus();
+    }
+
+    showSummary();
+    panel.append(header, body);
+    return panel;
+  }
+
   function render(data, successMessage = "") {
     content.replaceChildren();
 
@@ -256,7 +338,7 @@
     );
     notification.append(notificationImage, notificationCopy);
     notificationPanel.append(notification);
-    side.append(actionPanel, notificationPanel);
+    side.append(actionPanel, createWithdrawalPanel(data), notificationPanel);
     layout.append(accountPanel, side);
 
     content.append(summary, activities, layout);

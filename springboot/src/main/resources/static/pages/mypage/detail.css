@@ -360,6 +360,58 @@
   letter-spacing: 1px;
 }
 
+.mypage-review-delete {
+  color: #a83a32 !important;
+}
+
+.mypage-review-edit {
+  display: grid;
+  gap: 14px;
+  margin-top: 18px;
+}
+
+.mypage-review-field {
+  display: grid;
+  gap: 7px;
+  color: var(--color-navy);
+  font-size: 0.75rem;
+  font-weight: 850;
+}
+
+.mypage-review-field select,
+.mypage-review-field textarea {
+  width: 100%;
+  padding: 11px 12px;
+  border: 1px solid var(--color-line);
+  border-radius: 12px;
+  color: #343432;
+  background: #fff;
+  font: inherit;
+  font-weight: 500;
+}
+
+.mypage-review-field textarea {
+  resize: vertical;
+  line-height: 1.6;
+}
+
+.mypage-review-field select:focus,
+.mypage-review-field textarea:focus {
+  border-color: var(--color-orange);
+  outline: 3px solid var(--color-orange-soft);
+}
+
+.mypage-review-status {
+  min-height: 1.2em;
+  margin: 0 !important;
+  color: var(--color-muted) !important;
+  font-size: 0.72rem !important;
+}
+
+.mypage-review-status.is-error {
+  color: #a83a32 !important;
+}
+
 .mypage-detail-meta {
   display: flex;
   flex-wrap: wrap;

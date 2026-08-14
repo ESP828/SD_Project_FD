@@ -9,6 +9,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @SpringBootTest
@@ -66,17 +67,65 @@ class MyPageActivityQueryRepositoryTest {
 
         var counts = repository.findCounts(accountId);
         var favorites = repository.findFavorites(accountId);
+        var ownedFavorite = favorites.stream()
+                .filter(item -> item.restaurantName().equals("마이페이지 활성 식당"))
+                .findFirst()
+                .orElseThrow();
+        var publicFavorite = favorites.stream()
+                .filter(item -> item.restaurantName().equals("마이페이지 공공 식당"))
+                .findFirst()
+                .orElseThrow();
 
         assertAll(
                 () -> assertEquals(2, counts.favorites()),
                 () -> assertEquals(2, favorites.size()),
-                () -> assertTrue(favorites.stream()
-                        .anyMatch(item -> item.restaurantName().equals("마이페이지 활성 식당"))),
-                () -> assertTrue(favorites.stream()
-                        .anyMatch(item -> item.restaurantName().equals("마이페이지 공공 식당"))),
+                () -> assertEquals("OWNED", ownedFavorite.restaurantSource()),
+                () -> assertEquals(activeRestaurantId, ownedFavorite.restaurantId()),
+                () -> assertNull(ownedFavorite.publicRestaurantId()),
+                () -> assertEquals("PUBLIC", publicFavorite.restaurantSource()),
+                () -> assertNull(publicFavorite.restaurantId()),
+                () -> assertEquals(publicRestaurantId, publicFavorite.publicRestaurantId()),
                 () -> assertTrue(favorites.stream()
                         .noneMatch(item -> item.restaurantName().contains("휴업")
                                 || item.restaurantName().contains("삭제")))
+        );
+    }
+
+    @Test
+    void reviewsExposeOwnedAndPublicRestaurantIdentifiers() {
+        long accountId = createAccount();
+        long restaurantId = createRestaurant(accountId, "마이페이지 리뷰 식당", "ACTIVE");
+        long publicRestaurantId = createPublicRestaurant();
+
+        jdbcTemplate.update("""
+                insert into review (
+                    account_id, restaurant_id, rating, content, status, created_at, updated_at
+                ) values (?, ?, 5, '자체 리뷰', 'ACTIVE', current_timestamp, current_timestamp)
+                """, accountId, restaurantId);
+        jdbcTemplate.update("""
+                insert into review (
+                    account_id, public_restaurant_id, rating, content, status, created_at, updated_at
+                ) values (?, ?, 4, '공공 리뷰', 'ACTIVE', current_timestamp, current_timestamp)
+                """, accountId, publicRestaurantId);
+
+        var reviews = repository.findReviews(accountId);
+        var ownedReview = reviews.stream()
+                .filter(item -> item.content().equals("자체 리뷰"))
+                .findFirst()
+                .orElseThrow();
+        var publicReview = reviews.stream()
+                .filter(item -> item.content().equals("공공 리뷰"))
+                .findFirst()
+                .orElseThrow();
+
+        assertAll(
+                () -> assertEquals(2, reviews.size()),
+                () -> assertEquals("OWNED", ownedReview.restaurantSource()),
+                () -> assertEquals(restaurantId, ownedReview.restaurantId()),
+                () -> assertNull(ownedReview.publicRestaurantId()),
+                () -> assertEquals("PUBLIC", publicReview.restaurantSource()),
+                () -> assertNull(publicReview.restaurantId()),
+                () -> assertEquals(publicRestaurantId, publicReview.publicRestaurantId())
         );
     }
 

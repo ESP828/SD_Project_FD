@@ -11,7 +11,9 @@ public final class MyPageActivityResponse {
     }
 
     public record FavoriteItem(
+            String restaurantSource,
             Long restaurantId,
+            Long publicRestaurantId,
             String restaurantName,
             String categoryName,
             String address,
@@ -22,7 +24,9 @@ public final class MyPageActivityResponse {
 
     public record ReviewItem(
             Long reviewId,
+            String restaurantSource,
             Long restaurantId,
+            Long publicRestaurantId,
             String restaurantName,
             int rating,
             String content,

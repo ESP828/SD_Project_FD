@@ -109,6 +109,12 @@
     return new Intl.NumberFormat("ko-KR").format(Number(value) || 0);
   }
 
+  function formatRating(value) {
+    if (value === null || value === undefined || value === "") return "-";
+    const rating = Number(value);
+    return Number.isFinite(rating) ? rating.toFixed(1) : "-";
+  }
+
   function countFor(overview, tab) {
     return Number(overview[tabs[tab].countKey] || 0);
   }
@@ -139,6 +145,7 @@
       element("span", "", restaurant.categoryName || "카테고리 미지정"),
       element("span", "", statusLabel(restaurant.status)),
       element("span", "", `소식 ${formatNumber(restaurant.newsCount)}`),
+      element("span", "", `평점 ${formatRating(restaurant.averageRating)}`),
       element("span", "", `리뷰 ${formatNumber(restaurant.reviewCount)}`),
       element("span", "", `찜 ${formatNumber(restaurant.favoriteCount)}`),
     );

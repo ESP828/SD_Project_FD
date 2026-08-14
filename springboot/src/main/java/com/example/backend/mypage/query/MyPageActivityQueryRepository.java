@@ -75,9 +75,12 @@ public class MyPageActivityQueryRepository {
      */
     public List<FavoriteItem> findFavorites(Long accountId) {
         return jdbcTemplate.query("""
-                        select restaurant_id, restaurant_name, category_name, address, description, created_at
+                        select restaurant_source, restaurant_id, public_restaurant_id,
+                               restaurant_name, category_name, address, description, created_at
                           from (
-                                select r.restaurant_id as restaurant_id,
+                                select 'OWNED' as restaurant_source,
+                                       r.restaurant_id as restaurant_id,
+                                       null as public_restaurant_id,
                                        r.name as restaurant_name,
                                        rc.name as category_name,
                                        r.address as address,
@@ -91,7 +94,9 @@ public class MyPageActivityQueryRepository {
                                  where f.account_id = :accountId
                                    and r.status = 'ACTIVE'
                                 union all
-                                select null as restaurant_id,
+                                select 'PUBLIC' as restaurant_source,
+                                       null as restaurant_id,
+                                       p.public_restaurant_id as public_restaurant_id,
                                        p.name as restaurant_name,
                                        coalesce(p.category_small_name, p.category_large_name) as category_name,
                                        coalesce(p.road_address, p.lot_address) as address,
@@ -107,7 +112,9 @@ public class MyPageActivityQueryRepository {
                         """,
                 parameters(accountId),
                 (resultSet, rowNumber) -> new FavoriteItem(
+                        resultSet.getString("restaurant_source"),
                         (Long) resultSet.getObject("restaurant_id"),
+                        (Long) resultSet.getObject("public_restaurant_id"),
                         resultSet.getString("restaurant_name"),
                         resultSet.getString("category_name"),
                         resultSet.getString("address"),
@@ -118,10 +125,13 @@ public class MyPageActivityQueryRepository {
 
     public List<ReviewItem> findReviews(Long accountId) {
         return jdbcTemplate.query("""
-                        select review_id, restaurant_id, restaurant_name, rating, content, created_at, updated_at
+                        select review_id, restaurant_source, restaurant_id, public_restaurant_id,
+                               restaurant_name, rating, content, created_at, updated_at
                           from (
                                 select rv.review_id as review_id,
+                                       'OWNED' as restaurant_source,
                                        rv.restaurant_id as restaurant_id,
+                                       null as public_restaurant_id,
                                        r.name as restaurant_name,
                                        rv.rating as rating,
                                        rv.content as content,
@@ -134,7 +144,9 @@ public class MyPageActivityQueryRepository {
                                    and rv.status = 'ACTIVE'
                                 union all
                                 select rv.review_id as review_id,
+                                       'PUBLIC' as restaurant_source,
                                        null as restaurant_id,
+                                       rv.public_restaurant_id as public_restaurant_id,
                                        p.name as restaurant_name,
                                        rv.rating as rating,
                                        rv.content as content,
@@ -152,7 +164,9 @@ public class MyPageActivityQueryRepository {
                 parameters(accountId),
                 (resultSet, rowNumber) -> new ReviewItem(
                         resultSet.getLong("review_id"),
+                        resultSet.getString("restaurant_source"),
                         (Long) resultSet.getObject("restaurant_id"),
+                        (Long) resultSet.getObject("public_restaurant_id"),
                         resultSet.getString("restaurant_name"),
                         resultSet.getInt("rating"),
                         resultSet.getString("content"),

@@ -6,6 +6,8 @@ import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Repository;
 
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -45,13 +47,20 @@ public class BusinessOverviewQueryRepository {
                           from favorite f
                           join restaurant r on r.restaurant_id = f.restaurant_id
                          where r.owner_account_id = :accountId
-                           and r.status <> 'DELETED') as favorite_count
+                           and r.status <> 'DELETED') as favorite_count,
+                       (select avg(rv.rating)
+                          from review rv
+                          join restaurant r on r.restaurant_id = rv.restaurant_id
+                         where r.owner_account_id = :accountId
+                           and r.status <> 'DELETED'
+                           and rv.status = 'ACTIVE') as average_rating
                 """, parameters, (resultSet, rowNumber) -> new Counts(
                 resultSet.getLong("restaurant_count"),
                 resultSet.getLong("active_restaurant_count"),
                 resultSet.getLong("news_count"),
                 resultSet.getLong("review_count"),
-                resultSet.getLong("favorite_count")
+                resultSet.getLong("favorite_count"),
+                nullableDouble(resultSet, "average_rating")
         ));
 
         List<RestaurantSummary> restaurants = jdbcTemplate.query("""
@@ -71,6 +80,10 @@ public class BusinessOverviewQueryRepository {
                        (select count(*)
                           from favorite f
                          where f.restaurant_id = r.restaurant_id) as favorite_count,
+                       (select avg(rv.rating)
+                          from review rv
+                         where rv.restaurant_id = r.restaurant_id
+                           and rv.status = 'ACTIVE') as average_rating,
                        r.created_at
                   from restaurant r
                   left join restaurant_category rc on rc.category_id = r.category_id
@@ -86,6 +99,7 @@ public class BusinessOverviewQueryRepository {
                 resultSet.getLong("news_count"),
                 resultSet.getLong("review_count"),
                 resultSet.getLong("favorite_count"),
+                nullableDouble(resultSet, "average_rating"),
                 resultSet.getObject("created_at", LocalDateTime.class)
         ));
 
@@ -96,6 +110,7 @@ public class BusinessOverviewQueryRepository {
                 safeCounts.newsCount(),
                 safeCounts.reviewCount(),
                 safeCounts.favoriteCount(),
+                safeCounts.averageRating(),
                 restaurants
         );
     }
@@ -105,10 +120,16 @@ public class BusinessOverviewQueryRepository {
             long activeRestaurantCount,
             long newsCount,
             long reviewCount,
-            long favoriteCount
+            long favoriteCount,
+            Double averageRating
     ) {
         private static Counts empty() {
-            return new Counts(0, 0, 0, 0, 0);
+            return new Counts(0, 0, 0, 0, 0, null);
         }
+    }
+
+    private static Double nullableDouble(ResultSet resultSet, String column) throws SQLException {
+        Object value = resultSet.getObject(column);
+        return value instanceof Number number ? number.doubleValue() : null;
     }
 }

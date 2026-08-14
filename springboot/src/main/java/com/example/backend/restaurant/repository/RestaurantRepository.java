@@ -21,6 +21,11 @@ public interface RestaurantRepository extends JpaRepository<Restaurant, Long> {
             RestaurantStatus status
     );
 
+    List<Restaurant> findAllByOwnerAccountIdAndStatus(
+            Long ownerAccountId,
+            RestaurantStatus status
+    );
+
     Optional<Restaurant> findByRestaurantIdAndOwnerAccountIdAndStatusNot(
             Long restaurantId,
             Long ownerAccountId,
