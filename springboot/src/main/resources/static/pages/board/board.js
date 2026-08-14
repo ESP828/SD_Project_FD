@@ -157,6 +157,27 @@
     return true;
   }
 
+  function applyBoardLoginPopupLayout(popup) {
+    if (!popup || popup.closed) return;
+    try {
+      if (popup.location.pathname !== "/pages/auth/login.html") return;
+      const documentRef = popup.document;
+      if (!documentRef?.head || documentRef.getElementById("fooduck-board-login-popup-style")) return;
+
+      const style = documentRef.createElement("style");
+      style.id = "fooduck-board-login-popup-style";
+      style.textContent = `
+        .quick-remote,
+        .site-header .header-actions {
+          display: none !important;
+        }
+      `;
+      documentRef.head.appendChild(style);
+    } catch (_error) {
+      // 같은 출처의 로그인 문서가 로드되기 전에는 다음 polling 주기에 다시 적용한다.
+    }
+  }
+
   function openBoardLogin({ nextPath = listUrlFromState(), onSuccess = null } = {}) {
     stopBoardLoginWatch({ closePopup: true, clearPendingAction: true });
     pendingBoardLoginAction = typeof onSuccess === "function" ? onSuccess : null;
@@ -172,13 +193,18 @@
       return false;
     }
     boardLoginPopup = popup;
+    applyBoardLoginPopupLayout(boardLoginPopup);
     boardLoginStorageHandler = (event) => {
       if (event.key === "accessToken" && event.newValue) completeBoardLoginIfReady();
     };
     window.addEventListener("storage", boardLoginStorageHandler);
     boardLoginPollTimer = window.setInterval(() => {
       if (completeBoardLoginIfReady()) return;
-      if (boardLoginPopup?.closed) stopBoardLoginWatch({ clearPendingAction: true });
+      if (boardLoginPopup?.closed) {
+        stopBoardLoginWatch({ clearPendingAction: true });
+        return;
+      }
+      applyBoardLoginPopupLayout(boardLoginPopup);
     }, 300);
     popup.focus();
     return true;

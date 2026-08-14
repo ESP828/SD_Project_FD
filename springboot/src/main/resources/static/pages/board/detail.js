@@ -477,6 +477,27 @@
     if (clearPendingAction) pendingDetailLoginAction = null;
   }
 
+  function applyDetailLoginPopupLayout(popup) {
+    if (!popup || popup.closed) return;
+    try {
+      if (popup.location.pathname !== "/pages/auth/login.html") return;
+      const documentRef = popup.document;
+      if (!documentRef?.head || documentRef.getElementById("fooduck-board-login-popup-style")) return;
+
+      const style = documentRef.createElement("style");
+      style.id = "fooduck-board-login-popup-style";
+      style.textContent = `
+        .quick-remote,
+        .site-header .header-actions {
+          display: none !important;
+        }
+      `;
+      documentRef.head.appendChild(style);
+    } catch (_error) {
+      // 같은 출처의 로그인 문서가 로드되기 전에는 다음 polling 주기에 다시 적용한다.
+    }
+  }
+
   function completeDetailLoginIfReady() {
     const token = Api.getToken();
     if (!token) return false;
@@ -542,6 +563,7 @@
     }
 
     detailLoginPopup = popup;
+    applyDetailLoginPopupLayout(detailLoginPopup);
     detailLoginStorageHandler = (event) => {
       if (event.key === "accessToken" && event.newValue) completeDetailLoginIfReady();
     };
@@ -552,7 +574,9 @@
         stopDetailLoginWatch({ clearPendingAction: true });
         detailLoginSuccessMessage = "로그인되었습니다.";
         showToast(toast, "로그인이 취소되었습니다.", true);
+        return;
       }
+      applyDetailLoginPopupLayout(detailLoginPopup);
     }, 300);
     popup.focus();
     return true;
