@@ -24,7 +24,16 @@ public class MyPageActivityQueryRepository {
     public ActivityCounts findCounts(Long accountId) {
         var parameters = parameters(accountId);
         return new ActivityCounts(
-                count("select count(*) from favorite where account_id = :accountId", parameters),
+                count("""
+                        select count(*)
+                          from favorite f
+                          left join restaurant r
+                            on r.restaurant_id = f.restaurant_id
+                          left join public_restaurant p
+                            on p.public_restaurant_id = f.public_restaurant_id
+                         where f.account_id = :accountId
+                           and (r.status = 'ACTIVE' or p.public_restaurant_id is not null)
+                        """, parameters),
                 count("""
                         select count(*)
                           from preset

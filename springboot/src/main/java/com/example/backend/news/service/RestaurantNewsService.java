@@ -31,7 +31,8 @@ public class RestaurantNewsService {
     }
 
     @Transactional(readOnly = true)
-    public List<RestaurantNewsResponse> getNews(Long restaurantId) {
+    public List<RestaurantNewsResponse> getNews(Long restaurantId, Long viewerAccountId) {
+        requireReadableRestaurant(restaurantId, viewerAccountId);
         return restaurantNewsRepository.findActiveByRestaurantId(restaurantId, PageRequest.of(0, MAX_RESULTS)).stream()
                 .map(RestaurantNewsResponse::from)
                 .toList();
@@ -40,6 +41,7 @@ public class RestaurantNewsService {
     @Transactional
     public RestaurantNewsResponse createNews(Long restaurantId, Long accountId, RestaurantNewsCreateRequest request) {
         Restaurant restaurant = restaurantRepository.findById(restaurantId)
+                .filter(found -> !found.isDeleted())
                 .orElseThrow(RestaurantNotFoundException::new);
 
         if (!restaurant.getOwner().getAccountId().equals(accountId)) {
@@ -50,5 +52,11 @@ public class RestaurantNewsService {
         restaurantNewsRepository.save(news);
 
         return RestaurantNewsResponse.from(news);
+    }
+
+    private Restaurant requireReadableRestaurant(Long restaurantId, Long viewerAccountId) {
+        return restaurantRepository.findById(restaurantId)
+                .filter(restaurant -> restaurant.isReadableBy(viewerAccountId))
+                .orElseThrow(RestaurantNotFoundException::new);
     }
 }

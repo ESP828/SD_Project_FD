@@ -15,6 +15,7 @@ import com.example.backend.board.policy.BoardAccessPolicy;
 import com.example.backend.board.query.BoardReferenceQueryRepository;
 import com.example.backend.board.repository.CommentRepository;
 import com.example.backend.board.repository.PostRepository;
+import com.example.backend.notification.service.NotificationService;
 import jakarta.annotation.PostConstruct;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
@@ -80,6 +81,7 @@ public class CommentService {
     private final BoardUserService boardUserService;
     private final BoardAccessPolicy accessPolicy;
     private final BoardResponseMapper responseMapper;
+    private final NotificationService notificationService;
     private BoardReferenceQueryRepository referenceRepository;
     private TransactionTemplate commentImageTransactionTemplate;
 
@@ -88,13 +90,15 @@ public class CommentService {
             PostRepository postRepository,
             BoardUserService boardUserService,
             BoardAccessPolicy accessPolicy,
-            BoardResponseMapper responseMapper
+            BoardResponseMapper responseMapper,
+            NotificationService notificationService
     ) {
         this.commentRepository = commentRepository;
         this.postRepository = postRepository;
         this.boardUserService = boardUserService;
         this.accessPolicy = accessPolicy;
         this.responseMapper = responseMapper;
+        this.notificationService = notificationService;
     }
 
     @Autowired
@@ -235,6 +239,13 @@ public class CommentService {
                     currentAccount,
                     authorRole
             );
+            if (!post.getAuthor().getAccountId().equals(currentAccount.getAccountId())) {
+                notificationService.createCommentNotification(
+                        post.getAuthor(),
+                        currentAccount.getNickname(),
+                        post.getPostId()
+                );
+            }
             completeCommentSubmissionAfterTransaction(submissionKey);
             return response;
         } catch (RuntimeException | Error exception) {

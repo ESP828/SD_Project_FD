@@ -13,6 +13,7 @@ import com.example.backend.board.mapper.BoardResponseMapper;
 import com.example.backend.board.policy.BoardAccessPolicy;
 import com.example.backend.board.repository.CommentRepository;
 import com.example.backend.board.repository.PostRepository;
+import com.example.backend.notification.service.NotificationService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -30,6 +31,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -45,6 +47,8 @@ class CommentServiceTest {
     private BoardAccessPolicy accessPolicy;
     @Mock
     private BoardResponseMapper responseMapper;
+    @Mock
+    private NotificationService notificationService;
 
     private CommentService commentService;
 
@@ -55,7 +59,8 @@ class CommentServiceTest {
                 postRepository,
                 boardUserService,
                 accessPolicy,
-                responseMapper
+                responseMapper,
+                notificationService
         );
     }
 
@@ -77,6 +82,30 @@ class CommentServiceTest {
         ArgumentCaptor<Comment> captor = ArgumentCaptor.forClass(Comment.class);
         verify(commentRepository).save(captor.capture());
         assertEquals("감사합니다.", captor.getValue().getContent());
+        verifyNoInteractions(notificationService);
+    }
+
+    @Test
+    @DisplayName("다른 사용자가 댓글을 쓰면 게시글 작성자에게 알림을 만든다")
+    void createsNotificationForPostAuthor() {
+        Account postAuthor = account(1L);
+        Account commenter = account(2L);
+        Post post = post(10L, postAuthor);
+        when(boardUserService.require(2L)).thenReturn(commenter);
+        when(postRepository.findByPostIdAndStatusForUpdate(10L, PostStatus.ACTIVE))
+                .thenReturn(Optional.of(post));
+
+        commentService.createComment(
+                10L,
+                new CommentCreateRequest("새 댓글입니다."),
+                2L
+        );
+
+        verify(notificationService).createCommentNotification(
+                postAuthor,
+                commenter.getNickname(),
+                10L
+        );
     }
 
     @Test

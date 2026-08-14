@@ -61,13 +61,13 @@
       emptyCopy: "관심 있는 게시글에 의견을 남겨보세요.",
     },
     notifications: {
-      label: "읽지 않은 알림",
-      title: "읽지 않은 알림",
-      description: "아직 확인하지 않은 새로운 소식입니다.",
-      endpoint: "/mypage/notifications/unread",
+      label: "알림",
+      title: "내 알림",
+      description: "새 알림과 이전에 확인한 알림을 함께 관리합니다.",
+      endpoint: "/notifications",
       countKey: "unreadNotificationCount",
       emptyIcon: "notifications",
-      emptyTitle: "새로운 알림이 없습니다.",
+      emptyTitle: "알림이 없습니다.",
       emptyCopy: "새 알림이 도착하면 이곳에서 확인할 수 있습니다.",
     },
   };
@@ -77,6 +77,10 @@
     ? requestedTab
     : "presets";
   const activeConfig = tabs[activeTab];
+  const state = {
+    overview: {},
+    items: [],
+  };
 
   function element(tag, className, text) {
     const node = document.createElement(tag);
@@ -237,14 +241,102 @@
   }
 
   function notificationCard(item) {
-    const card = element("article", "mypage-detail-card");
+    const card = element("article", `mypage-detail-card${item.read ? " is-read" : " is-unread"}`);
     const href = safeInternalUrl(item.targetUrl);
+    const footer = element("div", "mypage-detail-card-footer");
+    const actions = element("div", "mypage-detail-card-actions");
+    footer.append(element("time", "", formatDate(item.createdAt)));
+
+    if (!item.read) {
+      const readButton = element("button", "button button-sm button-secondary", "읽음");
+      readButton.type = "button";
+      readButton.addEventListener("click", async () => {
+        readButton.disabled = true;
+        try {
+          await markNotificationRead(item);
+        } catch (error) {
+          readButton.disabled = false;
+          window.alert(error.message || "알림을 읽음 처리하지 못했습니다.");
+        }
+      });
+      actions.append(readButton);
+    }
+    if (href) {
+      const targetLink = element("a", "button button-sm button-secondary", "관련 화면");
+      targetLink.href = href;
+      targetLink.addEventListener("click", async (event) => {
+        event.preventDefault();
+        if (!item.read) {
+          try {
+            await markNotificationRead(item, false);
+          } catch {
+            // 읽음 처리 실패가 안전한 내부 화면 이동을 막지는 않는다.
+          }
+        }
+        window.location.assign(href);
+      });
+      actions.append(targetLink);
+    }
+    const deleteButton = element("button", "button button-sm button-secondary", "삭제");
+    deleteButton.type = "button";
+    deleteButton.addEventListener("click", () => deleteNotification(item));
+    actions.append(deleteButton);
+    footer.append(actions);
+
     card.append(
-      createCardTop(notificationLabel(item.type), "읽지 않음"),
+      createCardTop(notificationLabel(item.type), item.read ? "읽음" : "읽지 않음"),
       element("p", "", item.content || "새로운 알림이 도착했습니다."),
-      createFooter(item.createdAt, href, href ? "관련 화면 보기 →" : null),
+      footer,
     );
     return card;
+  }
+
+  function refreshNotificationView() {
+    render(state.overview, state.items);
+    window.FooduckNotifications?.refreshUnreadCount();
+  }
+
+  async function markNotificationRead(item, rerender = true) {
+    if (item.read) return;
+    const payload = await Api.patch(`/notifications/${item.notificationId}/read`);
+    Object.assign(item, payload.data || {}, { read: true });
+    state.overview.unreadNotificationCount = Math.max(
+      0,
+      Number(state.overview.unreadNotificationCount || 0) - 1,
+    );
+    if (rerender) refreshNotificationView();
+  }
+
+  async function deleteNotification(item) {
+    if (!window.confirm("이 알림을 삭제할까요?")) return;
+    try {
+      await Api.delete(`/notifications/${item.notificationId}`);
+      if (!item.read) {
+        state.overview.unreadNotificationCount = Math.max(
+          0,
+          Number(state.overview.unreadNotificationCount || 0) - 1,
+        );
+      }
+      state.items = state.items.filter(
+        (candidate) => candidate.notificationId !== item.notificationId,
+      );
+      refreshNotificationView();
+    } catch (error) {
+      window.alert(error.message || "알림을 삭제하지 못했습니다.");
+    }
+  }
+
+  async function markAllNotificationsRead() {
+    try {
+      await Api.patch("/notifications/read-all");
+      state.items.forEach((item) => {
+        item.read = true;
+      });
+      state.overview.unreadNotificationCount = 0;
+      refreshNotificationView();
+    } catch (error) {
+      window.alert(error.message || "알림을 모두 읽음 처리하지 못했습니다.");
+    }
   }
 
   function renderItems(items) {
@@ -285,10 +377,18 @@
       element("h2", "", activeConfig.title),
       element("p", "", activeConfig.description),
     );
-    heading.append(
-      headingCopy,
-      element("span", "mypage-detail-count", `${countFor(overview, activeTab)}개`),
-    );
+    const headingActions = element("div", "mypage-detail-heading-actions");
+    const countText = activeTab === "notifications"
+      ? `미읽음 ${countFor(overview, activeTab)}개`
+      : `${countFor(overview, activeTab)}개`;
+    headingActions.append(element("span", "mypage-detail-count", countText));
+    if (activeTab === "notifications" && countFor(overview, activeTab) > 0) {
+      const readAllButton = element("button", "button button-sm button-secondary", "전체 읽음");
+      readAllButton.type = "button";
+      readAllButton.addEventListener("click", markAllNotificationsRead);
+      headingActions.append(readAllButton);
+    }
+    heading.append(headingCopy, headingActions);
     main.append(heading, renderItems(items));
     const sidebarItems = Object.entries(tabs).map(([tab, config]) => ({
       label: config.label,
@@ -335,9 +435,9 @@
     Api.get(activeConfig.endpoint),
   ])
     .then(([overviewPayload, activityPayload]) => {
-      const overview = overviewPayload.data || {};
-      const items = Array.isArray(activityPayload.data) ? activityPayload.data : [];
-      render(overview, items);
+      state.overview = overviewPayload.data || {};
+      state.items = Array.isArray(activityPayload.data) ? activityPayload.data : [];
+      render(state.overview, state.items);
     })
     .catch((error) => {
       if (!localStorage.getItem("accessToken")) {

@@ -144,11 +144,26 @@
     );
 
     const footer = element("div", "mypage-detail-card-footer");
-    footer.append(
-      element("time", "", `${formatDate(restaurant.createdAt)} 등록`),
-      element("a", "", "가게 보기 →"),
-    );
-    footer.lastElementChild.href = href;
+    const actions = element("div", "mypage-detail-card-actions");
+    const viewLink = element("a", "button button-sm button-secondary", "가게 보기");
+    viewLink.href = href;
+    actions.append(viewLink);
+    if (activeTab === "restaurants") {
+      const editLink = element("a", "button button-sm button-secondary", "수정");
+      editLink.href = `/pages/business/restaurant-form.html?id=${encodeURIComponent(restaurant.restaurantId)}`;
+      const statusButton = element(
+        "button",
+        "button button-sm button-secondary",
+        restaurant.status === "ACTIVE" ? "운영 중지" : "운영 재개",
+      );
+      statusButton.type = "button";
+      statusButton.addEventListener("click", () => changeRestaurantStatus(restaurant, statusButton));
+      const deleteButton = element("button", "button button-sm button-secondary", "삭제");
+      deleteButton.type = "button";
+      deleteButton.addEventListener("click", () => deleteRestaurant(restaurant, deleteButton));
+      actions.append(editLink, statusButton, deleteButton);
+    }
+    footer.append(element("time", "", `${formatDate(restaurant.createdAt)} 등록`), actions);
     card.append(
       top,
       element("p", "", restaurant.address || "주소 정보 없음"),
@@ -156,6 +171,36 @@
       footer,
     );
     return card;
+  }
+
+  async function changeRestaurantStatus(restaurant, button) {
+    const nextStatus = restaurant.status === "ACTIVE" ? "INACTIVE" : "ACTIVE";
+    const actionLabel = nextStatus === "ACTIVE" ? "운영을 재개" : "운영을 중지";
+    if (!window.confirm(`${restaurant.name || "이 음식점"}의 ${actionLabel}할까요?`)) return;
+    button.disabled = true;
+    try {
+      await Api.patch(`/business/restaurants/${restaurant.restaurantId}/status`, {
+        status: nextStatus,
+      });
+      window.location.reload();
+    } catch (error) {
+      button.disabled = false;
+      window.alert(error.message || "음식점 운영 상태를 변경하지 못했습니다.");
+    }
+  }
+
+  async function deleteRestaurant(restaurant, button) {
+    if (!window.confirm(`${restaurant.name || "이 음식점"}을 삭제할까요? 삭제 후 목록에서 제외됩니다.`)) {
+      return;
+    }
+    button.disabled = true;
+    try {
+      await Api.delete(`/business/restaurants/${restaurant.restaurantId}`);
+      window.location.reload();
+    } catch (error) {
+      button.disabled = false;
+      window.alert(error.message || "음식점을 삭제하지 못했습니다.");
+    }
   }
 
   function renderItems(restaurants) {
@@ -200,10 +245,16 @@
       element("h2", "", activeConfig.title),
       element("p", "", activeConfig.description),
     );
-    heading.append(
-      copy,
+    const headingActions = element("div", "mypage-detail-heading-actions");
+    headingActions.append(
       element("span", "mypage-detail-count", `${formatNumber(countFor(overview, activeTab))}개`),
     );
+    if (activeTab === "restaurants") {
+      const createLink = element("a", "button button-sm button-primary", "음식점 등록");
+      createLink.href = "/pages/business/restaurant-form.html";
+      headingActions.append(createLink);
+    }
+    heading.append(copy, headingActions);
     main.append(heading, renderItems(restaurants));
 
     const layout = element("div", "mypage-detail-layout");

@@ -24,9 +24,9 @@ public class FavoriteService {
      */
     @Transactional
     public boolean toggle(Long accountId, Long restaurantId) {
-        if (!restaurantRepository.existsById(restaurantId)) {
-            throw new RestaurantNotFoundException();
-        }
+        restaurantRepository.findById(restaurantId)
+                .filter(restaurant -> restaurant.isActive())
+                .orElseThrow(RestaurantNotFoundException::new);
         FavoriteId id = new FavoriteId(accountId, restaurantId);
         if (favoriteRepository.existsById(id)) {
             favoriteRepository.deleteById(id);

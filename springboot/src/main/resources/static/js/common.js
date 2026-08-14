@@ -434,8 +434,10 @@
             <a class="icon-button" href="/pages/mypage/index.html" aria-label="마이페이지">
               <span class="material-symbols-rounded" aria-hidden="true">person</span>
             </a>
-            <a class="icon-button" href="/pages/mypage/index.html#notifications" aria-label="알림">
+            <a class="icon-button" href="/pages/mypage/detail.html?tab=notifications"
+               aria-label="알림" data-notification-link>
               <span class="material-symbols-rounded" aria-hidden="true">notifications</span>
+              <span class="notification-badge" data-notification-badge hidden></span>
             </a>
             ${authAction}
             <button class="nav-toggle" type="button" data-nav-toggle
@@ -524,6 +526,27 @@
   document.querySelectorAll("[data-site-footer]").forEach(renderFooter);
   renderQuickRemote();
 
+  async function refreshNotificationBadges() {
+    if (!session.authenticated) return;
+    try {
+      const payload = await Api.get("/notifications/unread-count");
+      const count = Math.max(0, Number(payload?.data?.count) || 0);
+      document.querySelectorAll("[data-notification-badge]").forEach((badge) => {
+        badge.textContent = count > 99 ? "99+" : String(count);
+        badge.hidden = count === 0;
+      });
+      document.querySelectorAll("[data-notification-link]").forEach((link) => {
+        link.setAttribute("aria-label", count > 0 ? `읽지 않은 알림 ${count}개` : "알림");
+      });
+    } catch {
+      document.querySelectorAll("[data-notification-badge]").forEach((badge) => {
+        badge.hidden = true;
+      });
+    }
+  }
+
+  refreshNotificationBadges();
+
   document.querySelectorAll("[data-recommendation-link]").forEach((link) => {
     link.href = recommendationHref();
     if (!session.authenticated) {
@@ -592,6 +615,9 @@
     createSummary: createProfileSummary,
     formatDate: formatProfileDate,
     primaryAuthorityCode,
+  };
+  window.FooduckNotifications = {
+    refreshUnreadCount: refreshNotificationBadges,
   };
 
   function initializeScrollTopButton() {

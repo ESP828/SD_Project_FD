@@ -5,10 +5,10 @@ import com.example.backend.auth.repository.AccountRepository;
 import com.example.backend.favorite.domain.entity.FavoriteId;
 import com.example.backend.favorite.repository.FavoriteRepository;
 import com.example.backend.restaurant.domain.entity.*;
-import com.example.backend.restaurant.domain.type.RestaurantStatus;
 import com.example.backend.restaurant.dto.request.RestaurantCreateRequest;
 import com.example.backend.restaurant.dto.response.MenuResponse;
 import com.example.backend.restaurant.dto.response.RestaurantDetailResponse;
+import com.example.backend.restaurant.dto.response.RestaurantCategoryResponse;
 import com.example.backend.restaurant.dto.response.RestaurantResponse;
 import com.example.backend.restaurant.exception.*;
 import com.example.backend.restaurant.mapper.RestaurantMapper;
@@ -90,9 +90,7 @@ public class RestaurantService {
     }
 
     public RestaurantDetailResponse getDetail(Long restaurantId, Long viewerAccountId) {
-        Restaurant restaurant = restaurantRepository.findById(restaurantId)
-                .filter(found -> found.getStatus() != RestaurantStatus.DELETED)
-                .orElseThrow(RestaurantNotFoundException::new);
+        Restaurant restaurant = requireReadableRestaurant(restaurantId, viewerAccountId);
 
         Double averageRating = reviewRepository.averageRatingByRestaurantId(restaurantId);
         long reviewCount = reviewRepository.countActiveByRestaurantId(restaurantId);
@@ -108,13 +106,24 @@ public class RestaurantService {
         );
     }
 
-    public List<MenuResponse> getMenu(Long restaurantId) {
-        if (!restaurantRepository.existsById(restaurantId)) {
-            throw new RestaurantNotFoundException();
-        }
+    public List<MenuResponse> getMenu(Long restaurantId, Long viewerAccountId) {
+        requireReadableRestaurant(restaurantId, viewerAccountId);
         return menuRepository.findVisibleByRestaurantId(restaurantId).stream()
                 .map(MenuResponse::from)
                 .toList();
+    }
+
+    public List<RestaurantCategoryResponse> getActiveCategories() {
+        return categoryRepository.findAllByActiveTrueOrderByDisplayOrderAscNameAsc()
+                .stream()
+                .map(RestaurantCategoryResponse::from)
+                .toList();
+    }
+
+    private Restaurant requireReadableRestaurant(Long restaurantId, Long viewerAccountId) {
+        return restaurantRepository.findById(restaurantId)
+                .filter(restaurant -> restaurant.isReadableBy(viewerAccountId))
+                .orElseThrow(RestaurantNotFoundException::new);
     }
 
 }

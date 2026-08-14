@@ -43,7 +43,8 @@ public class ReviewService {
     }
 
     @Transactional(readOnly = true)
-    public List<ReviewResponse> getReviews(Long restaurantId) {
+    public List<ReviewResponse> getReviews(Long restaurantId, Long viewerAccountId) {
+        requireReadableRestaurant(restaurantId, viewerAccountId);
         return reviewRepository.findActiveByRestaurantId(restaurantId, PageRequest.of(0, MAX_RESULTS)).stream()
                 .map(ReviewResponse::from)
                 .toList();
@@ -52,6 +53,7 @@ public class ReviewService {
     @Transactional
     public ReviewResponse createReview(Long restaurantId, Long accountId, ReviewCreateRequest request) {
         Restaurant restaurant = restaurantRepository.findById(restaurantId)
+                .filter(Restaurant::isActive)
                 .orElseThrow(RestaurantNotFoundException::new);
 
         if (reviewRepository.existsActiveByRestaurantIdAndAccountId(restaurantId, accountId)) {
@@ -63,6 +65,12 @@ public class ReviewService {
         reviewRepository.save(review);
 
         return ReviewResponse.from(review);
+    }
+
+    private Restaurant requireReadableRestaurant(Long restaurantId, Long viewerAccountId) {
+        return restaurantRepository.findById(restaurantId)
+                .filter(restaurant -> restaurant.isReadableBy(viewerAccountId))
+                .orElseThrow(RestaurantNotFoundException::new);
     }
 
     @Transactional(readOnly = true)

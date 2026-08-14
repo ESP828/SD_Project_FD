@@ -6,6 +6,9 @@ import com.example.backend.auth.domain.type.AuthorityCode;
 import com.example.backend.auth.repository.AccountRepository;
 import com.example.backend.auth.repository.EmailVerificationRepository;
 import com.example.backend.auth.service.AuthorityService;
+import com.example.backend.business.repository.BusinessProfileRepository;
+import com.example.backend.notification.domain.NotificationType;
+import com.example.backend.notification.repository.NotificationRepository;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
@@ -38,6 +41,8 @@ class BusinessApplicationControllerIntegrationTest {
     @Autowired AccountRepository accountRepository;
     @Autowired EmailVerificationRepository emailVerificationRepository;
     @Autowired AuthorityService authorityService;
+    @Autowired BusinessProfileRepository businessProfileRepository;
+    @Autowired NotificationRepository notificationRepository;
 
     @Test
     void applicantCanSubmitAndViewOwnApplications() throws Exception {
@@ -79,6 +84,39 @@ class BusinessApplicationControllerIntegrationTest {
                 .andExpect(jsonPath("$.data.status").value("APPROVED"));
 
         assertThat(authorityService.findCodes(applicant.getAccountId())).contains("ROLE_BUSINESS");
+        assertThat(businessProfileRepository.existsByAccountAccountId(applicant.getAccountId())).isTrue();
+        assertThat(notificationRepository.existsByAccountAccountIdAndType(
+                applicant.getAccountId(),
+                NotificationType.BUSINESS_APPROVED
+        )).isTrue();
+    }
+
+    @Test
+    void rejectionCreatesNotificationWithoutGrantingBusinessRole() throws Exception {
+        signup("rejected", "Correct1!", "rejected@example.com", "반려신청자");
+        String applicantToken = login("rejected", "Correct1!");
+        MvcResult applicationResult = submitApplication(applicantToken, "반려 테스트점")
+                .andExpect(status().isOk()).andReturn();
+        long applicationId = objectMapper.readTree(applicationResult.getResponse().getContentAsString())
+                .at("/data/applicationId").asLong();
+        Account applicant = accountRepository.findByLoginId("rejected").orElseThrow();
+
+        signup("rejectadmin", "Correct1!", "rejectadmin@example.com", "반려관리자");
+        Long adminId = accountRepository.findByLoginId("rejectadmin").orElseThrow().getAccountId();
+        authorityService.grant(adminId, AuthorityCode.ROLE_ADMIN);
+        String adminToken = login("rejectadmin", "Correct1!");
+
+        mockMvc.perform(patch("/api/admin/business-applications/{id}/reject", applicationId)
+                        .header("Authorization", "Bearer " + adminToken)
+                        .param("rejectReason", "제출 정보를 다시 확인해 주세요."))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("REJECTED"));
+
+        assertThat(authorityService.findCodes(applicant.getAccountId())).doesNotContain("ROLE_BUSINESS");
+        assertThat(notificationRepository.existsByAccountAccountIdAndType(
+                applicant.getAccountId(),
+                NotificationType.BUSINESS_REJECTED
+        )).isTrue();
     }
 
     private org.springframework.test.web.servlet.ResultActions submitApplication(String token, String name) throws Exception {
@@ -86,7 +124,7 @@ class BusinessApplicationControllerIntegrationTest {
                 .header("Authorization", "Bearer " + token)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
-                        {"businessName":"%s","businessNumber":"123-45-67890","representativeName":"홍길동","contact":"010-1234-5678","reason":"테스트 신청"}
+                        {"businessName":"%s","businessNumber":"123-45-67891","representativeName":"홍길동","openedAt":"2020-01-01","contact":"010-1234-5678","reason":"테스트 신청"}
                         """.formatted(name)));
     }
 

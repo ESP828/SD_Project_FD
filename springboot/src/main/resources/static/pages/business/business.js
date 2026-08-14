@@ -240,9 +240,13 @@
         `리뷰 ${formatNumber(restaurant.reviewCount)} · 찜 ${formatNumber(restaurant.favoriteCount)} · ${formatDate(restaurant.createdAt)} 등록`,
       ),
     );
-    const link = element("a", "button button-sm button-secondary", "가게 보기 →");
-    link.href = `/pages/restaurant/detail.html?id=${encodeURIComponent(restaurant.restaurantId)}`;
-    row.append(copy, link);
+    const actions = element("div", "management-preview-actions");
+    const viewLink = element("a", "button button-sm button-secondary", "가게 보기");
+    viewLink.href = `/pages/restaurant/detail.html?id=${encodeURIComponent(restaurant.restaurantId)}`;
+    const manageLink = element("a", "button button-sm button-primary", "관리");
+    manageLink.href = `/pages/business/restaurant-form.html?id=${encodeURIComponent(restaurant.restaurantId)}`;
+    actions.append(viewLink, manageLink);
+    row.append(copy, actions);
     return row;
   }
 
@@ -269,7 +273,7 @@
 
     const actionList = element("div", "mypage-action-list");
     actionList.append(
-      dashboardAction("음식점 등록", "안전한 사업자 전용 등록 기능 준비 중"),
+      dashboardAction("음식점 등록", "새 음식점 등록", "/pages/business/restaurant-form.html"),
       dashboardAction("내 음식점 관리", "등록한 음식점 상세 확인", "/pages/business/detail.html?tab=restaurants"),
       dashboardAction("가게 소식 관리", "음식점별 소식 현황 확인", "/pages/business/detail.html?tab=news"),
     );

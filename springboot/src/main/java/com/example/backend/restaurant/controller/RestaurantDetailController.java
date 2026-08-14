@@ -49,17 +49,29 @@ public class RestaurantDetailController {
     }
 
     @GetMapping("/{restaurantId}/menu")
-    public ApiResponse<List<MenuResponse>> getMenu(@PathVariable Long restaurantId) {
-        return ApiResponse.success(restaurantService.getMenu(restaurantId));
+    public ApiResponse<List<MenuResponse>> getMenu(
+            @PathVariable Long restaurantId,
+            @AuthenticationPrincipal AuthenticatedAccount account
+    ) {
+        Long viewerAccountId = account != null ? account.accountId() : null;
+        return ApiResponse.success(restaurantService.getMenu(restaurantId, viewerAccountId));
     }
 
     @GetMapping("/{restaurantId}/reviews")
-    public ApiResponse<List<ReviewResponse>> getReviews(@PathVariable Long restaurantId) {
-        return ApiResponse.success(reviewService.getReviews(restaurantId));
+    public ApiResponse<List<ReviewResponse>> getReviews(
+            @PathVariable Long restaurantId,
+            @AuthenticationPrincipal AuthenticatedAccount account
+    ) {
+        Long viewerAccountId = account != null ? account.accountId() : null;
+        return ApiResponse.success(reviewService.getReviews(restaurantId, viewerAccountId));
     }
 
     @GetMapping("/{restaurantId}/news")
-    public ApiResponse<List<RestaurantNewsResponse>> getNews(@PathVariable Long restaurantId) {
-        return ApiResponse.success(restaurantNewsService.getNews(restaurantId));
+    public ApiResponse<List<RestaurantNewsResponse>> getNews(
+            @PathVariable Long restaurantId,
+            @AuthenticationPrincipal AuthenticatedAccount account
+    ) {
+        Long viewerAccountId = account != null ? account.accountId() : null;
+        return ApiResponse.success(restaurantNewsService.getNews(restaurantId, viewerAccountId));
     }
 }

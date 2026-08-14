@@ -248,6 +248,13 @@
   flex: 0 0 auto;
 }
 
+.management-preview-actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 8px;
+}
+
 .management-status-badge {
   padding: 4px 8px;
   border-radius: 999px;
@@ -348,5 +355,10 @@
 
   .management-preview-row .button {
     width: 100%;
+  }
+
+  .management-preview-actions {
+    width: 100%;
+    flex-direction: column;
   }
 }

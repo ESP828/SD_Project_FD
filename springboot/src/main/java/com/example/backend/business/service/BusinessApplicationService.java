@@ -5,13 +5,16 @@ import com.example.backend.auth.domain.type.AuthorityCode;
 import com.example.backend.auth.repository.AccountRepository;
 import com.example.backend.auth.service.AuthorityService;
 import com.example.backend.business.domain.entity.BusinessApplication;
+import com.example.backend.business.domain.entity.BusinessProfile;
 import com.example.backend.business.dto.request.BusinessApplicationRequest;
 import com.example.backend.business.dto.response.BusinessApplicationResponse;
 import com.example.backend.business.integration.nts.NtsBusinessVerificationClient;
 import com.example.backend.business.policy.BusinessRegistrationNumberValidator;
 import com.example.backend.business.repository.BusinessApplicationRepository;
+import com.example.backend.business.repository.BusinessProfileRepository;
 import com.example.backend.global.exception.BusinessException;
 import com.example.backend.global.exception.ErrorCode;
+import com.example.backend.notification.service.NotificationService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -27,17 +30,23 @@ public class BusinessApplicationService {
     private final AccountRepository accountRepository;
     private final AuthorityService authorityService;
     private final NtsBusinessVerificationClient ntsBusinessVerificationClient;
+    private final BusinessProfileRepository businessProfileRepository;
+    private final NotificationService notificationService;
 
     public BusinessApplicationService(
             BusinessApplicationRepository businessApplicationRepository,
             AccountRepository accountRepository,
             AuthorityService authorityService,
-            NtsBusinessVerificationClient ntsBusinessVerificationClient
+            NtsBusinessVerificationClient ntsBusinessVerificationClient,
+            BusinessProfileRepository businessProfileRepository,
+            NotificationService notificationService
     ) {
         this.businessApplicationRepository = businessApplicationRepository;
         this.accountRepository = accountRepository;
         this.authorityService = authorityService;
         this.ntsBusinessVerificationClient = ntsBusinessVerificationClient;
+        this.businessProfileRepository = businessProfileRepository;
+        this.notificationService = notificationService;
     }
 
     @Transactional
@@ -108,6 +117,11 @@ public class BusinessApplicationService {
             throw new BusinessException(ErrorCode.DATA_CONFLICT);
         }
         authorityService.grant(application.getAccount().getAccountId(), AuthorityCode.ROLE_BUSINESS);
+        createOrUpdateBusinessProfile(application);
+        notificationService.createBusinessApprovedNotification(
+                application.getAccount(),
+                application.getApplicationId()
+        );
         return BusinessApplicationResponse.from(application);
     }
 
@@ -124,6 +138,24 @@ public class BusinessApplicationService {
         } catch (IllegalStateException exception) {
             throw new BusinessException(ErrorCode.DATA_CONFLICT);
         }
+        notificationService.createBusinessRejectedNotification(
+                application.getAccount(),
+                application.getApplicationId()
+        );
         return BusinessApplicationResponse.from(application);
+    }
+
+    private void createOrUpdateBusinessProfile(BusinessApplication application) {
+        Long accountId = application.getAccount().getAccountId();
+        businessProfileRepository.findByBusinessNumber(application.getBusinessNumber())
+                .filter(profile -> !profile.getAccount().getAccountId().equals(accountId))
+                .ifPresent(profile -> {
+                    throw new BusinessException(ErrorCode.DATA_CONFLICT);
+                });
+
+        BusinessProfile profile = businessProfileRepository.findByAccountAccountId(accountId)
+                .orElseGet(() -> new BusinessProfile(application));
+        profile.updateFrom(application);
+        businessProfileRepository.save(profile);
     }
 }

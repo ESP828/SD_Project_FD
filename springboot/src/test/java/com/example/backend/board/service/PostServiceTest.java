@@ -18,6 +18,7 @@ import com.example.backend.board.query.BoardReferenceQueryRepository;
 import com.example.backend.board.repository.CommentRepository;
 import com.example.backend.board.repository.PostLikeRepository;
 import com.example.backend.board.repository.PostRepository;
+import com.example.backend.notification.service.NotificationService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -61,6 +62,8 @@ class PostServiceTest {
     private BoardResponseMapper responseMapper;
     @Mock
     private BoardReferenceQueryRepository referenceRepository;
+    @Mock
+    private NotificationService notificationService;
 
     private PostService postService;
 
@@ -73,7 +76,8 @@ class PostServiceTest {
                 boardUserService,
                 accessPolicy,
                 responseMapper,
-                referenceRepository
+                referenceRepository,
+                notificationService
         );
     }
 
@@ -178,6 +182,25 @@ class PostServiceTest {
         assertEquals(1, first.likeCount());
         assertEquals(1, second.likeCount());
         verify(postLikeRepository, times(1)).save(any(PostLike.class));
+    }
+
+    @Test
+    @DisplayName("추천 5개 도달 시 게시글 작성자에게 한 번 알린다")
+    void createsLikeMilestoneNotification() {
+        Account user = account(1L);
+        Account author = account(2L);
+        Post post = post(10L, author);
+        ReflectionTestUtils.setField(post, "likeCount", 4);
+        PostLikeId likeId = new PostLikeId(10L, 1L);
+        when(boardUserService.require(1L)).thenReturn(user);
+        when(postRepository.findByPostIdAndStatusForUpdate(10L, PostStatus.ACTIVE))
+                .thenReturn(Optional.of(post));
+        when(postLikeRepository.existsById(likeId)).thenReturn(false);
+
+        PostLikeResponse response = postService.likePost(10L, 1L);
+
+        assertEquals(5, response.likeCount());
+        verify(notificationService).createPostLikeMilestoneNotification(author, 5, 10L);
     }
 
     @Test

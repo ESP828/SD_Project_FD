@@ -22,6 +22,7 @@ import com.example.backend.board.query.BoardReferenceQueryRepository.PostMediaFi
 import com.example.backend.board.repository.CommentRepository;
 import com.example.backend.board.repository.PostLikeRepository;
 import com.example.backend.board.repository.PostRepository;
+import com.example.backend.notification.service.NotificationService;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import org.slf4j.Logger;
@@ -167,6 +168,7 @@ public class PostService {
     private final BoardAccessPolicy accessPolicy;
     private final BoardResponseMapper responseMapper;
     private final BoardReferenceQueryRepository referenceRepository;
+    private final NotificationService notificationService;
     private TransactionTemplate mediaTransactionTemplate;
 
     @Value("${board.best-window-days:30}")
@@ -179,7 +181,8 @@ public class PostService {
             BoardUserService boardUserService,
             BoardAccessPolicy accessPolicy,
             BoardResponseMapper responseMapper,
-            BoardReferenceQueryRepository referenceRepository
+            BoardReferenceQueryRepository referenceRepository,
+            NotificationService notificationService
     ) {
         this.postRepository = postRepository;
         this.commentRepository = commentRepository;
@@ -188,6 +191,7 @@ public class PostService {
         this.accessPolicy = accessPolicy;
         this.responseMapper = responseMapper;
         this.referenceRepository = referenceRepository;
+        this.notificationService = notificationService;
     }
 
     @Autowired
@@ -1403,8 +1407,20 @@ public class PostService {
         if (!postLikeRepository.existsById(id)) {
             postLikeRepository.save(PostLike.create(post, currentAccount));
             post.increaseLikeCount();
+            if (!post.getAuthor().getAccountId().equals(currentAccount.getAccountId())
+                    && isLikeMilestone(post.getLikeCount())) {
+                notificationService.createPostLikeMilestoneNotification(
+                        post.getAuthor(),
+                        post.getLikeCount(),
+                        post.getPostId()
+                );
+            }
         }
         return new PostLikeResponse(postId, post.getLikeCount(), true);
+    }
+
+    private boolean isLikeMilestone(long likeCount) {
+        return likeCount == 5 || (likeCount >= 100 && likeCount % 100 == 0);
     }
 
     @Transactional

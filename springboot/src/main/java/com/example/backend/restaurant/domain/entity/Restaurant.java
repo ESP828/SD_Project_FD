@@ -160,6 +160,21 @@ public class Restaurant {
         this.status = RestaurantStatus.INACTIVE;
     }
 
+    public boolean isActive() {
+        return status == RestaurantStatus.ACTIVE;
+    }
+
+    public boolean isDeleted() {
+        return status == RestaurantStatus.DELETED;
+    }
+
+    public boolean isReadableBy(Long viewerAccountId) {
+        return isActive()
+                || (status == RestaurantStatus.INACTIVE
+                && viewerAccountId != null
+                && Objects.equals(owner.getAccountId(), viewerAccountId));
+    }
+
     @PrePersist
     void onCreate() {
         LocalDateTime now = LocalDateTime.now();

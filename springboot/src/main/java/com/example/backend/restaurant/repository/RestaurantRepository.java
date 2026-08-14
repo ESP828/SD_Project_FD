@@ -8,12 +8,39 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.util.List;
+import java.util.Optional;
 
 public interface RestaurantRepository extends JpaRepository<Restaurant, Long> {
 
     List<Restaurant> findByStatus(RestaurantStatus status);
 
     boolean existsByName(String name);
+
+    List<Restaurant> findAllByOwnerAccountIdAndStatusNotOrderByCreatedAtDescRestaurantIdDesc(
+            Long ownerAccountId,
+            RestaurantStatus status
+    );
+
+    Optional<Restaurant> findByRestaurantIdAndOwnerAccountIdAndStatusNot(
+            Long restaurantId,
+            Long ownerAccountId,
+            RestaurantStatus status
+    );
+
+    boolean existsByOwnerAccountIdAndNameAndAddressAndStatusNot(
+            Long ownerAccountId,
+            String name,
+            String address,
+            RestaurantStatus status
+    );
+
+    boolean existsByOwnerAccountIdAndNameAndAddressAndStatusNotAndRestaurantIdNot(
+            Long ownerAccountId,
+            String name,
+            String address,
+            RestaurantStatus status,
+            Long restaurantId
+    );
 
     /**
      * 관리자용 검색: 상호명·주소로 검색하고 상태로 필터링한다.

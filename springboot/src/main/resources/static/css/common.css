@@ -208,6 +208,7 @@ h4 {
 
 .icon-button,
 .nav-toggle {
+  position: relative;
   display: inline-grid;
   width: 42px;
   height: 42px;
@@ -218,6 +219,23 @@ h4 {
   color: var(--color-navy);
   background: #fff;
   transition: transform 160ms ease, border-color 160ms ease;
+}
+
+.notification-badge {
+  position: absolute;
+  top: -6px;
+  right: -7px;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 5px;
+  border: 2px solid #fff;
+  border-radius: 999px;
+  color: #fff;
+  background: #d73a32;
+  font-size: 0.62rem;
+  font-weight: 900;
+  line-height: 16px;
+  text-align: center;
 }
 
 .icon-button:hover,

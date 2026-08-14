@@ -251,6 +251,18 @@
   font-size: 0.79rem;
 }
 
+.mypage-detail-heading-actions,
+.mypage-detail-card-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.mypage-detail-heading-actions {
+  justify-content: flex-end;
+}
+
 .mypage-detail-count {
   flex: 0 0 auto;
   padding: 8px 12px;
@@ -272,6 +284,16 @@
   border-radius: 18px;
   background: #fff;
   box-shadow: var(--shadow-sm);
+}
+
+.mypage-detail-card.is-read {
+  background: #f7f8fa;
+  box-shadow: none;
+  opacity: 0.78;
+}
+
+.mypage-detail-card.is-unread {
+  border-color: #f2c98e;
 }
 
 .mypage-detail-card-top,
@@ -309,6 +331,18 @@
 .mypage-detail-card-footer a {
   color: var(--color-orange);
   font-weight: 850;
+}
+
+.mypage-detail-card-actions .button,
+.mypage-detail-heading-actions .button {
+  min-height: 34px;
+  padding-inline: 12px;
+  font-size: 0.7rem;
+}
+
+.mypage-detail-card-actions .button-secondary {
+  color: var(--color-navy);
+  font-weight: 800;
 }
 
 .mypage-detail-badge {
