@@ -663,7 +663,7 @@
           (media) => Number(media.postMediaId) !== Number(mediaId),
         );
       } catch (error) {
-        removedMediaIds.delete(mediaId);
+        // 실패한 삭제 요청은 남겨 두어 다음 저장 때 다시 시도할 수 있게 한다.
         failures.push(`삭제 실패: ${error.message}`);
       }
     }
@@ -777,6 +777,10 @@
       } else {
         originalPost = payload.data;
       }
+
+      // 본문 저장은 이미 끝났으므로 이후 첨부 처리만 실패하더라도
+      // 제목/내용을 다시 미저장 상태로 보지 않는다.
+      captureEditorBaseline();
 
       const failures = await saveMediaChanges(savedPostId);
       board.invalidateBoardCache();

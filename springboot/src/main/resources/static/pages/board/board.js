@@ -57,6 +57,7 @@
   let boardAuthPopupController = null;
   let pendingBoardLoginAction = null;
   let boardLogoutInFlight = false;
+  const BOARD_FLASH_KEY = "fooduck:board:flash:v1";
 
   if (!session || !board || !boardList || !searchForm) {
     return;
@@ -71,11 +72,45 @@
     formatDate,
     icon,
     readBoardCache,
+    showToast,
     writeBoardCache,
   } = board;
 
   function isEdited(item) {
     return item?.edited === true;
+  }
+
+  const boardToast = document.createElement("div");
+  boardToast.className = "board-toast";
+  boardToast.setAttribute("role", "status");
+  boardToast.setAttribute("aria-live", "polite");
+  boardToast.hidden = true;
+  document.body.append(boardToast);
+
+  function consumeBoardFlashMessage() {
+    try {
+      const message = window.sessionStorage.getItem(BOARD_FLASH_KEY);
+      if (!message) return;
+      window.sessionStorage.removeItem(BOARD_FLASH_KEY);
+      showToast(boardToast, message);
+    } catch (_error) {
+      // 저장 공간을 사용할 수 없는 환경에서는 안내 없이 기존 흐름을 유지한다.
+    }
+  }
+
+  function renderCachedContentNotice() {
+    if (boardList.querySelector(".board-cache-notice")) return;
+    const notice = element(
+      "div",
+      "board-cache-notice",
+      "최신 내용을 불러오지 못해 잠시 저장된 게시글을 보여드리고 있습니다.",
+    );
+    notice.setAttribute("role", "status");
+    boardList.prepend(notice);
+  }
+
+  function prefersReducedMotion() {
+    return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   }
 
   function syncSearchControls() {
@@ -375,7 +410,10 @@
     state.page = page;
     syncListUrl("push");
     loadPosts();
-    document.querySelector(".board-content")?.scrollIntoView({ behavior: "smooth" });
+    document.querySelector(".board-content")?.scrollIntoView({
+      behavior: prefersReducedMotion() ? "auto" : "smooth",
+      block: "start",
+    });
   }
 
   function normalizePostPage(data) {
@@ -453,7 +491,11 @@
       renderPosts(pageData);
     } catch (error) {
       if (generation !== postRequestGeneration) return;
-      if (!cached) renderListError(error);
+      if (!cached) {
+        renderListError(error);
+      } else {
+        renderCachedContentNotice();
+      }
     }
   }
 
@@ -640,6 +682,7 @@
       const active = tab.dataset.boardType === state.boardType;
       tab.classList.toggle("is-active", active);
       tab.setAttribute("aria-selected", String(active));
+      tab.tabIndex = active ? 0 : -1;
     });
     boardHeading.textContent = isBest
       ? "베스트 커뮤니티"
@@ -668,8 +711,30 @@
     loadBoardContent();
   }
 
-  document.querySelectorAll("[data-board-type]").forEach((tab) => {
+  const boardTabs = Array.from(document.querySelectorAll("[data-board-type]"));
+  boardTabs.forEach((tab) => {
     tab.addEventListener("click", () => switchBoard(tab.dataset.boardType));
+    tab.addEventListener("keydown", (event) => {
+      if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+      const visibleTabs = boardTabs.filter((candidate) => !candidate.hidden);
+      const currentIndex = visibleTabs.indexOf(tab);
+      if (currentIndex < 0 || !visibleTabs.length) return;
+
+      event.preventDefault();
+      let nextIndex = currentIndex;
+      if (event.key === "Home") nextIndex = 0;
+      if (event.key === "End") nextIndex = visibleTabs.length - 1;
+      if (event.key === "ArrowLeft") {
+        nextIndex = (currentIndex - 1 + visibleTabs.length) % visibleTabs.length;
+      }
+      if (event.key === "ArrowRight") {
+        nextIndex = (currentIndex + 1) % visibleTabs.length;
+      }
+
+      const nextTab = visibleTabs[nextIndex];
+      nextTab.focus({ preventScroll: true });
+      switchBoard(nextTab.dataset.boardType);
+    });
   });
 
   searchForm.addEventListener("submit", (event) => {
@@ -733,10 +798,9 @@
     }, { passive: true });
 
     button.addEventListener("click", () => {
-      const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
       window.scrollTo({
         top: 0,
-        behavior: reduceMotion ? "auto" : "smooth",
+        behavior: prefersReducedMotion() ? "auto" : "smooth",
       });
     });
 
@@ -807,5 +871,6 @@
 
   initializeBoardAuthEntryPoints();
   initializeScrollTopButton();
+  consumeBoardFlashMessage();
   initializeBoard();
 })();

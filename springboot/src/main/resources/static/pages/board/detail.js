@@ -13,6 +13,7 @@
   const MEDIA_POLL_MAX_FAILURES = 5;
   const COMMENT_IMAGE_MAX_BYTES = 5 * 1024 * 1024;
   const COMMENT_PAGE_SIZE = 5;
+  const BOARD_FLASH_KEY = "fooduck:board:flash:v1";
   const COMMENT_IMAGE_TYPES = new Set([
     "image/jpeg",
     "image/png",
@@ -1401,7 +1402,7 @@
     mediaPollDelay = MEDIA_POLL_BASE_DELAY;
     mediaPollFailures = 0;
     mediaPollingHalted = false;
-    if (Array.isArray(mediaItems) && mediaItems.some(isVideoMedia)) {
+    if (Array.isArray(mediaItems) && mediaItems.some(isProcessingMedia)) {
       scheduleMediaPoll(0);
     }
   }
@@ -1458,7 +1459,7 @@
       mediaPollInFlight = false;
       if (generation !== mediaPollGeneration) {
         if (Array.isArray(state.post?.media) &&
-            state.post.media.some(isVideoMedia)) {
+            state.post.media.some(isProcessingMedia)) {
           scheduleMediaPoll(0);
         }
       } else if (shouldContinue) {
@@ -1511,7 +1512,9 @@
       ),
       element("span", "", `조회 ${post.viewCount || 0}`),
     );
-    meta.append(element("span", "", `추천 ${post.likeCount || 0}`));
+    const likeMeta = element("span", "detail-like-count", `추천 ${post.likeCount || 0}`);
+    likeMeta.dataset.likeCount = "true";
+    meta.append(likeMeta);
     heading.append(meta);
     detailContent.append(heading);
 
@@ -1549,12 +1552,19 @@
     actions.append(likeButton);
     const canManage = newsPost
       ? post.newsManageableByCurrentUser === true && Boolean(newsTarget)
-      : (!fromBest && post.ownedByCurrentUser) || session.isAdmin;
+      : post.ownedByCurrentUser || session.isAdmin;
     if (canManage) {
       const editLink = element("a", "button button-sm button-secondary", "수정");
-      editLink.href = newsPost
-        ? newsWritePath(post)
-        : board.writePath(post.boardType, post.postId);
+      if (newsPost) {
+        editLink.href = newsWritePath(post);
+      } else {
+        const editUrl = new URL(
+          board.writePath(post.boardType, post.postId),
+          window.location.origin,
+        );
+        editUrl.searchParams.set("returnTo", communityReturnPath(post));
+        editLink.href = `${editUrl.pathname}${editUrl.search}`;
+      }
       actions.append(
         editLink,
         actionButton("삭제", "button button-sm button-danger", deletePost),
@@ -1616,7 +1626,44 @@
       renderPost(payload.data);
     } catch (error) {
       if (!cached?.data) throw error;
-      renderPost(cached.data);
+      const cachedViewCount = Number(cached.data.viewCount) || 0;
+      renderPost({
+        ...cached.data,
+        viewCount: cachedViewCount + 1,
+      });
+      showToast(
+        toast,
+        "최신 내용을 불러오지 못해 잠시 저장된 게시글을 보여드리고 있습니다.",
+      );
+    }
+  }
+
+  function updateLikeUi({ liked, likeCount }) {
+    if (!state.post) return;
+    const parsedLikeCount = Number(likeCount);
+    const nextLikeCount = Number.isFinite(parsedLikeCount)
+      ? Math.max(0, parsedLikeCount)
+      : Number(state.post.likeCount) || 0;
+    state.post = {
+      ...state.post,
+      likedByCurrentUser: Boolean(liked),
+      likeCount: nextLikeCount,
+    };
+
+    const likeMeta = detailContent.querySelector('[data-like-count="true"]');
+    if (likeMeta) likeMeta.textContent = `추천 ${state.post.likeCount}`;
+
+    if (activeLikeButton) {
+      activeLikeButton.textContent =
+        `${state.post.likedByCurrentUser ? "추천 취소" : "추천"} · ${state.post.likeCount}`;
+      activeLikeButton.classList.toggle(
+        "button-primary",
+        state.post.likedByCurrentUser,
+      );
+      activeLikeButton.classList.toggle(
+        "button-secondary",
+        !state.post.likedByCurrentUser,
+      );
     }
   }
 
@@ -1637,9 +1684,8 @@
         ? await Api.delete(`/board/posts/${postId}/like`)
         : await Api.post(`/board/posts/${postId}/like`, {});
       invalidateBoardCache();
-      renderPost({
-        ...state.post,
-        likedByCurrentUser: payload.data.liked,
+      updateLikeUi({
+        liked: payload.data.liked,
         likeCount: payload.data.likeCount,
       });
       showToast(toast, payload.message);
@@ -1675,7 +1721,19 @@
     try {
       const payload = await Api.delete(deletePath);
       invalidateBoardCache();
-      window.alert(payload.message);
+      if (newsPost) {
+        // 가게 소식은 게시판 밖 식당 화면으로 돌아가므로 기존 완료 안내를 유지한다.
+        window.alert(payload.message);
+      } else {
+        try {
+          window.sessionStorage.setItem(
+            BOARD_FLASH_KEY,
+            payload.message || "게시글이 삭제되었습니다.",
+          );
+        } catch (_error) {
+          // 저장 공간을 사용할 수 없어도 삭제 완료 후 이동은 계속한다.
+        }
+      }
       allowDetailNavigation = true;
       window.location.assign(returnPath);
     } catch (error) {
@@ -2371,7 +2429,16 @@
       writeBoardCache(path, pageData);
       return pageData;
     } catch (error) {
-      if (cached) return cached.data || {};
+      if (cached) {
+        showToast(
+          toast,
+          "최신 댓글을 불러오지 못해 잠시 저장된 댓글을 보여드리고 있습니다.",
+        );
+        announceCommentStatus(
+          "최신 댓글을 불러오지 못해 저장된 댓글을 표시했습니다.",
+        );
+        return cached.data || {};
+      }
       throw error;
     }
   }
