@@ -873,16 +873,33 @@
     let favoriteItems = [];
     let favoriteLoaded = false;
     let favoriteLoadPromise = null;
+    let favoriteCountPromise = null;
+    let favoriteCount = null;
 
     function updateFavoriteTabCount(count) {
       if (!isCurrentUser) return;
+      favoriteCount = Math.max(0, Number(count) || 0);
       const countElement = tabs.querySelector(
         '[data-author-activity-tab="favorites"] .author-menu-tab-count',
       );
       if (countElement) {
-        const normalizedCount = Math.max(0, Number(count) || 0);
-        countElement.textContent = normalizedCount > 99 ? "99+" : String(normalizedCount);
+        countElement.textContent = favoriteCount > 99 ? "99+" : String(favoriteCount);
       }
+    }
+
+    function refreshAuthorFavoriteCount() {
+      if (!isCurrentUser) return Promise.resolve(0);
+      if (favoriteCountPromise) return favoriteCountPromise;
+      favoriteCountPromise = Api.get("/mypage/overview")
+        .then((payload) => {
+          const count = Math.max(0, Number(payload?.data?.favoriteCount) || 0);
+          updateFavoriteTabCount(count);
+          return count;
+        })
+        .finally(() => {
+          favoriteCountPromise = null;
+        });
+      return favoriteCountPromise;
     }
 
     function replaceFavoriteSection(section) {
@@ -904,12 +921,13 @@
       replaceFavoriteSection(authorMenuFavoriteLoadingSection());
       favoriteLoadPromise = Promise.all([
         Api.get("/mypage/favorites"),
-        Api.get("/mypage/overview").catch(() => null),
+        refreshAuthorFavoriteCount().catch(() => favoriteCount),
       ])
-        .then(([favoritesPayload, overviewPayload]) => {
+        .then(([favoritesPayload, resolvedFavoriteCount]) => {
           favoriteItems = Array.isArray(favoritesPayload?.data) ? favoritesPayload.data : [];
-          const favoriteCount = Number(overviewPayload?.data?.favoriteCount);
-          updateFavoriteTabCount(Number.isFinite(favoriteCount) ? favoriteCount : favoriteItems.length);
+          if (!Number.isFinite(resolvedFavoriteCount)) {
+            updateFavoriteTabCount(favoriteItems.length);
+          }
           favoriteLoaded = true;
           replaceFavoriteSection(authorMenuRecentFavoriteSection(favoriteItems));
         })
@@ -1028,6 +1046,9 @@
     }
 
     if (isCurrentUser) {
+      refreshAuthorFavoriteCount().catch(() => {
+        // 찜 수를 불러오지 못해도 공개 활동 프로필은 정상적으로 유지한다.
+      });
       refreshAuthorNotificationCount().catch(() => {
         // 미읽음 수를 불러오지 못해도 공개 활동 프로필은 정상적으로 유지한다.
       });
