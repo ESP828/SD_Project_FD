@@ -25,6 +25,13 @@
     "image/webp",
   ]);
   const COMMENT_IMAGE_NAME_PATTERN = /\.(?:jpe?g|png|gif|webp)$/i;
+  const COMMENT_EMOJIS = (
+    "😀 😃 😄 😁 😆 😅 🤣 😂 🙂 🙃 🫠 😉 😊 😇 🥰 😍 🤩 😘 😗 ☺️ 😚 😙 🥲 " +
+    "😋 😛 😜 🤪 😝 🤑 🤗 🤭 🫢 🫣 🤫 🤔 🫡 🤐 🤨 😐 😑 😶 🫥 😶‍🌫️ 😏 😒 🙄 😬 " +
+    "😮‍💨 🤥 🫨 🙂‍↔️ 🙂‍↕️ 😌 😔 😪 🤤 😴 🫩 😷 🤒 🤕 🤢 🤮 🤧 🥵 🥶 🥴 😵 😵‍💫 🤯 " +
+    "🤠 🥳 🥸 😎 🤓 🧐 😕 🫤 😟 🙁 ☹️ 😮 😯 😲 😳 🥺 🥹 😦 😧 😨 😰 😥 😢 😭 😱 " +
+    "😖 😣 😞 😓 😩 😫 🥱 😤 😡 😠 🤬 😈 👿"
+  ).split(" ");
   let mediaPollTimer = null;
   let mediaPollInFlight = false;
   let mediaPollDelay = MEDIA_POLL_BASE_DELAY;
@@ -60,6 +67,8 @@
   const commentImagePreviewSize =
     document.getElementById("comment-image-preview-size");
   const commentImageRemove = document.getElementById("comment-image-remove");
+  const commentEmojiToggle = document.getElementById("comment-emoji-toggle");
+  const commentEmojiPanel = document.getElementById("comment-emoji-panel");
   const commentSubmitButton = commentForm?.querySelector('button[type="submit"]');
   const toast = document.getElementById("board-toast");
 
@@ -79,6 +88,70 @@
     updateCachedPostViewCount,
     writeBoardCache,
   } = board;
+
+  let activeEmojiPicker = null;
+
+  function closeEmojiPicker(picker = activeEmojiPicker) {
+    if (!picker) return;
+    if (picker.panel?.isConnected) picker.panel.hidden = true;
+    if (picker.toggle?.isConnected) picker.toggle.setAttribute("aria-expanded", "false");
+    if (activeEmojiPicker === picker) activeEmojiPicker = null;
+  }
+
+  function openEmojiPicker(picker) {
+    if (!picker?.panel || !picker?.toggle) return;
+    if (activeEmojiPicker && activeEmojiPicker !== picker) closeEmojiPicker(activeEmojiPicker);
+    picker.panel.hidden = false;
+    picker.toggle.setAttribute("aria-expanded", "true");
+    activeEmojiPicker = picker;
+  }
+
+  function insertCommentEmoji(textarea, emoji) {
+    if (!textarea || !emoji) return false;
+    const value = textarea.value || "";
+    const start = Number.isInteger(textarea.selectionStart) ? textarea.selectionStart : value.length;
+    const end = Number.isInteger(textarea.selectionEnd) ? textarea.selectionEnd : start;
+    const nextValue = `${value.slice(0, start)}${emoji}${value.slice(end)}`;
+
+    if (textarea.maxLength > 0 && nextValue.length > textarea.maxLength) {
+      showToast(toast, `댓글은 최대 ${textarea.maxLength}자까지 입력할 수 있습니다.`, true);
+      return false;
+    }
+
+    textarea.value = nextValue;
+    const nextCaret = start + emoji.length;
+    textarea.focus({ preventScroll: true });
+    textarea.setSelectionRange(nextCaret, nextCaret);
+    textarea.dispatchEvent(new Event("input", { bubbles: true }));
+    return true;
+  }
+
+  function setupCommentEmojiPicker(textarea, toggle, panel) {
+    if (!textarea || !toggle || !panel) return null;
+
+    const grid = element("div", "comment-emoji-grid");
+    COMMENT_EMOJIS.forEach((emoji) => {
+      const button = element("button", "comment-emoji-option", emoji);
+      button.type = "button";
+      button.setAttribute("aria-label", `${emoji} 이모지 입력`);
+      button.addEventListener("click", () => insertCommentEmoji(textarea, emoji));
+      grid.append(button);
+    });
+
+    panel.replaceChildren(
+      element("strong", "comment-emoji-panel-title", "이모지"),
+      grid,
+    );
+
+    const picker = { textarea, toggle, panel };
+    toggle.addEventListener("click", (event) => {
+      event.stopPropagation();
+      if (panel.hidden) openEmojiPicker(picker);
+      else closeEmojiPicker(picker);
+    });
+    panel.addEventListener("click", (event) => event.stopPropagation());
+    return picker;
+  }
 
   function isEdited(item) {
     return item?.edited === true;
@@ -1261,6 +1334,7 @@
     const item = element("article", "detail-media-item");
     item.dataset.postMediaId = String(media.postMediaId || "");
     item.dataset.processingStatus = mediaProcessingStatus(media);
+    item.dataset.mediaType = String(media.mediaType || "").toUpperCase();
 
     if (isVideoMedia(media) && mediaProcessingStatus(media) !== "READY") {
       renderMediaProcessing(item, media);
@@ -1270,6 +1344,7 @@
 
     const name = media.originalName || "첨부파일";
     if (media.mediaType === "IMAGE") {
+      item.classList.add("detail-media-item--image");
       const image = new Image();
       image.src = media.mediaUrl;
       image.alt = name;
@@ -1363,6 +1438,24 @@
     return item;
   }
 
+  function syncImageOrderBadges(section) {
+    if (!section) return;
+
+    const imageItems = [...section.querySelectorAll(
+      '.detail-media-item[data-media-type="IMAGE"]',
+    )];
+
+    imageItems.forEach((item, index) => {
+      let badge = item.querySelector(".detail-media-order");
+      if (!badge) {
+        badge = element("span", "detail-media-order");
+        badge.setAttribute("aria-hidden", "true");
+        item.append(badge);
+      }
+      badge.textContent = String(index + 1);
+    });
+  }
+
   function renderPostMedia(mediaItems) {
     if (!Array.isArray(mediaItems) || !mediaItems.length) return null;
 
@@ -1372,6 +1465,7 @@
       const item = renderPostMediaItem(media);
       if (item) section.append(item);
     });
+    syncImageOrderBadges(section);
     return section.childElementCount ? section : null;
   }
 
@@ -1426,7 +1520,11 @@
       }
     });
 
-    if (section && !section.childElementCount) section.remove();
+    if (section && section.childElementCount) {
+      syncImageOrderBadges(section);
+    } else if (section) {
+      section.remove();
+    }
   }
 
   function clearMediaPoll() {
@@ -2014,8 +2112,19 @@
     fileInput.accept = ".jpg,.jpeg,.png,.gif,.webp,image/jpeg,image/png,image/gif,image/webp";
     const imageButton = element("button", "comment-image-select", "사진 첨부");
     imageButton.type = "button";
+    const emojiButton = element("button", "comment-emoji-toggle", "😀 이모지");
+    emojiButton.type = "button";
+    const emojiPanel = element("div", "comment-emoji-panel");
+    emojiPanel.hidden = true;
+    emojiPanel.setAttribute("role", "group");
+    emojiPanel.setAttribute("aria-label", "이모지 선택");
+    const emojiPanelId = `comment-reply-emoji-${comment.commentId}`;
+    emojiPanel.id = emojiPanelId;
+    emojiButton.setAttribute("aria-controls", emojiPanelId);
+    emojiButton.setAttribute("aria-expanded", "false");
     const imageNote = element("span", "", "사진 1장 · 최대 5MB");
-    tools.append(fileInput, imageButton, imageNote);
+    tools.append(fileInput, imageButton, emojiButton, imageNote);
+    setupCommentEmojiPicker(textarea, emojiButton, emojiPanel);
 
     const preview = element("div", "comment-image-preview");
     preview.hidden = true;
@@ -2100,6 +2209,8 @@
       const imageFile = selectedReplyImage;
       submit.disabled = true;
       imageButton.disabled = true;
+      emojiButton.disabled = true;
+      closeEmojiPicker();
       try {
         const payload = await Api.post(`/board/posts/${postId}/comments`, {
           content,
@@ -2146,10 +2257,11 @@
       } finally {
         syncReplySubmitState();
         imageButton.disabled = false;
+        emojiButton.disabled = false;
       }
     });
 
-    form.append(label, textarea, inputMeta, tools, preview, submitRow);
+    form.append(label, textarea, inputMeta, tools, emojiPanel, preview, submitRow);
     mountTarget.append(form);
     activeReplyForm = form;
     textarea.focus();
@@ -2720,6 +2832,16 @@
     }
   }
 
+  setupCommentEmojiPicker(commentContent, commentEmojiToggle, commentEmojiPanel);
+
+  document.addEventListener("click", () => closeEmojiPicker());
+  document.addEventListener("keydown", (event) => {
+    if (event.key !== "Escape" || !activeEmojiPicker) return;
+    const toggle = activeEmojiPicker.toggle;
+    closeEmojiPicker();
+    toggle?.focus({ preventScroll: true });
+  });
+
   commentImageSelect?.addEventListener("click", () => {
     commentImageInput?.click();
   });
@@ -2775,6 +2897,8 @@
     const imageFile = selectedCommentImage;
     if (commentSubmitButton) commentSubmitButton.disabled = true;
     if (commentImageSelect) commentImageSelect.disabled = true;
+    if (commentEmojiToggle) commentEmojiToggle.disabled = true;
+    closeEmojiPicker();
     try {
       const payload = await Api.post(`/board/posts/${postId}/comments`, { content });
       const createdCommentId = payload.data?.commentId;
@@ -2810,6 +2934,7 @@
     } finally {
       if (commentSubmitButton) commentSubmitButton.disabled = false;
       if (commentImageSelect) commentImageSelect.disabled = false;
+      if (commentEmojiToggle) commentEmojiToggle.disabled = false;
     }
   });
 
@@ -2831,7 +2956,9 @@
 
     let ticking = false;
     const updateVisibility = () => {
-      button.hidden = window.scrollY <= 450;
+      const visible = window.scrollY > 450;
+      button.hidden = !visible;
+      document.body.classList.toggle("board-scroll-top-visible", visible);
       ticking = false;
     };
 

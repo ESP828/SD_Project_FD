@@ -428,8 +428,8 @@
     );
 
     const tabs = element("div", "author-menu-skeleton-tabs");
-    const tabCount = isCurrentAuthorAccount(author?.authorAccountId) ? 4 : 3;
-    if (tabCount === 4) tabs.classList.add("author-menu-skeleton-tabs--with-notifications");
+    const tabCount = isCurrentAuthorAccount(author?.authorAccountId) ? 5 : 3;
+    if (tabCount === 5) tabs.classList.add("author-menu-skeleton-tabs--with-private-activity");
     for (let index = 0; index < tabCount; index += 1) {
       tabs.append(element("span", "author-menu-skeleton-tab"));
     }
@@ -576,9 +576,118 @@
     return section;
   }
 
+  function appendAuthorMenuPrivateSectionIntro(section, title, note) {
+    section.append(
+      element("strong", "author-menu-recent-title", title),
+      element("p", "author-menu-note author-menu-private-note", note),
+    );
+  }
+
+  function authorFavoriteDetailHref(favorite) {
+    const source = String(favorite?.restaurantSource || "").toUpperCase();
+    const restaurantId = Number(favorite?.restaurantId);
+    const publicRestaurantId = Number(favorite?.publicRestaurantId);
+
+    if ((source === "PUBLIC" || restaurantId <= 0) && publicRestaurantId > 0) {
+      return `/pages/restaurant/detail.html?source=public&id=${encodeURIComponent(publicRestaurantId)}`;
+    }
+    if (restaurantId > 0) {
+      return `/pages/restaurant/detail.html?source=owned&id=${encodeURIComponent(restaurantId)}`;
+    }
+    return `/pages/search/index.html?q=${encodeURIComponent(favorite?.restaurantName || "")}`;
+  }
+
+  function authorMenuFavoriteLoadingSection() {
+    const section = element("section", "author-menu-recent author-menu-favorites");
+    appendAuthorMenuPrivateSectionIntro(
+      section,
+      "최근 찜",
+      "찜 목록은 본인에게만 표시됩니다.",
+    );
+    const loading = element("div", "author-menu-notification-loading");
+    loading.setAttribute("role", "status");
+    loading.setAttribute("aria-live", "polite");
+    const loadingIcon = icon("favorite");
+    loadingIcon.classList.add("author-menu-notification-loading-icon");
+    loading.append(
+      loadingIcon,
+      element("span", "author-menu-notification-loading-text", "찜한 가게를 불러오는 중입니다."),
+    );
+    section.append(loading);
+    return section;
+  }
+
+  function authorMenuFavoriteErrorSection(onRetry) {
+    const section = element("section", "author-menu-recent author-menu-favorites");
+    appendAuthorMenuPrivateSectionIntro(
+      section,
+      "최근 찜",
+      "찜 목록은 본인에게만 표시됩니다.",
+    );
+    const error = authorMenuEmptyState(
+      "error",
+      "찜한 가게를 불러오지 못했습니다",
+      "잠시 후 다시 시도해 주세요.",
+    );
+    if (typeof onRetry === "function") {
+      const retry = element("button", "author-menu-notification-retry", "다시 시도");
+      retry.type = "button";
+      retry.addEventListener("click", onRetry);
+      error.append(retry);
+    }
+    section.append(error);
+    return section;
+  }
+
+  function authorMenuRecentFavoriteSection(favorites) {
+    const section = element("section", "author-menu-recent author-menu-favorites");
+    appendAuthorMenuPrivateSectionIntro(
+      section,
+      "최근 찜",
+      "찜 목록은 본인에게만 표시됩니다.",
+    );
+    const items = Array.isArray(favorites) ? favorites.slice(0, 5) : [];
+    if (items.length === 0) {
+      section.append(authorMenuEmptyState(
+        "favorite",
+        "아직 찜한 가게가 없습니다",
+        "맛집을 찜하면 내 프로필에서 바로 확인할 수 있습니다.",
+      ));
+      return section;
+    }
+
+    const list = element("ul", "author-menu-recent-list");
+    items.forEach((favorite) => {
+      const item = element("li", "author-menu-recent-item");
+      const link = element("a", "author-menu-recent-link");
+      link.href = authorFavoriteDetailHref(favorite);
+      const titleRow = element("span", "author-menu-recent-title-row");
+      titleRow.append(
+        element("span", "author-menu-source", favorite.categoryName || "맛집"),
+        element("span", "author-menu-recent-post-title", favorite.restaurantName || "이름 없는 가게"),
+      );
+      link.append(
+        titleRow,
+        element(
+          "small",
+          "author-menu-recent-meta",
+          `${favorite.address || "주소 정보 없음"} · ${formatDate(favorite.createdAt)}`,
+        ),
+      );
+      item.append(link);
+      list.append(item);
+    });
+    section.append(list);
+    return section;
+  }
+
   function authorMenuNotificationLoadingSection() {
     const section = element("section", "author-menu-recent author-menu-notifications");
-    section.append(element("strong", "author-menu-recent-title", "최근 알림"));
+    appendAuthorMenuPrivateSectionIntro(
+      section,
+      "최근 알림",
+      "알림 목록은 본인에게만 표시됩니다.",
+    );
     const loading = element("div", "author-menu-notification-loading");
     loading.setAttribute("role", "status");
     loading.setAttribute("aria-live", "polite");
@@ -594,7 +703,11 @@
 
   function authorMenuNotificationErrorSection(onRetry) {
     const section = element("section", "author-menu-recent author-menu-notifications");
-    section.append(element("strong", "author-menu-recent-title", "최근 알림"));
+    appendAuthorMenuPrivateSectionIntro(
+      section,
+      "최근 알림",
+      "알림 목록은 본인에게만 표시됩니다.",
+    );
     const error = authorMenuEmptyState(
       "error",
       "알림을 불러오지 못했습니다",
@@ -612,7 +725,11 @@
 
   function authorMenuRecentNotificationSection(notifications, onActivate) {
     const section = element("section", "author-menu-recent author-menu-notifications");
-    section.append(element("strong", "author-menu-recent-title", "최근 알림"));
+    appendAuthorMenuPrivateSectionIntro(
+      section,
+      "최근 알림",
+      "알림 목록은 본인에게만 표시됩니다.",
+    );
     const items = Array.isArray(notifications) ? notifications.slice(0, 5) : [];
     if (items.length === 0) {
       section.append(authorMenuEmptyState(
@@ -733,8 +850,11 @@
       ["리뷰", summary.reviewCount, "reviews"],
     ];
     if (isCurrentUser) {
-      tabs.classList.add("author-menu-tabs--with-notifications");
-      tabDefinitions.push(["알림", null, "notifications"]);
+      tabs.classList.add("author-menu-tabs--with-private-activity");
+      tabDefinitions.push(
+        ["찜", null, "favorites"],
+        ["알림", null, "notifications"],
+      );
     }
     tabDefinitions.forEach(([label, count, key], index) => {
       tabs.append(authorMenuTab(label, count, key, index === 0));
@@ -750,6 +870,7 @@
       reviews: authorMenuRecentReviewSection(summary.recentReviews),
     };
     if (isCurrentUser) {
+      sections.favorites = authorMenuFavoriteLoadingSection();
       sections.notifications = authorMenuNotificationLoadingSection();
     }
     activityPanel.dataset.activeAuthorActivityTab = "posts";
@@ -775,6 +896,79 @@
         activityPanel.style.minHeight = `${Math.ceil(maxHeight)}px`;
       }
       activityPanel.style.visibility = "";
+    }
+
+    let favoriteItems = [];
+    let favoriteLoaded = false;
+    let favoriteLoadPromise = null;
+    let favoriteCountPromise = null;
+    let favoriteCount = null;
+
+    function updateFavoriteTabCount(count) {
+      if (!isCurrentUser) return;
+      favoriteCount = Math.max(0, Number(count) || 0);
+      const countElement = tabs.querySelector(
+        '[data-author-activity-tab="favorites"] .author-menu-tab-count',
+      );
+      if (countElement) {
+        countElement.textContent = favoriteCount > 99 ? "99+" : String(favoriteCount);
+      }
+    }
+
+    function refreshAuthorFavoriteCount() {
+      if (!isCurrentUser) return Promise.resolve(0);
+      if (favoriteCountPromise) return favoriteCountPromise;
+      favoriteCountPromise = Api.get("/mypage/overview")
+        .then((payload) => {
+          const count = Math.max(0, Number(payload?.data?.favoriteCount) || 0);
+          updateFavoriteTabCount(count);
+          return count;
+        })
+        .finally(() => {
+          favoriteCountPromise = null;
+        });
+      return favoriteCountPromise;
+    }
+
+    function replaceFavoriteSection(section) {
+      if (!isCurrentUser) return;
+      sections.favorites = section;
+      if (activityPanel.dataset.activeAuthorActivityTab === "favorites") {
+        authorActivitySwitchId += 1;
+        activityPanel.getAnimations({ subtree: true }).forEach((animation) => animation.cancel());
+        activityPanel.replaceChildren(section);
+        stabilizeAuthorActivityPanelHeight();
+      }
+    }
+
+    function loadAuthorFavorites({ force = false } = {}) {
+      if (!isCurrentUser) return Promise.resolve();
+      if (favoriteLoaded && !force) return Promise.resolve();
+      if (favoriteLoadPromise && !force) return favoriteLoadPromise;
+
+      replaceFavoriteSection(authorMenuFavoriteLoadingSection());
+      favoriteLoadPromise = Promise.all([
+        Api.get("/mypage/favorites"),
+        refreshAuthorFavoriteCount().catch(() => favoriteCount),
+      ])
+        .then(([favoritesPayload, resolvedFavoriteCount]) => {
+          favoriteItems = Array.isArray(favoritesPayload?.data) ? favoritesPayload.data : [];
+          if (!Number.isFinite(resolvedFavoriteCount)) {
+            updateFavoriteTabCount(favoriteItems.length);
+          }
+          favoriteLoaded = true;
+          replaceFavoriteSection(authorMenuRecentFavoriteSection(favoriteItems));
+        })
+        .catch(() => {
+          favoriteLoaded = false;
+          replaceFavoriteSection(authorMenuFavoriteErrorSection(() => {
+            loadAuthorFavorites({ force: true });
+          }));
+        })
+        .finally(() => {
+          favoriteLoadPromise = null;
+        });
+      return favoriteLoadPromise;
     }
 
     let notificationItems = [];
@@ -880,6 +1074,9 @@
     }
 
     if (isCurrentUser) {
+      refreshAuthorFavoriteCount().catch(() => {
+        // 찜 수를 불러오지 못해도 공개 활동 프로필은 정상적으로 유지한다.
+      });
       refreshAuthorNotificationCount().catch(() => {
         // 미읽음 수를 불러오지 못해도 공개 활동 프로필은 정상적으로 유지한다.
       });
@@ -959,7 +1156,9 @@
       activityPanel.setAttribute("aria-labelledby", button.id);
       if (moveFocus) button.focus({ preventScroll: true });
       switchAuthorActivityPanel(key);
-      if (key === "notifications") {
+      if (key === "favorites") {
+        loadAuthorFavorites();
+      } else if (key === "notifications") {
         loadAuthorNotifications();
       }
     }
@@ -1091,9 +1290,7 @@
     trigger.setAttribute("aria-controls", "board-author-menu");
     trigger.setAttribute("aria-expanded", "false");
     trigger.setAttribute("aria-label", `${author.authorNickname || "작성자"} 프로필 보기`);
-    trigger.dataset.authorActivityTooltip = isCurrentAuthorAccount(author.authorAccountId)
-      ? "내 프로필 보기 · 글 · 댓글 · 리뷰 · 알림 확인"
-      : "작성자 프로필 보기 · 글 · 댓글 · 리뷰 확인";
+    trigger.dataset.authorActivityTooltip = "프로필 보기 · 글 · 댓글 · 리뷰 확인";
     trigger.addEventListener("mouseenter", () => showAuthorActivityTooltip(trigger));
     trigger.addEventListener("mouseleave", closeAuthorActivityTooltip);
     trigger.addEventListener("focus", () => showAuthorActivityTooltip(trigger));

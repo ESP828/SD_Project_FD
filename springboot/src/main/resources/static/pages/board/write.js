@@ -16,6 +16,13 @@
   const MAX_MEDIA_COUNT = 10;
   const MAX_IMAGE_BYTES = 20 * 1024 * 1024;
   const MAX_VIDEO_BYTES = 100 * 1024 * 1024;
+  const WRITE_EMOJIS = (
+    "😀 😃 😄 😁 😆 😅 🤣 😂 🙂 🙃 🫠 😉 😊 😇 🥰 😍 🤩 😘 😗 ☺️ 😚 😙 🥲 " +
+    "😋 😛 😜 🤪 😝 🤑 🤗 🤭 🫢 🫣 🤫 🤔 🫡 🤐 🤨 😐 😑 😶 🫥 😶‍🌫️ 😏 😒 🙄 😬 " +
+    "😮‍💨 🤥 🫨 🙂‍↔️ 🙂‍↕️ 😌 😔 😪 🤤 😴 🫩 😷 🤒 🤕 🤢 🤮 🤧 🥵 🥶 🥴 😵 😵‍💫 🤯 " +
+    "🤠 🥳 🥸 😎 🤓 🧐 😕 🫤 😟 🙁 ☹️ 😮 😯 😲 😳 🥺 🥹 😦 😧 😨 😰 😥 😢 😭 😱 " +
+    "😖 😣 😞 😓 😩 😫 🥱 😤 😡 😠 🤬 😈 👿"
+  ).split(" ");
   const IMAGE_EXTENSIONS = new Set([
     "jpg", "jpeg", "png", "gif", "webp", "bmp",
     "tif", "tiff", "avif", "heic", "heif",
@@ -34,6 +41,8 @@
   const contentInput = document.getElementById("editor-post-content");
   const titleCount = document.getElementById("title-count");
   const contentCount = document.getElementById("content-count");
+  const emojiToggle = document.getElementById("editor-emoji-toggle");
+  const emojiPanel = document.getElementById("editor-emoji-panel");
   const errorMessage = document.getElementById("editor-error");
   const submitButton = document.getElementById("editor-submit-button");
   const cancelLink = document.getElementById("editor-cancel-link");
@@ -56,6 +65,87 @@
   const removedMediaIds = new Set();
 
   if (!form) return;
+
+  let editorEmojiOpen = false;
+
+  function closeEditorEmojiPanel() {
+    if (!emojiPanel || !emojiToggle) return;
+    emojiPanel.hidden = true;
+    emojiToggle.setAttribute("aria-expanded", "false");
+    editorEmojiOpen = false;
+  }
+
+  function openEditorEmojiPanel() {
+    if (!emojiPanel || !emojiToggle) return;
+    emojiPanel.hidden = false;
+    emojiToggle.setAttribute("aria-expanded", "true");
+    editorEmojiOpen = true;
+  }
+
+  function insertEditorEmoji(emoji) {
+    if (!contentInput || !emoji) return;
+
+    const value = contentInput.value || "";
+    const start = Number.isInteger(contentInput.selectionStart)
+      ? contentInput.selectionStart
+      : value.length;
+    const end = Number.isInteger(contentInput.selectionEnd)
+      ? contentInput.selectionEnd
+      : start;
+    const nextValue = `${value.slice(0, start)}${emoji}${value.slice(end)}`;
+
+    if (contentInput.maxLength > 0 && nextValue.length > contentInput.maxLength) {
+      errorMessage.textContent =
+        `내용은 최대 ${contentInput.maxLength.toLocaleString("ko-KR")}자까지 입력할 수 있습니다.`;
+      return;
+    }
+
+    contentInput.value = nextValue;
+    const nextCaret = start + emoji.length;
+    contentInput.focus({ preventScroll: true });
+    contentInput.setSelectionRange(nextCaret, nextCaret);
+    contentInput.dispatchEvent(new Event("input", { bubbles: true }));
+  }
+
+  function initializeEditorEmojiPicker() {
+    if (!emojiToggle || !emojiPanel || !contentInput) return;
+
+    const grid = board.element("div", "comment-emoji-grid");
+    WRITE_EMOJIS.forEach((emoji) => {
+      const button = board.element("button", "comment-emoji-option", emoji);
+      button.type = "button";
+      button.setAttribute("aria-label", `${emoji} 이모지 입력`);
+      button.addEventListener("click", () => {
+        insertEditorEmoji(emoji);
+      });
+      grid.append(button);
+    });
+
+    emojiPanel.replaceChildren(
+      board.element("strong", "comment-emoji-panel-title", "이모지"),
+      grid,
+    );
+
+    emojiToggle.addEventListener("click", (event) => {
+      event.stopPropagation();
+      if (editorEmojiOpen) closeEditorEmojiPanel();
+      else openEditorEmojiPanel();
+    });
+
+    emojiPanel.addEventListener("click", (event) => {
+      event.stopPropagation();
+    });
+
+    document.addEventListener("click", () => {
+      if (editorEmojiOpen) closeEditorEmojiPanel();
+    });
+
+    document.addEventListener("keydown", (event) => {
+      if (event.key !== "Escape" || !editorEmojiOpen) return;
+      closeEditorEmojiPanel();
+      emojiToggle.focus({ preventScroll: true });
+    });
+  }
 
   function safeBoardListReturnPath(value) {
     if (!value) return null;
@@ -585,6 +675,8 @@
       errorMessage.textContent = error.message || "게시글을 불러오지 못했습니다.";
       submitButton.disabled = true;
       if (mediaSelectButton) mediaSelectButton.disabled = true;
+      if (emojiToggle) emojiToggle.disabled = true;
+      closeEditorEmojiPanel();
     }
   }
 
@@ -717,6 +809,8 @@
     return failures;
   }
 
+  initializeEditorEmojiPicker();
+
   titleInput.addEventListener("input", updateCounts);
   contentInput.addEventListener("input", updateCounts);
   boardTypeSelect.addEventListener("change", () => {
@@ -758,6 +852,8 @@
 
     submitButton.disabled = true;
     submitButton.textContent = postId ? "저장 중..." : "등록 중...";
+    if (emojiToggle) emojiToggle.disabled = true;
+    closeEditorEmojiPanel();
     try {
       const updatePath = newsEdit ? newsUpdatePath(originalPost) : null;
       if (newsEdit && !updatePath) {
@@ -797,6 +893,7 @@
           `게시글은 저장되었지만 일부 첨부 처리가 실패했습니다. ${failures.join(" ")}`;
         submitButton.disabled = false;
         submitButton.textContent = "수정 저장";
+        if (emojiToggle) emojiToggle.disabled = false;
         return;
       }
 
@@ -811,6 +908,7 @@
         error.message || "게시글을 저장하지 못했습니다.";
       submitButton.disabled = false;
       submitButton.textContent = postId ? "수정 저장" : "등록하기";
+      if (emojiToggle) emojiToggle.disabled = false;
       setMediaBusy(false);
     }
   });
