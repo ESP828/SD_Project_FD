@@ -486,116 +486,126 @@
         <div class="container footer-bottom">
           <span>© 2026 FOODUCK. All rights reserved.</span>
         </div>
-      </footer>
+      </footer>`;
 
-      <dialog id="footer-about-dialog" class="footer-dialog" aria-labelledby="footer-about-title">
-        <div class="footer-dialog-header">
-          <div>
-            <span class="footer-dialog-kicker">FOODUCK</span>
-            <h2 id="footer-about-title">서비스 소개</h2>
+    // 안내 모달은 실제로 열 때만 DOM에 생성한다.
+    // 초기 페이지 렌더에서 긴 서비스 소개/FAQ/법적 문서 DOM을 만들지 않아 공통 페이지 비용을 줄인다.
+    const dialogTemplates = {
+      "footer-about-dialog": `
+        <dialog id="footer-about-dialog" class="footer-dialog" aria-labelledby="footer-about-title">
+          <div class="footer-dialog-header">
+            <div>
+              <span class="footer-dialog-kicker">FOODUCK</span>
+              <h2 id="footer-about-title">서비스 소개</h2>
+            </div>
+            <button type="button" class="footer-dialog-x" data-footer-dialog-close aria-label="서비스 소개 닫기">
+              <span class="material-symbols-rounded" aria-hidden="true">close</span>
+            </button>
           </div>
-          <button type="button" class="footer-dialog-x" data-footer-dialog-close aria-label="서비스 소개 닫기">
-            <span class="material-symbols-rounded" aria-hidden="true">close</span>
-          </button>
-        </div>
-        <div class="footer-dialog-body">
-          <p class="footer-dialog-lead"><strong>푸드덕은 맛집을 찾고, 발견하고, 저장하고, 경험을 나눌 수 있는 맛집 탐색 서비스입니다.</strong></p>
-          <p>푸드덕은 음식점을 단순히 검색하는 것에서 끝나지 않고, 사용자가 자신에게 맞는 음식점을 발견하고 방문 경험까지 이어갈 수 있도록 다양한 기능을 한곳에 제공합니다.</p>
+          <div class="footer-dialog-body">
+            <p class="footer-dialog-lead"><strong>푸드덕은 맛집을 찾고, 발견하고, 저장하고, 경험을 나눌 수 있는 맛집 탐색 서비스입니다.</strong></p>
+            <p>푸드덕은 음식점을 단순히 검색하는 것에서 끝나지 않고, 사용자가 자신에게 맞는 음식점을 발견하고 방문 경험까지 이어갈 수 있도록 다양한 기능을 한곳에 제공합니다.</p>
 
-          <h3>맛집 찾기</h3>
-          <p>지도와 검색 기능을 통해 원하는 지역과 조건의 음식점을 찾아볼 수 있습니다.</p>
-          <p>검색한 음식점은 외부 서비스로 이동하지 않고 푸드덕의 음식점 상세 페이지에서 기본 정보와 메뉴, 리뷰, 소식 등 필요한 정보를 계속 확인할 수 있도록 구성하고 있습니다.</p>
+            <h3>맛집 찾기</h3>
+            <p>지도와 검색 기능을 통해 원하는 지역과 조건의 음식점을 찾아볼 수 있습니다.</p>
+            <p>검색한 음식점은 외부 서비스로 이동하지 않고 푸드덕의 음식점 상세 페이지에서 기본 정보와 메뉴, 리뷰, 소식 등 필요한 정보를 계속 확인할 수 있도록 구성하고 있습니다.</p>
 
-          <h3>새로운 맛집 발견</h3>
-          <p>직접 검색하는 것뿐만 아니라 다양한 방식으로 새로운 음식점을 발견할 수 있습니다.</p>
-          <p>주제별 음식점을 모아 보여주는 <strong>프리셋(이하 &quot;보물지도&quot;)</strong>을 통해 새로운 맛집을 살펴볼 수 있으며, 로그인 사용자는 서비스 이용 정보와 취향 데이터를 활용한 맞춤형 추천 기능을 이용할 수 있도록 서비스를 발전시키고 있습니다.</p>
+            <h3>새로운 맛집 발견</h3>
+            <p>직접 검색하는 것뿐만 아니라 다양한 방식으로 새로운 음식점을 발견할 수 있습니다.</p>
+            <p>주제별 음식점을 모아 보여주는 <strong>프리셋(이하 &quot;보물지도&quot;)</strong>을 통해 새로운 맛집을 살펴볼 수 있으며, 로그인 사용자는 서비스 이용 정보와 취향 데이터를 활용한 맞춤형 추천 기능을 이용할 수 있도록 서비스를 발전시키고 있습니다.</p>
 
-          <h3>찜과 나만의 맛집 관리</h3>
-          <p>관심 있는 음식점은 <strong>찜</strong>으로 저장해 나중에 다시 찾아볼 수 있습니다.</p>
-          <p>사용자가 저장한 음식점과 작성한 리뷰, 게시글 등의 활동은 마이페이지를 통해 확인하고 관리할 수 있습니다.</p>
+            <h3>찜과 나만의 맛집 관리</h3>
+            <p>관심 있는 음식점은 <strong>찜</strong>으로 저장해 나중에 다시 찾아볼 수 있습니다.</p>
+            <p>사용자가 저장한 음식점과 작성한 리뷰, 게시글 등의 활동은 마이페이지를 통해 확인하고 관리할 수 있습니다.</p>
 
-          <h3>리뷰와 커뮤니티</h3>
-          <p>푸드덕에서는 실제 사용자가 직접 작성한 리뷰를 통해 음식점에 대한 경험을 공유할 수 있습니다.</p>
-          <p>또한 커뮤니티에서는 맛집과 음식에 관한 이야기를 나누거나 질문을 올리고, 다른 이용자의 추천을 받은 글과 인기 있는 이야기를 살펴볼 수 있습니다.</p>
+            <h3>리뷰와 커뮤니티</h3>
+            <p>푸드덕에서는 실제 사용자가 직접 작성한 리뷰를 통해 음식점에 대한 경험을 공유할 수 있습니다.</p>
+            <p>또한 커뮤니티에서는 맛집과 음식에 관한 이야기를 나누거나 질문을 올리고, 다른 이용자의 추천을 받은 글과 인기 있는 이야기를 살펴볼 수 있습니다.</p>
 
-          <h3>푸드덕이 지향하는 경험</h3>
-          <p>푸드덕은 여러 서비스를 오가며 맛집을 찾아야 하는 번거로움을 줄이고, <strong>탐색부터 발견, 저장과 경험 공유까지 자연스럽게 이어지는 맛집 이용 경험</strong>을 제공하는 것을 목표로 합니다.</p>
-          <p>사용자가 자신의 취향에 맞는 음식점을 보다 쉽게 발견하고, 다른 이용자의 경험을 참고해 더 좋은 선택을 할 수 있도록 서비스를 지속적으로 개선해 나가겠습니다.</p>
-        </div>
-        <button type="button" class="footer-dialog-close" data-footer-dialog-close>닫기</button>
-      </dialog>
-
-      <dialog id="footer-faq-dialog" class="footer-dialog" aria-labelledby="footer-faq-title">
-        <div class="footer-dialog-header">
-          <div>
-            <span class="footer-dialog-kicker">HELP</span>
-            <h2 id="footer-faq-title">자주 묻는 질문</h2>
+            <h3>푸드덕이 지향하는 경험</h3>
+            <p>푸드덕은 여러 서비스를 오가며 맛집을 찾아야 하는 번거로움을 줄이고, <strong>탐색부터 발견, 저장과 경험 공유까지 자연스럽게 이어지는 맛집 이용 경험</strong>을 제공하는 것을 목표로 합니다.</p>
+            <p>사용자가 자신의 취향에 맞는 음식점을 보다 쉽게 발견하고, 다른 이용자의 경험을 참고해 더 좋은 선택을 할 수 있도록 서비스를 지속적으로 개선해 나가겠습니다.</p>
           </div>
-          <button type="button" class="footer-dialog-x" data-footer-dialog-close aria-label="자주 묻는 질문 닫기">
-            <span class="material-symbols-rounded" aria-hidden="true">close</span>
-          </button>
-        </div>
-        <div class="footer-dialog-body footer-faq-list">
-          <section>
-            <h3>푸드덕에서는 무엇을 할 수 있나요?</h3>
-            <p>지도와 검색을 통해 음식점을 탐색하고, 음식점 상세 정보와 리뷰를 확인할 수 있습니다. 관심 있는 음식점은 찜으로 저장할 수 있으며 보물지도, 추천, 커뮤니티를 통해 새로운 맛집과 이용자들의 경험도 살펴볼 수 있습니다.</p>
-          </section>
-          <section>
-            <h3>보물지도는 무엇인가요?</h3>
-            <p>보물지도는 특정 주제에 어울리는 여러 음식점을 한데 모아 보여주는 푸드덕의 맛집 모음 기능입니다. 관심 있는 보물지도를 살펴보고 새로운 음식점을 발견하는 데 활용할 수 있습니다.</p>
-          </section>
-          <section>
-            <h3>맞춤 추천은 어떻게 이용하나요?</h3>
-            <p>로그인 사용자는 서비스 이용 정보와 취향 데이터를 활용한 맞춤형 추천 기능을 이용할 수 있습니다. 추천 기능은 사용자에게 더 잘 맞는 음식점을 찾을 수 있도록 계속 개선하고 있습니다.</p>
-          </section>
-          <section>
-            <h3>음식점 정보가 실제 매장과 다른 경우가 있나요?</h3>
-            <p>영업시간, 메뉴, 가격 등 음식점 정보는 실제 매장 상황에 따라 변경될 수 있습니다. 방문 전에는 해당 음식점의 최신 정보를 함께 확인하는 것을 권장합니다.</p>
-          </section>
-          <section>
-            <h3>리뷰와 커뮤니티 글은 누가 작성하나요?</h3>
-            <p>리뷰, 게시글과 댓글은 푸드덕 이용자가 직접 작성합니다. 각 작성 내용은 해당 이용자의 경험과 의견이며 푸드덕의 공식적인 의견을 의미하지 않습니다.</p>
-          </section>
-          <section>
-            <h3>서비스 이용 중 문제를 발견했어요.</h3>
-            <p>푸터의 <strong>문의하기</strong>를 통해 문의사항이나 오류 내용을 접수해 주세요. 확인에 도움이 되도록 문제가 발생한 화면과 상황을 함께 남겨주시면 좋습니다.</p>
-          </section>
-        </div>
-        <button type="button" class="footer-dialog-close" data-footer-dialog-close>닫기</button>
-      </dialog>
+          <button type="button" class="footer-dialog-close" data-footer-dialog-close>닫기</button>
+        </dialog>`,
 
-      <dialog id="footer-terms-dialog" class="footer-dialog" aria-labelledby="footer-terms-title">
-        <div class="footer-dialog-header">
-          <div>
-            <span class="footer-dialog-kicker">LEGAL</span>
-            <h2 id="footer-terms-title">이용약관</h2>
+      "footer-faq-dialog": `
+        <dialog id="footer-faq-dialog" class="footer-dialog" aria-labelledby="footer-faq-title">
+          <div class="footer-dialog-header">
+            <div>
+              <span class="footer-dialog-kicker">HELP</span>
+              <h2 id="footer-faq-title">자주 묻는 질문</h2>
+            </div>
+            <button type="button" class="footer-dialog-x" data-footer-dialog-close aria-label="자주 묻는 질문 닫기">
+              <span class="material-symbols-rounded" aria-hidden="true">close</span>
+            </button>
           </div>
-          <button type="button" class="footer-dialog-x" data-footer-dialog-close aria-label="이용약관 닫기">
-            <span class="material-symbols-rounded" aria-hidden="true">close</span>
-          </button>
-        </div>
-        <div class="footer-dialog-body" data-footer-legal-body="terms">
-          <p>이용약관을 불러오는 중입니다.</p>
-        </div>
-        <button type="button" class="footer-dialog-close" data-footer-dialog-close>닫기</button>
-      </dialog>
-
-      <dialog id="footer-privacy-dialog" class="footer-dialog" aria-labelledby="footer-privacy-title">
-        <div class="footer-dialog-header">
-          <div>
-            <span class="footer-dialog-kicker">PRIVACY</span>
-            <h2 id="footer-privacy-title">개인정보처리방침</h2>
+          <div class="footer-dialog-body footer-faq-list">
+            <section>
+              <h3>푸드덕에서는 무엇을 할 수 있나요?</h3>
+              <p>지도와 검색을 통해 음식점을 탐색하고, 음식점 상세 정보와 리뷰를 확인할 수 있습니다. 관심 있는 음식점은 찜으로 저장할 수 있으며 보물지도, 추천, 커뮤니티를 통해 새로운 맛집과 이용자들의 경험도 살펴볼 수 있습니다.</p>
+            </section>
+            <section>
+              <h3>보물지도는 무엇인가요?</h3>
+              <p>보물지도는 특정 주제에 어울리는 여러 음식점을 한데 모아 보여주는 푸드덕의 맛집 모음 기능입니다. 관심 있는 보물지도를 살펴보고 새로운 음식점을 발견하는 데 활용할 수 있습니다.</p>
+            </section>
+            <section>
+              <h3>맞춤 추천은 어떻게 이용하나요?</h3>
+              <p>로그인 사용자는 서비스 이용 정보와 취향 데이터를 활용한 맞춤형 추천 기능을 이용할 수 있습니다. 추천 기능은 사용자에게 더 잘 맞는 음식점을 찾을 수 있도록 계속 개선하고 있습니다.</p>
+            </section>
+            <section>
+              <h3>음식점 정보가 실제 매장과 다른 경우가 있나요?</h3>
+              <p>영업시간, 메뉴, 가격 등 음식점 정보는 실제 매장 상황에 따라 변경될 수 있습니다. 방문 전에는 해당 음식점의 최신 정보를 함께 확인하는 것을 권장합니다.</p>
+            </section>
+            <section>
+              <h3>리뷰와 커뮤니티 글은 누가 작성하나요?</h3>
+              <p>리뷰, 게시글과 댓글은 푸드덕 이용자가 직접 작성합니다. 각 작성 내용은 해당 이용자의 경험과 의견이며 푸드덕의 공식적인 의견을 의미하지 않습니다.</p>
+            </section>
+            <section>
+              <h3>서비스 이용 중 문제를 발견했어요.</h3>
+              <p>푸터의 <strong>문의하기</strong>를 통해 문의사항이나 오류 내용을 접수해 주세요. 확인에 도움이 되도록 문제가 발생한 화면과 상황을 함께 남겨주시면 좋습니다.</p>
+            </section>
           </div>
-          <button type="button" class="footer-dialog-x" data-footer-dialog-close aria-label="개인정보처리방침 닫기">
-            <span class="material-symbols-rounded" aria-hidden="true">close</span>
-          </button>
-        </div>
-        <div class="footer-dialog-body" data-footer-legal-body="privacy">
-          <p>개인정보처리방침을 불러오는 중입니다.</p>
-        </div>
-        <button type="button" class="footer-dialog-close" data-footer-dialog-close>닫기</button>
-      </dialog>`;
+          <button type="button" class="footer-dialog-close" data-footer-dialog-close>닫기</button>
+        </dialog>`,
 
+      "footer-terms-dialog": `
+        <dialog id="footer-terms-dialog" class="footer-dialog" aria-labelledby="footer-terms-title">
+          <div class="footer-dialog-header">
+            <div>
+              <span class="footer-dialog-kicker">LEGAL</span>
+              <h2 id="footer-terms-title">이용약관</h2>
+            </div>
+            <button type="button" class="footer-dialog-x" data-footer-dialog-close aria-label="이용약관 닫기">
+              <span class="material-symbols-rounded" aria-hidden="true">close</span>
+            </button>
+          </div>
+          <div class="footer-dialog-body" data-footer-legal-body="terms">
+            <p>이용약관을 불러오는 중입니다.</p>
+          </div>
+          <button type="button" class="footer-dialog-close" data-footer-dialog-close>닫기</button>
+        </dialog>`,
+
+      "footer-privacy-dialog": `
+        <dialog id="footer-privacy-dialog" class="footer-dialog" aria-labelledby="footer-privacy-title">
+          <div class="footer-dialog-header">
+            <div>
+              <span class="footer-dialog-kicker">PRIVACY</span>
+              <h2 id="footer-privacy-title">개인정보처리방침</h2>
+            </div>
+            <button type="button" class="footer-dialog-x" data-footer-dialog-close aria-label="개인정보처리방침 닫기">
+              <span class="material-symbols-rounded" aria-hidden="true">close</span>
+            </button>
+          </div>
+          <div class="footer-dialog-body" data-footer-legal-body="privacy">
+            <p>개인정보처리방침을 불러오는 중입니다.</p>
+          </div>
+          <button type="button" class="footer-dialog-close" data-footer-dialog-close>닫기</button>
+        </dialog>`,
+    };
+
+    // 동일 페이지에서 약관/개인정보처리방침을 연속으로 열 때 signup.html을 다시 읽지 않는다.
+    // 영구 저장소에 법적 문서를 복제하지 않아 원본 변경 시 오래된 내용이 남는 문제도 피한다.
     let signupLegalContentPromise = null;
 
     function extractSignupLegalContent(sourceDocument) {
@@ -626,7 +636,6 @@
         const response = await fetch("/pages/auth/signup.html", {
           method: "GET",
           credentials: "same-origin",
-          cache: "no-cache",
         });
         if (!response.ok) {
           throw new Error(`회원가입 페이지를 불러오지 못했습니다. (${response.status})`);
@@ -664,10 +673,38 @@
       }
     }
 
+    function bindFooterDialog(dialog) {
+      dialog.querySelectorAll("[data-footer-dialog-close]").forEach((button) => {
+        button.addEventListener("click", () => dialog.close());
+      });
+      dialog.addEventListener("click", (event) => {
+        if (event.target === dialog) {
+          dialog.close();
+        }
+      });
+    }
+
+    function ensureFooterDialog(dialogId) {
+      let dialog = host.querySelector(`#${dialogId}`);
+      if (dialog) return dialog;
+
+      const markup = dialogTemplates[dialogId];
+      if (!markup) return null;
+
+      const template = document.createElement("template");
+      template.innerHTML = markup.trim();
+      dialog = template.content.firstElementChild;
+      if (!(dialog instanceof HTMLDialogElement)) return null;
+
+      host.append(dialog);
+      bindFooterDialog(dialog);
+      return dialog;
+    }
+
     host.querySelectorAll("[data-footer-dialog]").forEach((trigger) => {
       trigger.addEventListener("click", async () => {
         const dialogId = trigger.dataset.footerDialog;
-        const dialog = document.getElementById(dialogId);
+        const dialog = ensureFooterDialog(dialogId);
         if (!dialog || typeof dialog.showModal !== "function") return;
 
         dialog.showModal();
@@ -676,17 +713,6 @@
           await syncFooterLegalBody("terms");
         } else if (dialogId === "footer-privacy-dialog") {
           await syncFooterLegalBody("privacy");
-        }
-      });
-    });
-
-    host.querySelectorAll(".footer-dialog").forEach((dialog) => {
-      dialog.querySelectorAll("[data-footer-dialog-close]").forEach((button) => {
-        button.addEventListener("click", () => dialog.close());
-      });
-      dialog.addEventListener("click", (event) => {
-        if (event.target === dialog) {
-          dialog.close();
         }
       });
     });
@@ -753,22 +779,72 @@
   document.querySelectorAll("[data-site-footer]").forEach(renderFooter);
   renderQuickRemote();
 
+  const NOTIFICATION_CACHE_TTL_MS = 15 * 1000;
+  const NOTIFICATION_CACHE_STALE_MS = 2 * 60 * 1000;
+  const notificationCacheKey = `fooduck:notification-unread:v1:${session.accountId || "unknown"}`;
+
+  function applyNotificationCount(count) {
+    const normalized = Math.max(0, Number(count) || 0);
+    document.querySelectorAll("[data-notification-badge]").forEach((badge) => {
+      badge.textContent = normalized > 99 ? "99+" : String(normalized);
+      badge.hidden = normalized === 0;
+    });
+    document.querySelectorAll("[data-notification-link]").forEach((link) => {
+      link.setAttribute("aria-label", normalized > 0 ? `읽지 않은 알림 ${normalized}개` : "알림");
+    });
+  }
+
+  function readNotificationCache() {
+    try {
+      const raw = sessionStorage.getItem(notificationCacheKey);
+      if (!raw) return null;
+      const cached = JSON.parse(raw);
+      const savedAt = Number(cached?.savedAt) || 0;
+      const age = Date.now() - savedAt;
+      if (!savedAt || age < 0 || age > NOTIFICATION_CACHE_STALE_MS) {
+        sessionStorage.removeItem(notificationCacheKey);
+        return null;
+      }
+      return { count: Math.max(0, Number(cached?.count) || 0), age };
+    } catch {
+      try { sessionStorage.removeItem(notificationCacheKey); } catch {}
+      return null;
+    }
+  }
+
+  function writeNotificationCache(count) {
+    try {
+      sessionStorage.setItem(notificationCacheKey, JSON.stringify({
+        savedAt: Date.now(),
+        count: Math.max(0, Number(count) || 0),
+      }));
+    } catch {
+      // 저장 공간 제한/비활성화 시 캐시 없이 기존 흐름으로 동작한다.
+    }
+  }
+
   async function refreshNotificationBadges() {
     if (!session.authenticated) return;
+
+    const cached = readNotificationCache();
+    if (cached) {
+      // 페이지 이동 직후에는 최근 값을 먼저 보여줘 헤더가 API 응답을 기다리지 않게 한다.
+      applyNotificationCount(cached.count);
+      if (cached.age <= NOTIFICATION_CACHE_TTL_MS) return;
+    }
+
     try {
       const payload = await Api.get("/notifications/unread-count");
       const count = Math.max(0, Number(payload?.data?.count) || 0);
-      document.querySelectorAll("[data-notification-badge]").forEach((badge) => {
-        badge.textContent = count > 99 ? "99+" : String(count);
-        badge.hidden = count === 0;
-      });
-      document.querySelectorAll("[data-notification-link]").forEach((link) => {
-        link.setAttribute("aria-label", count > 0 ? `읽지 않은 알림 ${count}개` : "알림");
-      });
+      writeNotificationCache(count);
+      applyNotificationCount(count);
     } catch {
-      document.querySelectorAll("[data-notification-badge]").forEach((badge) => {
-        badge.hidden = true;
-      });
+      // 오래된 캐시라도 이미 화면에 표시했다면 네트워크 실패로 갑자기 배지를 지우지 않는다.
+      if (!cached) {
+        document.querySelectorAll("[data-notification-badge]").forEach((badge) => {
+          badge.hidden = true;
+        });
+      }
     }
   }
 

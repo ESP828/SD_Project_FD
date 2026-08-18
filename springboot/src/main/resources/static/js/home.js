@@ -5,6 +5,42 @@
   const prevButton = document.querySelector("#home-preset-prev");
   const nextButton = document.querySelector("#home-preset-next");
 
+  // 메인 인기 보물지도는 페이지를 오갈 때마다 같은 응답을 다시 기다릴 필요가 없다.
+  // 브라우저 탭이 열려 있는 동안만 짧게 보관해 초기 체감 속도를 높이고,
+  // 오래된 데이터는 화면을 막지 않은 채 뒤에서 다음 방문용으로 갱신한다.
+  const HOME_PRESET_CACHE_KEY = "fooduck:home:popular-presets:v1";
+  const HOME_PRESET_CACHE_TTL_MS = 2 * 60 * 1000;
+  const HOME_PRESET_CACHE_STALE_MS = 30 * 60 * 1000;
+
+  function readPresetCache() {
+    try {
+      const raw = sessionStorage.getItem(HOME_PRESET_CACHE_KEY);
+      if (!raw) return null;
+      const cached = JSON.parse(raw);
+      const savedAt = Number(cached?.savedAt) || 0;
+      const age = Date.now() - savedAt;
+      if (!savedAt || age < 0 || age > HOME_PRESET_CACHE_STALE_MS || !cached?.payload) {
+        sessionStorage.removeItem(HOME_PRESET_CACHE_KEY);
+        return null;
+      }
+      return { payload: cached.payload, age };
+    } catch {
+      try { sessionStorage.removeItem(HOME_PRESET_CACHE_KEY); } catch {}
+      return null;
+    }
+  }
+
+  function writePresetCache(payload) {
+    try {
+      sessionStorage.setItem(HOME_PRESET_CACHE_KEY, JSON.stringify({
+        savedAt: Date.now(),
+        payload,
+      }));
+    } catch {
+      // 저장 공간 제한/비활성화 시 캐시 없이 기존 흐름으로 동작한다.
+    }
+  }
+
   function updateNavVisibility() {
     if (!prevButton || !nextButton) return;
     const maxScroll = list.scrollWidth - list.clientWidth;
@@ -131,24 +167,48 @@
     window.requestAnimationFrame(step);
   }
 
-  Api.get("/presets?page=0&size=4&sort=popular")
-    .then((payload) => {
-      const presets = Array.isArray(payload.data?.content) ? payload.data.content : [];
-      list.replaceChildren();
-      list.setAttribute("aria-busy", "false");
-      if (!presets.length) {
-        const state = document.createElement("p");
-        state.className = "home-preset-state";
-        state.textContent = "현재 공개된 보물지도가 없습니다.";
-        list.append(state);
-        return;
-      }
-      presets.forEach((preset, index) => list.append(renderCard(preset, index + 1)));
-      window.requestAnimationFrame(updateNavVisibility);
-      startAutoScroll();
-    })
-    .catch(() => {
-      list.setAttribute("aria-busy", "false");
-      list.innerHTML = '<p class="home-preset-state">인기 보물지도를 불러오지 못했습니다.</p>';
-    });
+  function renderPresetPayload(payload) {
+    const presets = Array.isArray(payload?.data?.content) ? payload.data.content : [];
+    list.replaceChildren();
+    list.setAttribute("aria-busy", "false");
+    if (!presets.length) {
+      const state = document.createElement("p");
+      state.className = "home-preset-state";
+      state.textContent = "현재 공개된 보물지도가 없습니다.";
+      list.append(state);
+      return;
+    }
+    presets.forEach((preset, index) => list.append(renderCard(preset, index + 1)));
+    window.requestAnimationFrame(updateNavVisibility);
+    startAutoScroll();
+  }
+
+  function fetchAndCachePresets({ render = true } = {}) {
+    return Api.get("/presets?page=0&size=4&sort=popular")
+      .then((payload) => {
+        writePresetCache(payload);
+        if (render) renderPresetPayload(payload);
+        return payload;
+      });
+  }
+
+  const cachedPresets = readPresetCache();
+  if (cachedPresets) {
+    // 캐시가 있으면 네트워크 응답을 기다리지 않고 즉시 보여준다.
+    renderPresetPayload(cachedPresets.payload);
+
+    // 2분 이내의 캐시는 그대로 사용한다. 오래된 캐시는 현재 화면을 다시 그리지 않고
+    // 잠시 뒤 조용히 갱신해 다음 메인 진입 때 최신 데이터를 바로 쓸 수 있게 한다.
+    if (cachedPresets.age > HOME_PRESET_CACHE_TTL_MS) {
+      window.setTimeout(() => {
+        fetchAndCachePresets({ render: false }).catch(() => {});
+      }, 1200);
+    }
+  } else {
+    fetchAndCachePresets()
+      .catch(() => {
+        list.setAttribute("aria-busy", "false");
+        list.innerHTML = '<p class="home-preset-state">인기 보물지도를 불러오지 못했습니다.</p>';
+      });
+  }
 })();
