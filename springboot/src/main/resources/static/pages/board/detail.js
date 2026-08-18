@@ -1371,14 +1371,9 @@
     const imageItems = [...section.querySelectorAll(
       '.detail-media-item[data-media-type="IMAGE"]',
     )];
-    const showOrder = imageItems.length > 1;
 
     imageItems.forEach((item, index) => {
       let badge = item.querySelector(".detail-media-order");
-      if (!showOrder) {
-        badge?.remove();
-        return;
-      }
       if (!badge) {
         badge = element("span", "detail-media-order");
         badge.setAttribute("aria-hidden", "true");
