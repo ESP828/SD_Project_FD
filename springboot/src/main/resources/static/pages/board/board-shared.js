@@ -576,6 +576,15 @@
     return section;
   }
 
+  function authorMenuPrivateSectionHeading(title) {
+    const heading = element("div", "author-menu-private-heading");
+    heading.append(
+      element("strong", "author-menu-recent-title", title),
+      element("span", "author-menu-private-badge", "🔒 나만 보기"),
+    );
+    return heading;
+  }
+
   function authorFavoriteDetailHref(favorite) {
     const source = String(favorite?.restaurantSource || "").toUpperCase();
     const restaurantId = Number(favorite?.restaurantId);
@@ -592,7 +601,7 @@
 
   function authorMenuFavoriteLoadingSection() {
     const section = element("section", "author-menu-recent author-menu-favorites");
-    section.append(element("strong", "author-menu-recent-title", "최근 찜"));
+    section.append(authorMenuPrivateSectionHeading("최근 찜"));
     const loading = element("div", "author-menu-notification-loading");
     loading.setAttribute("role", "status");
     loading.setAttribute("aria-live", "polite");
@@ -608,7 +617,7 @@
 
   function authorMenuFavoriteErrorSection(onRetry) {
     const section = element("section", "author-menu-recent author-menu-favorites");
-    section.append(element("strong", "author-menu-recent-title", "최근 찜"));
+    section.append(authorMenuPrivateSectionHeading("최근 찜"));
     const error = authorMenuEmptyState(
       "error",
       "찜한 가게를 불러오지 못했습니다",
@@ -626,7 +635,7 @@
 
   function authorMenuRecentFavoriteSection(favorites) {
     const section = element("section", "author-menu-recent author-menu-favorites");
-    section.append(element("strong", "author-menu-recent-title", "최근 찜"));
+    section.append(authorMenuPrivateSectionHeading("최근 찜"));
     const items = Array.isArray(favorites) ? favorites.slice(0, 5) : [];
     if (items.length === 0) {
       section.append(authorMenuEmptyState(
@@ -658,16 +667,13 @@
       item.append(link);
       list.append(item);
     });
-    section.append(
-      list,
-      element("p", "author-menu-note author-menu-private-note", "찜 목록은 본인에게만 표시됩니다."),
-    );
+    section.append(list);
     return section;
   }
 
   function authorMenuNotificationLoadingSection() {
     const section = element("section", "author-menu-recent author-menu-notifications");
-    section.append(element("strong", "author-menu-recent-title", "최근 알림"));
+    section.append(authorMenuPrivateSectionHeading("최근 알림"));
     const loading = element("div", "author-menu-notification-loading");
     loading.setAttribute("role", "status");
     loading.setAttribute("aria-live", "polite");
@@ -683,7 +689,7 @@
 
   function authorMenuNotificationErrorSection(onRetry) {
     const section = element("section", "author-menu-recent author-menu-notifications");
-    section.append(element("strong", "author-menu-recent-title", "최근 알림"));
+    section.append(authorMenuPrivateSectionHeading("최근 알림"));
     const error = authorMenuEmptyState(
       "error",
       "알림을 불러오지 못했습니다",
@@ -701,7 +707,7 @@
 
   function authorMenuRecentNotificationSection(notifications, onActivate) {
     const section = element("section", "author-menu-recent author-menu-notifications");
-    section.append(element("strong", "author-menu-recent-title", "최근 알림"));
+    section.append(authorMenuPrivateSectionHeading("최근 알림"));
     const items = Array.isArray(notifications) ? notifications.slice(0, 5) : [];
     if (items.length === 0) {
       section.append(authorMenuEmptyState(
@@ -1262,9 +1268,7 @@
     trigger.setAttribute("aria-controls", "board-author-menu");
     trigger.setAttribute("aria-expanded", "false");
     trigger.setAttribute("aria-label", `${author.authorNickname || "작성자"} 프로필 보기`);
-    trigger.dataset.authorActivityTooltip = isCurrentAuthorAccount(author.authorAccountId)
-      ? "내 프로필 보기 · 글 · 댓글 · 리뷰 · 찜 · 알림 확인"
-      : "작성자 프로필 보기 · 글 · 댓글 · 리뷰 확인";
+    trigger.dataset.authorActivityTooltip = "프로필 보기 · 글 · 댓글 · 리뷰 확인";
     trigger.addEventListener("mouseenter", () => showAuthorActivityTooltip(trigger));
     trigger.addEventListener("mouseleave", closeAuthorActivityTooltip);
     trigger.addEventListener("focus", () => showAuthorActivityTooltip(trigger));
