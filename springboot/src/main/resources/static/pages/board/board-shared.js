@@ -576,13 +576,11 @@
     return section;
   }
 
-  function authorMenuPrivateSectionHeading(title) {
-    const heading = element("div", "author-menu-private-heading");
-    heading.append(
+  function appendAuthorMenuPrivateSectionIntro(section, title, note) {
+    section.append(
       element("strong", "author-menu-recent-title", title),
-      element("span", "author-menu-private-badge", "🔒 나만 보기"),
+      element("p", "author-menu-note author-menu-private-note", note),
     );
-    return heading;
   }
 
   function authorFavoriteDetailHref(favorite) {
@@ -601,7 +599,11 @@
 
   function authorMenuFavoriteLoadingSection() {
     const section = element("section", "author-menu-recent author-menu-favorites");
-    section.append(authorMenuPrivateSectionHeading("최근 찜"));
+    appendAuthorMenuPrivateSectionIntro(
+      section,
+      "최근 찜",
+      "찜 목록은 본인에게만 표시됩니다.",
+    );
     const loading = element("div", "author-menu-notification-loading");
     loading.setAttribute("role", "status");
     loading.setAttribute("aria-live", "polite");
@@ -617,7 +619,11 @@
 
   function authorMenuFavoriteErrorSection(onRetry) {
     const section = element("section", "author-menu-recent author-menu-favorites");
-    section.append(authorMenuPrivateSectionHeading("최근 찜"));
+    appendAuthorMenuPrivateSectionIntro(
+      section,
+      "최근 찜",
+      "찜 목록은 본인에게만 표시됩니다.",
+    );
     const error = authorMenuEmptyState(
       "error",
       "찜한 가게를 불러오지 못했습니다",
@@ -635,7 +641,11 @@
 
   function authorMenuRecentFavoriteSection(favorites) {
     const section = element("section", "author-menu-recent author-menu-favorites");
-    section.append(authorMenuPrivateSectionHeading("최근 찜"));
+    appendAuthorMenuPrivateSectionIntro(
+      section,
+      "최근 찜",
+      "찜 목록은 본인에게만 표시됩니다.",
+    );
     const items = Array.isArray(favorites) ? favorites.slice(0, 5) : [];
     if (items.length === 0) {
       section.append(authorMenuEmptyState(
@@ -673,7 +683,11 @@
 
   function authorMenuNotificationLoadingSection() {
     const section = element("section", "author-menu-recent author-menu-notifications");
-    section.append(authorMenuPrivateSectionHeading("최근 알림"));
+    appendAuthorMenuPrivateSectionIntro(
+      section,
+      "최근 알림",
+      "알림 목록은 본인에게만 표시됩니다.",
+    );
     const loading = element("div", "author-menu-notification-loading");
     loading.setAttribute("role", "status");
     loading.setAttribute("aria-live", "polite");
@@ -689,7 +703,11 @@
 
   function authorMenuNotificationErrorSection(onRetry) {
     const section = element("section", "author-menu-recent author-menu-notifications");
-    section.append(authorMenuPrivateSectionHeading("최근 알림"));
+    appendAuthorMenuPrivateSectionIntro(
+      section,
+      "최근 알림",
+      "알림 목록은 본인에게만 표시됩니다.",
+    );
     const error = authorMenuEmptyState(
       "error",
       "알림을 불러오지 못했습니다",
@@ -707,7 +725,11 @@
 
   function authorMenuRecentNotificationSection(notifications, onActivate) {
     const section = element("section", "author-menu-recent author-menu-notifications");
-    section.append(authorMenuPrivateSectionHeading("최근 알림"));
+    appendAuthorMenuPrivateSectionIntro(
+      section,
+      "최근 알림",
+      "알림 목록은 본인에게만 표시됩니다.",
+    );
     const items = Array.isArray(notifications) ? notifications.slice(0, 5) : [];
     if (items.length === 0) {
       section.append(authorMenuEmptyState(

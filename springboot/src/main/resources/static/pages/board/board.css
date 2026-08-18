@@ -1551,35 +1551,6 @@
   letter-spacing: 0.015em;
 }
 
-.author-menu-private-heading {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  min-width: 0;
-  margin-bottom: 7px;
-}
-
-.author-menu-private-heading .author-menu-recent-title {
-  min-width: 0;
-  margin-bottom: 0;
-}
-
-.author-menu-private-badge {
-  flex: 0 0 auto;
-  display: inline-flex;
-  align-items: center;
-  min-height: 20px;
-  padding: 2px 7px;
-  border-radius: 999px;
-  color: var(--color-subtle);
-  background: #f3f5f7;
-  font-size: 0.6rem;
-  font-weight: 750;
-  line-height: 1.2;
-  white-space: nowrap;
-}
-
 .author-menu-recent-list {
   display: grid;
   gap: 2px;
@@ -1786,7 +1757,8 @@ button.author-menu-notification-link {
 }
 
 .author-menu-private-note {
-  margin-top: 8px;
+  margin: -1px 0 8px;
+  text-align: left;
 }
 
 .author-menu-error-state {
@@ -2315,6 +2287,7 @@ button.author-menu-notification-link {
 }
 
 .comment-image-select,
+.comment-emoji-toggle,
 .comment-image-remove {
   display: inline-flex;
   align-items: center;
@@ -2326,7 +2299,8 @@ button.author-menu-notification-link {
   font-weight: 800;
 }
 
-.comment-image-select {
+.comment-image-select,
+.comment-emoji-toggle {
   padding: 6px 0;
   color: var(--color-muted);
   font-size: 0.76rem;
@@ -2334,14 +2308,68 @@ button.author-menu-notification-link {
 
 .comment-image-select:hover,
 .comment-image-select:focus-visible,
+.comment-emoji-toggle:hover,
+.comment-emoji-toggle:focus-visible,
 .comment-image-remove:hover,
 .comment-image-remove:focus-visible {
   color: var(--color-orange);
 }
 
-.comment-image-select:disabled {
+.comment-image-select:disabled,
+.comment-emoji-toggle:disabled {
   cursor: wait;
   opacity: 0.55;
+}
+
+.comment-emoji-panel {
+  display: grid;
+  width: min(100%, 420px);
+  max-height: 260px;
+  gap: 8px;
+  overflow-y: auto;
+  padding: 10px;
+  border: 1px solid var(--color-line);
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 10px 26px rgba(27, 43, 65, 0.1);
+}
+
+.comment-emoji-panel[hidden] {
+  display: none;
+}
+
+.comment-emoji-panel-title {
+  color: var(--color-muted);
+  font-size: 0.7rem;
+  font-weight: 850;
+}
+
+.comment-emoji-grid {
+  display: grid;
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+  gap: 4px;
+}
+
+.comment-emoji-option {
+  display: inline-flex;
+  min-width: 0;
+  min-height: 36px;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+  font-size: 1.28rem;
+  line-height: 1;
+}
+
+.comment-emoji-option:hover,
+.comment-emoji-option:focus-visible {
+  outline: 0;
+  background: rgba(255, 152, 0, 0.1);
+  box-shadow: 0 0 0 2px rgba(255, 152, 0, 0.12);
 }
 
 .comment-image-preview {
@@ -2754,6 +2782,10 @@ button.author-menu-notification-link {
 
   .comment-image-preview {
     grid-template-columns: 64px minmax(0, 1fr);
+  }
+
+  .comment-emoji-grid {
+    grid-template-columns: repeat(7, minmax(0, 1fr));
   }
 
   .comment-image-preview img {

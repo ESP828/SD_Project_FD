@@ -63,8 +63,14 @@
               <button id="comment-image-select" class="comment-image-select" type="button">
                 사진 첨부
               </button>
+              <button id="comment-emoji-toggle" class="comment-emoji-toggle" type="button"
+                      aria-expanded="false" aria-controls="comment-emoji-panel">
+                😀 이모지
+              </button>
               <span>사진 1장 · 최대 5MB</span>
             </div>
+            <div id="comment-emoji-panel" class="comment-emoji-panel"
+                 role="group" aria-label="표정 이모지 선택" hidden></div>
             <div id="comment-image-preview" class="comment-image-preview" hidden>
               <img id="comment-image-preview-image" alt="댓글 첨부 사진 미리보기">
               <div class="comment-image-preview-copy">
