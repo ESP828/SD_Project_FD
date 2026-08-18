@@ -166,7 +166,7 @@ class PresetControllerIntegrationTest {
     }
 
     @Test
-    @DisplayName("마이페이지는 찜한 목록이 아닌 로그인 계정이 만든 활성 Presset만 반환한다")
+    @DisplayName("마이페이지는 찜한 목록이 아닌 로그인 계정이 만든 보물지도만 반환한다")
     void getsPresetsCreatedByAuthenticatedAccountForMyPage() throws Exception {
         jdbcTemplate.update("""
                 insert into account (
@@ -296,7 +296,7 @@ class PresetControllerIntegrationTest {
     }
 
     @Test
-    @DisplayName("비회원도 태그가 포함된 활성 Presset 페이지를 조회한다")
+    @DisplayName("비회원도 태그가 포함된 보물지도 페이지를 조회한다")
     void anonymousGetsPresetList() throws Exception {
         mockMvc.perform(get("/api/presets"))
                 .andExpect(status().isOk())

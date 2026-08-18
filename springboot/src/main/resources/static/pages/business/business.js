@@ -58,6 +58,13 @@
   }
 
   function metric(label, value, href, linkText = "상세 보기 →", formatter = formatNumber) {
+  function metric(
+    label,
+    value,
+    href,
+    iconName,
+    linkText = "상세 보기 →",
+  ) {
     const card = element("a", "activity-card");
     const displayValue = formatter(value);
     card.href = href;
@@ -272,6 +279,11 @@
         "리뷰 보기 →",
         formatRating,
       ),
+      metric("내 음식점", data.restaurantCount, "/pages/business/detail.html?tab=restaurants", "storefront"),
+      metric("운영 중", data.activeRestaurantCount, "/pages/business/detail.html?tab=active", "store"),
+      metric("가게 소식", data.newsCount, "/pages/business/detail.html?tab=news", "campaign"),
+      metric("받은 리뷰", data.reviewCount, "/pages/business/detail.html?tab=reviews", "rate_review"),
+      metric("찜 받은 수", data.favoriteCount, "/pages/business/detail.html?tab=favorites", "favorite"),
     );
 
     const restaurantList = element("div", "management-preview-list");

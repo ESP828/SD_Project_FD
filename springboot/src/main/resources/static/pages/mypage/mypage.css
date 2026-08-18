@@ -202,6 +202,10 @@
 
 .activity-grid--business {
   grid-template-columns: repeat(6, minmax(0, 1fr));
+.activity-grid--business,
+.activity-grid--admin,
+.activity-grid--business-applications {
+  --activity-grid-columns: 5;
 }
 
 .activity-card {

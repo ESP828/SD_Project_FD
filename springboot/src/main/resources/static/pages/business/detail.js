@@ -269,6 +269,7 @@
       profile,
       homeHref: "/pages/business/index.html",
       homeLabel: "← 사업자 페이지",
+    const menuBar = detailLayout.createMenuBar({
       ariaLabel: "사업자 상세 메뉴",
       items,
     }), main);
