@@ -745,15 +745,7 @@
   position: relative;
   overflow: hidden;
   padding: 58px 0;
-  background-color: var(--hero-ivory);
-  background-image: url("/images/social/home-hero-background-ivory-blobs.png");
-  background-image: image-set(
-    url("/images/social/home-hero-background-ivory-blobs.webp") type("image/webp"),
-    url("/images/social/home-hero-background-ivory-blobs.png") type("image/png")
-  );
-  background-position: center;
-  background-size: cover;
-  background-repeat: no-repeat;
+  background: var(--hero-ivory) url("/images/social/home-hero-background-ivory-blobs.png") center / cover no-repeat;
 }
 
 .home-hero::after {
