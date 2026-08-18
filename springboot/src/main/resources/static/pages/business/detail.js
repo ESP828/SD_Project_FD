@@ -17,6 +17,7 @@
   const tabs = {
     restaurants: {
       label: "내 음식점",
+      icon: "storefront",
       title: "내 음식점",
       description: "현재 계정에 연결된 음식점과 운영 상태입니다.",
       countKey: "restaurantCount",
@@ -27,6 +28,7 @@
     },
     active: {
       label: "운영 중",
+      icon: "store",
       title: "운영 중인 음식점",
       description: "현재 ACTIVE 상태로 노출 중인 음식점입니다.",
       countKey: "activeRestaurantCount",
@@ -37,6 +39,7 @@
     },
     news: {
       label: "가게 소식",
+      icon: "campaign",
       title: "가게 소식 현황",
       description: "음식점별로 등록된 활성 소식 수를 확인합니다.",
       countKey: "newsCount",
@@ -49,6 +52,7 @@
     },
     reviews: {
       label: "받은 리뷰",
+      icon: "rate_review",
       title: "받은 리뷰 현황",
       description: "내 음식점별 활성 리뷰 수를 확인합니다.",
       countKey: "reviewCount",
@@ -61,6 +65,7 @@
     },
     favorites: {
       label: "찜 현황",
+      icon: "favorite",
       title: "찜 받은 현황",
       description: "내 음식점별로 사용자에게 저장된 횟수를 확인합니다.",
       countKey: "favoriteCount",
@@ -189,13 +194,16 @@
       : [];
     const items = Object.entries(tabs).map(([tab, config]) => ({
       label: config.label,
+      icon: config.icon,
       href: detailPath(tab),
       count: countFor(overview, tab),
       current: tab === activeTab,
     }));
+    const layout = element("div", "mypage-detail-layout");
     const main = element("section", "mypage-detail-main");
+    const surface = element("section", "mypage-detail-surface");
     const heading = element("header", "mypage-detail-heading");
-    const copy = element("div");
+    const copy = element("div", "mypage-detail-heading-copy");
     copy.append(
       element("h2", "", activeConfig.title),
       element("p", "", activeConfig.description),
@@ -204,16 +212,15 @@
       copy,
       element("span", "mypage-detail-count", `${formatNumber(countFor(overview, activeTab))}개`),
     );
-    main.append(heading, renderItems(restaurants));
-
-    const layout = element("div", "mypage-detail-layout");
-    layout.append(detailLayout.createSidebar({
-      profile,
-      homeHref: "/pages/business/index.html",
-      homeLabel: "← 사업자 페이지",
+    const menuBar = detailLayout.createMenuBar({
       ariaLabel: "사업자 상세 메뉴",
       items,
-    }), main);
+    });
+    const body = element("div", "mypage-detail-body");
+    body.append(renderItems(restaurants));
+    surface.append(heading, menuBar, body);
+    main.append(surface);
+    layout.append(main);
     content.append(layout);
     window.FooduckIcons?.enhance(content);
   }

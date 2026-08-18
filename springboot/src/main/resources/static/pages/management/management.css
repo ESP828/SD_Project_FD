@@ -296,6 +296,10 @@
   width: 105px;
 }
 
+.management-detail-surface > .mypage-detail-nav {
+  margin-bottom: 14px;
+}
+
 .activity-grid > .management-section-error {
   grid-column: 1 / -1;
   margin-bottom: 0;

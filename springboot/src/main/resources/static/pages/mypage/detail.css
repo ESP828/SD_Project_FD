@@ -165,7 +165,7 @@
   display: grid;
   overflow: hidden;
   max-width: 100%;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-template-columns: repeat(var(--mypage-detail-nav-columns, 6), minmax(0, 1fr));
   gap: 1px;
   border: 1px solid #e9e5de;
   border-radius: 12px;
@@ -359,7 +359,14 @@
 
 @media (max-width: 900px) {
   .mypage-detail-nav {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    display: flex;
+    overflow-x: auto;
+    scrollbar-width: thin;
+  }
+
+  .mypage-detail-nav a {
+    min-width: 158px;
+    flex: 1 0 158px;
   }
 }
 
@@ -397,17 +404,6 @@
   .mypage-detail-heading-copy {
     display: grid;
     gap: 5px;
-  }
-
-  .mypage-detail-nav {
-    display: flex;
-    overflow-x: auto;
-    scrollbar-width: thin;
-  }
-
-  .mypage-detail-nav a {
-    min-width: 158px;
-    flex: 0 0 auto;
   }
 
   .mypage-detail-card-top,
