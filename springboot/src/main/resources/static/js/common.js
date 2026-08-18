@@ -453,33 +453,38 @@
     host.innerHTML = `
       <footer class="site-footer">
         <div class="container footer-shell">
-          <div class="footer-brand">
-            <img src="/images/logos/brand-horizontal.png" alt="foodduck">
-            <p>맛집을 찾고, 발견하고, 저장하고, 경험을 나누는 맛집 탐색 서비스</p>
+          <div class="footer-main">
+            <div class="footer-brand">
+              <img src="/images/logos/brand-horizontal.png" alt="foodduck">
+              <p>맛집을 찾고, 취향에 맞게 저장하고, 경험을 나누는 맛집 탐색·보관 서비스</p>
+              <span class="footer-brand-accent" aria-hidden="true"></span>
+            </div>
+
+            <nav class="footer-links" aria-label="푸드덕 안내">
+              <button type="button" class="footer-link" data-footer-dialog="footer-about-dialog">서비스 소개</button>
+              <button type="button" class="footer-link" data-footer-dialog="footer-faq-dialog">자주 묻는 질문</button>
+              <button type="button" class="footer-link" data-footer-dialog="footer-terms-dialog">이용약관</button>
+              <button type="button" class="footer-link" data-footer-dialog="footer-privacy-dialog">개인정보처리방침</button>
+              <button type="button" class="footer-link" data-footer-dialog="footer-contact-dialog">문의하기</button>
+            </nav>
           </div>
 
-          <nav class="footer-links" aria-label="푸드덕 안내">
-            <button type="button" class="footer-link" data-footer-dialog="footer-about-dialog">서비스 소개</button>
-            <button type="button" class="footer-link" data-footer-dialog="footer-faq-dialog">자주 묻는 질문</button>
-            <button type="button" class="footer-link" data-footer-dialog="footer-terms-dialog">이용약관</button>
-            <button type="button" class="footer-link" data-footer-dialog="footer-privacy-dialog">개인정보처리방침</button>
-            <button type="button" class="footer-link" data-footer-dialog="footer-contact-dialog">문의하기</button>
-          </nav>
-
-          <div class="footer-support">
-            <strong>문의사항이 있으신가요?</strong>
-            <span>서비스 이용 중 문의사항이나 오류가 있다면 <button type="button" class="footer-support-link" data-footer-dialog="footer-contact-dialog">문의하기</button>를 통해 접수해 주세요.</span>
+          <div class="footer-contact-line">
+            <span>문의사항이 있으신가요?</span>
+            <button type="button" class="footer-support-link" data-footer-dialog="footer-contact-dialog">문의하기</button>
           </div>
 
-          <div class="footer-business">
-            <p><strong>상호 푸드덕</strong><span>대표 엄선필</span></p>
-            <address>서울특별시 강남구 봉은사로 119, 5층</address>
-          </div>
+          <div class="footer-meta">
+            <div class="footer-business">
+              <p><strong>상호 푸드덕</strong><span>대표 엄선필</span></p>
+              <address>서울특별시 강남구 봉은사로 119, 5층</address>
+            </div>
 
-          <div class="footer-notices">
-            <p>푸드덕은 맛집 검색과 추천부터 음식점 상세 정보, 찜, 보물지도 보관, 리뷰와 커뮤니티까지 한곳에서 이용할 수 있는 맛집 탐색·보관 서비스입니다.</p>
-            <p>푸드덕에 제공되는 음식점의 영업시간, 메뉴, 가격 및 기타 정보는 실제 매장 정보와 다를 수 있으므로 방문 전 최신 정보를 확인해 주세요.</p>
-            <p>회원이 작성한 게시글, 댓글 및 리뷰의 내용은 해당 작성자의 의견이며 푸드덕의 공식적인 의견을 의미하지 않습니다.</p>
+            <div class="footer-notices">
+              <p>푸드덕은 맛집 검색과 추천부터 음식점 상세 정보, 찜, 보물지도 보관, 리뷰와 커뮤니티까지 한곳에서 이용할 수 있는 맛집 탐색·보관 서비스입니다.</p>
+              <p>푸드덕에 제공되는 음식점의 영업시간, 메뉴, 가격 및 기타 정보는 실제 매장 정보와 다를 수 있으므로 방문 전 최신 정보를 확인해 주세요.</p>
+              <p>회원이 작성한 게시글, 댓글 및 리뷰의 내용은 해당 작성자의 의견이며 푸드덕의 공식적인 의견을 의미하지 않습니다.</p>
+            </div>
           </div>
         </div>
 
