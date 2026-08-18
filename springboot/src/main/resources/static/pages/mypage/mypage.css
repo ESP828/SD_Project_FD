@@ -190,6 +190,14 @@
 
 .activity-grid--mypage {
   grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 0;
+  overflow: hidden;
+  margin-bottom: 24px;
+  padding: 10px 8px;
+  border: 1px solid #e1e5ea;
+  border-radius: 24px;
+  background: #fff;
+  box-shadow: 0 10px 30px rgba(17, 24, 39, 0.05);
 }
 
 .activity-grid--business {
@@ -198,49 +206,146 @@
 
 .activity-card {
   position: relative;
-  padding: 19px;
-  border: 1px solid var(--color-line);
-  border-radius: 18px;
+  display: grid;
+  min-width: 0;
+  grid-template-columns: 44px minmax(0, 1fr);
+  grid-template-rows: auto auto;
+  align-content: center;
+  column-gap: 13px;
+  padding: 20px 18px;
+  border: 0;
+  border-radius: 14px;
   color: inherit;
-  background: #fff;
-  box-shadow: var(--shadow-sm);
+  background: transparent;
   transition:
-    transform 160ms ease,
-    border-color 160ms ease,
+    color 160ms ease,
+    background 160ms ease,
     box-shadow 160ms ease;
 }
 
-.activity-card:hover,
-.activity-card:focus-visible {
-  border-color: rgba(229, 91, 58, 0.46);
+.activity-card + .activity-card::before {
+  position: absolute;
+  top: 18px;
+  bottom: 18px;
+  left: 0;
+  width: 1px;
+  background: #e4e7eb;
+  content: "";
+}
+
+.activity-card:hover {
   outline: none;
-  box-shadow: var(--shadow-card);
-  transform: translateY(-3px);
+  background: var(--color-yellow-40);
+  box-shadow: inset 0 0 0 1px rgba(226, 170, 0, 0.4);
 }
 
-.activity-card span,
-.activity-card strong {
+.activity-card:focus-visible,
+.activity-card:active,
+.activity-card.is-selected,
+.activity-card[aria-current="page"] {
+  outline: none;
+  background: var(--color-orange-40);
+  box-shadow: inset 0 0 0 2px rgba(229, 111, 0, 0.4);
+}
+
+.activity-card-icon {
+  display: grid;
+  width: 42px;
+  height: 42px;
+  grid-row: 1 / span 2;
+  place-items: center;
+  align-self: start;
+  border: 1px solid #e5e7eb;
+  border-radius: 50%;
+  color: #555d67;
+  background: #f2f3f5;
+  transition: color 160ms ease, background 160ms ease;
+}
+
+.activity-card-icon .material-symbols-rounded {
+  font-size: 20px;
+}
+
+.activity-card-content,
+.activity-card-label,
+.activity-card-value {
   display: block;
 }
 
-.activity-card span {
-  margin-bottom: 5px;
-  color: var(--color-muted);
-  font-size: 0.76rem;
+.activity-card-content {
+  min-width: 0;
 }
 
-.activity-card strong {
-  color: var(--color-navy);
-  font-size: 1.55rem;
+.activity-card-label {
+  overflow: hidden;
+  color: #686f78;
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.activity-card em {
-  display: block;
-  margin-top: 13px;
-  color: var(--color-orange);
-  font-size: 0.7rem;
-  font-style: normal;
+.activity-card-value {
+  margin-top: 5px;
+  color: #191d23;
+  font-size: 1.7rem;
   font-weight: 850;
+  line-height: 1;
+  letter-spacing: -0.035em;
+}
+
+.activity-card-link {
+  display: block;
+  grid-column: 2;
+  margin-top: 11px;
+  color: #5f6670;
+  font-size: 0.69rem;
+  font-style: normal;
+  font-weight: 750;
+  line-height: 1.2;
+  transition: color 160ms ease, transform 160ms ease;
+}
+
+.activity-card:hover .activity-card-icon {
+  border-color: rgba(15, 43, 77, 0.18);
+  color: var(--color-navy);
+  background: rgba(255, 255, 255, 0.42);
+}
+
+.activity-card:focus-visible .activity-card-icon,
+.activity-card:active .activity-card-icon,
+.activity-card.is-selected .activity-card-icon,
+.activity-card[aria-current="page"] .activity-card-icon {
+  border-color: rgba(15, 43, 77, 0.18);
+  color: var(--color-navy);
+  background: rgba(255, 255, 255, 0.42);
+}
+
+.activity-card:hover .activity-card-link {
+  color: var(--color-navy);
+  transform: translateX(2px);
+}
+
+.activity-card:focus-visible .activity-card-link,
+.activity-card:active .activity-card-link,
+.activity-card.is-selected .activity-card-link,
+.activity-card[aria-current="page"] .activity-card-link {
+  color: var(--color-navy);
+  transform: translateX(2px);
+}
+
+.activity-card:hover .activity-card-label,
+.activity-card:hover .activity-card-value,
+.activity-card:focus-visible .activity-card-label,
+.activity-card:focus-visible .activity-card-value,
+.activity-card:active .activity-card-label,
+.activity-card:active .activity-card-value,
+.activity-card.is-selected .activity-card-label,
+.activity-card.is-selected .activity-card-value,
+.activity-card[aria-current="page"] .activity-card-label,
+.activity-card[aria-current="page"] .activity-card-value {
+  color: var(--color-navy);
 }
 
 .mypage-layout {
@@ -532,6 +637,20 @@
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
+  .activity-grid--mypage .activity-card:nth-child(3n + 1)::before {
+    display: none;
+  }
+
+  .activity-grid--mypage .activity-card:nth-child(n + 4)::after {
+    position: absolute;
+    top: 0;
+    right: 18px;
+    left: 18px;
+    height: 1px;
+    background: #e4e7eb;
+    content: "";
+  }
+
   .mypage-layout {
     grid-template-columns: 1fr;
   }
@@ -584,6 +703,24 @@
   .mypage-side-stack {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
+  .activity-grid--mypage .activity-card + .activity-card::before {
+    display: block;
+  }
+
+  .activity-grid--mypage .activity-card:nth-child(odd)::before {
+    display: none;
+  }
+
+  .activity-grid--mypage .activity-card:nth-child(n + 3)::after {
+    position: absolute;
+    top: 0;
+    right: 18px;
+    left: 18px;
+    height: 1px;
+    background: #e4e7eb;
+    content: "";
+  }
 }
 
 @media (max-width: 500px) {
@@ -592,6 +729,30 @@
   .account-details,
   .mypage-profile-form {
     grid-template-columns: 1fr;
+  }
+
+  .activity-grid--mypage {
+    padding: 8px 16px;
+  }
+
+  .activity-grid--mypage .activity-card {
+    padding-right: 4px;
+    padding-left: 4px;
+    border-radius: 0;
+  }
+
+  .activity-grid--mypage .activity-card + .activity-card::before {
+    display: none;
+  }
+
+  .activity-grid--mypage .activity-card:nth-child(n + 2)::after {
+    position: absolute;
+    top: 0;
+    right: 0;
+    left: 0;
+    height: 1px;
+    background: #e4e7eb;
+    content: "";
   }
 
   .mypage-panel-header {

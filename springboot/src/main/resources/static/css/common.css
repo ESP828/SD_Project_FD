@@ -4,6 +4,9 @@
   --color-orange: #ff9800;
   --color-orange-dark: #e56f00;
   --color-orange-soft: #fff1d9;
+  --color-orange-40: rgba(255, 152, 0, 0.4);
+  --color-yellow: #ffc107;
+  --color-yellow-40: rgba(255, 193, 7, 0.4);
   --color-green: #00a848;
   --color-green-bright: #00c853;
   --color-green-soft: #e9f9ef;
@@ -302,7 +305,7 @@ h4 {
 
 .button-primary:hover {
   color: #fff;
-  background: #ffc107;
+  background: var(--color-yellow);
   box-shadow: 0 13px 28px rgba(255, 193, 7, 0.3);
 }
 
@@ -338,7 +341,7 @@ h4 {
 .button-outline-gray {
   border-color: transparent;
   color: #fff;
-  background: #ffc107;
+  background: var(--color-yellow);
 }
 
 .button-outline-gray:hover {

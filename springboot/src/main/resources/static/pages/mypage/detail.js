@@ -1,17 +1,17 @@
 (() => {
   const session = window.FooduckSession;
-  const detailLayout = window.FooduckDetailLayout;
   const gate = document.getElementById("mypage-detail-gate");
   const loginLink = document.getElementById("mypage-detail-login");
   const content = document.getElementById("mypage-detail-content");
 
-  if (!session || !detailLayout || !gate || !loginLink || !content) {
+  if (!session || !gate || !loginLink || !content) {
     return;
   }
 
   const tabs = {
     presets: {
       label: "보물지도 리스트",
+      icon: "map",
       title: "내가 만든 보물지도",
       description: "현재 계정으로 만든 보물지도를 확인하고 수정할 수 있습니다.",
       endpoint: "/mypage/presets",
@@ -22,6 +22,7 @@
     },
     favorites: {
       label: "찜한 가게",
+      icon: "favorite",
       title: "찜한 가게",
       description: "관심 있게 저장한 맛집 목록입니다.",
       endpoint: "/mypage/favorites",
@@ -32,6 +33,7 @@
     },
     reviews: {
       label: "내 리뷰",
+      icon: "rate_review",
       title: "내가 작성한 리뷰",
       description: "음식점에 남긴 별점과 리뷰를 확인합니다.",
       endpoint: "/mypage/reviews",
@@ -42,6 +44,7 @@
     },
     posts: {
       label: "내 게시글",
+      icon: "article",
       title: "내가 작성한 게시글",
       description: "커뮤니티에 작성한 게시글을 확인합니다.",
       endpoint: "/mypage/posts",
@@ -52,6 +55,7 @@
     },
     comments: {
       label: "내 댓글",
+      icon: "chat_bubble",
       title: "내가 작성한 댓글",
       description: "커뮤니티 게시글에 남긴 댓글을 확인합니다.",
       endpoint: "/mypage/comments",
@@ -62,6 +66,7 @@
     },
     notifications: {
       label: "알림",
+      icon: "notifications",
       title: "내 알림",
       description: "새 알림과 이전에 확인한 알림을 함께 관리합니다.",
       endpoint: "/notifications",
@@ -477,14 +482,38 @@
     return list;
   }
 
+  function createMenuBar(items) {
+    const menuBar = element("nav", "mypage-detail-nav");
+    menuBar.setAttribute("aria-label", "마이페이지 상세 메뉴");
+    items.forEach((item) => {
+      const link = element("a");
+      link.href = item.href;
+      if (item.current) link.setAttribute("aria-current", "page");
+      const label = element("span", "mypage-detail-tab-label");
+      const icon = element("span", "material-symbols-rounded", item.icon);
+      icon.setAttribute("aria-hidden", "true");
+      window.FooduckIcons?.set(icon, item.icon);
+      label.append(icon, document.createTextNode(item.label));
+      const count = element(
+        "span",
+        "mypage-detail-tab-count",
+        new Intl.NumberFormat("ko-KR").format(Number(item.count) || 0),
+      );
+      link.append(label, count);
+      menuBar.append(link);
+    });
+    return menuBar;
+  }
+
   function render(overview, items) {
     content.replaceChildren();
     document.title = `${activeConfig.label} · 마이페이지 · 푸드덕`;
 
     const layout = element("div", "mypage-detail-layout");
     const main = element("section", "mypage-detail-main");
+    const surface = element("section", "mypage-detail-surface");
     const heading = element("header", "mypage-detail-heading");
-    const headingCopy = element("div");
+    const headingCopy = element("div", "mypage-detail-heading-copy");
     headingCopy.append(
       element("h2", "", activeConfig.title),
       element("p", "", activeConfig.description),
@@ -501,20 +530,19 @@
       headingActions.append(readAllButton);
     }
     heading.append(headingCopy, headingActions);
-    main.append(heading, renderItems(items));
-    const sidebarItems = Object.entries(tabs).map(([tab, config]) => ({
+    const menuItems = Object.entries(tabs).map(([tab, config]) => ({
       label: config.label,
+      icon: config.icon,
       href: detailPath(tab),
       count: countFor(overview, tab),
       current: tab === activeTab,
     }));
-    layout.append(detailLayout.createSidebar({
-      profile: overview,
-      homeHref: "/pages/mypage/index.html",
-      homeLabel: "← 마이페이지 홈",
-      ariaLabel: "마이페이지 상세 메뉴",
-      items: sidebarItems,
-    }), main);
+    const menuBar = createMenuBar(menuItems);
+    const body = element("div", "mypage-detail-body");
+    body.append(renderItems(items));
+    surface.append(heading, menuBar, body);
+    main.append(surface);
+    layout.append(main);
     content.append(layout);
     window.FooduckIcons?.enhance(content);
   }
