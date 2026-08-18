@@ -134,14 +134,35 @@
     return `/pages/mypage/detail.html?tab=${encodeURIComponent(tab)}`;
   }
 
+  const activityIcons = Object.freeze({
+    favorites: "favorite",
+    presets: "map",
+    reviews: "rate_review",
+    posts: "article",
+    comments: "chat_bubble",
+    notifications: "notifications",
+  });
+
   function activity(label, count, tab) {
     const card = element("a", "activity-card");
     card.href = detailPath(tab);
     card.setAttribute("aria-label", `${label} ${count || 0}개 상세 보기`);
+
+    const icon = element("span", "activity-card-icon");
+    const materialIcon = element("span", "material-symbols-rounded", activityIcons[tab]);
+    materialIcon.setAttribute("aria-hidden", "true");
+    icon.append(materialIcon);
+
+    const copy = element("span", "activity-card-content");
+    copy.append(
+      element("span", "activity-card-label", label),
+      element("strong", "activity-card-value", new Intl.NumberFormat("ko-KR").format(count || 0)),
+    );
+
     card.append(
-      element("span", "", label),
-      element("strong", "", new Intl.NumberFormat("ko-KR").format(count || 0)),
-      element("em", "", "상세 보기 →"),
+      icon,
+      copy,
+      element("em", "activity-card-link", "상세 보기 →"),
     );
     return card;
   }
@@ -174,6 +195,7 @@
     const summary = profile.createSummary(data, profileActions);
 
     const activities = element("section", "activity-grid activity-grid--mypage");
+    activities.setAttribute("aria-label", "내 활동 요약");
     activities.append(
       activity("찜한 가게", data.favoriteCount, "favorites"),
       activity("보물지도 리스트", data.presetCount, "presets"),

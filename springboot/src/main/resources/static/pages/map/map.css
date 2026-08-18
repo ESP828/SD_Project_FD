@@ -185,6 +185,10 @@
   font-weight: 700;
 }
 
+.preset-breadcrumb[hidden] {
+  display: none;
+}
+
 .preset-breadcrumb a {
   color: var(--color-subtle);
 }
