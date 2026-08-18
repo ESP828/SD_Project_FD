@@ -139,7 +139,7 @@
     });
 
     panel.replaceChildren(
-      element("strong", "comment-emoji-panel-title", "표정 이모지"),
+      element("strong", "comment-emoji-panel-title", "이모지"),
       grid,
     );
 
@@ -2117,7 +2117,7 @@
     const emojiPanel = element("div", "comment-emoji-panel");
     emojiPanel.hidden = true;
     emojiPanel.setAttribute("role", "group");
-    emojiPanel.setAttribute("aria-label", "표정 이모지 선택");
+    emojiPanel.setAttribute("aria-label", "이모지 선택");
     const emojiPanelId = `comment-reply-emoji-${comment.commentId}`;
     emojiPanel.id = emojiPanelId;
     emojiButton.setAttribute("aria-controls", emojiPanelId);
@@ -2956,7 +2956,9 @@
 
     let ticking = false;
     const updateVisibility = () => {
-      button.hidden = window.scrollY <= 450;
+      const visible = window.scrollY > 450;
+      button.hidden = !visible;
+      document.body.classList.toggle("board-scroll-top-visible", visible);
       ticking = false;
     };
 

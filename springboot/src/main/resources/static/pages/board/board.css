@@ -2372,6 +2372,22 @@ button.author-menu-notification-link {
   box-shadow: 0 0 0 2px rgba(255, 152, 0, 0.12);
 }
 
+.board-write-content-tools {
+  display: flex;
+  align-items: center;
+  min-height: 34px;
+  margin-top: -8px;
+}
+
+.board-write-emoji-toggle {
+  padding-inline: 2px;
+}
+
+.board-write-emoji-panel {
+  margin-top: -4px;
+  margin-bottom: 4px;
+}
+
 .comment-image-preview {
   display: grid;
   grid-template-columns: 74px minmax(0, 1fr) auto;
@@ -3342,6 +3358,11 @@ body.is-image-viewer-open {
   outline-offset: 3px;
 }
 
+/* 게시글 상세에서는 우측 하단 알림이 상단 이동 버튼을 가리지 않도록 위에 배치한다. */
+.board-detail-page.board-scroll-top-visible .board-toast {
+  bottom: 82px;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .board-scroll-top:hover {
     transform: none;
@@ -3364,6 +3385,14 @@ body.is-image-viewer-open {
 
   .board-toast:not([hidden]) ~ .board-scroll-top {
     bottom: calc(max(10px, env(safe-area-inset-bottom)) + 154px);
+  }
+
+  .board-detail-page .board-toast:not([hidden]) ~ .board-scroll-top {
+    bottom: calc(max(10px, env(safe-area-inset-bottom)) + 78px);
+  }
+
+  .board-detail-page.board-scroll-top-visible .board-toast {
+    bottom: calc(max(10px, env(safe-area-inset-bottom)) + 134px);
   }
 }
 
