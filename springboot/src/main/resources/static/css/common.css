@@ -650,6 +650,11 @@ h4 {
   box-shadow: var(--shadow-float);
 }
 
+.footer-dialog[open] {
+  display: flex;
+  flex-direction: column;
+}
+
 .footer-dialog::backdrop {
   background: rgba(9, 23, 41, 0.58);
   backdrop-filter: blur(4px);
@@ -699,7 +704,8 @@ h4 {
 }
 
 .footer-dialog-body {
-  max-height: calc(100vh - 210px);
+  min-height: 0;
+  flex: 1 1 auto;
   padding: 22px 28px 4px;
   overflow-y: auto;
   overscroll-behavior: contain;
@@ -750,7 +756,8 @@ h4 {
 .footer-dialog-close {
   display: block;
   width: calc(100% - 56px);
-  margin: 17px 28px 25px;
+  flex: 0 0 auto;
+  margin: 14px 28px 32px;
   padding: 11px 16px;
   border: 0;
   border-radius: 12px;
@@ -971,7 +978,6 @@ h4 {
   }
 
   .footer-dialog-body {
-    max-height: calc(100vh - 184px);
     padding: 18px 20px 2px;
   }
 
