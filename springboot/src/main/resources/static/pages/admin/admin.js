@@ -41,14 +41,27 @@
     }).format(date);
   }
 
-  function metric(label, value, href, linkText = "상세 보기 →") {
+  function metric(label, value, href, iconName, linkText = "상세 보기 →") {
     const card = element("a", "activity-card");
     card.href = href;
     card.setAttribute("aria-label", `${label} ${formatNumber(value)} ${linkText.replace("→", "")}`);
+
+    const icon = element("span", "activity-card-icon");
+    const materialIcon = element("span", "material-symbols-rounded", iconName);
+    materialIcon.setAttribute("aria-hidden", "true");
+    window.FooduckIcons?.set(materialIcon, iconName);
+    icon.append(materialIcon);
+
+    const copy = element("span", "activity-card-content");
+    copy.append(
+      element("span", "activity-card-label", label),
+      element("strong", "activity-card-value", formatNumber(value)),
+    );
+
     card.append(
-      element("span", "", label),
-      element("strong", "", formatNumber(value)),
-      element("em", "", linkText),
+      icon,
+      copy,
+      element("em", "activity-card-link", linkText),
     );
     return card;
   }
@@ -130,11 +143,6 @@
 
   function renderOverview(data) {
     metrics.replaceChildren(
-      metric("전체 계정", data.accountCount, "/pages/admin/accounts.html"),
-      metric("승인 대기", data.pendingBusinessApplicationCount, "/pages/admin/business-applications.html", "처리하기 →"),
-      metric("활성 음식점", data.activeRestaurantCount, "/pages/admin/restaurants.html"),
-      metric("커뮤니티 게시글", data.communityPostCount, "/pages/admin/community.html"),
-      metric("활성 Preset", data.activePresetCount, "/pages/admin/presets.html"),
       metric("전체 계정", data.accountCount, "/pages/admin/accounts.html", "person"),
       metric("승인 대기", data.pendingBusinessApplicationCount, "/pages/admin/business-applications.html", "verified_user", "처리하기 →"),
       metric("활성 음식점", data.activeRestaurantCount, "/pages/admin/restaurants.html", "storefront"),

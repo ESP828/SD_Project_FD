@@ -57,22 +57,28 @@
     }).format(date);
   }
 
-  function metric(label, value, href, linkText = "상세 보기 →", formatter = formatNumber) {
-  function metric(
-    label,
-    value,
-    href,
-    iconName,
-    linkText = "상세 보기 →",
-  ) {
+  function metric(label, value, href, iconName, linkText = "상세 보기 →", formatter = formatNumber) {
     const card = element("a", "activity-card");
     const displayValue = formatter(value);
     card.href = href;
     card.setAttribute("aria-label", `${label} ${displayValue} ${linkText.replace("→", "")}`);
+
+    const icon = element("span", "activity-card-icon");
+    const materialIcon = element("span", "material-symbols-rounded", iconName);
+    materialIcon.setAttribute("aria-hidden", "true");
+    window.FooduckIcons?.set(materialIcon, iconName);
+    icon.append(materialIcon);
+
+    const copy = element("span", "activity-card-content");
+    copy.append(
+      element("span", "activity-card-label", label),
+      element("strong", "activity-card-value", displayValue),
+    );
+
     card.append(
-      element("span", "", label),
-      element("strong", "", displayValue),
-      element("em", "", linkText),
+      icon,
+      copy,
+      element("em", "activity-card-link", linkText),
     );
     return card;
   }
@@ -181,11 +187,11 @@
     state.applications = Array.isArray(items) ? items : [];
     const countStatus = (status) => state.applications.filter((item) => item.status === status).length;
     applicationMetrics.replaceChildren(
-      metric("신청 횟수", state.applications.length, "#business-application-history"),
-      metric("승인 대기", countStatus("PENDING"), "#business-application-history"),
-      metric("승인", countStatus("APPROVED"), "#business-application-history"),
-      metric("거절", countStatus("REJECTED"), "#business-application-history"),
-      metric("취소", countStatus("CANCELED"), "#business-application-history"),
+      metric("신청 횟수", state.applications.length, "#business-application-history", "article"),
+      metric("승인 대기", countStatus("PENDING"), "#business-application-history", "schedule"),
+      metric("승인", countStatus("APPROVED"), "#business-application-history", "check_circle"),
+      metric("거절", countStatus("REJECTED"), "#business-application-history", "error"),
+      metric("취소", countStatus("CANCELED"), "#business-application-history", "close"),
     );
 
     applicationHistory.replaceChildren();
@@ -267,23 +273,19 @@
   function renderBusinessOverview(data) {
     const restaurants = Array.isArray(data.restaurants) ? data.restaurants : [];
     businessMetrics.replaceChildren(
-      metric("내 음식점", data.restaurantCount, "/pages/business/detail.html?tab=restaurants"),
-      metric("운영 중", data.activeRestaurantCount, "/pages/business/detail.html?tab=active"),
-      metric("가게 소식", data.newsCount, "/pages/business/detail.html?tab=news"),
-      metric("받은 리뷰", data.reviewCount, "/pages/business/detail.html?tab=reviews"),
-      metric("찜 받은 수", data.favoriteCount, "/pages/business/detail.html?tab=favorites"),
-      metric(
-        "평균 평점",
-        data.averageRating,
-        "/pages/business/detail.html?tab=reviews",
-        "리뷰 보기 →",
-        formatRating,
-      ),
       metric("내 음식점", data.restaurantCount, "/pages/business/detail.html?tab=restaurants", "storefront"),
       metric("운영 중", data.activeRestaurantCount, "/pages/business/detail.html?tab=active", "store"),
       metric("가게 소식", data.newsCount, "/pages/business/detail.html?tab=news", "campaign"),
       metric("받은 리뷰", data.reviewCount, "/pages/business/detail.html?tab=reviews", "rate_review"),
       metric("찜 받은 수", data.favoriteCount, "/pages/business/detail.html?tab=favorites", "favorite"),
+      metric(
+        "평균 평점",
+        data.averageRating,
+        "/pages/business/detail.html?tab=reviews",
+        "star",
+        "리뷰 보기 →",
+        formatRating,
+      ),
     );
 
     const restaurantList = element("div", "management-preview-list");

@@ -265,14 +265,7 @@
     main.append(heading, renderItems(restaurants));
 
     const layout = element("div", "mypage-detail-layout");
-    layout.append(detailLayout.createSidebar({
-      profile,
-      homeHref: "/pages/business/index.html",
-      homeLabel: "← 사업자 페이지",
-    const menuBar = detailLayout.createMenuBar({
-      ariaLabel: "사업자 상세 메뉴",
-      items,
-    }), main);
+    layout.append(main);
     content.append(layout);
     window.FooduckIcons?.enhance(content);
   }
