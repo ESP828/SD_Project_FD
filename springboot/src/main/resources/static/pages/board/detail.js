@@ -1261,6 +1261,7 @@
     const item = element("article", "detail-media-item");
     item.dataset.postMediaId = String(media.postMediaId || "");
     item.dataset.processingStatus = mediaProcessingStatus(media);
+    item.dataset.mediaType = String(media.mediaType || "").toUpperCase();
 
     if (isVideoMedia(media) && mediaProcessingStatus(media) !== "READY") {
       renderMediaProcessing(item, media);
@@ -1270,6 +1271,7 @@
 
     const name = media.originalName || "첨부파일";
     if (media.mediaType === "IMAGE") {
+      item.classList.add("detail-media-item--image");
       const image = new Image();
       image.src = media.mediaUrl;
       image.alt = name;
@@ -1363,6 +1365,29 @@
     return item;
   }
 
+  function syncImageOrderBadges(section) {
+    if (!section) return;
+
+    const imageItems = [...section.querySelectorAll(
+      '.detail-media-item[data-media-type="IMAGE"]',
+    )];
+    const showOrder = imageItems.length > 1;
+
+    imageItems.forEach((item, index) => {
+      let badge = item.querySelector(".detail-media-order");
+      if (!showOrder) {
+        badge?.remove();
+        return;
+      }
+      if (!badge) {
+        badge = element("span", "detail-media-order");
+        badge.setAttribute("aria-hidden", "true");
+        item.append(badge);
+      }
+      badge.textContent = String(index + 1);
+    });
+  }
+
   function renderPostMedia(mediaItems) {
     if (!Array.isArray(mediaItems) || !mediaItems.length) return null;
 
@@ -1372,6 +1397,7 @@
       const item = renderPostMediaItem(media);
       if (item) section.append(item);
     });
+    syncImageOrderBadges(section);
     return section.childElementCount ? section : null;
   }
 
@@ -1426,7 +1452,11 @@
       }
     });
 
-    if (section && !section.childElementCount) section.remove();
+    if (section && section.childElementCount) {
+      syncImageOrderBadges(section);
+    } else if (section) {
+      section.remove();
+    }
   }
 
   function clearMediaPoll() {
