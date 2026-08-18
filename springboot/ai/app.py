@@ -1,74 +1,55 @@
-from fastapi import FastAPI, Depends, HTTPException
-from sqlalchemy.orm import Session
+# ai/app.py
+from fastapi import FastAPI
 from pydantic import BaseModel
-from typing import List, Optional
-from database import get_db
+from typing import Optional, List
 import recommend
 
 app = FastAPI()
 
-# ------------------------------------------------------------------
-# 1. 요청 DTO 정의 (Spring Boot 백엔드와 규격 일치)
-# ------------------------------------------------------------------
-class PersonalizedRecommendRequest(BaseModel):
-    user_id: Optional[int] = None
-    age: Optional[int] = None
-    gender: Optional[str] = None  # 'M' or 'F'
+class QueryRecommendationRequest(BaseModel):
+    query: str
     latitude: float
     longitude: float
     radius_meters: int = 2000
-    limit: int = 30
+    user_id: Optional[int] = None
+    age: Optional[int] = None
+    gender: Optional[str] = None
+    limit: int = 120
 
+@app.post("/recommendations/query")
+def recommend_by_query(req: QueryRecommendationRequest):
+    # 1. 딥러닝 임베딩 기반 의미 검색 실행
+    matched_restaurants = recommend.search_by_sentence_embedding(req.query, top_n=req.limit)
 
-# ------------------------------------------------------------------
-# 2. 개인화 맛집 추천 엔드포인트
-# ------------------------------------------------------------------
-@app.post("/recommendations/personal")
-def recommend_personalized(req: PersonalizedRecommendRequest, db: Session = Depends(get_db)):
-    try:
-        # A. 유저 ID가 전달된 경우 DB에서 찜 이력(카테고리/식당명 토큰) 조회
-        user_bookmarks = []
-        if req.user_id:
-            user_bookmarks = recommend.get_user_favorite_category_tokens(db, req.user_id)
+    final_results = []
+    for place in matched_restaurants:
+        # 거리 계산 (간이 거리 또는 DB 거리)
+        dist = place.get("distance_meters", 500)
 
-        # B. 위치(lat/lng) 기반 주변 맛집 후보군 DB 조회
-        candidate_restaurants = recommend.get_nearby_restaurants(
-            db, req.latitude, req.longitude, req.radius_meters
+        # 2. 임베딩 유사도 점수와 개인화 스코어링 합성
+        score, reasons = recommend.calculate_personal_score(
+            restaurant=place,
+            user_age=req.age,
+            user_gender=req.gender,
+            distance_meters=dist,
+            max_radius=req.radius_meters,
+            query_similarity=place.get("query_similarity", 0.85) # 👈 임베딩 점수 반영
         )
 
-        result_items = []
-        for place in candidate_restaurants:
-            # 거리 정보 가져오기 (기본값 처리)
-            dist = place.get("distance_meters", 0.0)
+        final_results.append({
+            "sourceId": str(place.get("public_restaurant_id") or place.get("id")),
+            "restaurantName": place.get("name"),
+            "categoryName": place.get("category_medium_name") or place.get("category_large_name", "음식점"),
+            "address": place.get("road_address", ""),
+            "distanceMeters": dist,
+            "score": score,
+            "reasons": reasons
+        })
 
-            # C. 유저 정보 기반 스코어링 (recommend.py의 함수 호출)
-            score, reasons = recommend.calculate_personal_score(
-                restaurant=place,
-                user_age=req.age,
-                user_gender=req.gender,
-                user_bookmarks=user_bookmarks,
-                distance_meters=dist,
-                max_radius=req.radius_meters
-            )
+    # 최종 점수순 정렬
+    final_results.sort(key=lambda x: x["score"], reverse=True)
 
-            result_items.append({
-                "sourceId": str(place.get("id", "")),
-                "restaurantName": place.get("name") or place.get("restaurant_name", ""),
-                "categoryName": place.get("category_name", "음식점"),
-                "address": place.get("address") or place.get("road_address", "주소 정보 없음"),
-                "distanceMeters": dist,
-                "score": score,
-                "reasons": reasons
-            })
-
-        # D. 매칭 점수(score) 내림차순 정렬 후 limit 개수만큼 슬라이싱
-        result_items.sort(key=lambda x: x["score"], reverse=True)
-        final_items = result_items[:req.limit]
-
-        return {
-            "totalCount": len(final_items),
-            "items": final_items
-        }
-
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    return {
+        "originalQuery": req.query,
+        "items": final_results
+    }

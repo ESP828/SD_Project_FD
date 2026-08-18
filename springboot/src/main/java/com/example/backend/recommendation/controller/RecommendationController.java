@@ -6,8 +6,12 @@ import com.example.backend.recommendation.dto.request.NaturalLanguageRecommendat
 import com.example.backend.recommendation.dto.response.NaturalLanguageRecommendationResponse;
 import com.example.backend.recommendation.dto.response.PersonalRecommendationResponse;
 import com.example.backend.recommendation.dto.response.RecommendationPageResponse;
+import com.example.backend.recommendation.dto.response.RestaurantRankResponse;
 import com.example.backend.recommendation.service.RecommendationPreviewService;
 import com.example.backend.recommendation.service.RecommendationService;
+
+import java.util.List;
+
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
@@ -60,5 +64,17 @@ public class RecommendationController {
         );
 
         return ResponseEntity.ok(ApiResponse.success(response));
+    }
+    @GetMapping("/rankings")
+    public ResponseEntity<List<RestaurantRankResponse>> getTopRankings(
+            @RequestParam(required = false) Double latitude,
+            @RequestParam(required = false) Double longitude,
+            @RequestParam(required = false, defaultValue = "3000") Double radiusMeters,
+            @RequestParam(required = false, defaultValue = "10") int limit
+    ) {
+        List<RestaurantRankResponse> rankings = recommendationService.getTopRankedRestaurants(
+                latitude, longitude, radiusMeters, limit
+        );
+        return ResponseEntity.ok(rankings);
     }
 }

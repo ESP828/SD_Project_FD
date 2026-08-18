@@ -1,0 +1,5 @@
+{
+  "modelVersion": "fooduck-tfidf-v2-db-synonyms",
+  "vocabularySize": 50000,
+  "totalDocuments": 138561
+}
