@@ -463,12 +463,12 @@
             <button type="button" class="footer-link" data-footer-dialog="footer-faq-dialog">자주 묻는 질문</button>
             <button type="button" class="footer-link" data-footer-dialog="footer-terms-dialog">이용약관</button>
             <button type="button" class="footer-link" data-footer-dialog="footer-privacy-dialog">개인정보처리방침</button>
-            <a class="footer-link" href="https://github.com/ESP828/SD_Project_FD/issues" target="_blank" rel="noopener noreferrer">문의하기</a>
+            <button type="button" class="footer-link" data-footer-dialog="footer-contact-dialog">문의하기</button>
           </nav>
 
           <div class="footer-support">
             <strong>문의사항이 있으신가요?</strong>
-            <span>서비스 이용 중 문의사항이나 오류가 있다면 <a href="https://github.com/ESP828/SD_Project_FD/issues" target="_blank" rel="noopener noreferrer">문의하기</a>를 통해 접수해 주세요.</span>
+            <span>서비스 이용 중 문의사항이나 오류가 있다면 <button type="button" class="footer-support-link" data-footer-dialog="footer-contact-dialog">문의하기</button>를 통해 접수해 주세요.</span>
           </div>
 
           <div class="footer-business">
@@ -572,8 +572,30 @@
             </section>
             <section>
               <h3>서비스 이용 중 문제를 발견했어요.</h3>
-              <p>푸터의 <strong>문의하기</strong>를 통해 문의사항이나 오류 내용을 접수해 주세요. 확인에 도움이 되도록 문제가 발생한 화면과 상황을 함께 남겨주시면 좋습니다.</p>
+              <p>사이트 하단의 <strong>문의하기</strong>를 통해 문의사항이나 오류 내용을 접수해 주세요. 확인에 도움이 되도록 문제가 발생한 화면과 상황을 함께 남겨주시면 좋습니다.</p>
             </section>
+          </div>
+          <button type="button" class="footer-dialog-close" data-footer-dialog-close>닫기</button>
+        </dialog>`,
+
+      "footer-contact-dialog": `
+        <dialog id="footer-contact-dialog" class="footer-dialog" aria-labelledby="footer-contact-title">
+          <div class="footer-dialog-header">
+            <div>
+              <span class="footer-dialog-kicker">SUPPORT</span>
+              <h2 id="footer-contact-title">문의하기</h2>
+            </div>
+            <button type="button" class="footer-dialog-x" data-footer-dialog-close aria-label="문의하기 닫기">
+              <span class="material-symbols-rounded" aria-hidden="true">close</span>
+            </button>
+          </div>
+          <div class="footer-dialog-body">
+            <p class="footer-dialog-lead"><strong>서비스 이용 중 궁금한 점이나 오류가 있다면 문의를 남겨주세요.</strong></p>
+            <p>문제를 확인하는 데 도움이 되도록 문제가 발생한 화면과 상황, 가능하다면 재현 방법을 함께 남겨주시면 보다 정확하게 확인할 수 있습니다.</p>
+            <p>아래 문의 접수 페이지에서 내용을 작성해 주세요.</p>
+            <div class="footer-contact-actions">
+              <a class="button button-orange" href="https://github.com/ESP828/SD_Project_FD/issues">문의 접수 페이지로 이동</a>
+            </div>
           </div>
           <button type="button" class="footer-dialog-close" data-footer-dialog-close>닫기</button>
         </dialog>`,

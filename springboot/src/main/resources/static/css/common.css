@@ -582,15 +582,27 @@ h4 {
   color: var(--color-navy);
 }
 
-.footer-support a {
+.footer-support a,
+.footer-support-link {
+  padding: 0;
+  border: 0;
+  background: transparent;
   color: var(--color-orange-dark);
+  font: inherit;
   font-weight: 800;
   text-decoration: none;
+  cursor: pointer;
 }
 
-.footer-support a:hover {
+.footer-support a:hover,
+.footer-support-link:hover {
   text-decoration: underline;
   text-underline-offset: 3px;
+}
+
+.footer-support-link:focus-visible {
+  outline: 3px solid rgba(255, 130, 59, 0.26);
+  outline-offset: 3px;
 }
 
 .footer-business {
@@ -751,6 +763,15 @@ h4 {
 
 .footer-faq-list h3 {
   margin-top: 18px;
+}
+
+.footer-contact-actions {
+  display: flex;
+  margin-top: 22px;
+}
+
+.footer-contact-actions .button {
+  text-decoration: none;
 }
 
 .footer-dialog-close {
