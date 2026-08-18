@@ -57,10 +57,6 @@
     href,
     iconName,
     linkText = "상세 보기 →",
-<<<<<<< Updated upstream
-=======
-    formatter = formatNumber,
->>>>>>> Stashed changes
   ) {
     const card = element("a", "activity-card");
     const displayValue = formatNumber(value);
@@ -278,17 +274,6 @@
       metric("가게 소식", data.newsCount, "/pages/business/detail.html?tab=news", "campaign"),
       metric("받은 리뷰", data.reviewCount, "/pages/business/detail.html?tab=reviews", "rate_review"),
       metric("찜 받은 수", data.favoriteCount, "/pages/business/detail.html?tab=favorites", "favorite"),
-<<<<<<< Updated upstream
-=======
-      metric(
-        "평균 평점",
-        data.averageRating,
-        "/pages/business/detail.html?tab=reviews",
-        "star",
-        "리뷰 보기 →",
-        formatRating,
-      ),
->>>>>>> Stashed changes
     );
 
     const restaurantList = element("div", "management-preview-list");

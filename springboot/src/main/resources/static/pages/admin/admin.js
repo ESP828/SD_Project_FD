@@ -147,7 +147,7 @@
       metric("승인 대기", data.pendingBusinessApplicationCount, "/pages/admin/business-applications.html", "verified_user", "처리하기 →"),
       metric("활성 음식점", data.activeRestaurantCount, "/pages/admin/restaurants.html", "storefront"),
       metric("커뮤니티 게시글", data.communityPostCount, "/pages/admin/community.html", "forum"),
-      metric("활성 Preset", data.activePresetCount, "/pages/admin/presets.html", "map"),
+      metric("보물지도", data.activePresetCount, "/pages/admin/presets.html", "map"),
     );
 
     const pendingApplications = Array.isArray(data.pendingBusinessApplications)

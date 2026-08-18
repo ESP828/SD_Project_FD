@@ -212,15 +212,6 @@
       copy,
       element("span", "mypage-detail-count", `${formatNumber(countFor(overview, activeTab))}개`),
     );
-<<<<<<< Updated upstream
-=======
-    if (activeTab === "restaurants") {
-      const createLink = element("a", "button button-sm button-primary", "음식점 등록");
-      createLink.href = "/pages/business/restaurant-form.html";
-      headingActions.append(createLink);
-    }
-    heading.append(copy, headingActions);
->>>>>>> Stashed changes
     const menuBar = detailLayout.createMenuBar({
       ariaLabel: "사업자 상세 메뉴",
       items,

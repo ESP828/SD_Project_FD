@@ -208,10 +208,7 @@
   box-shadow: 0 10px 30px rgba(17, 24, 39, 0.05);
 }
 
-.activity-grid--business {
-  --activity-grid-columns: 6;
-}
-
+.activity-grid--business,
 .activity-grid--admin,
 .activity-grid--business-applications {
   --activity-grid-columns: 5;
