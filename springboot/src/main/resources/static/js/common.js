@@ -466,6 +466,7 @@
               <button type="button" class="footer-link" data-footer-dialog="footer-terms-dialog">이용약관</button>
               <button type="button" class="footer-link" data-footer-dialog="footer-privacy-dialog">개인정보처리방침</button>
               <button type="button" class="footer-link" data-footer-dialog="footer-contact-dialog">문의하기</button>
+              <button type="button" class="footer-link" data-footer-dialog="footer-partner-dialog">파트너센터</button>
             </nav>
           </div>
 
@@ -602,6 +603,28 @@
             <p>아래 문의 접수 페이지에서 내용을 작성해 주세요.</p>
             <div class="footer-contact-actions">
               <a class="button button-orange" href="https://github.com/ESP828/SD_Project_FD/issues">문의 접수 페이지로 이동</a>
+            </div>
+          </div>
+          <button type="button" class="footer-dialog-close" data-footer-dialog-close>닫기</button>
+        </dialog>`,
+
+      "footer-partner-dialog": `
+        <dialog id="footer-partner-dialog" class="footer-dialog" aria-labelledby="footer-partner-title">
+          <div class="footer-dialog-header">
+            <div>
+              <span class="footer-dialog-kicker">PARTNER</span>
+              <h2 id="footer-partner-title">파트너센터</h2>
+            </div>
+            <button type="button" class="footer-dialog-x" data-footer-dialog-close aria-label="파트너센터 닫기">
+              <span class="material-symbols-rounded" aria-hidden="true">close</span>
+            </button>
+          </div>
+          <div class="footer-dialog-body">
+            <p class="footer-dialog-lead"><strong>푸드덕과의 제휴 및 사업자 관련 문의는 파트너센터를 이용해 주세요.</strong></p>
+            <p>서비스 제휴, 사업자 관련 상담 등 파트너 문의가 필요한 경우 아래 파트너센터에서 내용을 남길 수 있습니다.</p>
+            <p>파트너센터로 이동한 뒤 상담 내용을 작성해 주세요.</p>
+            <div class="footer-contact-actions">
+              <a class="button button-orange" href="https://pf.kakao.com/_QrdxlG">파트너센터로 이동</a>
             </div>
           </div>
           <button type="button" class="footer-dialog-close" data-footer-dialog-close>닫기</button>
