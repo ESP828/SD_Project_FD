@@ -1266,8 +1266,8 @@
   background: #f5f7f9;
 }
 
-.author-menu-skeleton-tabs--with-notifications {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+.author-menu-skeleton-tabs--with-private-activity {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
 }
 
 .author-menu-skeleton-tab {
@@ -1427,8 +1427,8 @@
   background: #f5f7f9;
 }
 
-.author-menu-tabs--with-notifications {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+.author-menu-tabs--with-private-activity {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
 }
 
 .author-menu-tab {
@@ -1756,6 +1756,9 @@ button.author-menu-notification-link {
   color: #b42318;
 }
 
+.author-menu-private-note {
+  margin-top: 8px;
+}
 
 .author-menu-error-state {
   display: grid;
@@ -1839,8 +1842,8 @@ button.author-menu-notification-link {
     min-height: 50px;
   }
 
-  .author-menu-tabs--with-notifications .author-menu-tab {
-    padding-inline: 4px;
+  .author-menu-tabs--with-private-activity .author-menu-tab {
+    padding-inline: 3px;
   }
 }
 
