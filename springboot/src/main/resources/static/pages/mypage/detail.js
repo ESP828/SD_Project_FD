@@ -485,6 +485,7 @@
   function createMenuBar(items) {
     const menuBar = element("nav", "mypage-detail-nav");
     menuBar.setAttribute("aria-label", "마이페이지 상세 메뉴");
+    menuBar.style.setProperty("--mypage-detail-nav-columns", Math.max(items.length, 1));
     items.forEach((item) => {
       const link = element("a");
       link.href = item.href;

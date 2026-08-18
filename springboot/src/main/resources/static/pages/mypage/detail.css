@@ -177,7 +177,7 @@
   display: grid;
   overflow: hidden;
   max-width: 100%;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-template-columns: repeat(var(--mypage-detail-nav-columns, 6), minmax(0, 1fr));
   gap: 1px;
   border: 1px solid #e9e5de;
   border-radius: 12px;
@@ -445,7 +445,12 @@
 
 @media (max-width: 900px) {
   .mypage-detail-nav {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    display: flex;
+    flex-wrap: wrap;
+  }
+
+  .mypage-detail-nav a {
+    flex: 1 1 calc(33.333% - 1px);
   }
 }
 
@@ -488,6 +493,7 @@
   .mypage-detail-nav {
     display: flex;
     overflow-x: auto;
+    flex-wrap: nowrap;
     scrollbar-width: thin;
   }
 

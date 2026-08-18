@@ -8,145 +8,99 @@
     return node;
   }
 
-  function createProfile(profileData = {}) {
-    const profile = element("div", "mypage-detail-profile");
-    const avatar = element("div", "mypage-detail-avatar");
-    const displayName = profileData.nickname || profileData.loginId || "회원";
-    const initial = displayName.trim().charAt(0) || "회";
-
-    if (profileData.profileImageUrl) {
-      const image = new Image();
-      image.src = profileData.profileImageUrl;
-      image.alt = `${displayName} 프로필`;
-      image.addEventListener("error", () => {
-        avatar.replaceChildren(element("span", "", initial));
-      }, { once: true });
-      avatar.append(image);
-    } else {
-      avatar.append(element("span", "", initial));
-    }
-
-    const copy = element("div");
-    copy.append(
-      element("strong", "", displayName),
-      element(
-        "span",
-        "",
-        profileData.email || profileData.loginId || "계정 정보",
-      ),
-    );
-    profile.append(avatar, copy);
-    return profile;
-  }
-
-  function createSidebar({
-    profile = {},
-    homeHref,
-    homeLabel,
-    ariaLabel,
-    items = [],
-  }) {
-    const sidebar = element("aside", "mypage-detail-sidebar");
-    sidebar.append(createProfile(profile));
-
-    const home = element("a", "mypage-detail-home-link", homeLabel);
-    home.href = homeHref;
-    sidebar.append(home);
-
+  function createMenuBar(items = [], ariaLabel = "상세 메뉴") {
     const nav = element("nav", "mypage-detail-nav");
     nav.setAttribute("aria-label", ariaLabel);
+    nav.style.setProperty("--mypage-detail-nav-columns", Math.max(items.length, 1));
     items.forEach((item) => {
       const link = element("a");
       link.href = item.href;
-      link.append(document.createTextNode(item.label));
+      const label = element("span", "mypage-detail-tab-label");
+      const icon = element("span", "material-symbols-rounded", item.icon);
+      icon.setAttribute("aria-hidden", "true");
+      window.FooduckIcons?.set(icon, item.icon);
+      label.append(icon, document.createTextNode(item.label));
+      link.append(label);
       if (item.count !== undefined && item.count !== null) {
         link.append(
-          element("span", "", new Intl.NumberFormat("ko-KR").format(Number(item.count) || 0)),
+          element(
+            "span",
+            "mypage-detail-tab-count",
+            new Intl.NumberFormat("ko-KR").format(Number(item.count) || 0),
+          ),
         );
       }
       if (item.current) link.setAttribute("aria-current", "page");
       nav.append(link);
     });
-    sidebar.append(nav);
-    return sidebar;
+    return nav;
   }
 
   const managementConfigs = {
     business: {
       allowed: () => Boolean(session?.canManageBusiness),
       overviewPath: "/business/overview",
-      homeHref: "/pages/business/index.html",
-      homeLabel: "← 사업자 페이지",
       ariaLabel: "사업자 상세 메뉴",
       items: [
-        ["restaurants", "내 음식점", "/pages/business/detail.html?tab=restaurants", "restaurantCount"],
-        ["active", "운영 중", "/pages/business/detail.html?tab=active", "activeRestaurantCount"],
-        ["news", "가게 소식", "/pages/business/detail.html?tab=news", "newsCount"],
-        ["reviews", "받은 리뷰", "/pages/business/detail.html?tab=reviews", "reviewCount"],
-        ["favorites", "찜 현황", "/pages/business/detail.html?tab=favorites", "favoriteCount"],
+        ["restaurants", "내 음식점", "/pages/business/detail.html?tab=restaurants", "restaurantCount", "storefront"],
+        ["active", "운영 중", "/pages/business/detail.html?tab=active", "activeRestaurantCount", "store"],
+        ["news", "가게 소식", "/pages/business/detail.html?tab=news", "newsCount", "campaign"],
+        ["reviews", "받은 리뷰", "/pages/business/detail.html?tab=reviews", "reviewCount", "rate_review"],
+        ["favorites", "찜 현황", "/pages/business/detail.html?tab=favorites", "favoriteCount", "favorite"],
       ],
     },
     admin: {
       allowed: () => Boolean(session?.isAdmin),
       overviewPath: "/admin/overview",
-      homeHref: "/pages/admin/index.html",
-      homeLabel: "← 관리자 페이지",
       ariaLabel: "관리자 상세 메뉴",
       items: [
-        ["accounts", "계정 관리", "/pages/admin/accounts.html", "accountCount"],
-        ["applications", "사업자 신청", "/pages/admin/business-applications.html", "pendingBusinessApplicationCount"],
-        ["restaurants", "음식점 관리", "/pages/admin/restaurants.html", "activeRestaurantCount"],
-        ["community", "커뮤니티 관리", "/pages/admin/community.html", "communityPostCount"],
-        ["presets", "보물지도 관리", "/pages/admin/presets.html", "activePresetCount"],
+        ["accounts", "계정 관리", "/pages/admin/accounts.html", "accountCount", "person"],
+        ["applications", "사업자 신청", "/pages/admin/business-applications.html", "pendingBusinessApplicationCount", "verified_user"],
+        ["restaurants", "음식점 관리", "/pages/admin/restaurants.html", "activeRestaurantCount", "storefront"],
+        ["community", "커뮤니티 관리", "/pages/admin/community.html", "communityPostCount", "forum"],
+        ["presets", "보물지도 관리", "/pages/admin/presets.html", "activePresetCount", "map"],
       ],
     },
   };
 
-  function renderManagementSidebar(host, config, activeItem, profileData, overview) {
-    const items = config.items.map(([id, label, href, countKey]) => ({
+  function renderManagementMenu(host, config, activeItem, overview) {
+    const items = config.items.map(([id, label, href, countKey, icon]) => ({
       label,
+      icon,
       href,
       count: overview ? overview[countKey] : undefined,
       current: id === activeItem,
     }));
-    const sidebar = createSidebar({
-      profile: profileData,
-      homeHref: config.homeHref,
-      homeLabel: config.homeLabel,
-      ariaLabel: config.ariaLabel,
-      items,
-    });
-    host.className = sidebar.className;
-    host.replaceChildren(...sidebar.childNodes);
+    const menuBar = createMenuBar(items, config.ariaLabel);
+    host.className = menuBar.className;
+    host.setAttribute("aria-label", config.ariaLabel);
+    host.style.setProperty("--mypage-detail-nav-columns", Math.max(items.length, 1));
+    host.replaceChildren(...menuBar.childNodes);
+    window.FooduckIcons?.enhance(host);
   }
 
-  async function mountManagementSidebar(host) {
+  async function mountManagementMenu(host) {
     const kind = host.dataset.managementSection;
     const activeItem = host.dataset.activeItem;
     const config = managementConfigs[kind];
     if (!config || !session?.authenticated || !config.allowed()) return;
 
-    renderManagementSidebar(host, config, activeItem, { loginId: session.loginId }, null);
+    renderManagementMenu(host, config, activeItem, null);
 
-    const [profileResult, overviewResult] = await Promise.allSettled([
-      Api.get("/mypage/overview"),
-      Api.get(config.overviewPath),
-    ]);
-    const profileData = profileResult.status === "fulfilled"
-      ? profileResult.value.data || {}
-      : { loginId: session.loginId };
-    const overview = overviewResult.status === "fulfilled"
-      ? overviewResult.value.data || {}
-      : null;
-    renderManagementSidebar(host, config, activeItem, profileData, overview);
+    try {
+      const overviewResult = await Api.get(config.overviewPath);
+      renderManagementMenu(host, config, activeItem, overviewResult.data || {});
+    } catch (error) {
+      console.warn(`${config.ariaLabel} 수치를 불러오지 못했습니다.`, error);
+    }
   }
 
   window.FooduckDetailLayout = {
-    createSidebar,
-    mountManagementSidebar,
+    createMenuBar,
+    mountManagementMenu,
   };
 
-  document.querySelectorAll("[data-management-sidebar]").forEach((host) => {
-    mountManagementSidebar(host);
+  document.querySelectorAll("[data-management-menu]").forEach((host) => {
+    mountManagementMenu(host);
   });
 })();

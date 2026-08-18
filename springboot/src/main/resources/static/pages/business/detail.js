@@ -17,6 +17,7 @@
   const tabs = {
     restaurants: {
       label: "내 음식점",
+      icon: "storefront",
       title: "내 음식점",
       description: "현재 계정에 연결된 음식점과 운영 상태입니다.",
       countKey: "restaurantCount",
@@ -27,6 +28,7 @@
     },
     active: {
       label: "운영 중",
+      icon: "store",
       title: "운영 중인 음식점",
       description: "현재 ACTIVE 상태로 노출 중인 음식점입니다.",
       countKey: "activeRestaurantCount",
@@ -37,6 +39,7 @@
     },
     news: {
       label: "가게 소식",
+      icon: "campaign",
       title: "가게 소식 현황",
       description: "음식점별로 등록된 활성 소식 수를 확인합니다.",
       countKey: "newsCount",
@@ -49,6 +52,7 @@
     },
     reviews: {
       label: "받은 리뷰",
+      icon: "rate_review",
       title: "받은 리뷰 현황",
       description: "내 음식점별 활성 리뷰 수를 확인합니다.",
       countKey: "reviewCount",
@@ -61,6 +65,7 @@
     },
     favorites: {
       label: "찜 현황",
+      icon: "favorite",
       title: "찜 받은 현황",
       description: "내 음식점별로 사용자에게 저장된 횟수를 확인합니다.",
       countKey: "favoriteCount",
@@ -241,13 +246,15 @@
       : [];
     const items = Object.entries(tabs).map(([tab, config]) => ({
       label: config.label,
+      icon: config.icon,
       href: detailPath(tab),
       count: countFor(overview, tab),
       current: tab === activeTab,
     }));
     const main = element("section", "mypage-detail-main");
+    const surface = element("section", "mypage-detail-surface");
     const heading = element("header", "mypage-detail-heading");
-    const copy = element("div");
+    const copy = element("div", "mypage-detail-heading-copy");
     copy.append(
       element("h2", "", activeConfig.title),
       element("p", "", activeConfig.description),
@@ -262,7 +269,11 @@
       headingActions.append(createLink);
     }
     heading.append(copy, headingActions);
-    main.append(heading, renderItems(restaurants));
+    const menuBar = detailLayout.createMenuBar(items, "사업자 상세 메뉴");
+    const body = element("div", "mypage-detail-body");
+    body.append(renderItems(restaurants));
+    surface.append(heading, menuBar, body);
+    main.append(surface);
 
     const layout = element("div", "mypage-detail-layout");
     layout.append(main);

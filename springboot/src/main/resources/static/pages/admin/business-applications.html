@@ -37,14 +37,15 @@
 
       <section id="apps-dashboard" hidden>
         <div class="mypage-detail-layout">
-          <aside class="mypage-detail-sidebar" data-management-sidebar data-management-section="admin" data-active-item="applications"></aside>
-          <section class="mypage-detail-main">
+          <section class="mypage-detail-main mypage-detail-surface">
             <header class="mypage-detail-heading">
-              <div>
+              <div class="mypage-detail-heading-copy">
                 <h2>사업자 신청 관리</h2>
                 <p>사업자 권한 신청을 상태별로 확인하고 승인 또는 거절합니다.</p>
               </div>
             </header>
+            <nav class="mypage-detail-nav" data-management-menu data-management-section="admin" data-active-item="applications" aria-label="관리자 상세 메뉴"></nav>
+            <div class="mypage-detail-body">
 
             <div class="apps-status-filter" role="group" aria-label="처리 상태 필터">
               <button type="button" class="apps-status-btn is-active" data-status="">전체</button>
@@ -74,6 +75,7 @@
               </table>
             </div>
             <p id="apps-count" class="apps-count"></p>
+            </div>
           </section>
         </div>
       </section>
