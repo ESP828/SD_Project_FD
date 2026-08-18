@@ -469,10 +469,12 @@
             </nav>
           </div>
 
+          <!--
           <div class="footer-contact-line">
             <span>문의사항이 있으신가요?</span>
             <button type="button" class="footer-support-link" data-footer-dialog="footer-contact-dialog">문의하기</button>
           </div>
+          -->
 
           <div class="footer-meta">
             <div class="footer-business">
