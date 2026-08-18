@@ -3,7 +3,9 @@ chcp 65001 >nul
 setlocal EnableExtensions
 title FOODUCK Server
 
-set "APP_DIR=%~dp0springboot"
+set "ROOT_DIR=%~dp0"
+set "APP_DIR=%ROOT_DIR%springboot"
+set "AI_DIR=%APP_DIR%\ai"
 set "RUN_SCRIPT=%APP_DIR%\run-local.ps1"
 set "ENV_FILE=%APP_DIR%\.env"
 
@@ -43,8 +45,43 @@ if errorlevel 1 (
 )
 
 :java_ready
+echo ========================================================
 echo FOODUCK 로컬 실행 설정을 불러옵니다.
+echo ========================================================
+echo.
+
+:: 💡 [1단계] AI 추천 모델 자동 실행 및 최신화 (괄호 문법 오류 해결)
+if exist "%AI_DIR%\build_embeddings.py" (
+    echo [1/2] AI 딥러닝 임베딩 생성을 진행합니다...
+    pushd "%AI_DIR%"
+    python build_embeddings.py
+    if errorlevel 1 (
+        echo [WARN] 임베딩 생성 중 오류가 발생했거나 Python이 없습니다.
+    ) else (
+        echo [INFO] 식당 딥러닝 임베딩 최신화 완료!
+    )
+    popd
+    echo.
+) else if exist "%AI_DIR%\train.py" (
+    echo [1/2] AI 모델 사전 학습을 진행합니다...
+    pushd "%AI_DIR%"
+    python train.py
+    if errorlevel 1 (
+        echo [WARN] AI 모델 학습 중 오류가 발생했거나 Python이 없습니다.
+    ) else (
+        echo [INFO] AI 모델 사전 최신화 완료!
+    )
+    popd
+    echo.
+) else (
+    echo [WARN] AI 학습 스크립트를 찾을 수 없어 건너뜁니다.
+    echo.
+)
+
+:: 💡 [2단계] Spring Boot 서버 실행
+echo [2/2] Spring Boot 백엔드 서버를 시작합니다...
 echo 서버를 종료하려면 Ctrl+C를 누르세요.
+echo ========================================================
 echo.
 
 powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%RUN_SCRIPT%"

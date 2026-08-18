@@ -4,23 +4,34 @@ import com.example.backend.auth.domain.entity.Account;
 import com.example.backend.auth.repository.AccountRepository;
 import com.example.backend.favorite.domain.entity.FavoriteId;
 import com.example.backend.favorite.repository.FavoriteRepository;
-import com.example.backend.restaurant.domain.entity.*;
+import com.example.backend.restaurant.domain.entity.PublicRestaurant;
+import com.example.backend.restaurant.domain.entity.Restaurant;
+import com.example.backend.restaurant.domain.entity.RestaurantCategory;
 import com.example.backend.restaurant.dto.request.RestaurantCreateRequest;
 import com.example.backend.restaurant.dto.response.MenuResponse;
-import com.example.backend.restaurant.dto.response.RestaurantDetailResponse;
 import com.example.backend.restaurant.dto.response.RestaurantCategoryResponse;
+import com.example.backend.restaurant.dto.response.RestaurantDetailResponse;
 import com.example.backend.restaurant.dto.response.RestaurantResponse;
-import com.example.backend.restaurant.exception.*;
+import com.example.backend.restaurant.exception.CategoryNotFoundException;
+import com.example.backend.restaurant.exception.DuplicateRestaurantException;
+import com.example.backend.restaurant.exception.OwnerNotFoundException;
+import com.example.backend.restaurant.exception.RestaurantNotFoundException;
 import com.example.backend.restaurant.mapper.RestaurantMapper;
 import com.example.backend.restaurant.repository.MenuRepository;
+import com.example.backend.restaurant.repository.PublicRestaurantRepository;
 import com.example.backend.restaurant.repository.RestaurantCategoryRepository;
 import com.example.backend.restaurant.repository.RestaurantRepository;
 import com.example.backend.review.repository.ReviewRepository;
 import jakarta.transaction.Transactional;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
+import java.util.Arrays;
+import java.util.Comparator;
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @Service
 @Transactional
@@ -32,6 +43,7 @@ public class RestaurantService {
     private final MenuRepository menuRepository;
     private final ReviewRepository reviewRepository;
     private final FavoriteRepository favoriteRepository;
+    private final PublicRestaurantRepository publicRestaurantRepository;
 
     public RestaurantService(
             RestaurantRepository restaurantRepository,
@@ -39,7 +51,8 @@ public class RestaurantService {
             AccountRepository accountRepository,
             MenuRepository menuRepository,
             ReviewRepository reviewRepository,
-            FavoriteRepository favoriteRepository
+            FavoriteRepository favoriteRepository,
+            PublicRestaurantRepository publicRestaurantRepository
     ) {
         this.restaurantRepository = restaurantRepository;
         this.categoryRepository = categoryRepository;
@@ -47,13 +60,76 @@ public class RestaurantService {
         this.menuRepository = menuRepository;
         this.reviewRepository = reviewRepository;
         this.favoriteRepository = favoriteRepository;
+        this.publicRestaurantRepository = publicRestaurantRepository;
+    }
+
+    /**
+     * DB 수정 없이 Java 메모리 상에서 가중치 점수 계산 및 컷오프
+     */
+    public List<PublicRestaurant> searchPublicRestaurantsByBounds(
+            BigDecimal latitude,
+            BigDecimal longitude,
+            String keyword,
+            Integer limit
+    ) {
+        BigDecimal minLat = latitude.subtract(new BigDecimal("0.04"));
+        BigDecimal maxLat = latitude.add(new BigDecimal("0.04"));
+        BigDecimal minLng = longitude.subtract(new BigDecimal("0.04"));
+        BigDecimal maxLng = longitude.add(new BigDecimal("0.04"));
+
+        List<PublicRestaurant> candidates = publicRestaurantRepository.findByLatitudeBetweenAndLongitudeBetween(
+                minLat, maxLat, minLng, maxLng, Pageable.unpaged()
+        );
+
+        if (keyword == null || keyword.trim().isEmpty()) {
+            return candidates;
+        }
+
+        String cleanKeyword = keyword.trim().toLowerCase();
+        Set<String> tokens = Arrays.stream(cleanKeyword.split("\\s+"))
+                .filter(t -> !t.isEmpty())
+                .collect(Collectors.toSet());
+
+        double minScoreThreshold = 0.30;
+        int maxLimit = (limit != null && limit > 0) ? limit : 20;
+
+        record ScoredRestaurant(PublicRestaurant restaurant, double score) {}
+
+        return candidates.stream()
+                .map(r -> new ScoredRestaurant(r, calculateMatchScore(r, tokens, cleanKeyword)))
+                .filter(sr -> sr.score() >= minScoreThreshold)
+                .sorted(Comparator.comparingDouble(ScoredRestaurant::score).reversed())
+                .limit(maxLimit)
+                .map(ScoredRestaurant::restaurant)
+                .toList();
+    }
+
+    private double calculateMatchScore(PublicRestaurant r, Set<String> tokens, String fullKeyword) {
+        double score = 0.0;
+
+        String name = r.getName() != null ? r.getName().toLowerCase() : "";
+        String catLarge = r.getCategoryLargeName() != null ? r.getCategoryLargeName().toLowerCase() : "";
+        String catSmall = r.getCategorySmallName() != null ? r.getCategorySmallName().toLowerCase() : "";
+        String roadAddr = r.getRoadAddress() != null ? r.getRoadAddress().toLowerCase() : "";
+        String lotAddr = r.getLotAddress() != null ? r.getLotAddress().toLowerCase() : "";
+
+        if (name.contains(fullKeyword)) score += 0.6;
+        if (catLarge.contains(fullKeyword) || catSmall.contains(fullKeyword)) score += 0.4;
+        if (roadAddr.contains(fullKeyword) || lotAddr.contains(fullKeyword)) score += 0.2;
+
+        for (String token : tokens) {
+            if (name.contains(token)) score += 0.3;
+            if (catLarge.contains(token) || catSmall.contains(token)) score += 0.2;
+            if (roadAddr.contains(token) || lotAddr.contains(token)) score += 0.1;
+        }
+
+        return score;
     }
 
     public RestaurantResponse createRestaurant(
             Long accountId,
             RestaurantCreateRequest request
     ) {
-
         Account owner = accountRepository.findById(accountId)
                 .orElseThrow(OwnerNotFoundException::new);
 
@@ -64,8 +140,8 @@ public class RestaurantService {
                     .orElseThrow(CategoryNotFoundException::new);
         }
         if (restaurantRepository.existsByName(request.getName())) {
-    throw new DuplicateRestaurantException();
-}
+            throw new DuplicateRestaurantException();
+        }
         Restaurant restaurant = Restaurant.create(
                 owner,
                 category,
@@ -125,5 +201,4 @@ public class RestaurantService {
                 .filter(restaurant -> restaurant.isReadableBy(viewerAccountId))
                 .orElseThrow(RestaurantNotFoundException::new);
     }
-
 }
