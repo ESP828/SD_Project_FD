@@ -4,9 +4,12 @@
 
   const prevButton = document.querySelector("#home-preset-prev");
   const nextButton = document.querySelector("#home-preset-next");
+  const PRESET_CACHE_KEY = "fooduck.home.popular-presets.v1";
+  const PRESET_CACHE_TTL_MS = 2 * 60 * 1000;
+  let autoScrollEnabled = false;
 
   function updateNavVisibility() {
-    if (!prevButton || !nextButton) return;
+    if (autoScrollEnabled || !prevButton || !nextButton) return;
     const maxScroll = list.scrollWidth - list.clientWidth;
     if (maxScroll <= 4) {
       prevButton.hidden = true;
@@ -26,9 +29,9 @@
   prevButton?.addEventListener("click", () => scrollByCard(-1));
   nextButton?.addEventListener("click", () => scrollByCard(1));
   list.addEventListener("scroll", updateNavVisibility, { passive: true });
-  window.addEventListener("resize", updateNavVisibility);
+  window.addEventListener("resize", updateNavVisibility, { passive: true });
 
-  function renderCard(preset, rank) {
+  function renderCard(preset) {
     const link = document.createElement("a");
     link.className = "home-preset-card";
     link.href = `/pages/presset/detail.html?presetId=${encodeURIComponent(preset.presetId)}`;
@@ -43,6 +46,7 @@
       img.src = thumbnail;
       img.alt = "";
       img.loading = "lazy";
+      img.decoding = "async";
       visual.append(img);
     }
     link.append(visual);
@@ -94,58 +98,180 @@
     return link;
   }
 
+  function readPresetCache() {
+    try {
+      const raw = sessionStorage.getItem(PRESET_CACHE_KEY);
+      if (!raw) return null;
+      const cached = JSON.parse(raw);
+      const cachedAt = Number(cached?.cachedAt) || 0;
+      if (!Array.isArray(cached?.presets) || Date.now() - cachedAt > PRESET_CACHE_TTL_MS) {
+        sessionStorage.removeItem(PRESET_CACHE_KEY);
+        return null;
+      }
+      return cached.presets;
+    } catch {
+      return null;
+    }
+  }
+
+  function writePresetCache(presets) {
+    try {
+      sessionStorage.setItem(PRESET_CACHE_KEY, JSON.stringify({
+        cachedAt: Date.now(),
+        presets,
+      }));
+    } catch {
+      // 저장 공간 제한/차단은 홈 화면 기능에 영향을 주지 않는다.
+    }
+  }
+
   function startAutoScroll() {
     const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     if (prefersReducedMotion) return;
 
-    const originalCards = Array.from(list.children);
+    const originalCards = Array.from(list.querySelectorAll(":scope > .home-preset-card"));
     if (originalCards.length < 2) return;
 
     // 카드 세트를 한 번 더 복제해 이어붙여서, 오른쪽에서 왼쪽으로 끊김 없이 계속 흐르도록 만든다.
     originalCards.forEach((card) => list.append(card.cloneNode(true)));
+    autoScrollEnabled = true;
+    // 자동 스크롤 중에는 이전/다음 버튼을 사용하지 않으므로 매 scroll/resize마다
+    // 버튼 상태를 다시 계산하는 기존 리스너도 제거한다.
+    list.removeEventListener("scroll", updateNavVisibility);
+    window.removeEventListener("resize", updateNavVisibility);
 
     if (prevButton) prevButton.hidden = true;
     if (nextButton) nextButton.hidden = true;
 
-    // 카드 이미지의 네이티브 드래그 제스처가 포인터를 캡처해 pointerleave가 유실되면
-    // 이전 방식(enter/leave 이벤트로 paused 플래그를 토글)은 영영 멈춘 것처럼 보였다.
-    // 매 프레임 :hover/포커스 상태를 직접 계산해 상태가 어긋날 여지를 없앤다.
+    // 네이티브 이미지 드래그가 pointerleave를 방해하지 않도록 막는다.
     list.querySelectorAll("img").forEach((img) => {
       img.draggable = false;
     });
 
-    function isPaused() {
-      return list.matches(":hover") || list.contains(document.activeElement);
+    let animationFrameId = 0;
+    let isInViewport = false;
+    let isPointerInside = false;
+    let isFocusInside = list.contains(document.activeElement);
+    let loopPoint = 0;
+
+    function updateLoopPoint() {
+      loopPoint = list.scrollWidth / 2;
+    }
+
+    function shouldAnimate() {
+      return isInViewport
+        && !document.hidden
+        && !isPointerInside
+        && !isFocusInside
+        && loopPoint > 0;
+    }
+
+    function stopAnimation() {
+      if (!animationFrameId) return;
+      window.cancelAnimationFrame(animationFrameId);
+      animationFrameId = 0;
     }
 
     function step() {
-      if (!isPaused()) {
-        const loopPoint = list.scrollWidth / 2;
-        list.scrollLeft += 0.6;
-        if (list.scrollLeft >= loopPoint) {
-          list.scrollLeft -= loopPoint;
-        }
+      animationFrameId = 0;
+      if (!shouldAnimate()) return;
+
+      list.scrollLeft += 0.6;
+      if (list.scrollLeft >= loopPoint) {
+        list.scrollLeft -= loopPoint;
       }
-      window.requestAnimationFrame(step);
+      animationFrameId = window.requestAnimationFrame(step);
     }
-    window.requestAnimationFrame(step);
+
+    function syncAnimationState() {
+      if (shouldAnimate()) {
+        if (!animationFrameId) {
+          animationFrameId = window.requestAnimationFrame(step);
+        }
+      } else {
+        stopAnimation();
+      }
+    }
+
+    list.addEventListener("pointerenter", () => {
+      isPointerInside = true;
+      syncAnimationState();
+    });
+    list.addEventListener("pointerleave", () => {
+      isPointerInside = false;
+      syncAnimationState();
+    });
+    list.addEventListener("focusin", () => {
+      isFocusInside = true;
+      syncAnimationState();
+    });
+    list.addEventListener("focusout", () => {
+      window.requestAnimationFrame(() => {
+        isFocusInside = list.contains(document.activeElement);
+        syncAnimationState();
+      });
+    });
+    document.addEventListener("visibilitychange", syncAnimationState);
+
+    updateLoopPoint();
+
+    if ("ResizeObserver" in window) {
+      const resizeObserver = new ResizeObserver(() => {
+        updateLoopPoint();
+        syncAnimationState();
+      });
+      resizeObserver.observe(list);
+    } else {
+      window.addEventListener("resize", () => {
+        updateLoopPoint();
+        syncAnimationState();
+      }, { passive: true });
+    }
+
+    if ("IntersectionObserver" in window) {
+      const observer = new IntersectionObserver((entries) => {
+        const entry = entries[0];
+        isInViewport = Boolean(entry?.isIntersecting && entry.intersectionRatio > 0);
+        syncAnimationState();
+      }, {
+        root: null,
+        rootMargin: "120px 0px",
+        threshold: 0.01,
+      });
+      observer.observe(list);
+    } else {
+      isInViewport = true;
+      syncAnimationState();
+    }
+  }
+
+  function renderPresets(presets) {
+    list.replaceChildren();
+    list.setAttribute("aria-busy", "false");
+    if (!presets.length) {
+      const state = document.createElement("p");
+      state.className = "home-preset-state";
+      state.textContent = "현재 공개된 보물지도가 없습니다.";
+      list.append(state);
+      return;
+    }
+
+    presets.forEach((preset) => list.append(renderCard(preset)));
+    window.requestAnimationFrame(updateNavVisibility);
+    startAutoScroll();
+  }
+
+  const cachedPresets = readPresetCache();
+  if (cachedPresets) {
+    renderPresets(cachedPresets);
+    return;
   }
 
   Api.get("/presets?page=0&size=4&sort=popular")
     .then((payload) => {
       const presets = Array.isArray(payload.data?.content) ? payload.data.content : [];
-      list.replaceChildren();
-      list.setAttribute("aria-busy", "false");
-      if (!presets.length) {
-        const state = document.createElement("p");
-        state.className = "home-preset-state";
-        state.textContent = "현재 공개된 보물지도가 없습니다.";
-        list.append(state);
-        return;
-      }
-      presets.forEach((preset, index) => list.append(renderCard(preset, index + 1)));
-      window.requestAnimationFrame(updateNavVisibility);
-      startAutoScroll();
+      writePresetCache(presets);
+      renderPresets(presets);
     })
     .catch(() => {
       list.setAttribute("aria-busy", "false");
