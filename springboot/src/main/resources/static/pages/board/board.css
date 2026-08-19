@@ -3627,8 +3627,14 @@ body.is-image-viewer-open {
   line-height: 1;
 }
 
-.board-write-emoji-toggle .material-symbols-rounded {
-  font-size: 1.12rem;
+.board-write-action-emoji {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 1.2em;
+  line-height: 1;
+  font-size: 1.05rem;
 }
 
 .board-write-emoji-toggle:hover,
@@ -3662,10 +3668,6 @@ body.is-image-viewer-open {
   white-space: nowrap;
 }
 
-.board-write-media__select .material-symbols-rounded {
-  font-size: 1.12rem;
-}
-
 .board-write-media__status,
 .board-write-media__empty {
   font-size: 0.76rem;
@@ -3687,5 +3689,14 @@ body.is-image-viewer-open {
     width: 100%;
     min-height: 44px;
   }
+}
+
+/* 글쓰기 Hero 정보 위계 정리 */
+#write-page-title {
+  margin: 0 0 6px;
+}
+
+#write-page-title + .eyebrow {
+  margin-bottom: 10px;
 }
 
