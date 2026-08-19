@@ -806,7 +806,7 @@
     return button;
   }
 
-  function renderAuthorMenuSummary(summary) {
+  function renderAuthorMenuSummary(summary, context = "COMMUNITY") {
     const menu = ensureAuthorMenu();
     const nickname = summary.nickname || "작성자";
     const isCurrentUser = isCurrentAuthorAccount(summary.accountId);
@@ -844,6 +844,7 @@
 
     const tabs = element("div", "author-menu-tabs");
     tabs.setAttribute("role", "tablist");
+    const initialActivityTab = context === "REVIEW" ? "reviews" : "posts";
     const tabDefinitions = [
       ["글", summary.postCount, "posts"],
       ["댓글", summary.commentCount, "comments"],
@@ -856,14 +857,14 @@
         ["알림", null, "notifications"],
       );
     }
-    tabDefinitions.forEach(([label, count, key], index) => {
-      tabs.append(authorMenuTab(label, count, key, index === 0));
+    tabDefinitions.forEach(([label, count, key]) => {
+      tabs.append(authorMenuTab(label, count, key, key === initialActivityTab));
     });
 
     const activityPanel = element("div", "author-menu-activity-panel");
     activityPanel.id = "board-author-menu-panel";
     activityPanel.setAttribute("role", "tabpanel");
-    activityPanel.setAttribute("aria-labelledby", "board-author-menu-tab-posts");
+    activityPanel.setAttribute("aria-labelledby", `board-author-menu-tab-${initialActivityTab}`);
     const sections = {
       posts: authorMenuRecentPostSection(summary.recentPosts),
       comments: authorMenuRecentCommentSection(summary.recentComments),
@@ -873,8 +874,8 @@
       sections.favorites = authorMenuFavoriteLoadingSection();
       sections.notifications = authorMenuNotificationLoadingSection();
     }
-    activityPanel.dataset.activeAuthorActivityTab = "posts";
-    activityPanel.replaceChildren(sections.posts);
+    activityPanel.dataset.activeAuthorActivityTab = initialActivityTab;
+    activityPanel.replaceChildren(sections[initialActivityTab]);
 
     let authorActivitySwitchId = 0;
 
@@ -1239,7 +1240,7 @@
       );
       const summary = payload.data;
       if (activeAuthorTrigger !== trigger || menu.hidden) return;
-      renderAuthorMenuSummary(summary);
+      renderAuthorMenuSummary(summary, context);
       menu.setAttribute("aria-busy", "false");
       positionAuthorMenu(trigger);
     } catch (error) {
@@ -1337,12 +1338,14 @@
     {
       showNickname = true,
       showAuthorMenu = false,
+      showLoginIdentity = true,
+      showRole = true,
       authorMenuContext = "COMMUNITY",
       authorActivityCueMode = "compact",
     } = {},
   ) {
     const wrapper = element("span", "author-identity");
-    if (!author?.authorLoginId) {
+    if (showLoginIdentity && !author?.authorLoginId) {
       wrapper.append(element("strong", "author-login-id", "소셜 계정"));
     }
     if (showNickname && author?.authorNickname) {
@@ -1353,19 +1356,22 @@
           `author-activity-trigger author-activity-trigger--${authorActivityCueMode === "full" ? "full" : "compact"}`,
         );
         trigger.append(nickname, authorActivityCue(authorActivityCueMode));
-        enableAuthorMenu(
-          trigger,
-          author,
-          authorMenuContext === "NEWS" ? "NEWS" : "COMMUNITY",
-        );
+        const normalizedContext = authorMenuContext === "REVIEW"
+          ? "REVIEW"
+          : authorMenuContext === "NEWS"
+            ? "NEWS"
+            : "COMMUNITY";
+        enableAuthorMenu(trigger, author, normalizedContext);
         wrapper.append(trigger);
       } else {
         wrapper.append(nickname);
       }
     }
-    wrapper.append(
-      element("span", roleClass(author?.authorRole), roleLabel(author?.authorRole)),
-    );
+    if (showRole) {
+      wrapper.append(
+        element("span", roleClass(author?.authorRole), roleLabel(author?.authorRole)),
+      );
+    }
     return wrapper;
   }
 

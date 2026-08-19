@@ -262,6 +262,12 @@ public class PostController {
         ));
     }
 
+    @GetMapping("/authors/reviews")
+    public ApiResponse<List<PostService.ReviewAuthorLinkResponse>>
+    getReviewAuthorLinks(@RequestParam List<Long> reviewIds) {
+        return ApiResponse.success(postService.getReviewAuthorLinks(reviewIds));
+    }
+
     @GetMapping("/authors/{authorAccountId}/summary")
     public ApiResponse<PostService.AuthorSummaryResponse> getAuthorSummary(
             @PathVariable Long authorAccountId,

@@ -270,6 +270,54 @@
     });
   }
 
+  async function bindReviewAuthorMenus(items) {
+    const board = window.FooduckBoard;
+    if (!board?.authorIdentity) return;
+
+    const reviewById = new Map();
+    const query = new URLSearchParams();
+    items.forEach((review) => {
+      const reviewId = Number(review?.reviewId);
+      if (!Number.isSafeInteger(reviewId) || reviewId <= 0) return;
+      reviewById.set(reviewId, review);
+      query.append("reviewIds", String(reviewId));
+    });
+    if (reviewById.size === 0) return;
+
+    let links;
+    try {
+      const payload = await Api.get(
+        `/board/posts/authors/reviews?${query.toString()}`,
+        { auth: false },
+      );
+      links = Array.isArray(payload?.data) ? payload.data : [];
+    } catch (_error) {
+      // 작성자 연결 조회가 실패해도 리뷰 본문과 닉네임은 그대로 보여준다.
+      return;
+    }
+
+    const accountIdByReviewId = new Map(
+      links.map((link) => [Number(link.reviewId), Number(link.authorAccountId)]),
+    );
+    panels.review.querySelectorAll("[data-review-id]").forEach((host) => {
+      const reviewId = Number(host.dataset.reviewId);
+      const review = reviewById.get(reviewId);
+      const authorAccountId = accountIdByReviewId.get(reviewId);
+      if (!review?.authorNickname || !Number.isSafeInteger(authorAccountId) || authorAccountId <= 0) return;
+
+      host.replaceChildren(board.authorIdentity(
+        { ...review, authorAccountId },
+        {
+          showAuthorMenu: true,
+          showLoginIdentity: false,
+          showRole: false,
+          authorMenuContext: "REVIEW",
+          authorActivityCueMode: "compact",
+        },
+      ));
+    });
+  }
+
   async function loadReviews() {
     panels.review.innerHTML = '<div class="store-empty">리뷰를 불러오는 중입니다.</div>';
     try {
@@ -283,7 +331,7 @@
         : `<div class="store-review-list">${items.map((review) => `
             <div class="store-review-item">
               <div class="store-review-head">
-                <span class="store-review-author">${escapeHtml(review.authorNickname)}</span>
+                <span class="store-review-author" data-review-id="${review.reviewId ?? ""}">${escapeHtml(review.authorNickname)}</span>
                 <span class="store-review-rating">★ ${review.rating}.0</span>
               </div>
               ${review.content ? `<p class="store-review-content">${escapeHtml(review.content)}</p>` : ""}
@@ -297,6 +345,7 @@
           ${listHtml}
         </div>
       `;
+      bindReviewAuthorMenus(items);
       bindReviewForm();
     } catch (error) {
       panels.review.innerHTML = `<div class="store-empty">${error.message || "리뷰를 불러오지 못했습니다."}</div>`;

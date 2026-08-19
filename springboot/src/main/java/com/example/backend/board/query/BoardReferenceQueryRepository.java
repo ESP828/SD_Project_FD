@@ -66,6 +66,28 @@ public class BoardReferenceQueryRepository {
         return count != null && count > 0;
     }
 
+    public List<ReviewAuthorReference> findActiveReviewAuthors(
+            Collection<Long> reviewIds
+    ) {
+        if (reviewIds == null || reviewIds.isEmpty()) {
+            return List.of();
+        }
+        return jdbcTemplate.query(
+                """
+                select review_id,
+                       account_id
+                  from review
+                 where review_id in (:reviewIds)
+                   and status = 'ACTIVE'
+                """,
+                new MapSqlParameterSource("reviewIds", reviewIds),
+                (resultSet, rowNumber) -> new ReviewAuthorReference(
+                        resultSet.getLong("review_id"),
+                        resultSet.getLong("account_id")
+                )
+        );
+    }
+
     public long countActiveReviewsByAuthor(Long accountId) {
         Long count = jdbcTemplate.queryForObject(
                 """
@@ -885,6 +907,12 @@ public class BoardReferenceQueryRepository {
         }
     }
 
+
+    public record ReviewAuthorReference(
+            Long reviewId,
+            Long authorAccountId
+    ) {
+    }
 
     public record AuthorReviewReference(
             Long reviewId,

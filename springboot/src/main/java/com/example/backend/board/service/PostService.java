@@ -79,6 +79,7 @@ public class PostService {
     private static final int MAX_AUTHOR_RECENT_POSTS = 5;
     private static final int MAX_AUTHOR_RECENT_COMMENTS = 5;
     private static final int MAX_AUTHOR_RECENT_REVIEWS = 5;
+    private static final int MAX_REVIEW_AUTHOR_LOOKUP_SIZE = 50;
     private static final int MAX_NEWS_TITLE_LENGTH = 200;
     private static final int MAX_NEWS_CONTENT_LENGTH = 10_000;
     private static final int BEST_COMMUNITY_MINIMUM_LIKE_COUNT = 3;
@@ -656,6 +657,36 @@ public class PostService {
                 PageRequest.of(0, size)
         );
         return responseMapper.toListItems(posts, currentAccount);
+    }
+
+    @Transactional(readOnly = true)
+    public List<ReviewAuthorLinkResponse> getReviewAuthorLinks(
+            List<Long> reviewIds
+    ) {
+        if (reviewIds == null || reviewIds.isEmpty()) {
+            return List.of();
+        }
+        List<Long> normalizedReviewIds = reviewIds.stream()
+                .distinct()
+                .toList();
+        if (normalizedReviewIds.size() > MAX_REVIEW_AUTHOR_LOOKUP_SIZE) {
+            throw new BoardException(
+                    HttpStatus.BAD_REQUEST,
+                    "BOARD_REVIEW_AUTHOR_LOOKUP_TOO_LARGE",
+                    "한 번에 조회할 수 있는 리뷰 작성자는 최대 50명입니다."
+            );
+        }
+        normalizedReviewIds.forEach(
+                reviewId -> validateId(reviewId, "리뷰")
+        );
+        return referenceRepository
+                .findActiveReviewAuthors(normalizedReviewIds)
+                .stream()
+                .map(reference -> new ReviewAuthorLinkResponse(
+                        reference.reviewId(),
+                        reference.authorAccountId()
+                ))
+                .toList();
     }
 
     @Transactional(readOnly = true)
@@ -2222,6 +2253,12 @@ public class PostService {
             BoardType boardType,
             PostCategory category,
             LocalDateTime createdAt
+    ) {
+    }
+
+    public record ReviewAuthorLinkResponse(
+            Long reviewId,
+            Long authorAccountId
     ) {
     }
 

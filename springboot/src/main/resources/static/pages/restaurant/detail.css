@@ -414,6 +414,16 @@ body > [data-site-header] > .site-header {
   font-size: 0.86rem;
 }
 
+.store-review-author .author-identity {
+  gap: 0;
+}
+
+.store-review-author .author-nickname {
+  color: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+}
+
 .store-review-rating {
   color: var(--color-orange-dark);
   font-size: 0.82rem;
