@@ -432,6 +432,10 @@
   background: #fff;
 }
 
+.section-header .service-eyebrow {
+  color: #e56f00;
+}
+
 .service-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
