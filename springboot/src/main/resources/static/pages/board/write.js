@@ -118,6 +118,58 @@
     contentInput.dispatchEvent(new Event("input", { bubbles: true }));
   }
 
+  function prewarmEditorEmojiPicker() {
+    if (!emojiPanel) return;
+
+    const warm = () => {
+      // hidden 상태에서는 첫 오픈 시 100개가 넘는 컬러 이모지의
+      // layout/font glyph paint가 한 번에 발생할 수 있다.
+      // 사용자 입력 전에 브라우저 idle 구간에서 비용을 미리 지불한다.
+      try {
+        const canvas = document.createElement("canvas");
+        canvas.width = 512;
+        canvas.height = 256;
+        const context = canvas.getContext("2d");
+        if (context) {
+          context.font =
+            '20px "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", sans-serif';
+          WRITE_EMOJIS.forEach((emoji, index) => {
+            const x = (index % 16) * 32;
+            const y = Math.floor(index / 16) * 32 + 24;
+            context.fillText(emoji, x, y);
+          });
+        }
+
+        const wasHidden = emojiPanel.hidden;
+        const previousVisibility = emojiPanel.style.visibility;
+        const previousPointerEvents = emojiPanel.style.pointerEvents;
+
+        emojiPanel.style.visibility = "hidden";
+        emojiPanel.style.pointerEvents = "none";
+        emojiPanel.hidden = false;
+
+        // grid layout을 한 번 계산해 첫 클릭 시 layout spike를 줄인다.
+        void emojiPanel.offsetHeight;
+
+        emojiPanel.hidden = wasHidden;
+        emojiPanel.style.visibility = previousVisibility;
+        emojiPanel.style.pointerEvents = previousPointerEvents;
+      } catch (_error) {
+        // prewarm 실패는 기능 실패가 아니므로 조용히 무시한다.
+      }
+    };
+
+    const scheduleWarm = () => {
+      if ("requestIdleCallback" in window) {
+        window.requestIdleCallback(warm, { timeout: 350 });
+      } else {
+        window.setTimeout(warm, 50);
+      }
+    };
+
+    window.requestAnimationFrame(scheduleWarm);
+  }
+
   function initializeEditorEmojiPicker() {
     if (!emojiToggle || !emojiPanel || !contentInput) return;
 
@@ -136,6 +188,8 @@
       board.element("strong", "comment-emoji-panel-title", "이모지"),
       grid,
     );
+
+    prewarmEditorEmojiPicker();
 
     emojiToggle.addEventListener("click", (event) => {
       event.stopPropagation();
@@ -163,7 +217,7 @@
     try {
       const url = new URL(value, window.location.origin);
       if (url.origin !== window.location.origin) return null;
-      if (url.pathname !== "/board") return null;
+      if (url.pathname !== "/pages/board/index.html") return null;
       return `${url.pathname}${url.search}`;
     } catch (_error) {
       return null;
@@ -339,7 +393,7 @@
       from: "NEWS",
       newsPage: String(requestedNewsPage),
     });
-    return `/board/detail?${params.toString()}`;
+    return `/pages/board/detail.html?${params.toString()}`;
   }
 
   function newsWritePath(targetPostId) {
@@ -348,7 +402,7 @@
       from: "NEWS",
       newsPage: String(requestedNewsPage),
     });
-    return `/board/write?${params.toString()}`;
+    return `/pages/board/write.html?${params.toString()}`;
   }
 
   function restaurantNewsPath(post) {
@@ -360,7 +414,7 @@
       tab: "news",
       newsPage: String(requestedNewsPage),
     });
-    return `/restaurant/detail?${params.toString()}`;
+    return `/pages/restaurant/detail.html?${params.toString()}`;
   }
 
   function newsUpdatePath(post) {
