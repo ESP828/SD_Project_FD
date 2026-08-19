@@ -883,12 +883,17 @@
     if (!message) return;
     if (!newsCommentToast) {
       newsCommentToast = document.createElement("div");
-      newsCommentToast.className = "board-toast";
+      newsCommentToast.className = "board-toast store-news-toast";
       newsCommentToast.setAttribute("role", "status");
       newsCommentToast.setAttribute("aria-live", "polite");
       newsCommentToast.hidden = true;
       document.body.append(newsCommentToast);
     }
+    const scrollTopButton = document.querySelector(".board-scroll-top");
+    newsCommentToast.classList.toggle(
+      "is-scroll-top-offset",
+      Boolean(scrollTopButton && !scrollTopButton.hidden),
+    );
     if (typeof window.FooduckBoard?.showToast === "function") {
       window.FooduckBoard.showToast(newsCommentToast, message, isError);
     } else {
