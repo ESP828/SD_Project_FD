@@ -1,36 +1,107 @@
 (() => {
   const list = document.querySelector("#preset-list");
   const count = document.querySelector("#preset-count");
-  const filters = document.querySelector("#preset-filters");
   const pagination = document.querySelector("#preset-pagination");
   const searchForm = document.querySelector("#preset-search-form");
   const keywordInput = document.querySelector("#preset-keyword");
-  const sortSelect = document.querySelector("#preset-sort");
-  const filterToggle = document.querySelector("#preset-filter-toggle");
-  const filterToggleText = document.querySelector("[data-filter-toggle-text]");
-  const filterPanel = document.querySelector("#preset-filter-panel");
+  const tagSelect = document.querySelector("#preset-tag-select");
+  const sortSelect = document.querySelector("#preset-sort-select");
+  const searchReset = document.querySelector("#preset-search-reset");
+  const viewTabs = Array.from(document.querySelectorAll("[data-preset-sort]"));
   const registerLink = document.querySelector("[data-preset-register-link]");
   const toast = document.querySelector("#preset-toast");
   const registerPath = "/presset/register";
   const createdMessageKey = "fooduck:preset-created";
-  const requestedSort = new URLSearchParams(location.search).get("sort");
+  const initialParams = new URLSearchParams(location.search);
+  const requestedSort = initialParams.get("sort");
   const initialSort = ["popular", "latest", "favorite"].includes(requestedSort)
     ? requestedSort
-    : "popular";
+    : "latest";
+  const requestedTagId = Number.parseInt(initialParams.get("tagId"), 10);
+  const requestedPage = Number.parseInt(initialParams.get("page"), 10);
   const state = {
-    page: 0,
+    page: Number.isSafeInteger(requestedPage) && requestedPage > 0 ? requestedPage - 1 : 0,
     size: 12,
     sort: initialSort,
-    tagId: null,
-    keyword: "",
+    tagId: Number.isSafeInteger(requestedTagId) && requestedTagId > 0 ? requestedTagId : null,
+    keyword: normalizeKeyword(initialParams.get("keyword")),
     tags: [],
   };
+  let requestGeneration = 0;
 
   function element(tagName, className = "", text = "") {
     const node = document.createElement(tagName);
     if (className) node.className = className;
     if (text) node.textContent = text;
     return node;
+  }
+
+  function normalizeKeyword(value) {
+    return String(value || "")
+      .replace(/#+/g, " ")
+      .replace(/\s+/g, " ")
+      .trim()
+      .slice(0, 100);
+  }
+
+  function listUrlFromState() {
+    const params = new URLSearchParams();
+    if (state.sort !== "latest") params.set("sort", state.sort);
+    if (state.tagId) params.set("tagId", String(state.tagId));
+    if (state.keyword) params.set("keyword", state.keyword);
+    if (state.page > 0) params.set("page", String(state.page + 1));
+    const query = params.toString();
+    return `/presset${query ? `?${query}` : ""}`;
+  }
+
+  function syncListUrl(historyMode = "replace") {
+    const nextUrl = listUrlFromState();
+    const currentUrl = `${location.pathname}${location.search}`;
+    if (nextUrl === currentUrl) return;
+    if (historyMode === "push") {
+      history.pushState(null, "", nextUrl);
+      return;
+    }
+    history.replaceState(null, "", nextUrl);
+  }
+
+  function syncSearchControls() {
+    keywordInput.value = state.keyword;
+    tagSelect.value = state.tagId === null ? "" : String(state.tagId);
+    sortSelect.value = state.sort;
+    searchReset.disabled = !state.keyword && state.tagId === null && state.sort === "latest";
+  }
+
+  function syncDraftResetState() {
+    const draftTagId = Number.parseInt(tagSelect.value, 10);
+    const draftSort = ["latest", "popular", "favorite"].includes(sortSelect.value)
+      ? sortSelect.value
+      : "latest";
+    searchReset.disabled = !normalizeKeyword(keywordInput.value)
+      && !(Number.isSafeInteger(draftTagId) && draftTagId > 0)
+      && draftSort === "latest";
+  }
+
+  function syncViewTabs() {
+    viewTabs.forEach((tab) => {
+      const active = tab.dataset.presetSort === state.sort;
+      tab.classList.toggle("is-active", active);
+      tab.setAttribute("aria-selected", String(active));
+      tab.tabIndex = active ? 0 : -1;
+    });
+  }
+
+  function restoreStateFromLocation() {
+    const params = new URLSearchParams(location.search);
+    const sort = params.get("sort");
+    const tagId = Number.parseInt(params.get("tagId"), 10);
+    const page = Number.parseInt(params.get("page"), 10);
+    state.sort = ["popular", "latest", "favorite"].includes(sort) ? sort : "latest";
+    state.tagId = Number.isSafeInteger(tagId) && tagId > 0 ? tagId : null;
+    state.keyword = normalizeKeyword(params.get("keyword"));
+    state.page = Number.isSafeInteger(page) && page > 0 ? page - 1 : 0;
+    syncSearchControls();
+    syncViewTabs();
   }
 
   function detailPath(presetId) {
@@ -49,6 +120,8 @@
     image.src = source;
     image.alt = `${title || "보물지도"} 대표 이미지`;
     image.loading = "lazy";
+    image.decoding = "async";
+    image.fetchPriority = "low";
     image.addEventListener("error", () => {
       image.replaceWith(imagePlaceholder(placeholderClassName));
     }, { once: true });
@@ -93,7 +166,7 @@
       button.setAttribute("aria-label", preset.favoriteByCurrentUser ? "보물지도 찜 해제" : "보물지도 찜");
       button.textContent = preset.favoriteByCurrentUser ? "♥" : "♡";
       button.closest(".preset-card")?.querySelector("[data-favorite-count]")
-        ?.replaceChildren(document.createTextNode(`♡ 저장 ${preset.favoriteCount}`));
+        ?.replaceChildren(document.createTextNode(`♡ 저장 ${preset.favoriteCount.toLocaleString("ko-KR")}`));
     } catch (error) {
       alert(error.message);
     } finally {
@@ -101,72 +174,81 @@
     }
   }
 
-  function restaurantDetailPath(restaurantId) {
-    return `/restaurant/detail?source=owned&id=${encodeURIComponent(restaurantId)}`;
+  function categoryTokens(category) {
+    return String(category || "")
+      .split(",")
+      .map((token) => token.trim())
+      .filter(Boolean);
   }
 
-  function createRouteMap(preset) {
-    if (preset.imageUrl) {
-      const map = element("a", "preset-card-map");
-      map.href = detailPath(preset.presetId);
-      map.setAttribute("aria-label", `${preset.title || "보물지도"} 상세 보기`);
-      map.append(safeImage(
-        preset.imageUrl,
+  function cardTagNames(preset) {
+    const names = categoryTokens(preset.category);
+    (Array.isArray(preset.tags) ? preset.tags : []).forEach((tag) => {
+      const name = String(tag?.tagName || "").trim();
+      if (name && !names.includes(name)) names.push(name);
+    });
+    return names;
+  }
+
+  function createCardVisual(preset) {
+    const visual = element("a", "preset-card-visual");
+    visual.href = detailPath(preset.presetId);
+    visual.setAttribute("aria-label", `${preset.title || "보물지도"} 상세 보기`);
+    const thumbnail = (Array.isArray(preset.thumbnailImageUrls) ? preset.thumbnailImageUrls : [])
+      .find((url) => typeof url === "string" && url.trim());
+    const imageSource = preset.imageUrl || thumbnail;
+    if (imageSource) {
+      visual.append(safeImage(
+        imageSource,
         preset.title,
         "preset-card-cover",
-        "preset-image-placeholder preset-card-map-placeholder",
+        "preset-image-placeholder preset-card-visual-placeholder",
       ));
-      return map;
+    } else {
+      visual.append(imagePlaceholder("preset-image-placeholder preset-card-visual-placeholder"));
     }
-
-    const map = element("div", "preset-card-map");
-
-    const urls = Array.isArray(preset.thumbnailImageUrls) ? preset.thumbnailImageUrls.slice(0, 3) : [];
-    const restaurantIds = Array.isArray(preset.thumbnailRestaurantIds) ? preset.thumbnailRestaurantIds : [];
-    const stops = urls.map((url, index) => ({ url, restaurantId: restaurantIds[index] }));
-    if (!stops.length) {
-      map.append(imagePlaceholder("preset-image-placeholder preset-card-map-placeholder"));
-      return map;
-    }
-
-    const anchors = [[18, 26], [58, 50], [18, 78]];
-    if (stops.length > 1) {
-      const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-      svg.setAttribute("class", "preset-card-map-path");
-      svg.setAttribute("viewBox", "0 0 100 100");
-      svg.setAttribute("preserveAspectRatio", "none");
-      const polyline = document.createElementNS("http://www.w3.org/2000/svg", "polyline");
-      polyline.setAttribute("points", anchors.slice(0, stops.length).map(([x, y]) => `${x},${y}`).join(" "));
-      svg.append(polyline);
-      map.append(svg);
-    }
-
-    stops.forEach(({ url, restaurantId }, index) => {
-      const stop = element(
-        restaurantId ? "a" : "div",
-        `preset-card-map-stop preset-card-map-stop--${index + 1}`,
-      );
-      if (restaurantId) {
-        stop.href = restaurantDetailPath(restaurantId);
-        stop.setAttribute("aria-label", "식당 상세 보기");
-        stop.addEventListener("click", (event) => event.stopPropagation());
-      }
-      stop.append(element("span", "preset-card-map-badge", String(index + 1)));
-      stop.append(safeImage(
-        url,
-        preset.title,
-        "preset-card-map-thumb",
-        "preset-image-placeholder preset-card-map-thumb-placeholder",
-      ));
-      map.append(stop);
-    });
-
-    return map;
+    return visual;
   }
 
   function createCard(preset) {
     const card = element("article", "preset-card");
-    card.append(createRouteMap(preset));
+    card.append(createCardVisual(preset));
+
+    const info = element("div", "preset-card-info");
+    const tags = element("div", "preset-card-tag-list");
+    cardTagNames(preset).forEach((tagName) => {
+      tags.append(element("span", "preset-card-tag", tagName));
+    });
+    if (tags.childElementCount) info.append(tags);
+
+    const titleLink = element("a", "preset-card-title", preset.title || "이름 없는 보물지도");
+    titleLink.href = detailPath(preset.presetId);
+    info.append(titleLink);
+
+    const meta = element("div", "preset-card-meta");
+    meta.append(element("span", "", `🍴 맛집 ${Number(preset.restaurantCount || 0).toLocaleString("ko-KR")}곳`));
+    meta.append(element("span", "", `👁 조회 ${Number(preset.viewCount || 0).toLocaleString("ko-KR")}`));
+    const favoriteCount = element(
+      "span",
+      "",
+      `♡ 저장 ${Number(preset.favoriteCount || 0).toLocaleString("ko-KR")}`,
+    );
+    favoriteCount.setAttribute("data-favorite-count", "");
+    meta.append(favoriteCount);
+    info.append(meta);
+    card.append(info);
+
+    const description = element("div", "preset-card-description");
+    const descriptionText = typeof preset.description === "string" ? preset.description.trim() : "";
+    if (descriptionText) {
+      description.append(element("p", "", descriptionText));
+    } else {
+      description.classList.add("is-empty");
+      description.setAttribute("aria-hidden", "true");
+    }
+    card.append(description);
+
+    const actions = element("div", "preset-card-actions");
 
     const favorite = element("button", "preset-favorite-button", preset.favoriteByCurrentUser ? "♥" : "♡");
     favorite.type = "button";
@@ -178,48 +260,14 @@
       event.stopPropagation();
       toggleFavorite(favorite, preset);
     });
-    card.append(favorite);
-
-    const body = element("div", "preset-card-body");
-
-    const badge = element("span", "preset-card-badge", `📍 ${preset.category || "보물지도"}`);
-    body.append(badge);
-
-    const titleLink = element("a", "preset-card-title", preset.title || "이름 없는 보물지도");
-    titleLink.href = detailPath(preset.presetId);
-    body.append(titleLink);
-
-    const tags = element("div", "preset-card-chip-list");
-    (preset.tags || []).slice(0, 3).forEach((tag) => tags.append(element("span", "preset-card-chip", tag.tagName)));
-    if (tags.childElementCount) body.append(tags);
-
-    body.append(element("div", "preset-card-divider"));
-
-    const meta = element("div", "preset-card-meta");
-    meta.append(element("span", "", `🍴 맛집 ${preset.restaurantCount || 0}곳`));
-    meta.append(element("span", "", `👁 조회 ${Number(preset.viewCount || 0).toLocaleString("ko-KR")}`));
-    if (Number.isFinite(preset.favoriteCount)) {
-      const favoriteCount = element(
-        "span",
-        "",
-        `♡ 저장 ${Number(preset.favoriteCount || 0).toLocaleString("ko-KR")}`,
-      );
-      favoriteCount.setAttribute("data-favorite-count", "");
-      meta.append(favoriteCount);
-    }
-    body.append(meta);
-
-    const actions = element("div", "preset-card-actions");
-    const goDetail = element("a", "button button-primary preset-card-cta", "둘러보기 →");
-    goDetail.href = detailPath(preset.presetId);
     const goMap = element("a", "button button-secondary preset-card-map-link", "지도에서 보기");
     const mapQuery = new URLSearchParams({ presetId: preset.presetId });
     if (preset.isOwner) mapQuery.set("edit", "1");
     goMap.href = `/map?${mapQuery.toString()}`;
-    actions.append(goDetail, goMap);
-    body.append(actions);
-
-    card.append(body);
+    const goDetail = element("a", "button button-primary preset-card-cta", "둘러보기 →");
+    goDetail.href = detailPath(preset.presetId);
+    actions.append(favorite, goMap, goDetail);
+    card.append(actions);
 
     card.addEventListener("click", (event) => {
       if (event.target.closest("a, button")) return;
@@ -229,26 +277,30 @@
     return card;
   }
 
-  function renderFilters() {
-    filters.replaceChildren();
-    const all = element("button", "preset-filter", "전체");
-    all.type = "button";
-    all.setAttribute("aria-pressed", String(state.tagId === null));
-    all.addEventListener("click", () => selectTag(null));
-    filters.append(all);
+  function renderTagSelectOptions() {
+    tagSelect.replaceChildren();
+    const all = element("option", "", "전체 태그");
+    all.value = "";
+    tagSelect.append(all);
     state.tags.forEach((tag) => {
-      const button = element("button", "preset-filter", tag.tagName);
-      button.type = "button";
-      button.setAttribute("aria-pressed", String(state.tagId === tag.tagId));
-      button.addEventListener("click", () => selectTag(tag.tagId));
-      filters.append(button);
+      const option = element("option", "", `#${tag.tagName}`);
+      option.value = String(tag.tagId);
+      tagSelect.append(option);
     });
+    tagSelect.value = state.tagId === null ? "" : String(state.tagId);
   }
 
-  function selectTag(tagId) {
-    state.tagId = tagId;
+  function selectView(sort) {
+    if (!["latest", "popular", "favorite"].includes(sort)) return;
+    if (state.sort === sort) {
+      syncSearchControls();
+      return;
+    }
+    state.sort = sort;
     state.page = 0;
-    renderFilters();
+    syncViewTabs();
+    syncSearchControls();
+    syncListUrl("push");
     loadPresets();
   }
 
@@ -262,6 +314,7 @@
       if (current) button.setAttribute("aria-current", "page");
       button.addEventListener("click", () => {
         state.page = page;
+        syncListUrl("push");
         loadPresets();
         document.querySelector("#preset-collection")?.scrollIntoView({ behavior: "smooth" });
       });
@@ -278,14 +331,27 @@
     const presets = Array.isArray(pageData.content) ? pageData.content : [];
     list.replaceChildren();
     list.setAttribute("aria-busy", "false");
-    count.textContent = `총 ${Number(pageData.totalElements || 0).toLocaleString("ko-KR")}개의 맛집 모음`;
+    const conditions = [];
+    const selectedTag = state.tags.find((tag) => tag.tagId === state.tagId);
+    if (state.keyword) conditions.push(`“${state.keyword}” 검색`);
+    if (selectedTag) conditions.push(`#${selectedTag.tagName}`);
+    const conditionText = conditions.length ? ` · ${conditions.join(" · ")}` : "";
+    count.textContent = `총 ${Number(pageData.totalElements || 0).toLocaleString("ko-KR")}개의 보물지도${conditionText}`;
     list.classList.toggle("preset-list--state", presets.length === 0);
     if (!presets.length) {
       const empty = element("div", "preset-state preset-state--surface");
-      empty.append(element("h3", "", "조건에 맞는 보물지도가 없습니다."), element("p", "", "다른 태그나 검색어를 선택해 보세요."));
+      const description = state.keyword
+        ? `“${state.keyword}”이(가) 제목 또는 태그에 포함된 보물지도가 없습니다.`
+        : "다른 태그를 선택하거나 검색 조건을 초기화해 보세요.";
+      empty.append(
+        element("h3", "", "조건에 맞는 보물지도가 없습니다."),
+        element("p", "", description),
+      );
       list.append(empty);
     } else {
-      presets.forEach((preset) => list.append(createCard(preset)));
+      const fragment = document.createDocumentFragment();
+      presets.forEach((preset) => fragment.append(createCard(preset)));
+      list.append(fragment);
     }
     renderPagination(pageData);
   }
@@ -303,39 +369,77 @@
   }
 
   async function loadPresets() {
+    const generation = ++requestGeneration;
     list.setAttribute("aria-busy", "true");
     const params = new URLSearchParams({ page: state.page, size: state.size, sort: state.sort });
     if (state.tagId) params.set("tagId", state.tagId);
     if (state.keyword) params.set("keyword", state.keyword);
     try {
       const payload = await Api.get(`/presets?${params.toString()}`);
+      if (generation !== requestGeneration) return;
       renderPage(payload.data || {});
     } catch (error) {
+      if (generation !== requestGeneration) return;
       renderError(error);
     }
   }
 
   searchForm.addEventListener("submit", (event) => {
     event.preventDefault();
-    state.keyword = keywordInput.value.trim();
+    state.keyword = normalizeKeyword(keywordInput.value);
+    const selectedTagId = Number.parseInt(tagSelect.value, 10);
+    state.tagId = Number.isSafeInteger(selectedTagId) && selectedTagId > 0
+      ? selectedTagId
+      : null;
+    state.sort = ["latest", "popular", "favorite"].includes(sortSelect.value)
+      ? sortSelect.value
+      : "latest";
     state.page = 0;
+    syncSearchControls();
+    syncViewTabs();
+    syncListUrl("push");
     loadPresets();
-  });
-  sortSelect.addEventListener("change", () => {
-    state.sort = sortSelect.value;
-    state.page = 0;
-    loadPresets();
-  });
-  filterToggle?.addEventListener("click", () => {
-    const expanded = filterToggle.getAttribute("aria-expanded") === "true";
-    filterToggle.setAttribute("aria-expanded", String(!expanded));
-    filterPanel.hidden = expanded;
-    if (filterToggleText) {
-      filterToggleText.textContent = expanded ? "상세 조건" : "상세 조건 접기";
-    }
   });
 
-  sortSelect.value = state.sort;
+  searchReset.addEventListener("click", () => {
+    state.keyword = "";
+    state.tagId = null;
+    state.sort = "latest";
+    state.page = 0;
+    syncSearchControls();
+    syncViewTabs();
+    syncListUrl("push");
+    loadPresets();
+    keywordInput.focus();
+  });
+
+  keywordInput.addEventListener("input", syncDraftResetState);
+  tagSelect.addEventListener("change", syncDraftResetState);
+  sortSelect.addEventListener("change", syncDraftResetState);
+
+  viewTabs.forEach((tab) => {
+    tab.addEventListener("click", () => selectView(tab.dataset.presetSort));
+    tab.addEventListener("keydown", (event) => {
+      if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+      event.preventDefault();
+      const currentIndex = viewTabs.indexOf(tab);
+      let nextIndex = currentIndex;
+      if (event.key === "Home") nextIndex = 0;
+      if (event.key === "End") nextIndex = viewTabs.length - 1;
+      if (event.key === "ArrowLeft") nextIndex = (currentIndex - 1 + viewTabs.length) % viewTabs.length;
+      if (event.key === "ArrowRight") nextIndex = (currentIndex + 1) % viewTabs.length;
+      viewTabs[nextIndex]?.focus({ preventScroll: true });
+    });
+  });
+
+  window.addEventListener("popstate", () => {
+    restoreStateFromLocation();
+    loadPresets();
+  });
+
+  syncSearchControls();
+  syncViewTabs();
+  syncListUrl();
   if (registerLink && !window.FooduckSession?.authenticated) {
     registerLink.href =
       `/auth/login?next=${encodeURIComponent(registerPath)}`;
@@ -345,8 +449,12 @@
   Promise.all([Api.get("/presets/tags"), Promise.resolve()])
     .then(([payload]) => {
       state.tags = Array.isArray(payload.data) ? payload.data : [];
-      renderFilters();
+      renderTagSelectOptions();
+      syncSearchControls();
     })
-    .catch(() => renderFilters())
+    .catch(() => {
+      renderTagSelectOptions();
+      syncSearchControls();
+    })
     .finally(loadPresets);
 })();

@@ -1,11 +1,19 @@
 (() => {
-  const registerPath = "/presset/register";
   const listPath = "/presset?sort=latest";
   const createdMessageKey = "fooduck:preset-created";
+  const requestedQuery = new URLSearchParams(location.search);
+  const requestedPresetId = requestedQuery.get("presetId");
+  const parsedPresetId = Number(requestedPresetId);
+  const editPresetId = requestedPresetId !== null && Number.isSafeInteger(parsedPresetId) && parsedPresetId > 0
+    ? parsedPresetId
+    : null;
+  const hasInvalidEditId = requestedPresetId !== null && editPresetId === null;
+  const isEditMode = editPresetId !== null;
+  const currentPath = `${location.pathname}${location.search}`;
 
   if (!window.FooduckSession?.authenticated) {
     location.replace(
-      `/auth/login?next=${encodeURIComponent(registerPath)}`,
+      `/auth/login?next=${encodeURIComponent(currentPath)}`,
     );
     return;
   }
@@ -20,30 +28,72 @@
   const imageInput = document.querySelector("#preset-image-input");
   const imagePreview = document.querySelector("#preset-image-preview");
   const imageError = document.querySelector("#preset-image-error");
+  const modeLabel = document.querySelector("#preset-register-mode-label");
+  const formTitle = document.querySelector("#preset-register-form-title");
+  const backLink = document.querySelector("#preset-back-link");
+  const cancelLink = document.querySelector("#preset-cancel-link");
 
   if (
     !createForm || !createSubmit || !resultMessage ||
     !categoryHiddenInput || !categoryInput || !categoryTokenList ||
-    !categoryHint || !imageInput || !imagePreview || !imageError
+    !categoryHint || !imageInput || !imagePreview || !imageError ||
+    !modeLabel || !formTitle || !backLink || !cancelLink
   ) {
     return;
   }
 
   const requiredCreateFields = [
     { name: "title", message: "제목을 입력해주세요", errorId: "preset-title-error" },
-    { name: "category", message: "카테고리를 입력해주세요", errorId: "preset-category-error" },
+    { name: "category", message: "태그를 입력해주세요", errorId: "preset-category-error" },
   ];
   const MAX_CATEGORY_TOKENS = 3;
   const categoryTokens = [];
   const ALLOWED_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
   const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
   let imagePreviewUrl = null;
+  let existingImageUrl = null;
+  let formReady = !isEditMode && !hasInvalidEditId;
 
   function element(tagName, className = "", text = "") {
     const node = document.createElement(tagName);
     if (className) node.className = className;
     if (text) node.textContent = text;
     return node;
+  }
+
+  function detailPath(presetId) {
+    return `/presset/detail?presetId=${encodeURIComponent(presetId)}`;
+  }
+
+  function setBackLink(label, href) {
+    const arrow = element("span", "", "←");
+    arrow.setAttribute("aria-hidden", "true");
+    backLink.replaceChildren(arrow, document.createTextNode(` ${label}`));
+    backLink.href = href;
+    cancelLink.href = href;
+  }
+
+  function applyPageMode() {
+    const modeText = isEditMode ? "수정" : "등록";
+    document.title = `보물지도 ${modeText} · 푸드덕`;
+    modeLabel.textContent = modeText;
+    formTitle.textContent = isEditMode
+      ? "보물지도 정보를 수정해 주세요"
+      : "보물지도 정보를 입력해 주세요";
+    createSubmit.textContent = modeText;
+    if (isEditMode) {
+      setBackLink("보물지도 상세로 돌아가기", detailPath(editPresetId));
+    } else {
+      setBackLink("보물지도로 돌아가기", "/presset");
+    }
+  }
+
+  function parseCategoryTokens(category) {
+    return String(category || "")
+      .split(",")
+      .map((token) => token.trim())
+      .filter((token, index, tokens) => token && tokens.indexOf(token) === index)
+      .slice(0, MAX_CATEGORY_TOKENS);
   }
 
   function syncCategoryHiddenInput() {
@@ -74,7 +124,7 @@
     const atLimit = categoryTokens.length >= MAX_CATEGORY_TOKENS;
     categoryInput.disabled = atLimit;
     categoryHint.textContent = atLimit
-      ? "카테고리는 최대 3개까지 입력할 수 있습니다."
+      ? "태그는 최대 3개까지 입력할 수 있습니다."
       : "쉼표(,) 또는 Enter로 구분해 최대 3개까지 입력할 수 있습니다.";
     categoryHint.classList.toggle("is-limit", atLimit);
   }
@@ -104,8 +154,13 @@
     imagePreviewUrl = null;
   }
 
-  function hideImagePreview() {
+  function restoreImagePreview() {
     clearImagePreviewUrl();
+    if (existingImageUrl) {
+      imagePreview.src = existingImageUrl;
+      imagePreview.hidden = false;
+      return;
+    }
     imagePreview.hidden = true;
     imagePreview.removeAttribute("src");
   }
@@ -145,7 +200,40 @@
     const body = new FormData();
     body.append("data", new Blob([JSON.stringify(payload)], { type: "application/json" }));
     if (formData.image) body.append("image", formData.image);
-    return Api.post("/presets", body);
+    return isEditMode
+      ? Api.put(`/presets/${editPresetId}`, body)
+      : Api.post("/presets", body);
+  }
+
+  async function loadPresetForEdit() {
+    createForm.inert = true;
+    createForm.setAttribute("aria-busy", "true");
+    createSubmit.disabled = true;
+    setCreateResult("수정할 보물지도 정보를 불러오고 있습니다.");
+    try {
+      const response = await Api.get(`/presets/${editPresetId}`);
+      const data = response.data || {};
+      if (!data.isOwner) {
+        throw Object.assign(new Error("작성자만 보물지도를 수정할 수 있습니다."), { status: 403 });
+      }
+      createForm.elements.title.value = data.title || "";
+      categoryTokens.splice(0, categoryTokens.length, ...parseCategoryTokens(data.category));
+      renderCategoryTokens();
+      syncCategoryHiddenInput();
+      updateCategoryLimitState();
+      createForm.elements.is_public.checked = data.isPublic !== false;
+      existingImageUrl = data.imageUrl || null;
+      restoreImagePreview();
+      formReady = true;
+      setCreateResult();
+    } catch (error) {
+      formReady = false;
+      setCreateResult(createErrorMessage(error), "error");
+    } finally {
+      createForm.inert = !formReady;
+      createForm.removeAttribute("aria-busy");
+      createSubmit.disabled = !formReady;
+    }
   }
 
   function createErrorMessage(error) {
@@ -156,7 +244,12 @@
       return "로그인이 필요합니다. 로그인 후 다시 시도해 주세요.";
     }
     if (error.status === 403) {
-      return "보물지도를 등록할 권한이 없습니다.";
+      return isEditMode
+        ? "작성자만 이 보물지도를 수정할 수 있습니다."
+        : "보물지도를 등록할 권한이 없습니다.";
+    }
+    if (error.status === 404) {
+      return "수정할 보물지도를 찾을 수 없습니다.";
     }
     if (error.status >= 500) {
       return "서버에서 저장하지 못했습니다. 잠시 후 다시 시도해 주세요.";
@@ -164,7 +257,7 @@
     if (error.status >= 400) {
       return error.message || "입력값을 확인해 주세요.";
     }
-    return "등록 중 오류가 발생했습니다. 다시 시도해 주세요.";
+    return `${isEditMode ? "수정" : "등록"} 중 오류가 발생했습니다. 다시 시도해 주세요.`;
   }
 
   categoryInput.addEventListener("keydown", (event) => {
@@ -193,19 +286,19 @@
     imageError.textContent = "";
     const file = imageInput.files?.[0];
     if (!file) {
-      hideImagePreview();
+      restoreImagePreview();
       return;
     }
     if (!ALLOWED_IMAGE_TYPES.has(file.type)) {
       imageError.textContent = "jpg, png, webp 형식의 이미지만 첨부할 수 있습니다.";
       imageInput.value = "";
-      hideImagePreview();
+      restoreImagePreview();
       return;
     }
     if (file.size > MAX_IMAGE_BYTES) {
       imageError.textContent = "이미지 파일은 5MB 이하만 첨부할 수 있습니다.";
       imageInput.value = "";
-      hideImagePreview();
+      restoreImagePreview();
       return;
     }
     clearImagePreviewUrl();
@@ -226,6 +319,7 @@
   createForm.addEventListener("submit", async (event) => {
     event.preventDefault();
     setCreateResult();
+    if (!formReady) return;
     if (!validateCreateForm()) return;
 
     const formData = {
@@ -237,30 +331,41 @@
 
     createSubmit.disabled = true;
     createSubmit.setAttribute("aria-busy", "true");
-    createSubmit.textContent = "등록 중...";
+    createSubmit.textContent = `${isEditMode ? "수정" : "등록"} 중...`;
     try {
       const response = await submitPreset(formData);
-      const presetId = response.data?.presetId ?? response.data?.preset_id ?? response.data;
-      console.info("등록된 프리셋 ID:", presetId);
+      const savedPresetId = isEditMode
+        ? editPresetId
+        : response.data?.presetId ?? response.data?.preset_id ?? response.data;
+      console.info(`${isEditMode ? "수정" : "등록"}된 보물지도 ID:`, savedPresetId);
       try {
         sessionStorage.setItem(
           createdMessageKey,
-          response.message || "보물지도가 등록되었습니다.",
+          response.message || `보물지도가 ${isEditMode ? "수정" : "등록"}되었습니다.`,
         );
       } catch (_error) {
-        // 성공 안내를 저장하지 못해도 이미 완료된 등록과 목록 이동은 유지한다.
+        // 성공 안내 저장이 불가능해도 완료된 저장과 페이지 이동은 유지한다.
       }
-      location.assign(listPath);
+      location.assign(isEditMode ? detailPath(savedPresetId) : listPath);
     } catch (error) {
-      console.error("프리셋 등록 실패", error);
+      console.error(`보물지도 ${isEditMode ? "수정" : "등록"} 실패`, error);
       setCreateResult(createErrorMessage(error), "error");
     } finally {
       createSubmit.disabled = false;
       createSubmit.removeAttribute("aria-busy");
-      createSubmit.textContent = "등록";
+      createSubmit.textContent = isEditMode ? "수정" : "등록";
     }
   });
 
   window.addEventListener("pagehide", clearImagePreviewUrl, { once: true });
+  applyPageMode();
   updateCategoryLimitState();
+  if (hasInvalidEditId) {
+    formReady = false;
+    createForm.inert = true;
+    createSubmit.disabled = true;
+    setCreateResult("올바른 보물지도 번호가 필요합니다.", "error");
+  } else if (isEditMode) {
+    loadPresetForEdit();
+  }
 })();

@@ -520,13 +520,37 @@
   font-weight: 800;
 }
 
+.mypage-action-copy {
+  min-width: 0;
+}
+
+.mypage-action strong,
+.mypage-action small {
+  display: block;
+}
+
+.mypage-action strong {
+  margin-bottom: 3px;
+  color: var(--color-navy);
+  font-size: 0.84rem;
+  line-height: 1.35;
+}
+
 .mypage-action:last-child {
   border-bottom: 0;
 }
 
 .mypage-action small {
   color: var(--color-muted);
+  font-size: 0.72rem;
   font-weight: 600;
+  line-height: 1.45;
+}
+
+.mypage-action-state {
+  flex: 0 0 auto;
+  color: var(--color-subtle);
+  font-size: 0.82rem;
 }
 
 .mypage-action.is-disabled {

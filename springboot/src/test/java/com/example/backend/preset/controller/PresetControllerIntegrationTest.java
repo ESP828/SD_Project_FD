@@ -306,6 +306,44 @@ class PresetControllerIntegrationTest {
     }
 
     @Test
+    @DisplayName("보물지도 검색은 제목과 입력 태그 및 연결 태그를 모두 조회한다")
+    void searchesPresetsByTitleAndTags() throws Exception {
+        mockMvc.perform(get("/api/presets").param("keyword", "성수"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.totalElements").value(1))
+                .andExpect(jsonPath("$.data.content[0].presetId").value(presetId));
+
+        Long categoryPresetId = createPreset("주말 가족 모음", accountId);
+        jdbcTemplate.update(
+                "update preset set category = ? where preset_id = ?",
+                "아이와 함께, 브런치",
+                categoryPresetId
+        );
+        mockMvc.perform(get("/api/presets").param("keyword", "브런치 아이와"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.totalElements").value(1))
+                .andExpect(jsonPath("$.data.content[0].presetId").value(categoryPresetId));
+
+        jdbcTemplate.update("insert into tag (name) values (?)", "루프탑 야경 검색태그");
+        Integer searchTagId = jdbcTemplate.queryForObject("select max(tag_id) from tag", Integer.class);
+        jdbcTemplate.update(
+                "insert into preset_tag (preset_id, tag_id, display_order) values (?, ?, ?)",
+                presetId,
+                searchTagId,
+                2
+        );
+        mockMvc.perform(get("/api/presets").param("keyword", "루프탑야경"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.totalElements").value(1))
+                .andExpect(jsonPath("$.data.content[0].presetId").value(presetId));
+
+        mockMvc.perform(get("/api/presets").param("keyword", "#루프탑야경"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.totalElements").value(1))
+                .andExpect(jsonPath("$.data.content[0].presetId").value(presetId));
+    }
+
+    @Test
     @DisplayName("상세 조회는 조회 수를 원자적으로 증가시키고 음식점을 반환한다")
     void getsPresetDetail() throws Exception {
         mockMvc.perform(get("/api/presets/{presetId}", presetId))
@@ -485,7 +523,7 @@ class PresetControllerIntegrationTest {
     void servesPressetPages() throws Exception {
         mockMvc.perform(get("/pages/presset/index.html"))
                 .andExpect(status().isOk())
-                .andExpect(content().string(containsString("/pages/presset/register.html")))
+                .andExpect(content().string(containsString("/presset/register")))
                 .andExpect(content().string(not(containsString("preset-create-form"))))
                 .andExpect(content().string(containsString("preset-list")));
         mockMvc.perform(get("/pages/presset/register.html"))

@@ -144,9 +144,11 @@
   });
 
   function activity(label, count, tab) {
+    const normalizedCount = Math.max(0, Number(count) || 0);
+    const formattedCount = new Intl.NumberFormat("ko-KR").format(normalizedCount);
     const card = element("a", "activity-card");
     card.href = detailPath(tab);
-    card.setAttribute("aria-label", `${label} ${count || 0}개 상세 보기`);
+    card.setAttribute("aria-label", `${label} ${formattedCount}개 목록 보기`);
 
     const icon = element("span", "activity-card-icon");
     const materialIcon = element("span", "material-symbols-rounded", activityIcons[tab]);
@@ -156,13 +158,13 @@
     const copy = element("span", "activity-card-content");
     copy.append(
       element("span", "activity-card-label", label),
-      element("strong", "activity-card-value", new Intl.NumberFormat("ko-KR").format(count || 0)),
+      element("strong", "activity-card-value", `${formattedCount}개`),
     );
 
     card.append(
       icon,
       copy,
-      element("em", "activity-card-link", "상세 보기 →"),
+      element("em", "activity-card-link", "목록 보기 →"),
     );
     return card;
   }
@@ -170,9 +172,9 @@
   function action(label, subcopy, href) {
     const node = href ? element("a", "mypage-action") : element("span", "mypage-action is-disabled");
     if (href) node.href = href;
-    const copy = element("span");
+    const copy = element("span", "mypage-action-copy");
     copy.append(element("strong", "", label), element("small", "", subcopy));
-    node.append(copy, element("span", "", href ? "→" : "준비 중"));
+    node.append(copy, element("span", "mypage-action-state", href ? "→" : "준비 중"));
     return node;
   }
 
@@ -279,12 +281,12 @@
     const activities = element("section", "activity-grid activity-grid--mypage");
     activities.setAttribute("aria-label", "내 활동 요약");
     activities.append(
-      activity("찜한 가게", data.favoriteCount, "favorites"),
-      activity("보물지도 리스트", data.presetCount, "presets"),
+      activity("찜한 맛집", data.favoriteCount, "favorites"),
+      activity("내 보물지도", data.presetCount, "presets"),
       activity("작성한 리뷰", data.reviewCount, "reviews"),
-      activity("작성한 게시글", data.postCount, "posts"),
+      activity("작성한 글", data.postCount, "posts"),
       activity("작성한 댓글", data.commentCount, "comments"),
-      activity("읽지 않은 알림", data.unreadNotificationCount, "notifications"),
+      activity("새 알림", data.unreadNotificationCount, "notifications"),
     );
 
     const layout = element("div", "mypage-layout");
@@ -326,18 +328,18 @@
     const actionHeader = element("div", "mypage-panel-header");
     const actionTitle = element("div");
     actionTitle.append(
-      element("h3", "", "내 활동"),
-      element("p", "", "현재 연결된 화면과 후속 API 상태"),
+      element("h3", "", "내 활동 바로가기"),
+      element("p", "", "활동별 기록을 한곳에서 확인해 보세요."),
     );
     actionHeader.append(actionTitle);
     const actionList = element("div", "mypage-action-list");
     actionList.append(
-      action("찜한 가게", "저장한 맛집 확인", detailPath("favorites")),
-      action("보물지도 리스트", "내가 만든 보물지도 확인·수정", detailPath("presets")),
-      action("내 리뷰", "작성한 리뷰 확인", detailPath("reviews")),
-      action("내 게시글", "작성한 게시글 확인", detailPath("posts")),
-      action("내 댓글", "작성한 댓글 확인", detailPath("comments")),
-      action("읽지 않은 알림", "새 알림 확인", detailPath("notifications")),
+      action("찜한 맛집", "저장해 둔 맛집 모아보기", detailPath("favorites")),
+      action("내 보물지도", "등록한 보물지도 확인·수정", detailPath("presets")),
+      action("작성한 리뷰", "내가 남긴 리뷰 모아보기", detailPath("reviews")),
+      action("작성한 게시글", "커뮤니티 게시글 모아보기", detailPath("posts")),
+      action("작성한 댓글", "커뮤니티 댓글 모아보기", detailPath("comments")),
+      action("알림", "새로 도착한 알림 확인하기", detailPath("notifications")),
     );
     if (data.loginId) {
       actionList.append(

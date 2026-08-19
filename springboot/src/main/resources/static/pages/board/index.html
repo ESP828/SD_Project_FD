@@ -8,14 +8,15 @@
   <link rel="icon" href="/images/favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/css/common.css">
   <link rel="stylesheet" href="/pages/board/board.css">
+  <link rel="stylesheet" href="/css/category-hero.css">
 </head>
 <body>
   <div data-site-header data-active-nav="board"></div>
 
   <main class="board-main">
-    <section class="board-hero">
-      <div class="container board-hero-grid">
-        <div>
+    <section class="board-hero category-hero category-hero--full">
+      <div class="container board-hero-grid category-hero__inner">
+        <div class="category-hero__copy">
           <p class="eyebrow">Food stories</p>
           <h1>함께 나누는<br>맛있는 이야기</h1>
           <a id="hero-write-button" class="button button-primary"
@@ -24,7 +25,9 @@
             새 이야기 쓰기
           </a>
         </div>
-        <img src="/images/characters/review.png" alt="" aria-hidden="true">
+        <div class="category-hero__visual">
+          <img class="category-hero__image" src="/images/characters/review.png" alt="" aria-hidden="true">
+        </div>
       </div>
     </section>
 

@@ -8,14 +8,15 @@
   <link rel="icon" href="/images/favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/css/common.css">
   <link rel="stylesheet" href="/pages/presset/presset.css">
+  <link rel="stylesheet" href="/css/category-hero.css">
 </head>
 <body>
   <div data-site-header data-active-nav="presset"></div>
 
   <main class="preset-main">
-    <section class="preset-hero">
-      <div class="container preset-hero-grid">
-        <div>
+    <section class="preset-hero category-hero category-hero--full">
+      <div class="container preset-hero-grid category-hero__inner">
+        <div class="category-hero__copy">
           <p class="eyebrow">treasuremap collections</p>
           <h1>나의 취향을<br>선택해놓은 맛집</h1>
           <div class="preset-hero-actions">
@@ -27,7 +28,10 @@
             >보물지도 등록</a>
           </div>
         </div>
-        <img src="/images/characters/treasure-map-hero.png" alt="" aria-hidden="true">
+        <div class="category-hero__visual">
+          <img class="category-hero__image" src="/images/characters/treasure-map-hero.png"
+               alt="" aria-hidden="true" decoding="async" fetchpriority="high">
+        </div>
       </div>
     </section>
 
@@ -40,51 +44,73 @@
         </div>
       </div>
 
+      <div id="preset-view-tabs" class="preset-view-tabs" role="tablist" aria-label="보물지도 보기 방식">
+        <button
+          id="preset-view-all"
+          class="preset-view-tab is-active"
+          type="button"
+          role="tab"
+          aria-selected="true"
+          aria-controls="preset-list"
+          data-preset-sort="latest"
+        >전체 보물지도</button>
+        <button
+          id="preset-view-popular"
+          class="preset-view-tab"
+          type="button"
+          role="tab"
+          aria-selected="false"
+          aria-controls="preset-list"
+          data-preset-sort="popular"
+        >인기 보물지도</button>
+        <button
+          id="preset-view-best"
+          class="preset-view-tab"
+          type="button"
+          role="tab"
+          aria-selected="false"
+          aria-controls="preset-list"
+          data-preset-sort="favorite"
+        >베스트 보물지도</button>
+      </div>
+
       <div id="preset-search-panel" class="preset-discovery-panel surface-card">
         <div class="preset-discovery-main">
           <form id="preset-search-form" class="preset-search" role="search">
-            <label class="sr-only" for="preset-keyword">보물지도 검색</label>
-            <div class="preset-search-field">
-              <span class="preset-search-icon" aria-hidden="true">
-                <svg viewBox="0 0 24 24" focusable="false">
-                  <circle cx="11" cy="11" r="6.5"></circle>
-                  <path d="m16 16 4 4"></path>
-                </svg>
-              </span>
+            <label class="preset-search-select">
+              <span class="sr-only">태그 선택</span>
+              <select id="preset-tag-select" aria-label="보물지도 태그 선택">
+                <option value="">전체 태그</option>
+              </select>
+            </label>
+            <label class="preset-search-field">
+              <span class="material-symbols-rounded" aria-hidden="true">search</span>
+              <span class="sr-only">보물지도 제목 또는 태그 검색</span>
               <input
                 id="preset-keyword"
                 type="search"
                 maxlength="100"
-                placeholder="지역, 상황, 키워드로 보물지도 검색"
+                autocomplete="off"
+                placeholder="제목 또는 태그 검색 (예: 성수, 데이트)"
               >
-            </div>
-            <button class="button button-primary preset-search-submit" type="submit">검색</button>
-          </form>
-
-          <div class="preset-toolbar-actions" aria-label="보물지도 보기 옵션">
-            <label class="preset-sort-label" for="preset-sort">
-              <span>정렬</span>
-              <select id="preset-sort">
-                <option value="popular">인기순</option>
+            </label>
+            <label class="preset-search-select">
+              <span class="sr-only">보물지도 정렬</span>
+              <select id="preset-sort-select" aria-label="보물지도 정렬">
                 <option value="latest">최신순</option>
-                <option value="favorite">저장순</option>
+                <option value="popular">인기순</option>
+                <option value="favorite">찜 많은 순</option>
               </select>
             </label>
+            <button class="button button-sm button-navy preset-search-submit" type="submit">검색</button>
             <button
-              id="preset-filter-toggle"
-              class="button button-ghost preset-filter-toggle"
+              id="preset-search-reset"
+              class="button button-sm button-secondary preset-search-reset"
               type="button"
-              aria-controls="preset-filter-panel"
-              aria-expanded="true"
-            >
-              <span aria-hidden="true">☷</span>
-              <span data-filter-toggle-text>상세 조건 접기</span>
-            </button>
-          </div>
-        </div>
+              disabled
+            >초기화</button>
+          </form>
 
-        <div id="preset-filter-panel" class="preset-filter-panel">
-          <div id="preset-filters" class="preset-filters preset-filters--wide" aria-label="상황별 보물지도 필터"></div>
         </div>
       </div>
 

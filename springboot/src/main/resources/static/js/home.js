@@ -2,9 +2,6 @@
   const list = document.querySelector("#home-preset-list");
   if (!list) return;
 
-  const prevButton = document.querySelector("#home-preset-prev");
-  const nextButton = document.querySelector("#home-preset-next");
-
   // 메인 인기 보물지도는 페이지를 오갈 때마다 같은 응답을 다시 기다릴 필요가 없다.
   // 브라우저 탭이 열려 있는 동안만 짧게 보관해 초기 체감 속도를 높이고,
   // 오래된 데이터는 화면을 막지 않은 채 뒤에서 다음 방문용으로 갱신한다.
@@ -41,29 +38,6 @@
     }
   }
 
-  function updateNavVisibility() {
-    if (!prevButton || !nextButton) return;
-    const maxScroll = list.scrollWidth - list.clientWidth;
-    if (maxScroll <= 4) {
-      prevButton.hidden = true;
-      nextButton.hidden = true;
-      return;
-    }
-    prevButton.hidden = list.scrollLeft <= 4;
-    nextButton.hidden = list.scrollLeft >= maxScroll - 4;
-  }
-
-  function scrollByCard(direction) {
-    const card = list.querySelector(".home-preset-card");
-    const step = card ? card.getBoundingClientRect().width + 20 : list.clientWidth;
-    list.scrollBy({ left: direction * step, behavior: "smooth" });
-  }
-
-  prevButton?.addEventListener("click", () => scrollByCard(-1));
-  nextButton?.addEventListener("click", () => scrollByCard(1));
-  list.addEventListener("scroll", updateNavVisibility, { passive: true });
-  window.addEventListener("resize", updateNavVisibility);
-
   function renderCard(preset, rank) {
     const link = document.createElement("a");
     link.className = "home-preset-card";
@@ -79,6 +53,8 @@
       img.src = thumbnail;
       img.alt = "";
       img.loading = "lazy";
+      img.decoding = "async";
+      img.fetchPriority = "low";
       visual.append(img);
     }
     link.append(visual);
@@ -140,31 +116,93 @@
     // 카드 세트를 한 번 더 복제해 이어붙여서, 오른쪽에서 왼쪽으로 끊김 없이 계속 흐르도록 만든다.
     originalCards.forEach((card) => list.append(card.cloneNode(true)));
 
-    if (prevButton) prevButton.hidden = true;
-    if (nextButton) nextButton.hidden = true;
-
-    // 카드 이미지의 네이티브 드래그 제스처가 포인터를 캡처해 pointerleave가 유실되면
-    // 이전 방식(enter/leave 이벤트로 paused 플래그를 토글)은 영영 멈춘 것처럼 보였다.
-    // 매 프레임 :hover/포커스 상태를 직접 계산해 상태가 어긋날 여지를 없앤다.
+    // 이미지 드래그가 포인터 이벤트를 가로채지 않도록 하고 디코딩은 렌더링과 분리한다.
     list.querySelectorAll("img").forEach((img) => {
       img.draggable = false;
+      img.decoding = "async";
     });
 
-    function isPaused() {
-      return list.matches(":hover") || list.contains(document.activeElement);
+    let animationFrame = 0;
+    let isVisible = !("IntersectionObserver" in window);
+    let pointerPaused = false;
+    let focusPaused = false;
+    let lastFrameTime = 0;
+    const frameInterval = 1000 / 30;
+    const pixelsPerMillisecond = 0.036;
+
+    function isUserPaused() {
+      return pointerPaused || focusPaused;
     }
 
-    function step() {
-      if (!isPaused()) {
+    function stopAnimation() {
+      if (animationFrame) window.cancelAnimationFrame(animationFrame);
+      animationFrame = 0;
+      lastFrameTime = 0;
+    }
+
+    function scheduleAnimation() {
+      if (animationFrame || !isVisible || document.hidden || isUserPaused()) return;
+      animationFrame = window.requestAnimationFrame(step);
+    }
+
+    function step(timestamp) {
+      animationFrame = 0;
+      if (!isVisible || document.hidden || isUserPaused()) return;
+      if (!lastFrameTime) lastFrameTime = timestamp;
+      const elapsed = Math.min(timestamp - lastFrameTime, 100);
+      if (elapsed >= frameInterval) {
+        lastFrameTime = timestamp;
         const loopPoint = list.scrollWidth / 2;
-        list.scrollLeft += 0.6;
-        if (list.scrollLeft >= loopPoint) {
-          list.scrollLeft -= loopPoint;
+        if (loopPoint > 0) {
+          list.scrollLeft += elapsed * pixelsPerMillisecond;
+          if (list.scrollLeft >= loopPoint) list.scrollLeft -= loopPoint;
         }
       }
-      window.requestAnimationFrame(step);
+      scheduleAnimation();
     }
-    window.requestAnimationFrame(step);
+
+    const visibilityObserver = "IntersectionObserver" in window
+      ? new IntersectionObserver(([entry]) => {
+        isVisible = Boolean(entry?.isIntersecting);
+        if (isVisible) scheduleAnimation();
+        else stopAnimation();
+      }, { rootMargin: "120px 0px", threshold: 0.01 })
+      : null;
+
+    visibilityObserver?.observe(list);
+    const pauseForPointer = () => {
+      pointerPaused = true;
+      stopAnimation();
+    };
+    const resumeFromPointer = () => {
+      pointerPaused = false;
+      scheduleAnimation();
+    };
+    const pauseForFocus = () => {
+      focusPaused = true;
+      stopAnimation();
+    };
+    const resumeFromFocus = () => {
+      window.requestAnimationFrame(() => {
+        focusPaused = list.contains(document.activeElement);
+        scheduleAnimation();
+      });
+    };
+    const handleDocumentVisibility = () => {
+      if (document.hidden) stopAnimation();
+      else scheduleAnimation();
+    };
+    list.addEventListener("pointerenter", pauseForPointer, { passive: true });
+    list.addEventListener("pointerleave", resumeFromPointer, { passive: true });
+    list.addEventListener("focusin", pauseForFocus);
+    list.addEventListener("focusout", resumeFromFocus);
+    document.addEventListener("visibilitychange", handleDocumentVisibility);
+    window.addEventListener("pagehide", () => {
+      stopAnimation();
+      visibilityObserver?.disconnect();
+      document.removeEventListener("visibilitychange", handleDocumentVisibility);
+    }, { once: true });
+    scheduleAnimation();
   }
 
   function renderPresetPayload(payload) {
@@ -179,7 +217,6 @@
       return;
     }
     presets.forEach((preset, index) => list.append(renderCard(preset, index + 1)));
-    window.requestAnimationFrame(updateNavVisibility);
     startAutoScroll();
   }
 
