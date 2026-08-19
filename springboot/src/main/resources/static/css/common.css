@@ -756,6 +756,12 @@ h4 {
   color: var(--color-muted);
   font-size: 0.86rem;
   line-height: 1.72;
+  scrollbar-width: none;
+}
+
+.footer-dialog-body::-webkit-scrollbar {
+  width: 0;
+  height: 0;
 }
 
 .footer-dialog-body p {
@@ -1154,3 +1160,4 @@ h4 {
     padding-top: 18px;
   }
 }
+

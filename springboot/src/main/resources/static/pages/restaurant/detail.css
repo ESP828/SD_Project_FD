@@ -1377,3 +1377,14 @@ body > [data-site-header] > .site-header {
     width: 100%;
   }
 }
+
+/* 가게 소식 전용 토스트: 보이는 맨 위로 버튼과 겹치지 않도록 필요한 경우에만 위로 띄운다. */
+.store-news-toast.is-scroll-top-offset {
+  bottom: 82px;
+}
+
+@media (max-width: 720px) {
+  .store-news-toast.is-scroll-top-offset {
+    bottom: calc(max(10px, env(safe-area-inset-bottom)) + 134px);
+  }
+}

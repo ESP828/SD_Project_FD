@@ -66,6 +66,17 @@
 
   if (!form) return;
 
+  // 수정 진입 여부는 URL만으로 즉시 알 수 있으므로 상세 API 응답을 기다리지 않고
+  // 첫 렌더 단계에서 수정 화면 문구를 먼저 맞춘다. 실제 게시글 로드 후
+  // markAsEditMode()가 권한과 카테고리를 기준으로 최종 상태를 다시 확정한다.
+  if (postId) {
+    const requestedNewsEdit = writeParams.get("from") === "NEWS";
+    pageTitle.textContent = requestedNewsEdit ? "가게 소식 수정" : "이야기 수정";
+    document.title = `${requestedNewsEdit ? "가게 소식" : "이야기"} 수정 · 푸드덕`;
+    modeBadge.textContent = "수정";
+    submitButton.textContent = "수정 저장";
+  }
+
   let editorEmojiOpen = false;
 
   function closeEditorEmojiPanel() {
