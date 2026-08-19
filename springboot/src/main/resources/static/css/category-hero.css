@@ -42,6 +42,29 @@
   max-width: 260px;
   max-height: 260px;
   object-fit: contain;
+  transform: scale(var(--category-hero-image-scale, 1));
+  transform-origin: center;
+}
+
+/* Normalize the visible character height across PNGs with different transparent padding. */
+.home-hero.category-hero {
+  --category-hero-image-scale: 1.36;
+}
+
+.feature-hero.category-hero {
+  --category-hero-image-scale: 1.01;
+}
+
+.recommendation-hero.category-hero {
+  --category-hero-image-scale: 0.97;
+}
+
+.board-hero.category-hero {
+  --category-hero-image-scale: 0.98;
+}
+
+.preset-hero.category-hero {
+  --category-hero-image-scale: 1.02;
 }
 
 @media (max-width: 760px) {
