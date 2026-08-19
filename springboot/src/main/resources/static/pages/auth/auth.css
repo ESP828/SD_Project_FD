@@ -549,6 +549,12 @@
   border: 0;
   border-radius: 22px;
   box-shadow: var(--shadow-float);
+  overflow: hidden;
+}
+
+.legal-dialog[open] {
+  display: flex;
+  flex-direction: column;
 }
 
 .legal-dialog::backdrop {
@@ -564,7 +570,10 @@
 }
 
 .legal-body {
+  min-height: 0;
+  flex: 1 1 auto;
   overflow-y: auto;
+  overscroll-behavior: contain;
   max-height: calc(100vh - 190px);
   padding: 0 30px;
   color: var(--color-muted);
