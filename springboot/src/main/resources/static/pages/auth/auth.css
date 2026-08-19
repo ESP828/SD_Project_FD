@@ -713,3 +713,36 @@ body:has(.legal-dialog[open]) {
     padding: 34px 25px;
   }
 }
+
+/* signup legal dialog scrollbar hardening */
+#terms-dialog .legal-body,
+#privacy-dialog .legal-body {
+  scrollbar-width: none !important;
+  scrollbar-color: transparent transparent !important;
+  -ms-overflow-style: none;
+}
+
+#terms-dialog .legal-body::-webkit-scrollbar,
+#privacy-dialog .legal-body::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+  background: transparent !important;
+}
+
+#terms-dialog .legal-body::-webkit-scrollbar-track,
+#privacy-dialog .legal-body::-webkit-scrollbar-track,
+#terms-dialog .legal-body::-webkit-scrollbar-thumb,
+#privacy-dialog .legal-body::-webkit-scrollbar-thumb {
+  background: transparent !important;
+  border: 0 !important;
+}
+
+#terms-dialog::-webkit-scrollbar,
+#privacy-dialog::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+  background: transparent !important;
+}
+
