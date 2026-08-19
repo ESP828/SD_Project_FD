@@ -550,6 +550,14 @@
   border-radius: 22px;
   box-shadow: var(--shadow-float);
   overflow: hidden;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.legal-dialog::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
 }
 
 .legal-dialog[open] {
@@ -560,6 +568,11 @@
 .legal-dialog::backdrop {
   background: rgba(9, 23, 41, 0.55);
   backdrop-filter: blur(4px);
+}
+
+html:has(.legal-dialog[open]),
+body:has(.legal-dialog[open]) {
+  overflow: hidden;
 }
 
 .legal-dialog h2 {
@@ -580,9 +593,11 @@
   font-size: 0.84rem;
   line-height: 1.6;
   scrollbar-width: none;
+  -ms-overflow-style: none;
 }
 
 .legal-body::-webkit-scrollbar {
+  display: none;
   width: 0;
   height: 0;
 }
