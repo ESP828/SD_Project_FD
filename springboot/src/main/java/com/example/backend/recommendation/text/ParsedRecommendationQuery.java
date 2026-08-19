@@ -8,6 +8,7 @@ import java.util.List;
 public record ParsedRecommendationQuery(
         String originalQuery,
         String locationText,
+        String locationCandidate,
         List<String> normalizedTokens,
         List<String> categoryTokens,
         List<String> purposeTokens,

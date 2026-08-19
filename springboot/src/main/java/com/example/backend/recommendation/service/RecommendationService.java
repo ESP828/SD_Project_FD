@@ -4,6 +4,8 @@ import com.example.backend.auth.domain.entity.Account;
 import com.example.backend.auth.repository.AccountRepository;
 import com.example.backend.global.security.principal.AuthenticatedAccount;
 import com.example.backend.recommendation.ai.DocumentBuilder;
+import com.example.backend.recommendation.integration.kakao.KakaoLocalGeocodingClient;
+import com.example.backend.recommendation.integration.python.PythonEmbeddingClient;
 import com.example.backend.recommendation.dto.request.NaturalLanguageRecommendationRequest;
 import com.example.backend.recommendation.dto.response.NaturalLanguageRecommendationResponse;
 import com.example.backend.recommendation.dto.response.NaturalLanguageRecommendationResponse.RecommendedItemDto;
@@ -18,6 +20,7 @@ import com.example.backend.recommendation.text.RecommendationQueryParser;
 import com.example.backend.restaurant.domain.entity.PublicRestaurant;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -51,6 +54,9 @@ public class RecommendationService {
     private final RecommendationQueryRepository recommendationQueryRepository;
     private final DocumentBuilder documentBuilder;
     private final AccountRepository accountRepository;
+    private final PythonEmbeddingClient pythonEmbeddingClient;
+    private final KakaoLocalGeocodingClient kakaoLocalGeocodingClient;
+    private final String aiModelName;
 
     public RecommendationService(RecommendationQueryParser queryParser,
                                  RecommendationModelStore modelStore,
@@ -58,7 +64,10 @@ public class RecommendationService {
                                  PublicRecommendationQueryRepository publicQueryRepository,
                                  RecommendationQueryRepository recommendationQueryRepository,
                                  DocumentBuilder documentBuilder,
-                                 AccountRepository accountRepository) {
+                                 AccountRepository accountRepository,
+                                 PythonEmbeddingClient pythonEmbeddingClient,
+                                 KakaoLocalGeocodingClient kakaoLocalGeocodingClient,
+                                 @Value("${recommendation.ai.model-name:KURE-v1}") String aiModelName) {
         this.queryParser = queryParser;
         this.modelStore = modelStore;
         this.scoreCalculator = scoreCalculator;
@@ -66,6 +75,48 @@ public class RecommendationService {
         this.recommendationQueryRepository = recommendationQueryRepository;
         this.documentBuilder = documentBuilder;
         this.accountRepository = accountRepository;
+        this.pythonEmbeddingClient = pythonEmbeddingClient;
+        this.kakaoLocalGeocodingClient = kakaoLocalGeocodingClient;
+        this.aiModelName = aiModelName;
+    }
+
+    /**
+     * 지오코딩에 실제로 사용되어 성공한 지명 토큰과 그 좌표.
+     * queriedToken은 이후 categoryBonus 판정용 searchTokens에서 제외하는 데 쓰인다
+     * (프랜차이즈 상호명에 역명이 그대로 들어가는 경우가 많아, 남겨두면 위치 매치가
+     *  음식 종류 매치로 오인되어 AI 의미 점수를 압도하기 때문).
+     */
+    private record LocationResolution(KakaoLocalGeocodingClient.GeocodedPoint point, String queriedToken) {}
+
+    /**
+     * 검색어에서 뽑아낸 지명을 좌표로 변환한다. 고신뢰 지명(locationText)을 먼저 시도하고,
+     * 없으면 저신뢰 후보(locationCandidate)를 시도한다. 실패/미설정 시 빈 Optional을 반환하며
+     * 호출부는 기존 GPS 좌표를 그대로 사용한다(자동 폴백).
+     */
+    private java.util.Optional<LocationResolution> geocodeQueryLocation(
+            ParsedRecommendationQuery parsedQuery
+    ) {
+        if (!kakaoLocalGeocodingClient.isConfigured()) {
+            return java.util.Optional.empty();
+        }
+        try {
+            String locationText = parsedQuery.locationText();
+            if (locationText != null && !locationText.isBlank()) {
+                var byLocationText = kakaoLocalGeocodingClient.geocode(locationText);
+                if (byLocationText.isPresent()) {
+                    return byLocationText.map(point -> new LocationResolution(point, locationText));
+                }
+            }
+            String locationCandidate = parsedQuery.locationCandidate();
+            if (locationCandidate != null && !locationCandidate.isBlank()) {
+                return kakaoLocalGeocodingClient.geocode(locationCandidate)
+                        .map(point -> new LocationResolution(point, locationCandidate));
+            }
+            return java.util.Optional.empty();
+        } catch (Exception e) {
+            log.warn("⚠️ [위치검색] 지오코딩 실패 - GPS 좌표로 폴백합니다. 원인: {}", e.getMessage());
+            return java.util.Optional.empty();
+        }
     }
 
     /**
@@ -75,8 +126,18 @@ public class RecommendationService {
         String expandedQuery = expandQueryString(request.query());
         ParsedRecommendationQuery parsedQuery = queryParser.parse(expandedQuery);
 
+        // 💡 문장 속 지명(예: "신논현")을 우선 좌표로 사용한다. 지오코딩에 실패하면(지명이
+        // 없거나, 카카오 API 오류/미설정) 기존처럼 GPS 좌표로 자동 폴백한다.
         Double centerLat = request.latitude();
         Double centerLng = request.longitude();
+        String consumedLocationToken = null;
+        var geocoded = geocodeQueryLocation(parsedQuery);
+        if (geocoded.isPresent()) {
+            centerLat = geocoded.get().point().latitude();
+            centerLng = geocoded.get().point().longitude();
+            consumedLocationToken = geocoded.get().queriedToken();
+            log.info("✅ [위치검색] 지명 '{}' -> 좌표 지오코딩 사용", geocoded.get().point().matchedName());
+        }
 
         Double minLat = null, maxLat = null, minLng = null, maxLng = null;
         if (centerLat != null && centerLng != null) {
@@ -88,8 +149,36 @@ public class RecommendationService {
         }
 
         List<PublicRestaurant> candidates = publicQueryRepository.findCandidatesInBounds(
-                minLat, maxLat, minLng, maxLng, PageRequest.of(0, 300)
+                minLat, maxLat, minLng, maxLng, centerLat, centerLng, PageRequest.of(0, 300)
         );
+
+        // 💡 AI 임베딩 의미 검색 우선 시도. 위치로 이미 좁혀진 후보 안에서만 조회하고,
+        // Python 서비스가 꺼져있거나 오류가 나면 아래 TF-IDF 계산으로 자동 폴백한다.
+        // 지오코딩에 소비된 지명은 여기서도 제거한다 - 그대로 두면 "신논현역점"처럼 상호에
+        // 지명이 그대로 들어간 매장이 실제 음식 종류와 무관하게 의미 유사도까지 높게 나온다.
+        String aiQueryText = request.query();
+        if (consumedLocationToken != null && !consumedLocationToken.isBlank()) {
+            aiQueryText = aiQueryText.replace(consumedLocationToken, " ")
+                    .replaceAll("\\s+", " ")
+                    .trim();
+            if (aiQueryText.isEmpty()) {
+                aiQueryText = request.query();
+            }
+        }
+        List<Long> candidateIds = candidates.stream()
+                .map(PublicRestaurant::getPublicRestaurantId)
+                .toList();
+        Map<Long, Double> aiScores = null;
+        if (!candidateIds.isEmpty()) {
+            try {
+                aiScores = pythonEmbeddingClient.search(aiQueryText, candidateIds, candidateIds.size());
+                log.info("✅ [AI검색] Python 임베딩 서비스 사용 (candidates={}, query='{}')", candidateIds.size(), aiQueryText);
+            } catch (Exception e) {
+                log.warn("⚠️ [AI검색] Python 임베딩 서비스 호출 실패 - TF-IDF 폴백으로 전환합니다. 원인: {}", e.getMessage());
+                aiScores = null;
+            }
+        }
+        boolean usedAiOverall = aiScores != null && !aiScores.isEmpty();
 
         List<RecommendedItemDto> scoredItems = new ArrayList<>();
 
@@ -108,6 +197,13 @@ public class RecommendationService {
                     searchTokens.addAll(SYNONYM_MAP.get(rawWord));
                 }
             }
+        }
+
+        // 💡 지오코딩에 이미 소비된 지명 토큰은 메뉴/카테고리 정확매치(categoryBonus) 대상에서
+        // 제외한다. 그대로 두면 "버거킹신논현역점"처럼 역명이 그대로 들어간 상호명이 전부
+        // 매치되어, AI가 계산한 실제 음식 관련성 점수를 지명 매치 보너스가 압도하게 된다.
+        if (consumedLocationToken != null) {
+            searchTokens.remove(consumedLocationToken);
         }
 
         for (PublicRestaurant restaurant : candidates) {
@@ -136,11 +232,17 @@ public class RecommendationService {
                 }
             }
 
+            Long restaurantId = restaurant.getPublicRestaurantId();
+            boolean usedAiForItem = aiScores != null && aiScores.containsKey(restaurantId);
+
             String doc = documentBuilder.build(restaurant);
-            double textScore = scoreCalculator.calculateTextSimilarity(new ArrayList<>(searchTokens), doc);
+            double textScore = usedAiForItem
+                    ? aiScores.get(restaurantId)
+                    : scoreCalculator.calculateTextSimilarity(new ArrayList<>(searchTokens), doc);
 
             // 💡 2글자 이상 동의어에만 보너스 점수 부여 (1글자 '전'에 의한 전골 매칭 방지)
-            if (textScore == 0.0) {
+            // AI 임베딩 점수를 사용한 경우에는 하드코딩 동의어 보너스를 얹지 않는다.
+            if (!usedAiForItem && textScore == 0.0) {
                 for (String token : searchTokens) {
                     if (token.length() >= 2 && (doc.contains(token) || name.contains(token))) {
                         textScore += 0.3;
@@ -199,8 +301,12 @@ public class RecommendationService {
         scoredItems.sort((a, b) -> Double.compare(b.score(), a.score()));
         List<RecommendedItemDto> finalItems = scoredItems.stream().limit(request.limit()).toList();
 
+        String modelVersion = usedAiOverall
+                ? "ai-embedding:" + aiModelName
+                : "tfidf-fallback";
+
         return new NaturalLanguageRecommendationResponse(
-                request.query(), null, finalItems, "none", "SUCCESS", false
+                request.query(), null, finalItems, modelVersion, "SUCCESS", !usedAiOverall
         );
     }
 
@@ -265,7 +371,7 @@ public class RecommendationService {
         }
 
         List<PublicRestaurant> candidates = publicQueryRepository.findCandidatesInBounds(
-                minLat, maxLat, minLng, maxLng, PageRequest.of(0, 300)
+                minLat, maxLat, minLng, maxLng, latitude, longitude, PageRequest.of(0, 300)
         );
 
         List<RecommendedItemDto> scoredItems = new ArrayList<>();
@@ -401,12 +507,12 @@ public class RecommendationService {
 
         // 1. 위치 반경 내 식당 조회 (없을 시 전체 300개 Fallback)
         List<PublicRestaurant> candidates = publicQueryRepository.findCandidatesInBounds(
-                minLat, maxLat, minLng, maxLng, PageRequest.of(0, 300)
+                minLat, maxLat, minLng, maxLng, userLat, userLng, PageRequest.of(0, 300)
         );
 
         if (candidates == null || candidates.isEmpty()) {
             candidates = publicQueryRepository.findCandidatesInBounds(
-                    null, null, null, null, PageRequest.of(0, 300)
+                    null, null, null, null, null, null, PageRequest.of(0, 300)
             );
         }
 

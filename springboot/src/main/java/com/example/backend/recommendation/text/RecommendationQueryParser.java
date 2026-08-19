@@ -17,7 +17,7 @@ public class RecommendationQueryParser {
 
     public ParsedRecommendationQuery parse(String query) {
         if (query == null || query.isBlank()) {
-            return new ParsedRecommendationQuery("", "", List.of(), List.of(), List.of(), List.of(), List.of(), false);
+            return new ParsedRecommendationQuery("", "", "", List.of(), List.of(), List.of(), List.of(), List.of(), false);
         }
 
         String trimmed = query.trim();
@@ -31,6 +31,10 @@ public class RecommendationQueryParser {
 
         boolean nearby = false;
         String locationText = "";
+        // 💡 접미사로 확정 짓지 못한 일반 명사 토큰 중 첫 번째를 저신뢰 지명 후보로 보관한다.
+        // (예: "신논현 주변에 있는 라멘집" -> "신논현"은 역/동/구/시로 끝나지 않아 locationText로는 못 잡지만
+        //  문장 맨 앞에 오는 명사이므로 지명일 가능성이 높다. 실제 지명인지는 카카오 API 응답으로 검증한다.)
+        String locationCandidate = "";
 
         for (String rawToken : rawTokens) {
             String token = stripPostposition(rawToken);
@@ -67,12 +71,17 @@ public class RecommendationQueryParser {
                 List<String> syns = rules.getSynonyms().get(token);
                 categoryTokens.addAll(syns);
                 allNormalizedTokens.addAll(syns);
-            } else if (token.endsWith("역") || token.endsWith("동") || token.endsWith("구") || token.endsWith("시")) {
-                locationText = token; // 지역 키워드 감지
+            } else if (token.endsWith("역") || token.endsWith("동") || token.endsWith("구") || token.endsWith("시")
+                    || token.endsWith("로") || token.endsWith("가")) {
+                locationText = token; // 지역 키워드 감지 (고신뢰: 행정/도로명 접미사 포함)
                 allNormalizedTokens.add(token);
             } else {
                 if (token.length() >= 2) {
                     allNormalizedTokens.add(token);
+                    // 접미사로 확정하지 못한 첫 일반 명사를 저신뢰 지명 후보로 보관
+                    if (locationCandidate.isEmpty()) {
+                        locationCandidate = token;
+                    }
                 }
             }
         }
@@ -80,6 +89,7 @@ public class RecommendationQueryParser {
         return new ParsedRecommendationQuery(
                 trimmed,
                 locationText,
+                locationCandidate,
                 allNormalizedTokens.stream().distinct().toList(),
                 categoryTokens.stream().distinct().toList(),
                 purposeTokens.stream().distinct().toList(),
