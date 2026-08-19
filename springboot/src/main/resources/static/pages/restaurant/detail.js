@@ -25,7 +25,7 @@
       if (window.history.length > 1) {
         window.history.back();
       } else {
-        window.location.href = "/search";
+        window.location.href = "/pages/search/index.html";
       }
     });
   }
@@ -89,6 +89,13 @@
     "image/webp",
   ]);
   const NEWS_COMMENT_IMAGE_NAME_PATTERN = /\.(?:jpe?g|png|gif|webp)$/i;
+  const NEWS_EMOJIS = (
+    "😀 😃 😄 😁 😆 😅 🤣 😂 🙂 🙃 🫠 😉 😊 😇 🥰 😍 🤩 😘 😗 ☺️ 😚 😙 🥲 " +
+    "😋 😛 😜 🤪 😝 🤑 🤗 🤭 🫢 🫣 🤫 🤔 🫡 🤐 🤨 😐 😑 😶 🫥 😶‍🌫️ 😏 😒 🙄 😬 " +
+    "😮‍💨 🤥 🫨 🙂‍↔️ 🙂‍↕️ 😌 😔 😪 🤤 😴 🫩 😷 🤒 🤕 🤢 🤮 🤧 🥵 🥶 🥴 😵 😵‍💫 🤯 " +
+    "🤠 🥳 🥸 😎 🤓 🧐 😕 🫤 😟 🙁 ☹️ 😮 😯 😲 😳 🥺 🥹 😦 😧 😨 😰 😥 😢 😭 😱 " +
+    "😖 😣 😞 😓 😩 😫 🥱 😤 😡 😠 🤬 😈 👿"
+  ).split(" ");
   const NEWS_MAX_MEDIA_COUNT = 10;
   const NEWS_MAX_IMAGE_BYTES = 20 * 1024 * 1024;
   const NEWS_MAX_VIDEO_BYTES = 100 * 1024 * 1024;
@@ -865,6 +872,136 @@
     return node;
   }
 
+  let activeNewsEmojiPicker = null;
+  let newsEmojiGlyphsPrewarmed = false;
+
+  function closeNewsEmojiPicker(picker = activeNewsEmojiPicker) {
+    if (!picker) return;
+    if (picker.panel?.isConnected) picker.panel.hidden = true;
+    if (picker.toggle?.isConnected) picker.toggle.setAttribute("aria-expanded", "false");
+    if (activeNewsEmojiPicker === picker) activeNewsEmojiPicker = null;
+  }
+
+  function closeNewsEmojiPickerInside(scope) {
+    if (!scope || !activeNewsEmojiPicker?.panel) return;
+    if (scope.contains(activeNewsEmojiPicker.panel)) closeNewsEmojiPicker(activeNewsEmojiPicker);
+  }
+
+  function openNewsEmojiPicker(picker) {
+    if (!picker?.panel || !picker?.toggle) return;
+    if (activeNewsEmojiPicker && activeNewsEmojiPicker !== picker) {
+      closeNewsEmojiPicker(activeNewsEmojiPicker);
+    }
+    picker.panel.hidden = false;
+    picker.toggle.setAttribute("aria-expanded", "true");
+    activeNewsEmojiPicker = picker;
+  }
+
+  function insertNewsEmoji(textarea, emoji) {
+    if (!(textarea instanceof HTMLTextAreaElement) || !emoji) return false;
+    const value = textarea.value || "";
+    const start = Number.isInteger(textarea.selectionStart) ? textarea.selectionStart : value.length;
+    const end = Number.isInteger(textarea.selectionEnd) ? textarea.selectionEnd : start;
+    const nextValue = `${value.slice(0, start)}${emoji}${value.slice(end)}`;
+
+    if (textarea.maxLength > 0 && nextValue.length > textarea.maxLength) {
+      const label = textarea.id === "store-news-content" ? "소식 내용" : "댓글";
+      showNewsCommentToast(`${label}은 최대 ${textarea.maxLength}자까지 입력할 수 있습니다.`, true);
+      return false;
+    }
+
+    textarea.value = nextValue;
+    const nextCaret = start + emoji.length;
+    textarea.focus({ preventScroll: true });
+    textarea.setSelectionRange(nextCaret, nextCaret);
+    textarea.dispatchEvent(new Event("input", { bubbles: true }));
+    return true;
+  }
+
+  function prewarmNewsEmojiPicker(panel) {
+    if (!panel) return;
+
+    const warm = () => {
+      if (!panel.isConnected) return;
+      try {
+        if (!newsEmojiGlyphsPrewarmed) {
+          const canvas = document.createElement("canvas");
+          canvas.width = 512;
+          canvas.height = 256;
+          const context = canvas.getContext("2d");
+          if (context) {
+            context.font =
+              '20px "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", sans-serif';
+            NEWS_EMOJIS.forEach((emoji, index) => {
+              const x = (index % 16) * 32;
+              const y = Math.floor(index / 16) * 32 + 24;
+              context.fillText(emoji, x, y);
+            });
+          }
+          newsEmojiGlyphsPrewarmed = true;
+        }
+
+        const wasHidden = panel.hidden;
+        const previousVisibility = panel.style.visibility;
+        const previousPointerEvents = panel.style.pointerEvents;
+        panel.style.visibility = "hidden";
+        panel.style.pointerEvents = "none";
+        panel.hidden = false;
+        void panel.offsetHeight;
+        panel.hidden = wasHidden;
+        panel.style.visibility = previousVisibility;
+        panel.style.pointerEvents = previousPointerEvents;
+      } catch (_error) {
+        // prewarm 실패는 이모지 입력 기능 자체에 영향을 주지 않는다.
+      }
+    };
+
+    const schedule = () => {
+      if ("requestIdleCallback" in window) {
+        window.requestIdleCallback(warm, { timeout: 350 });
+      } else {
+        window.setTimeout(warm, 50);
+      }
+    };
+    window.requestAnimationFrame(schedule);
+  }
+
+  function setupNewsEmojiPicker(textarea, toggle, panel) {
+    if (!(textarea instanceof HTMLTextAreaElement) || !toggle || !panel) return null;
+
+    const grid = newsCommentElement("div", "comment-emoji-grid");
+    NEWS_EMOJIS.forEach((emoji) => {
+      const button = newsCommentElement("button", "comment-emoji-option", emoji);
+      button.type = "button";
+      button.setAttribute("aria-label", `${emoji} 이모지 입력`);
+      button.addEventListener("click", () => insertNewsEmoji(textarea, emoji));
+      grid.append(button);
+    });
+
+    panel.replaceChildren(
+      newsCommentElement("strong", "comment-emoji-panel-title", "이모지"),
+      grid,
+    );
+
+    const picker = { textarea, toggle, panel };
+    toggle.addEventListener("click", (event) => {
+      event.stopPropagation();
+      if (panel.hidden) openNewsEmojiPicker(picker);
+      else closeNewsEmojiPicker(picker);
+    });
+    panel.addEventListener("click", (event) => event.stopPropagation());
+    prewarmNewsEmojiPicker(panel);
+    return picker;
+  }
+
+  document.addEventListener("click", () => closeNewsEmojiPicker());
+  document.addEventListener("keydown", (event) => {
+    if (event.key !== "Escape" || !activeNewsEmojiPicker) return;
+    const toggle = activeNewsEmojiPicker.toggle;
+    closeNewsEmojiPicker();
+    toggle?.focus?.({ preventScroll: true });
+  });
+
   function syncNewsCommentToggle(postId) {
     const state = newsCommentStates.get(String(postId));
     const button = panels.news.querySelector(`[data-news-comments-toggle="${CSS.escape(String(postId))}"]`);
@@ -1243,7 +1380,18 @@
     fileInput.accept = ".jpg,.jpeg,.png,.gif,.webp,image/jpeg,image/png,image/gif,image/webp";
     const imageButton = newsCommentElement("button", "comment-image-select", "사진 첨부");
     imageButton.type = "button";
-    tools.append(fileInput, imageButton, newsCommentElement("span", "", "사진 1장 · 최대 5MB"));
+    const emojiButton = newsCommentElement("button", "comment-emoji-toggle", "😀 이모지");
+    emojiButton.type = "button";
+    const emojiPanel = newsCommentElement("div", "comment-emoji-panel");
+    emojiPanel.hidden = true;
+    emojiPanel.setAttribute("role", "group");
+    emojiPanel.setAttribute("aria-label", "이모지 선택");
+    const emojiPanelId = `store-news-reply-emoji-${comment.commentId}`;
+    emojiPanel.id = emojiPanelId;
+    emojiButton.setAttribute("aria-controls", emojiPanelId);
+    emojiButton.setAttribute("aria-expanded", "false");
+    tools.append(fileInput, imageButton, emojiButton, newsCommentElement("span", "", "사진 1장 · 최대 5MB"));
+    setupNewsEmojiPicker(textarea, emojiButton, emojiPanel);
 
     const preview = newsCommentElement("div", "comment-image-preview");
     preview.hidden = true;
@@ -1319,6 +1467,7 @@
     cancel.addEventListener("click", () => {
       if (!confirmNewsInlineCommentDraftDiscard(form, "작성 중인 답글을 버리시겠습니까?")) return;
       clearImage();
+      closeNewsEmojiPickerInside(form);
       form.remove();
     });
     form.addEventListener("submit", async (event) => {
@@ -1335,6 +1484,8 @@
       submit.disabled = true;
       textarea.disabled = true;
       imageButton.disabled = true;
+      emojiButton.disabled = true;
+      closeNewsEmojiPicker();
       try {
         const payload = await Api.post(`/board/posts/${encodeURIComponent(postId)}/comments`, {
           content: textarea.value.trim(),
@@ -1371,12 +1522,13 @@
         textarea.disabled = false;
         submit.disabled = false;
         imageButton.disabled = false;
+        emojiButton.disabled = false;
         const status = panel.querySelector("[data-news-comment-status]");
         if (status) status.textContent = error.message || "답글 등록에 실패했습니다.";
       }
     });
 
-    form.append(target, textarea, inputMeta, tools, preview, row);
+    form.append(target, textarea, inputMeta, tools, emojiPanel, preview, row);
     mountTarget.append(form);
     textarea.focus();
     textarea.setSelectionRange(textarea.value.length, textarea.value.length);
@@ -1389,6 +1541,7 @@
     const actions = item?.querySelector(":scope > .comment-actions");
     if (content) content.hidden = false;
     if (actions) actions.hidden = false;
+    closeNewsEmojiPickerInside(form);
     form.remove();
   }
 
@@ -1455,13 +1608,27 @@
     inputMeta.append(characterCount);
     updateNewsCommentCharacterCount(textarea, characterCount);
 
+    const emojiTools = newsCommentElement("div", "comment-image-tools comment-edit-emoji-tools");
+    const emojiButton = newsCommentElement("button", "comment-emoji-toggle", "😀 이모지");
+    emojiButton.type = "button";
+    const emojiPanel = newsCommentElement("div", "comment-emoji-panel");
+    emojiPanel.hidden = true;
+    emojiPanel.setAttribute("role", "group");
+    emojiPanel.setAttribute("aria-label", "이모지 선택");
+    const emojiPanelId = `store-news-edit-emoji-${commentId}`;
+    emojiPanel.id = emojiPanelId;
+    emojiButton.setAttribute("aria-controls", emojiPanelId);
+    emojiButton.setAttribute("aria-expanded", "false");
+    emojiTools.append(emojiButton);
+    setupNewsEmojiPicker(textarea, emojiButton, emojiPanel);
+
     const actions = newsCommentElement("div", "comment-edit-actions");
     const cancel = newsCommentElement("button", "button button-sm button-secondary", "취소");
     cancel.type = "button";
     const save = newsCommentElement("button", "button button-sm button-primary", "수정 완료");
     save.type = "submit";
     actions.append(cancel, save);
-    form.append(textarea, inputMeta, actions);
+    form.append(textarea, inputMeta, emojiTools, emojiPanel, actions);
 
     const sync = () => {
       const content = textarea.value.trim();
@@ -1510,6 +1677,8 @@
       save.disabled = true;
       cancel.disabled = true;
       textarea.disabled = true;
+      emojiButton.disabled = true;
+      closeNewsEmojiPicker();
       try {
         const payload = await Api.put(`/board/comments/${encodeURIComponent(commentId)}`, { content });
         window.FooduckBoard?.invalidateBoardCache?.();
@@ -1528,6 +1697,7 @@
         showNewsCommentToast(error.message || "댓글 수정에 실패했습니다.", true);
         cancel.disabled = false;
         textarea.disabled = false;
+        emojiButton.disabled = false;
       } finally {
         newsCommentEditInFlight.delete(commentId);
         if (form.isConnected) sync();
@@ -1763,7 +1933,18 @@
     fileInput.accept = ".jpg,.jpeg,.png,.gif,.webp,image/jpeg,image/png,image/gif,image/webp";
     const imageButton = newsCommentElement("button", "comment-image-select", "사진 첨부");
     imageButton.type = "button";
-    tools.append(fileInput, imageButton, newsCommentElement("span", "", "사진 1장 · 최대 5MB"));
+    const emojiButton = newsCommentElement("button", "comment-emoji-toggle", "😀 이모지");
+    emojiButton.type = "button";
+    const emojiPanel = newsCommentElement("div", "comment-emoji-panel");
+    emojiPanel.hidden = true;
+    emojiPanel.setAttribute("role", "group");
+    emojiPanel.setAttribute("aria-label", "이모지 선택");
+    const emojiPanelId = `store-news-comment-emoji-${postId}`;
+    emojiPanel.id = emojiPanelId;
+    emojiButton.setAttribute("aria-controls", emojiPanelId);
+    emojiButton.setAttribute("aria-expanded", "false");
+    tools.append(fileInput, imageButton, emojiButton, newsCommentElement("span", "", "사진 1장 · 최대 5MB"));
+    setupNewsEmojiPicker(textarea, emojiButton, emojiPanel);
 
     const preview = newsCommentElement("div", "comment-image-preview");
     preview.hidden = true;
@@ -1863,6 +2044,8 @@
       textarea.disabled = true;
       submit.disabled = true;
       imageButton.disabled = true;
+      emojiButton.disabled = true;
+      closeNewsEmojiPicker();
       try {
         const payload = await Api.post(`/board/posts/${encodeURIComponent(postId)}/comments`, { content: value });
         const createdCommentId = payload.data?.commentId;
@@ -1901,13 +2084,14 @@
         textarea.disabled = false;
         submit.disabled = false;
         imageButton.disabled = false;
+        emojiButton.disabled = false;
         const panel = form.closest("[data-news-comments-post-id]");
         const status = panel?.querySelector("[data-news-comment-status]");
         if (status) status.textContent = error.message || "댓글 등록에 실패했습니다.";
       }
     });
 
-    form.append(heading, label, textarea, inputMeta, tools, preview, submitRow);
+    form.append(heading, label, textarea, inputMeta, tools, emojiPanel, preview, submitRow);
     return form;
   }
 
@@ -2170,6 +2354,21 @@
         <input type="text" id="store-news-title" maxlength="200" placeholder="제목">
         <label class="store-news-field-label" for="store-news-content">내용 <span id="store-news-content-count">0/10000</span></label>
         <textarea id="store-news-content" maxlength="10000" placeholder="소식 내용을 입력하세요"></textarea>
+        <div class="board-write-content-tools">
+          <button type="button" id="store-news-emoji-toggle"
+                  class="comment-emoji-toggle board-write-emoji-toggle"
+                  aria-label="소식 내용에 이모지 추가"
+                  aria-expanded="false"
+                  aria-controls="store-news-emoji-panel">
+            <span class="board-write-action-emoji" aria-hidden="true">😀</span>
+            <span>이모지 추가</span>
+          </button>
+        </div>
+        <div id="store-news-emoji-panel"
+             class="comment-emoji-panel board-write-emoji-panel"
+             role="group"
+             aria-label="이모지 선택"
+             hidden></div>
         <div class="store-news-attachment">
           <div class="store-news-attachment__head">
             <div>
@@ -2218,9 +2417,12 @@
     const selectButton = document.getElementById("store-news-media-select");
     const mediaInput = document.getElementById("store-news-media-input");
     const submitButton = document.getElementById("store-news-submit");
+    const emojiButton = document.getElementById("store-news-emoji-toggle");
     if (selectButton) selectButton.disabled = busy;
     if (mediaInput) mediaInput.disabled = busy;
     if (submitButton) submitButton.disabled = busy;
+    if (emojiButton) emojiButton.disabled = busy || newsCreatedPostId != null;
+    if (busy || newsCreatedPostId != null) closeNewsEmojiPicker();
     form?.querySelectorAll('input[type="text"], textarea').forEach((field) => {
       field.disabled = busy || newsCreatedPostId != null;
     });
@@ -2413,6 +2615,9 @@
     const contentInput = document.getElementById("store-news-content");
     const titleCount = document.getElementById("store-news-title-count");
     const contentCount = document.getElementById("store-news-content-count");
+    const emojiToggle = document.getElementById("store-news-emoji-toggle");
+    const emojiPanel = document.getElementById("store-news-emoji-panel");
+    setupNewsEmojiPicker(contentInput, emojiToggle, emojiPanel);
     const updateCounts = () => {
       if (titleCount) titleCount.textContent = `${titleInput?.value.length || 0}/200`;
       if (contentCount) contentCount.textContent = `${contentInput?.value.length || 0}/10000`;
@@ -2427,6 +2632,7 @@
         form.hidden = !willOpen;
         toggleButton.setAttribute("aria-expanded", String(willOpen));
         toggleButton.textContent = willOpen ? "닫기" : "글쓰기";
+        if (!willOpen) closeNewsEmojiPicker();
         if (willOpen) titleInput?.focus();
       });
     }
