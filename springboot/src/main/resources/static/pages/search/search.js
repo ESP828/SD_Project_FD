@@ -165,12 +165,12 @@
     const restaurantName = isRecommendation ? item.restaurantName : item.name;
     const detailLink = document.createElement("a");
     detailLink.className = "button button-primary";
-    detailLink.href = `/pages/restaurant/detail.html?source=${sourceType}&id=${sourceId}`;
+    detailLink.href = `/restaurant/detail?source=${sourceType}&id=${sourceId}`;
     detailLink.textContent = "상세보기";
 
     const mapLink = document.createElement("a");
     mapLink.className = "button button-secondary";
-    mapLink.href = `/pages/map/index.html?q=${encodeURIComponent(restaurantName)}`;
+    mapLink.href = `/map?q=${encodeURIComponent(restaurantName)}`;
     mapLink.textContent = "지도에서 찾기";
 
     actions.append(detailLink, mapLink);
@@ -399,7 +399,7 @@ function updateUrlState(page = 0) {
 
       if (!isAuthenticated) {
         if (confirm("AI 추천 검색 기능은 로그인 후 이용하실 수 있습니다.\n로그인 페이지로 이동하시겠습니까?")) {
-          window.location.href = "/pages/auth/login.html";
+          window.location.href = "/auth/login";
         }
         return;
       }

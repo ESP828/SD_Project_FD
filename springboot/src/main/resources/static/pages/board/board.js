@@ -150,7 +150,7 @@
     }
 
     const query = params.toString();
-    return `/pages/board/index.html${query ? `?${query}` : ""}`;
+    return `/board${query ? `?${query}` : ""}`;
   }
 
   function writeHrefFromCurrentList(boardType = state.lastBoardType) {
@@ -175,7 +175,7 @@
     const params = new URLSearchParams({ postId: String(postId) });
     if (sourceView) params.set("from", sourceView);
     params.set("returnTo", listUrlFromState());
-    return `/pages/board/detail.html?${params.toString()}`;
+    return `/board/detail?${params.toString()}`;
   }
 
   function ensureBoardAuthPopupController() {
@@ -207,7 +207,7 @@
   function initializeBoardAuthEntryPoints() {
     document.addEventListener("click", (event) => {
       const loginLink = event.target.closest(
-        '.site-header a.header-auth-button[href^="/pages/auth/login.html"]',
+        '.site-header a.header-auth-button[href^="/auth/login"]',
       );
       if (!loginLink || session.authenticated) return;
       event.preventDefault();

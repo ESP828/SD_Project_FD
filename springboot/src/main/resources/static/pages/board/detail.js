@@ -173,7 +173,7 @@
     try {
       const url = new URL(value, window.location.origin);
       if (url.origin !== window.location.origin) return null;
-      if (url.pathname !== "/pages/board/index.html") return null;
+      if (url.pathname !== "/board") return null;
       return `${url.pathname}${url.search}`;
     } catch (_error) {
       return null;
@@ -184,8 +184,8 @@
 
   function communityReturnPath(post = state.post) {
     if (listReturnPath) return listReturnPath;
-    if (fromBest) return "/pages/board/index.html?boardType=BEST";
-    if (fromPopular) return "/pages/board/index.html?boardType=POPULAR";
+    if (fromBest) return "/board?boardType=BEST";
+    if (fromPopular) return "/board?boardType=POPULAR";
     return board.listPath(post?.boardType);
   }
 
@@ -198,7 +198,7 @@
     } else if (fromPopular) {
       params.set("from", "POPULAR");
     }
-    return `/pages/board/detail.html?${params.toString()}`;
+    return `/board/detail?${params.toString()}`;
   }
 
   function isCommentSubmitEnter(event) {
@@ -303,7 +303,7 @@
       tab: "news",
       newsPage: String(requestedNewsPage),
     });
-    return `/pages/restaurant/detail.html?${params.toString()}`;
+    return `/restaurant/detail?${params.toString()}`;
   }
 
   function restaurantInfoPath(post) {
@@ -314,7 +314,7 @@
       id: String(target.id),
       tab: "info",
     });
-    return `/pages/restaurant/detail.html?${params.toString()}`;
+    return `/restaurant/detail?${params.toString()}`;
   }
 
   function newsRestaurantApiPath(post) {
@@ -494,7 +494,7 @@
       from: "NEWS",
       newsPage: String(requestedNewsPage),
     });
-    return `/pages/board/write.html?${params.toString()}`;
+    return `/board/write?${params.toString()}`;
   }
 
   function newsDeletePath(post) {
@@ -643,7 +643,7 @@
   function initializeDetailLoginEntryPoints() {
     document.addEventListener("click", (event) => {
       const link = event.target.closest(
-        '.site-header a.header-auth-button[href^="/pages/auth/login.html"]',
+        '.site-header a.header-auth-button[href^="/auth/login"]',
       );
       if (!link || session.authenticated) return;
       event.preventDefault();
@@ -733,7 +733,7 @@
       // 상세 화면의 로그인 링크는 팝업만 열고 현재 페이지를 떠나지 않는다.
       if (
         !session.authenticated &&
-        link.matches('.site-header a.header-auth-button[href^="/pages/auth/login.html"]')
+        link.matches('.site-header a.header-auth-button[href^="/auth/login"]')
       ) {
         return;
       }
@@ -1753,7 +1753,7 @@
       element("span", "", message || "게시글 주소를 다시 확인해 주세요."),
     );
     const link = element("a", "button button-sm button-secondary", "커뮤니티 목록");
-    link.href = listReturnPath || "/pages/board/index.html";
+    link.href = listReturnPath || "/board";
     wrapper.append(link);
     detailContent.append(wrapper);
   }

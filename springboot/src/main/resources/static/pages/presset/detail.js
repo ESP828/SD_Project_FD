@@ -58,13 +58,13 @@
     const query = new URLSearchParams({ presetId: requestedId });
     if (restaurantId) query.set("restaurantId", restaurantId);
     if (editable) query.set("edit", "1");
-    return `/pages/map/index.html?${query.toString()}`;
+    return `/map?${query.toString()}`;
   }
 
   function requireLogin() {
     if (window.FooduckSession?.authenticated) return true;
     const next = `${location.pathname}${location.search}`;
-    location.assign(`/pages/auth/login.html?next=${encodeURIComponent(next)}`);
+    location.assign(`/auth/login?next=${encodeURIComponent(next)}`);
     return false;
   }
 
@@ -368,7 +368,7 @@
     content.setAttribute("aria-busy", "false");
     const state = element("div", "preset-state preset-state--surface surface-card");
     const back = element("a", "button button-secondary", "목록으로 돌아가기");
-    back.href = "/pages/presset/index.html";
+    back.href = "/presset";
     state.append(element("h2", "", "보물지도를 표시할 수 없습니다."), element("p", "", message), back);
     content.append(state);
   }

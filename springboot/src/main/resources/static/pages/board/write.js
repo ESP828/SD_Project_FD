@@ -152,7 +152,7 @@
     try {
       const url = new URL(value, window.location.origin);
       if (url.origin !== window.location.origin) return null;
-      if (url.pathname !== "/pages/board/index.html") return null;
+      if (url.pathname !== "/board") return null;
       return `${url.pathname}${url.search}`;
     } catch (_error) {
       return null;
@@ -328,7 +328,7 @@
       from: "NEWS",
       newsPage: String(requestedNewsPage),
     });
-    return `/pages/board/detail.html?${params.toString()}`;
+    return `/board/detail?${params.toString()}`;
   }
 
   function newsWritePath(targetPostId) {
@@ -337,7 +337,7 @@
       from: "NEWS",
       newsPage: String(requestedNewsPage),
     });
-    return `/pages/board/write.html?${params.toString()}`;
+    return `/board/write?${params.toString()}`;
   }
 
   function restaurantNewsPath(post) {
@@ -349,7 +349,7 @@
       tab: "news",
       newsPage: String(requestedNewsPage),
     });
-    return `/pages/restaurant/detail.html?${params.toString()}`;
+    return `/restaurant/detail?${params.toString()}`;
   }
 
   function newsUpdatePath(post) {

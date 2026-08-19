@@ -55,7 +55,11 @@ public class SecurityConfig {
                                 "/css/**", "/js/**", "/images/**", "/icons/**", "/pages/**",
                                 "/uploads/preset-images/**",
                                 "/error", "/error/**",
-                                "/favicon.ico", "/favicon.svg"
+                                "/favicon.ico", "/favicon.svg",
+                                // 정적 페이지의 깨끗한 URL(포워드 전용, /pages/**와 동일한 신뢰 경계).
+                                // 실제 접근 제어는 /api/** 쪽(예: /api/admin/**)에서 이루어진다.
+                                "/admin/**", "/auth/**", "/board/**", "/business/**", "/map",
+                                "/mypage/**", "/presset/**", "/recommendation", "/restaurant/**", "/search"
                         ).permitAll()
                         .requestMatchers("/api/auth/**", "/api/public/**", "/api/hello").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/presets", "/api/presets/**").permitAll()

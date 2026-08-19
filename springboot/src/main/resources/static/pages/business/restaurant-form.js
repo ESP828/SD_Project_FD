@@ -97,7 +97,7 @@
         ? await Api.put(`/business/restaurants/${restaurantId}`, payload())
         : await Api.post("/business/restaurants", payload());
       setStatus(result.message || "저장되었습니다.");
-      window.location.assign("/pages/business/detail.html?tab=restaurants");
+      window.location.assign("/business/detail?tab=restaurants");
     } catch (error) {
       setStatus(error.message || "음식점 정보를 저장하지 못했습니다.", true);
       submitButton.disabled = false;
@@ -111,7 +111,7 @@
       showGate(
         "로그인이 필요합니다",
         "사업자 음식점 관리는 로그인한 계정만 이용할 수 있습니다.",
-        `/pages/auth/login.html?next=${encodeURIComponent(next)}`,
+        `/auth/login?next=${encodeURIComponent(next)}`,
         "로그인",
       );
       return;
@@ -120,7 +120,7 @@
       showGate(
         "사업자 권한이 필요합니다",
         "사업자 페이지에서 권한 신청과 승인 상태를 확인해 주세요.",
-        "/pages/business/index.html",
+        "/business",
         "사업자 페이지",
       );
       return;

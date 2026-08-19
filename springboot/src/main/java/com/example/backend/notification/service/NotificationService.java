@@ -77,7 +77,7 @@ public class NotificationService {
                 normalizeNickname(commenterNickname) + "님이 회원님의 게시글에 댓글을 남겼습니다.",
                 "POST",
                 postId,
-                "/pages/board/detail.html?postId=" + postId
+                "/board/detail?postId=" + postId
         );
     }
 
@@ -102,7 +102,7 @@ public class NotificationService {
                 content,
                 "POST",
                 postId,
-                "/pages/board/detail.html?postId=" + postId
+                "/board/detail?postId=" + postId
         );
     }
 
@@ -114,7 +114,7 @@ public class NotificationService {
                 "사업자 권한 신청이 승인되었습니다. 새 권한은 다시 로그인하면 반영됩니다.",
                 "BUSINESS_APPLICATION",
                 applicationId,
-                "/pages/business/index.html"
+                "/business"
         );
     }
 
@@ -126,7 +126,7 @@ public class NotificationService {
                 "사업자 권한 신청이 반려되었습니다. 사업자 페이지에서 사유를 확인해 주세요.",
                 "BUSINESS_APPLICATION",
                 applicationId,
-                "/pages/business/index.html"
+                "/business"
         );
     }
 

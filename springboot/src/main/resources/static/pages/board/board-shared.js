@@ -555,7 +555,7 @@
       const item = element("li", "author-menu-recent-item");
       const link = element("a", "author-menu-recent-link");
       const source = review.restaurantSource === "public" ? "public" : "owned";
-      link.href = `/pages/restaurant/detail.html?source=${source}&id=${encodeURIComponent(review.storeId)}&tab=review`;
+      link.href = `/restaurant/detail?source=${source}&id=${encodeURIComponent(review.storeId)}&tab=review`;
       link.append(
         element("span", "author-menu-recent-post-title", review.restaurantName || "가게 정보 없음"),
         element(
@@ -589,12 +589,12 @@
     const publicRestaurantId = Number(favorite?.publicRestaurantId);
 
     if ((source === "PUBLIC" || restaurantId <= 0) && publicRestaurantId > 0) {
-      return `/pages/restaurant/detail.html?source=public&id=${encodeURIComponent(publicRestaurantId)}`;
+      return `/restaurant/detail?source=public&id=${encodeURIComponent(publicRestaurantId)}`;
     }
     if (restaurantId > 0) {
-      return `/pages/restaurant/detail.html?source=owned&id=${encodeURIComponent(restaurantId)}`;
+      return `/restaurant/detail?source=owned&id=${encodeURIComponent(restaurantId)}`;
     }
-    return `/pages/search/index.html?q=${encodeURIComponent(favorite?.restaurantName || "")}`;
+    return `/search?q=${encodeURIComponent(favorite?.restaurantName || "")}`;
   }
 
   function authorMenuFavoriteLoadingSection() {
@@ -1188,7 +1188,7 @@
     const footer = element("div", "author-menu-footer");
     if (isCurrentUser) {
       const myPageLink = element("a", "author-menu-link", "마이페이지");
-      myPageLink.href = "/pages/mypage/index.html#notifications";
+      myPageLink.href = "/mypage#notifications";
       footer.append(myPageLink);
     } else {
       const disabledLink = element(
@@ -1390,7 +1390,7 @@
   }
 
   function detailPath(postId) {
-    return `/pages/board/detail.html?postId=${encodeURIComponent(postId)}`;
+    return `/board/detail?postId=${encodeURIComponent(postId)}`;
   }
 
   function writePath(boardType = "GENERAL", postId = null) {
@@ -1400,17 +1400,17 @@
     } else {
       params.set("boardType", boardType === "BUSINESS" ? "BUSINESS" : "GENERAL");
     }
-    return `/pages/board/write.html?${params.toString()}`;
+    return `/board/write?${params.toString()}`;
   }
 
   function listPath(boardType = "GENERAL") {
     return boardType === "BUSINESS"
-      ? "/pages/board/index.html?boardType=BUSINESS"
-      : "/pages/board/index.html";
+      ? "/board?boardType=BUSINESS"
+      : "/board";
   }
 
   function loginPath(nextPath = window.location.pathname + window.location.search) {
-    return `/pages/auth/login.html?next=${encodeURIComponent(nextPath)}`;
+    return `/auth/login?next=${encodeURIComponent(nextPath)}`;
   }
 
   function requireLogin(nextPath) {
@@ -1420,11 +1420,11 @@
   }
 
   const BOARD_AUTH_POPUP_PATHS = new Set([
-    "/pages/auth/login.html",
-    "/pages/auth/signup.html",
-    "/pages/auth/find-id.html",
-    "/pages/auth/find-password.html",
-    "/pages/auth/oauth-callback.html",
+    "/auth/login",
+    "/auth/signup",
+    "/auth/find-id",
+    "/auth/find-password",
+    "/auth/oauth-callback",
   ]);
   const BOARD_AUTH_POPUP_STYLE_ID = "fooduck-board-auth-popup-style";
   const BOARD_AUTH_POPUP_POLL_MS = 300;
@@ -1667,7 +1667,7 @@
     function open({ nextPath = window.location.pathname + window.location.search } = {}) {
       stop({ closePopup: true });
       activeNextPath = safeBoardAuthNextPath(nextPath);
-      const loginUrl = `/pages/auth/login.html?next=${encodeURIComponent(activeNextPath)}`;
+      const loginUrl = `/auth/login?next=${encodeURIComponent(activeNextPath)}`;
       const openedPopup = window.open(
         loginUrl,
         popupName || "fooduck-board-auth-login",
@@ -1718,7 +1718,7 @@
     const params = new URLSearchParams({
       q: restaurant?.name || "맛집",
     });
-    return `/pages/map/index.html?${params.toString()}`;
+    return `/map?${params.toString()}`;
   }
 
   function readPostId() {

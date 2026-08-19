@@ -42,11 +42,11 @@
       overviewPath: "/business/overview",
       ariaLabel: "사업자 상세 메뉴",
       items: [
-        ["restaurants", "내 음식점", "/pages/business/detail.html?tab=restaurants", "restaurantCount", "storefront"],
-        ["active", "운영 중", "/pages/business/detail.html?tab=active", "activeRestaurantCount", "store"],
-        ["news", "가게 소식", "/pages/business/detail.html?tab=news", "newsCount", "campaign"],
-        ["reviews", "받은 리뷰", "/pages/business/detail.html?tab=reviews", "reviewCount", "rate_review"],
-        ["favorites", "찜 현황", "/pages/business/detail.html?tab=favorites", "favoriteCount", "favorite"],
+        ["restaurants", "내 음식점", "/business/detail?tab=restaurants", "restaurantCount", "storefront"],
+        ["active", "운영 중", "/business/detail?tab=active", "activeRestaurantCount", "store"],
+        ["news", "가게 소식", "/business/detail?tab=news", "newsCount", "campaign"],
+        ["reviews", "받은 리뷰", "/business/detail?tab=reviews", "reviewCount", "rate_review"],
+        ["favorites", "찜 현황", "/business/detail?tab=favorites", "favoriteCount", "favorite"],
       ],
     },
     admin: {
@@ -54,11 +54,11 @@
       overviewPath: "/admin/overview",
       ariaLabel: "관리자 상세 메뉴",
       items: [
-        ["accounts", "계정 관리", "/pages/admin/accounts.html", "accountCount", "person"],
-        ["applications", "사업자 신청", "/pages/admin/business-applications.html", "pendingBusinessApplicationCount", "verified_user"],
-        ["restaurants", "음식점 관리", "/pages/admin/restaurants.html", "activeRestaurantCount", "storefront"],
-        ["community", "커뮤니티 관리", "/pages/admin/community.html", "communityPostCount", "forum"],
-        ["presets", "보물지도 관리", "/pages/admin/presets.html", "activePresetCount", "map"],
+        ["accounts", "계정 관리", "/admin/accounts", "accountCount", "person"],
+        ["applications", "사업자 신청", "/admin/business-applications", "pendingBusinessApplicationCount", "verified_user"],
+        ["restaurants", "음식점 관리", "/admin/restaurants", "activeRestaurantCount", "storefront"],
+        ["community", "커뮤니티 관리", "/admin/community", "communityPostCount", "forum"],
+        ["presets", "보물지도 관리", "/admin/presets", "activePresetCount", "map"],
       ],
     },
   };

@@ -98,7 +98,7 @@
   }
 
   function postDetailPath(postId) {
-    return `/pages/board/detail.html?postId=${encodeURIComponent(postId)}`;
+    return `/board/detail?postId=${encodeURIComponent(postId)}`;
   }
 
   function renderPosts() {

@@ -11,7 +11,7 @@
   const filterPanel = document.querySelector("#preset-filter-panel");
   const registerLink = document.querySelector("[data-preset-register-link]");
   const toast = document.querySelector("#preset-toast");
-  const registerPath = "/pages/presset/register.html";
+  const registerPath = "/presset/register";
   const createdMessageKey = "fooduck:preset-created";
   const requestedSort = new URLSearchParams(location.search).get("sort");
   const initialSort = ["popular", "latest", "favorite"].includes(requestedSort)
@@ -34,7 +34,7 @@
   }
 
   function detailPath(presetId) {
-    return `/pages/presset/detail.html?presetId=${encodeURIComponent(presetId)}`;
+    return `/presset/detail?presetId=${encodeURIComponent(presetId)}`;
   }
 
   function imagePlaceholder(className = "preset-image-placeholder") {
@@ -57,7 +57,7 @@
 
   function login() {
     const next = `${location.pathname}${location.search}`;
-    location.assign(`/pages/auth/login.html?next=${encodeURIComponent(next)}`);
+    location.assign(`/auth/login?next=${encodeURIComponent(next)}`);
   }
 
   function showCreatedMessage() {
@@ -102,7 +102,7 @@
   }
 
   function restaurantDetailPath(restaurantId) {
-    return `/pages/restaurant/detail.html?source=owned&id=${encodeURIComponent(restaurantId)}`;
+    return `/restaurant/detail?source=owned&id=${encodeURIComponent(restaurantId)}`;
   }
 
   function createRouteMap(preset) {
@@ -215,7 +215,7 @@
     const goMap = element("a", "button button-secondary preset-card-map-link", "지도에서 보기");
     const mapQuery = new URLSearchParams({ presetId: preset.presetId });
     if (preset.isOwner) mapQuery.set("edit", "1");
-    goMap.href = `/pages/map/index.html?${mapQuery.toString()}`;
+    goMap.href = `/map?${mapQuery.toString()}`;
     actions.append(goDetail, goMap);
     body.append(actions);
 
@@ -338,7 +338,7 @@
   sortSelect.value = state.sort;
   if (registerLink && !window.FooduckSession?.authenticated) {
     registerLink.href =
-      `/pages/auth/login.html?next=${encodeURIComponent(registerPath)}`;
+      `/auth/login?next=${encodeURIComponent(registerPath)}`;
   }
   showCreatedMessage();
 

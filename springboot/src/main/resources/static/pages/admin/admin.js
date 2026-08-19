@@ -122,15 +122,15 @@
       element("small", "", `${formatDate(application.createdAt)} 신청`),
     );
     const link = element("a", "button button-sm button-secondary", "상세 관리 →");
-    link.href = "/pages/admin/business-applications.html";
+    link.href = "/admin/business-applications";
     row.append(copy, link);
     return row;
   }
 
   function renderProfile(response) {
     profileHost.replaceChildren(profile.createSummary(response.data || {}, [
-      { label: "사업자 페이지", href: "/pages/business/index.html" },
-      { label: "마이 페이지", href: "/pages/mypage/index.html" },
+      { label: "사업자 페이지", href: "/business" },
+      { label: "마이 페이지", href: "/mypage" },
     ]));
   }
 
@@ -143,11 +143,11 @@
 
   function renderOverview(data) {
     metrics.replaceChildren(
-      metric("전체 계정", data.accountCount, "/pages/admin/accounts.html", "person"),
-      metric("승인 대기", data.pendingBusinessApplicationCount, "/pages/admin/business-applications.html", "verified_user", "처리하기 →"),
-      metric("활성 음식점", data.activeRestaurantCount, "/pages/admin/restaurants.html", "storefront"),
-      metric("커뮤니티 게시글", data.communityPostCount, "/pages/admin/community.html", "forum"),
-      metric("보물지도", data.activePresetCount, "/pages/admin/presets.html", "map"),
+      metric("전체 계정", data.accountCount, "/admin/accounts", "person"),
+      metric("승인 대기", data.pendingBusinessApplicationCount, "/admin/business-applications", "verified_user", "처리하기 →"),
+      metric("활성 음식점", data.activeRestaurantCount, "/admin/restaurants", "storefront"),
+      metric("커뮤니티 게시글", data.communityPostCount, "/admin/community", "forum"),
+      metric("보물지도", data.activePresetCount, "/admin/presets", "map"),
     );
 
     const pendingApplications = Array.isArray(data.pendingBusinessApplications)
@@ -166,11 +166,11 @@
 
     const actionList = element("div", "mypage-action-list");
     actionList.append(
-      dashboardAction("계정 관리", "권한·상태·계정 관리", "/pages/admin/accounts.html"),
-      dashboardAction("사업자 신청 관리", "승인·거절 처리", "/pages/admin/business-applications.html"),
-      dashboardAction("음식점 관리", "음식점 정보·상태 관리", "/pages/admin/restaurants.html"),
-      dashboardAction("커뮤니티 관리", "게시글·댓글 관리", "/pages/admin/community.html"),
-      dashboardAction("Preset 관리", "Preset·음식점·태그 연결 관리", "/pages/admin/presets.html"),
+      dashboardAction("계정 관리", "권한·상태·계정 관리", "/admin/accounts"),
+      dashboardAction("사업자 신청 관리", "승인·거절 처리", "/admin/business-applications"),
+      dashboardAction("음식점 관리", "음식점 정보·상태 관리", "/admin/restaurants"),
+      dashboardAction("커뮤니티 관리", "게시글·댓글 관리", "/admin/community"),
+      dashboardAction("Preset 관리", "Preset·음식점·태그 연결 관리", "/admin/presets"),
     );
     actionPanel.replaceChildren(
       panelHeader("관리 메뉴", "세부 관리 화면으로 빠르게 이동"),
@@ -178,7 +178,7 @@
     );
 
     const statusLink = element("a", "notification-summary");
-    statusLink.href = "/pages/admin/business-applications.html";
+    statusLink.href = "/admin/business-applications";
     const image = new Image();
     image.src = "/images/characters/notification.png";
     image.alt = "";
@@ -206,7 +206,7 @@
   function redirectToLoginIfNeeded() {
     if (localStorage.getItem("accessToken")) return false;
     window.location.assign(
-      "/pages/auth/login.html?next=" + encodeURIComponent("/pages/admin/index.html"),
+      "/auth/login?next=" + encodeURIComponent("/admin"),
     );
     return true;
   }

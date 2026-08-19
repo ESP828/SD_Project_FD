@@ -14,7 +14,7 @@
   if (!session.authenticated) {
     content.hidden = true;
     gate.hidden = false;
-    loginLink.href = "/pages/auth/login.html?next=" + encodeURIComponent(location.pathname);
+    loginLink.href = "/auth/login?next=" + encodeURIComponent(location.pathname);
     return;
   }
 

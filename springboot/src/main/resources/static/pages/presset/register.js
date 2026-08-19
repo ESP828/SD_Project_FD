@@ -1,11 +1,11 @@
 (() => {
-  const registerPath = "/pages/presset/register.html";
-  const listPath = "/pages/presset/index.html?sort=latest";
+  const registerPath = "/presset/register";
+  const listPath = "/presset?sort=latest";
   const createdMessageKey = "fooduck:preset-created";
 
   if (!window.FooduckSession?.authenticated) {
     location.replace(
-      `/pages/auth/login.html?next=${encodeURIComponent(registerPath)}`,
+      `/auth/login?next=${encodeURIComponent(registerPath)}`,
     );
     return;
   }

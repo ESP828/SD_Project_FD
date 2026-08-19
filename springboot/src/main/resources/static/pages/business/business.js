@@ -136,12 +136,12 @@
 
   function profileActions() {
     const actions = [
-      { label: "마이 페이지", href: "/pages/mypage/index.html" },
+      { label: "마이 페이지", href: "/mypage" },
     ];
     if (session.isAdmin) {
       actions.push({
         label: "관리자 페이지",
-        href: "/pages/admin/index.html",
+        href: "/admin",
       });
     }
     return actions;
@@ -262,9 +262,9 @@
     );
     const actions = element("div", "management-preview-actions");
     const viewLink = element("a", "button button-sm button-secondary", "가게 보기");
-    viewLink.href = `/pages/restaurant/detail.html?id=${encodeURIComponent(restaurant.restaurantId)}`;
+    viewLink.href = `/restaurant/detail?id=${encodeURIComponent(restaurant.restaurantId)}`;
     const manageLink = element("a", "button button-sm button-primary", "관리");
-    manageLink.href = `/pages/business/restaurant-form.html?id=${encodeURIComponent(restaurant.restaurantId)}`;
+    manageLink.href = `/business/restaurant-form?id=${encodeURIComponent(restaurant.restaurantId)}`;
     actions.append(viewLink, manageLink);
     row.append(copy, actions);
     return row;
@@ -273,15 +273,15 @@
   function renderBusinessOverview(data) {
     const restaurants = Array.isArray(data.restaurants) ? data.restaurants : [];
     businessMetrics.replaceChildren(
-      metric("내 음식점", data.restaurantCount, "/pages/business/detail.html?tab=restaurants", "storefront"),
-      metric("운영 중", data.activeRestaurantCount, "/pages/business/detail.html?tab=active", "store"),
-      metric("가게 소식", data.newsCount, "/pages/business/detail.html?tab=news", "campaign"),
-      metric("받은 리뷰", data.reviewCount, "/pages/business/detail.html?tab=reviews", "rate_review"),
-      metric("찜 받은 수", data.favoriteCount, "/pages/business/detail.html?tab=favorites", "favorite"),
+      metric("내 음식점", data.restaurantCount, "/business/detail?tab=restaurants", "storefront"),
+      metric("운영 중", data.activeRestaurantCount, "/business/detail?tab=active", "store"),
+      metric("가게 소식", data.newsCount, "/business/detail?tab=news", "campaign"),
+      metric("받은 리뷰", data.reviewCount, "/business/detail?tab=reviews", "rate_review"),
+      metric("찜 받은 수", data.favoriteCount, "/business/detail?tab=favorites", "favorite"),
       metric(
         "평균 평점",
         data.averageRating,
-        "/pages/business/detail.html?tab=reviews",
+        "/business/detail?tab=reviews",
         "star",
         "리뷰 보기 →",
         formatRating,
@@ -301,9 +301,9 @@
 
     const actionList = element("div", "mypage-action-list");
     actionList.append(
-      dashboardAction("음식점 등록", "새 음식점 등록", "/pages/business/restaurant-form.html"),
-      dashboardAction("내 음식점 관리", "등록한 음식점 상세 확인", "/pages/business/detail.html?tab=restaurants"),
-      dashboardAction("가게 소식 관리", "음식점별 소식 현황 확인", "/pages/business/detail.html?tab=news"),
+      dashboardAction("음식점 등록", "새 음식점 등록", "/business/restaurant-form"),
+      dashboardAction("내 음식점 관리", "등록한 음식점 상세 확인", "/business/detail?tab=restaurants"),
+      dashboardAction("가게 소식 관리", "음식점별 소식 현황 확인", "/business/detail?tab=news"),
     );
     actionPanel.replaceChildren(
       panelHeader("사업자 기능", "내 음식점 운영에 필요한 기능"),
@@ -311,7 +311,7 @@
     );
 
     const statusLink = element("a", "notification-summary");
-    statusLink.href = "/pages/business/detail.html?tab=active";
+    statusLink.href = "/business/detail?tab=active";
     const statusImage = new Image();
     statusImage.src = "/images/characters/cooking.png";
     statusImage.alt = "";
@@ -373,7 +373,7 @@
   function redirectToLoginIfNeeded() {
     if (localStorage.getItem("accessToken")) return false;
     window.location.assign(
-      "/pages/auth/login.html?next=" + encodeURIComponent("/pages/business/index.html"),
+      "/auth/login?next=" + encodeURIComponent("/business"),
     );
     return true;
   }

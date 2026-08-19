@@ -95,21 +95,21 @@
   }
 
   function detailPath(tab) {
-    return `/pages/mypage/detail.html?tab=${encodeURIComponent(tab)}`;
+    return `/mypage/detail?tab=${encodeURIComponent(tab)}`;
   }
 
   function boardDetailPath(postId) {
-    return `/pages/board/detail.html?postId=${encodeURIComponent(postId)}`;
+    return `/board/detail?postId=${encodeURIComponent(postId)}`;
   }
 
   function presetDetailPath(presetId, edit = false) {
     const query = new URLSearchParams({ presetId });
     if (edit) query.set("edit", "1");
-    return `/pages/presset/detail.html?${query.toString()}`;
+    return `/presset/detail?${query.toString()}`;
   }
 
   function searchPath(name) {
-    return `/pages/search/index.html?q=${encodeURIComponent(name || "")}`;
+    return `/search?q=${encodeURIComponent(name || "")}`;
   }
 
   function restaurantDetailPath(item) {
@@ -119,11 +119,11 @@
 
     if ((source === "PUBLIC" || restaurantId <= 0) && publicRestaurantId > 0) {
       const query = new URLSearchParams({ source: "public", id: String(publicRestaurantId) });
-      return `/pages/restaurant/detail.html?${query.toString()}`;
+      return `/restaurant/detail?${query.toString()}`;
     }
     if (restaurantId > 0) {
       const query = new URLSearchParams({ source: "owned", id: String(restaurantId) });
-      return `/pages/restaurant/detail.html?${query.toString()}`;
+      return `/restaurant/detail?${query.toString()}`;
     }
     return searchPath(item.restaurantName);
   }
@@ -566,7 +566,7 @@
     content.hidden = true;
     gate.hidden = false;
     loginLink.href =
-      "/pages/auth/login.html?next=" +
+      "/auth/login?next=" +
       encodeURIComponent(`${window.location.pathname}${window.location.search}`);
     return;
   }
@@ -583,7 +583,7 @@
     .catch((error) => {
       if (!localStorage.getItem("accessToken")) {
         window.location.assign(
-          "/pages/auth/login.html?next=" +
+          "/auth/login?next=" +
           encodeURIComponent(`${window.location.pathname}${window.location.search}`),
         );
         return;

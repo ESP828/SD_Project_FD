@@ -32,7 +32,7 @@ if (recommendationNote && query.get("reason") === "recommendation") {
 const loginLink = document.querySelector(".auth-switch a");
 if (loginLink && safeNextPath()) {
   const loginQuery = new URLSearchParams({ next: safeNextPath() });
-  loginLink.href = `/pages/auth/login.html?${loginQuery.toString()}`;
+  loginLink.href = `/auth/login?${loginQuery.toString()}`;
 }
 
 function setStatus(element, text, isSuccess) {
@@ -222,8 +222,8 @@ signupForm.addEventListener("submit", async (event) => {
       const next = safeNextPath();
       window.location.replace(
         next
-          ? `/pages/auth/login.html?${new URLSearchParams({ next }).toString()}`
-          : "/pages/auth/login.html",
+          ? `/auth/login?${new URLSearchParams({ next }).toString()}`
+          : "/auth/login",
       );
     }, 700);
   } catch (error) {

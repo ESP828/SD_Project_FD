@@ -67,7 +67,7 @@
   function renderCard(preset, rank) {
     const link = document.createElement("a");
     link.className = "home-preset-card";
-    link.href = `/pages/presset/detail.html?presetId=${encodeURIComponent(preset.presetId)}`;
+    link.href = `/presset/detail?presetId=${encodeURIComponent(preset.presetId)}`;
     link.setAttribute("aria-label", `${preset.title || "보물지도"} 상세 보기`);
 
     const visual = document.createElement("div");

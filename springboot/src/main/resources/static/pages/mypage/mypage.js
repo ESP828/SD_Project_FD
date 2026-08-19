@@ -131,7 +131,7 @@
   }
 
   function detailPath(tab) {
-    return `/pages/mypage/detail.html?tab=${encodeURIComponent(tab)}`;
+    return `/mypage/detail?tab=${encodeURIComponent(tab)}`;
   }
 
   const activityIcons = Object.freeze({
@@ -265,13 +265,13 @@
     if (session.canManageBusiness) {
       profileActions.push({
         label: "사업자 페이지",
-        href: "/pages/business/index.html",
+        href: "/business",
       });
     }
     if (session.isAdmin) {
       profileActions.push({
         label: "관리자 페이지",
-        href: "/pages/admin/index.html",
+        href: "/admin",
       });
     }
     const summary = profile.createSummary(data, profileActions);
@@ -341,7 +341,7 @@
     );
     if (data.loginId) {
       actionList.append(
-        action("비밀번호 변경", "현재 비밀번호를 확인하고 새로 설정", "/pages/mypage/change-password.html"),
+        action("비밀번호 변경", "현재 비밀번호를 확인하고 새로 설정", "/mypage/change-password"),
       );
     }
     actionPanel.append(actionHeader, actionList);
@@ -393,8 +393,8 @@
     .catch((error) => {
       if (!localStorage.getItem("accessToken")) {
         window.location.assign(
-          "/pages/auth/login.html?next=" +
-          encodeURIComponent("/pages/mypage/index.html"),
+          "/auth/login?next=" +
+          encodeURIComponent("/mypage"),
         );
         return;
       }

@@ -92,11 +92,11 @@
   }
 
   function detailPath(tab) {
-    return `/pages/business/detail.html?tab=${encodeURIComponent(tab)}`;
+    return `/business/detail?tab=${encodeURIComponent(tab)}`;
   }
 
   function restaurantPath(restaurantId) {
-    return `/pages/restaurant/detail.html?id=${encodeURIComponent(restaurantId)}`;
+    return `/restaurant/detail?id=${encodeURIComponent(restaurantId)}`;
   }
 
   function formatDate(value) {
@@ -162,7 +162,7 @@
     actions.append(viewLink);
     if (activeTab === "restaurants") {
       const editLink = element("a", "button button-sm button-secondary", "수정");
-      editLink.href = `/pages/business/restaurant-form.html?id=${encodeURIComponent(restaurant.restaurantId)}`;
+      editLink.href = `/business/restaurant-form?id=${encodeURIComponent(restaurant.restaurantId)}`;
       const statusButton = element(
         "button",
         "button button-sm button-secondary",
@@ -265,7 +265,7 @@
     );
     if (activeTab === "restaurants") {
       const createLink = element("a", "button button-sm button-primary", "음식점 등록");
-      createLink.href = "/pages/business/restaurant-form.html";
+      createLink.href = "/business/restaurant-form";
       headingActions.append(createLink);
     }
     heading.append(copy, headingActions);
@@ -298,7 +298,7 @@
   if (!session.authenticated) {
     content.hidden = true;
     gate.hidden = false;
-    gateLink.href = "/pages/auth/login.html?next=" +
+    gateLink.href = "/auth/login?next=" +
       encodeURIComponent(`${window.location.pathname}${window.location.search}`);
     return;
   }
@@ -309,7 +309,7 @@
     gateTitle.textContent = "사업자 권한이 필요합니다";
     gateCopy.textContent = "사업자 페이지에서 권한 신청과 처리 상태를 확인해 주세요.";
     gateLink.textContent = "사업자 페이지";
-    gateLink.href = "/pages/business/index.html";
+    gateLink.href = "/business";
     return;
   }
 
@@ -323,7 +323,7 @@
     .catch((error) => {
       if (!localStorage.getItem("accessToken")) {
         window.location.assign(
-          "/pages/auth/login.html?next=" +
+          "/auth/login?next=" +
           encodeURIComponent(`${window.location.pathname}${window.location.search}`),
         );
         return;

@@ -25,7 +25,7 @@
       if (window.history.length > 1) {
         window.history.back();
       } else {
-        window.location.href = "/pages/search/index.html";
+        window.location.href = "/search";
       }
     });
   }

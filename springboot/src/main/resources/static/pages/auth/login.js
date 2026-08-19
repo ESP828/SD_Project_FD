@@ -10,7 +10,7 @@ function safeNextPath() {
 const signupLink = document.querySelector(".auth-switch a");
 if (signupLink && query.get("next")) {
   const signupQuery = new URLSearchParams({ next: safeNextPath() });
-  signupLink.href = `/pages/auth/signup.html?${signupQuery.toString()}`;
+  signupLink.href = `/auth/signup?${signupQuery.toString()}`;
 }
 
 loginForm.addEventListener("submit", async (event) => {
