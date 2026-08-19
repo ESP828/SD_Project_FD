@@ -170,7 +170,11 @@
 
     const mapLink = document.createElement("a");
     mapLink.className = "button button-secondary";
-    mapLink.href = `/map?q=${encodeURIComponent(restaurantName)}`;
+    // 공공데이터 매장은 ID로 바로 이동시켜 정확한 위치에 포커싱한다.
+    // (이름만 넘기면 지도의 현재 위치 기준 반경 내에서만 검색되어 못 찾는 경우가 있었음)
+    mapLink.href = sourceType === "public"
+      ? `/map?restaurantId=${encodeURIComponent(sourceId)}`
+      : `/map?q=${encodeURIComponent(restaurantName)}`;
     mapLink.textContent = "지도에서 찾기";
 
     actions.append(detailLink, mapLink);
@@ -227,19 +231,26 @@ function updateUrlState(page = 0) {
   window.history.replaceState(null, "", url);
 }
 
+  // 현재 위치는 페이지 로드 시 한 번만 요청해서 캐시해두고, 이후 검색마다 재사용한다.
+  let currentLocationPromise = null;
   function getCurrentLocation() {
-    return new Promise((resolve) => {
-      if (!navigator.geolocation) {
-        resolve(DEFAULT_LOCATION);
-        return;
-      }
-      navigator.geolocation.getCurrentPosition(
-        (pos) => resolve({ latitude: pos.coords.latitude, longitude: pos.coords.longitude }),
-        () => resolve(DEFAULT_LOCATION),
-        { timeout: 5000 }
-      );
-    });
+    if (!currentLocationPromise) {
+      currentLocationPromise = new Promise((resolve) => {
+        if (!navigator.geolocation) {
+          resolve(DEFAULT_LOCATION);
+          return;
+        }
+        navigator.geolocation.getCurrentPosition(
+          (pos) => resolve({ latitude: pos.coords.latitude, longitude: pos.coords.longitude }),
+          () => resolve(DEFAULT_LOCATION),
+          { timeout: 5000 }
+        );
+      });
+    }
+    return currentLocationPromise;
   }
+  // 기본적으로 현재 위치를 기준으로 검색하도록 페이지 진입 시 미리 위치 권한을 요청해둔다.
+  getCurrentLocation();
 
   // 1. 일반 키워드/지역/카테고리 검색
   async function runPublicSearch(page = 0) {

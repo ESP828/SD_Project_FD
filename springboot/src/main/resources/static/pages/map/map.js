@@ -39,6 +39,7 @@
   let resultMode = "preset";
 
   function setMapStatus(message, isError = false) {
+    if (!mapStatus) return;
     mapStatus.textContent = message;
     mapStatus.classList.toggle("is-error", isError);
   }
@@ -239,7 +240,9 @@
     favoriteButton.addEventListener("click", () => toggleDetailPanelFavorite(favoriteButton, place));
   }
 
-  async function openDetailPanel(place) {
+  // prefetch로 { detailPromise, reviewsPromise, menuPromise }를 넘기면 새로 요청하지 않고
+  // 이미 진행 중인 요청을 그대로 재사용한다(포커싱 직후 상세 패널이 바로 뜨도록).
+  async function openDetailPanel(place, prefetch) {
     detailPanel.classList.add("is-open");
     detailBody.innerHTML = '<div class="place-detail-loading">불러오는 중입니다...</div>';
     const requestId = (detailRequestToken += 1);
@@ -247,9 +250,9 @@
 
     try {
       const [detailResponse, reviewsResponse, menuResponse] = await Promise.all([
-        Api.get(isOwned ? `/public/restaurants/${place.restaurantId}` : `/public/map/restaurants/${place.restaurantId}`),
-        Api.get(isOwned ? `/public/restaurants/${place.restaurantId}/reviews` : `/public/map/restaurants/${place.restaurantId}/reviews`, { auth: false }),
-        Api.get(isOwned ? `/public/restaurants/${place.restaurantId}/menu` : `/public/map/restaurants/${place.restaurantId}/menu`, { auth: false }),
+        prefetch?.detailPromise ?? Api.get(isOwned ? `/public/restaurants/${place.restaurantId}` : `/public/map/restaurants/${place.restaurantId}`),
+        prefetch?.reviewsPromise ?? Api.get(isOwned ? `/public/restaurants/${place.restaurantId}/reviews` : `/public/map/restaurants/${place.restaurantId}/reviews`, { auth: false }),
+        prefetch?.menuPromise ?? Api.get(isOwned ? `/public/restaurants/${place.restaurantId}/menu` : `/public/map/restaurants/${place.restaurantId}/menu`, { auth: false }),
       ]);
       if (requestId !== detailRequestToken) return;
       place.favoriteByCurrentUser = Boolean(detailResponse.data?.favoritedByMe);
@@ -260,7 +263,7 @@
     }
   }
 
-  function selectRestaurant(restaurantId, moveMap = true) {
+  function selectRestaurant(restaurantId, moveMap = true, prefetch = null) {
     const key = String(restaurantId);
     const row = placeResults.querySelector(`[data-restaurant-id="${key}"]`);
     placeResults.querySelector(".place-result.is-active")?.classList.remove("is-active");
@@ -280,7 +283,7 @@
     } else {
       setMapStatus("이 음식점은 등록된 좌표가 없어 지도에는 표시되지 않습니다.", true);
     }
-    openDetailPanel(place);
+    openDetailPanel(place, prefetch);
   }
 
   function requireLogin() {
@@ -515,6 +518,36 @@
     }
   }
 
+  function getCurrentLocation() {
+    return new Promise((resolve) => {
+      if (!navigator.geolocation) {
+        resolve(null);
+        return;
+      }
+      navigator.geolocation.getCurrentPosition(
+        ({ coords }) => resolve({ latitude: coords.latitude, longitude: coords.longitude }),
+        () => resolve(null),
+        { timeout: 5000 },
+      );
+    });
+  }
+
+  async function centerOnCurrentLocation(showStatus = true) {
+    if (!kakaoMap) return false;
+    const coords = await getCurrentLocation();
+    if (!coords) {
+      if (showStatus) setMapStatus("현재 위치를 확인할 수 없거나 위치 권한이 없습니다.", true);
+      return false;
+    }
+    const position = new kakao.maps.LatLng(coords.latitude, coords.longitude);
+    kakaoMap.setCenter(position);
+    kakaoMap.setLevel(4);
+    if (currentPositionMarker) currentPositionMarker.setPosition(position);
+    else currentPositionMarker = new kakao.maps.Marker({ map: kakaoMap, position, image: getMarkerImage("detail_open.svg"), zIndex: 100 });
+    if (showStatus) setMapStatus("현재 위치로 이동했습니다.");
+    return true;
+  }
+
   function boundsAroundCenter(center) {
     const latDelta = SEARCH_RADIUS_METERS / 111320;
     const lngDelta = SEARCH_RADIUS_METERS / (111320 * Math.cos((center.getLat() * Math.PI) / 180));
@@ -522,6 +555,43 @@
     bounds.extend(new kakao.maps.LatLng(center.getLat() - latDelta, center.getLng() - lngDelta));
     bounds.extend(new kakao.maps.LatLng(center.getLat() + latDelta, center.getLng() + lngDelta));
     return bounds;
+  }
+
+  // 검색 페이지 등에서 특정 매장 ID로 바로 넘어온 경우, 반경 검색이 아니라
+  // 해당 매장을 직접 조회해 정확한 좌표로 포커싱한다.
+  async function focusPublicRestaurant(id) {
+    lastSearchKeyword = "";
+    searchAreaButton.hidden = true;
+    setMapStatus("음식점 정보를 불러오는 중입니다.");
+    // 상세·리뷰·메뉴를 동시에 요청해 둔다 — 포커싱이 끝나자마자 상세 패널도 바로 채워지도록.
+    const detailPromise = Api.get(`/public/map/restaurants/${id}`, { auth: false });
+    const reviewsPromise = Api.get(`/public/map/restaurants/${id}/reviews`, { auth: false });
+    const menuPromise = Api.get(`/public/map/restaurants/${id}/menu`, { auth: false });
+    try {
+      const detail = (await detailPromise).data;
+      const place = {
+        restaurantId: detail.id,
+        place_name: detail.branchName ? `${detail.name} ${detail.branchName}` : detail.name,
+        category_name: detail.categorySmallName || detail.categoryLargeName || "기타",
+        category_group_name: "",
+        road_address_name: detail.roadAddress || "",
+        address_name: detail.lotAddress || "",
+        y: detail.lat,
+        x: detail.lon,
+        favoriteByCurrentUser: Boolean(detail.favoritedByMe),
+        coordinateAvailable: validCoordinate(detail.lat, detail.lon),
+      };
+      renderItems([place], "검색 결과", true, "search");
+      if (place.coordinateAvailable) {
+        selectRestaurant(place.restaurantId, true, { detailPromise, reviewsPromise, menuPromise });
+      } else {
+        setMapStatus("이 음식점은 등록된 좌표가 없어 지도에는 표시되지 않습니다.", true);
+      }
+    } catch (error) {
+      renderEmptyResults("음식점 정보를 불러오지 못했습니다.");
+      setResultsState(0);
+      setMapStatus(error.message || "음식점 정보를 불러오지 못했습니다.", true);
+    }
   }
 
   async function searchPlaces(keyword) {
@@ -532,6 +602,22 @@
     }
     lastSearchKeyword = normalized;
     searchAreaButton.hidden = true;
+
+    // 정확히 일치하는 매장명이 DB 전체에서 딱 하나뿐이면, 지도 반경(500m) 제한 없이
+    // 그 매장으로 바로 이동·포커싱한다(동명 매장이 여러 곳이면 아래 반경 검색으로 진행).
+    try {
+      const exactResponse = await Api.get(
+        `/public/map/restaurants/find-by-name?name=${encodeURIComponent(normalized)}`,
+        { auth: false },
+      );
+      if (exactResponse.data?.id) {
+        await focusPublicRestaurant(exactResponse.data.id);
+        return;
+      }
+    } catch (error) {
+      // 정확 매칭 조회가 실패해도 아래 반경 검색으로 계속 진행한다.
+    }
+
     const bounds = boundsAroundCenter(kakaoMap.getCenter());
     const sw = bounds.getSouthWest();
     const ne = bounds.getNorthEast();
@@ -566,18 +652,11 @@
     loadPreset();
   });
   locationButton.addEventListener("click", () => {
-    if (!kakaoMap || !navigator.geolocation) {
+    if (!kakaoMap) {
       setMapStatus("현재 위치를 확인할 수 없습니다.", true);
       return;
     }
-    navigator.geolocation.getCurrentPosition(({ coords }) => {
-      const position = new kakao.maps.LatLng(coords.latitude, coords.longitude);
-      kakaoMap.setCenter(position);
-      kakaoMap.setLevel(4);
-      if (currentPositionMarker) currentPositionMarker.setPosition(position);
-      else currentPositionMarker = new kakao.maps.Marker({ map: kakaoMap, position, image: getMarkerImage("detail_open.svg"), zIndex: 100 });
-      setMapStatus("현재 위치로 이동했습니다.");
-    }, () => setMapStatus("위치 권한이 없거나 현재 위치를 확인할 수 없습니다.", true));
+    centerOnCurrentLocation(true);
   });
 
   function setSidebarCollapsed(collapsed) {
@@ -619,13 +698,19 @@
         renderEmptyResults("서버의 Kakao Map 공개 설정을 확인해 주세요.");
         return;
       }
-      const keyword = query.get("q")?.trim();
-      if (keyword) {
-        keywordInput.value = keyword;
-        await searchPlaces(keyword);
+      // 기본적으로 현재 위치를 기준으로 지도를 표시한다(권한 거부/실패 시 기본 중심 유지).
+      await centerOnCurrentLocation(false);
+      if (Number.isSafeInteger(requestedRestaurantId) && requestedRestaurantId > 0) {
+        await focusPublicRestaurant(requestedRestaurantId);
       } else {
-        setResultsState(0);
-        renderEmptyResults("검색어를 입력하거나 카테고리를 선택하면 맛집을 보여드려요.");
+        const keyword = query.get("q")?.trim();
+        if (keyword) {
+          keywordInput.value = keyword;
+          await searchPlaces(keyword);
+        } else {
+          setResultsState(0);
+          renderEmptyResults("검색어를 입력하거나 카테고리를 선택하면 맛집을 보여드려요.");
+        }
       }
     } catch (error) {
       setMapStatus(error.message || "지도를 준비하지 못했습니다.", true);

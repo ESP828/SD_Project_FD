@@ -341,14 +341,45 @@
       panels.review.innerHTML = `
         <div class="store-section-card">
           <h2>리뷰 ${items.length}건</h2>
+          <div id="store-sentiment-card" class="store-sentiment-card" hidden></div>
           ${reviewWriteFormHtml()}
           ${listHtml}
         </div>
       `;
       bindReviewAuthorMenus(items);
       bindReviewForm();
+      loadSentimentSummary();
     } catch (error) {
       panels.review.innerHTML = `<div class="store-empty">${error.message || "리뷰를 불러오지 못했습니다."}</div>`;
+    }
+  }
+
+  // AI(Naive Bayes) 리뷰 감성분석 요약 카드. 감성분석 서비스가 꺼져 있거나 아직 준비되지
+  // 않아도(sentiment-api.base-url 미설정 등) 리뷰 화면 자체는 정상 동작해야 하므로,
+  // 실패하면 카드를 그냥 숨긴 채 조용히 넘어간다. 현재는 공공데이터 매장만 지원한다.
+  async function loadSentimentSummary() {
+    if (source !== "public") return;
+    const card = document.getElementById("store-sentiment-card");
+    if (!card) return;
+    try {
+      const response = await Api.get(`/public/map/restaurants/${storeId}/sentiment-summary`, { auth: false });
+      const summary = response.data;
+      if (!summary || summary.reviewCount === 0) return;
+      const ratio = Math.round(summary.positiveRatio);
+      card.hidden = false;
+      card.innerHTML = `
+        <div class="store-sentiment-head">
+          <span class="material-symbols-rounded" aria-hidden="true">auto_awesome</span>
+          <strong>AI 리뷰 분석</strong>
+          <span class="store-sentiment-ratio">${ratio}% 긍정</span>
+        </div>
+        <div class="store-sentiment-bar">
+          <div class="store-sentiment-bar-fill" style="width:${ratio}%"></div>
+        </div>
+        <p class="store-sentiment-caption">긍정 ${summary.positiveCount}건 · 부정 ${summary.negativeCount}건 (리뷰 ${summary.reviewCount}건 분석)</p>
+      `;
+    } catch (_error) {
+      // 감성분석 서비스 호출 실패는 리뷰 화면 전체에 영향을 주지 않는다.
     }
   }
 
