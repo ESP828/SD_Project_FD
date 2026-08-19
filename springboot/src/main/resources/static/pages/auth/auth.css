@@ -542,87 +542,6 @@
   color: var(--color-orange-dark);
 }
 
-.legal-dialog {
-  width: min(560px, calc(100% - 32px));
-  max-height: calc(100vh - 60px);
-  padding: 0;
-  border: 0;
-  border-radius: 22px;
-  box-shadow: var(--shadow-float);
-  overflow: hidden;
-  scrollbar-width: none;
-  -ms-overflow-style: none;
-}
-
-.legal-dialog::-webkit-scrollbar {
-  display: none;
-  width: 0;
-  height: 0;
-}
-
-.legal-dialog[open] {
-  display: flex;
-  flex-direction: column;
-}
-
-.legal-dialog::backdrop {
-  background: rgba(9, 23, 41, 0.55);
-  backdrop-filter: blur(4px);
-}
-
-html:has(.legal-dialog[open]),
-body:has(.legal-dialog[open]) {
-  overflow: hidden;
-}
-
-.legal-dialog h2 {
-  margin: 0;
-  padding: 26px 30px 14px;
-  color: var(--color-navy);
-  font-size: 1.25rem;
-}
-
-.legal-body {
-  min-height: 0;
-  flex: 1 1 auto;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  max-height: calc(100vh - 190px);
-  padding: 0 30px;
-  color: var(--color-muted);
-  font-size: 0.84rem;
-  line-height: 1.6;
-  scrollbar-width: none;
-  -ms-overflow-style: none;
-}
-
-.legal-body::-webkit-scrollbar {
-  display: none;
-  width: 0;
-  height: 0;
-}
-
-.legal-body p {
-  margin: 0 0 14px;
-}
-
-.legal-body strong {
-  color: var(--color-navy);
-}
-
-.dialog-close {
-  display: block;
-  width: calc(100% - 60px);
-  margin: 18px 30px 26px;
-  padding: 11px;
-  border: 0;
-  border-radius: 12px;
-  background: var(--color-navy);
-  color: #fff;
-  font-weight: 800;
-  cursor: pointer;
-}
-
 .callback-shell {
   width: min(100%, 500px);
 }
@@ -712,37 +631,5 @@ body:has(.legal-dialog[open]) {
   .callback-card {
     padding: 34px 25px;
   }
-}
-
-/* signup legal dialog scrollbar hardening */
-#terms-dialog .legal-body,
-#privacy-dialog .legal-body {
-  scrollbar-width: none !important;
-  scrollbar-color: transparent transparent !important;
-  -ms-overflow-style: none;
-}
-
-#terms-dialog .legal-body::-webkit-scrollbar,
-#privacy-dialog .legal-body::-webkit-scrollbar {
-  display: none !important;
-  width: 0 !important;
-  height: 0 !important;
-  background: transparent !important;
-}
-
-#terms-dialog .legal-body::-webkit-scrollbar-track,
-#privacy-dialog .legal-body::-webkit-scrollbar-track,
-#terms-dialog .legal-body::-webkit-scrollbar-thumb,
-#privacy-dialog .legal-body::-webkit-scrollbar-thumb {
-  background: transparent !important;
-  border: 0 !important;
-}
-
-#terms-dialog::-webkit-scrollbar,
-#privacy-dialog::-webkit-scrollbar {
-  display: none !important;
-  width: 0 !important;
-  height: 0 !important;
-  background: transparent !important;
 }
 

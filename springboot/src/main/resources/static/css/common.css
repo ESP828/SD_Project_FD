@@ -1161,32 +1161,3 @@ h4 {
   }
 }
 
-/* signup legal scrollbar fallback - shared stylesheet */
-#terms-dialog,
-#privacy-dialog,
-#terms-dialog .legal-body,
-#privacy-dialog .legal-body {
-  scrollbar-width: none !important;
-  -ms-overflow-style: none !important;
-}
-
-#terms-dialog,
-#privacy-dialog {
-  overflow: hidden !important;
-}
-
-#terms-dialog .legal-body,
-#privacy-dialog .legal-body {
-  overflow-y: auto !important;
-}
-
-#terms-dialog::-webkit-scrollbar,
-#privacy-dialog::-webkit-scrollbar,
-#terms-dialog .legal-body::-webkit-scrollbar,
-#privacy-dialog .legal-body::-webkit-scrollbar {
-  display: none !important;
-  width: 0 !important;
-  height: 0 !important;
-  background: transparent !important;
-}
-
