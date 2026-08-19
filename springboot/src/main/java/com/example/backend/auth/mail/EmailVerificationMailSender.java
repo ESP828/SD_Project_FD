@@ -1,12 +1,11 @@
 package com.example.backend.auth.mail;
 
-import com.example.backend.global.exception.BusinessException;
-import com.example.backend.global.exception.ErrorCode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.mail.MailException;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -20,6 +19,12 @@ public class EmailVerificationMailSender {
         this.mailSender = mailSender;
     }
 
+    /**
+     * 실제 SMTP 발송(TLS 핸드셰이크 포함)은 수백ms~수초가 걸려서 요청 스레드를 그대로 막으면
+     * "인증코드 발송" 버튼이 느리게 느껴진다. 인증코드는 이미 DB에 동기로 저장돼 있으므로
+     * 메일 발송 자체는 비동기로 돌리고 API 응답은 즉시 내려준다.
+     */
+    @Async
     public void send(String email, String code) {
         SimpleMailMessage message = new SimpleMailMessage();
         message.setTo(email);
@@ -29,7 +34,6 @@ public class EmailVerificationMailSender {
             mailSender.send(message);
         } catch (MailException exception) {
             log.warn("Failed to send verification email to {}", email, exception);
-            throw new BusinessException(ErrorCode.EMAIL_SEND_FAILED);
         }
     }
 }
