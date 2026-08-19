@@ -20,7 +20,7 @@
   --color-danger: #d93f3f;
   --shadow-sm: 0 8px 24px rgba(15, 43, 77, 0.07);
   --shadow-card: 0 18px 48px rgba(15, 43, 77, 0.1);
-  --shadow-float: 0 22px 60px rgba(15, 43, 77, 0.16);
+  --shadow-float: 0 14px 36px rgba(15, 43, 77, 0.1);
   --radius-sm: 10px;
   --radius-md: 18px;
   --radius-lg: 28px;
@@ -838,7 +838,7 @@ h4 {
   border: 1px solid #d9e1eb;
   border-radius: 20px;
   background: rgba(255, 255, 255, 0.96);
-  box-shadow: var(--shadow-float);
+  box-shadow: none;
   backdrop-filter: blur(14px);
 }
 

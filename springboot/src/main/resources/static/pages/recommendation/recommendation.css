@@ -527,3 +527,38 @@
     padding-inline: 18px;
   }
 }
+
+/* 나를 위한 맛집 / 맛집 랭킹 로딩 스켈레톤 */
+@keyframes skeleton-shimmer {
+  0% { background-position: -200px 0; }
+  100% { background-position: 200px 0; }
+}
+
+.skeleton-block {
+  background: linear-gradient(90deg, #eef1f5 25%, #e4e8ee 37%, #eef1f5 63%);
+  background-size: 400px 100%;
+  border-radius: 10px;
+  animation: skeleton-shimmer 1.4s ease-in-out infinite;
+}
+
+.skeleton-personal-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.skeleton-personal-card {
+  height: 132px;
+  border-radius: 12px;
+}
+
+.skeleton-ranking-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.skeleton-ranking-row {
+  height: 58px;
+  border-radius: 10px;
+}

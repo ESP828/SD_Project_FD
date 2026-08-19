@@ -62,6 +62,11 @@
   margin-bottom: 30px;
 }
 
+.hero-actions .button,
+.hero-actions .button:hover {
+  box-shadow: none;
+}
+
 .hero-proof {
   display: flex;
   flex-wrap: wrap;
@@ -234,8 +239,10 @@
   line-height: 1.25;
 }
 
-.home-preset-banner .button-primary {
+.home-preset-banner .button-primary,
+.home-preset-banner .button-primary:hover {
   flex: 0 0 auto;
+  box-shadow: none;
 }
 
 .home-preset-list {
@@ -264,7 +271,7 @@
   border-radius: 50%;
   color: var(--color-navy);
   background: #fff;
-  box-shadow: var(--shadow-sm);
+  box-shadow: none;
   font-size: 1.3rem;
   line-height: 1;
   cursor: pointer;
@@ -273,7 +280,7 @@
 
 .home-preset-nav:hover {
   transform: translateY(-2px);
-  box-shadow: var(--shadow-card);
+  box-shadow: none;
 }
 
 .home-preset-nav:focus-visible {
@@ -297,7 +304,7 @@
   border: 1px solid var(--color-line);
   border-radius: 20px;
   background: var(--color-cream);
-  box-shadow: var(--shadow-sm);
+  box-shadow: none;
   transition: transform 200ms ease, box-shadow 200ms ease, border-color 200ms ease;
 }
 
@@ -305,7 +312,7 @@
 .home-preset-card:focus-within {
   transform: translateY(-4px);
   border-color: rgba(255, 152, 0, 0.3);
-  box-shadow: var(--shadow-card);
+  box-shadow: none;
 }
 
 .home-preset-visual {
@@ -474,13 +481,13 @@
   border: 1px solid transparent;
   border-radius: var(--radius-lg);
   background: var(--card-bg, var(--color-orange-soft));
-  box-shadow: var(--shadow-sm);
+  box-shadow: none;
   transition: transform 180ms ease, box-shadow 180ms ease;
 }
 
 .service-card:hover {
   transform: translateY(-6px);
-  box-shadow: var(--shadow-card);
+  box-shadow: none;
 }
 
 .service-card--orange {

@@ -27,7 +27,6 @@
 
       <div class="map-sidebar-heading">
         <div>
-          <p class="eyebrow">Kakao restaurant map</p>
           <h1 id="map-page-title">맛집 찾기</h1>
         </div>
         <img src="/images/characters/map-256.png" alt="" aria-hidden="true">
@@ -55,23 +54,11 @@
         <button type="button" data-category-keyword="카페">카페</button>
       </div>
 
-      <div class="map-action-row">
-        <button id="current-location-button" class="location-button" type="button">
-          <span class="material-symbols-rounded" aria-hidden="true">my_location</span>
-          내 위치로 이동
-        </button>
-        <span class="provider-badge">
-          <span class="status-dot" aria-hidden="true"></span>
-          Kakao Map
-        </span>
-      </div>
-
       <div class="result-summary">
         <div>
           <strong id="result-title">검색 결과</strong>
           <span id="result-count">0</span>
         </div>
-        <p id="map-status" class="map-status" aria-live="polite">카카오맵 설정을 확인하고 있습니다.</p>
       </div>
 
       <section id="place-results" class="place-results" aria-label="음식점 검색 결과">
@@ -94,6 +81,9 @@
         <span class="material-symbols-rounded" aria-hidden="true">chevron_left</span>
       </button>
       <div id="map"></div>
+      <button id="current-location-button" class="map-locate-button" type="button" aria-label="내 위치로 이동">
+        <span class="material-symbols-rounded" aria-hidden="true">my_location</span>
+      </button>
       <button id="search-area-button" class="map-search-area-button" type="button" hidden>
         <img src="/images/logos/symbol-48.png" class="map-search-area-icon" alt="" aria-hidden="true">
         이 지역에서 찾기

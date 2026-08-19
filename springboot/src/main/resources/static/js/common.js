@@ -1,8 +1,8 @@
 (() => {
   const SVG_NAMESPACE = "http://www.w3.org/2000/svg";
-  const RECOMMENDATION_PATH = "/pages/recommendation/index.html";
+  const RECOMMENDATION_PATH = "/recommendation";
   const RECOMMENDATION_LOGIN_PATH =
-    "/pages/auth/login.html?next=" +
+    "/auth/login?next=" +
     encodeURIComponent(RECOMMENDATION_PATH);
   const AUTHORITY_LABELS = Object.freeze({
     ROLE_USER: "일반 사용자",
@@ -390,16 +390,16 @@
     const active = host.dataset.activeNav || "";
     const items = [
       { id: "home", label: "홈", href: "/" },
-      { id: "search", label: "검색", href: "/pages/search/index.html" },
-      { id: "map", label: "맛집찾기", href: "/pages/map/index.html" },
+      { id: "search", label: "검색", href: "/search" },
+      { id: "map", label: "맛집찾기", href: "/map" },
       {
         id: "recommendation",
         label: "맛집추천",
         href: recommendationHref(),
         protectedRecommendation: true,
       },
-      { id: "board", label: "커뮤니티", href: "/pages/board/index.html" },
-      { id: "presset", label: "보물지도", href: "/pages/presset/index.html" },
+      { id: "board", label: "커뮤니티", href: "/board" },
+      { id: "presset", label: "보물지도", href: "/presset" },
     ];
 
     const nav = items.map((item) => {
@@ -416,10 +416,10 @@
            로그아웃
          </button>`
       : `<a class="button button-sm button-secondary header-auth-button header-signup-button"
-              href="/pages/auth/signup.html">
+              href="/auth/signup">
            회원가입
          </a>
-         <a class="button button-sm button-orange header-auth-button" href="/pages/auth/login.html">
+         <a class="button button-sm button-orange header-auth-button" href="/auth/login">
            로그인
          </a>`;
 
@@ -431,10 +431,10 @@
           </a>
           <nav id="site-nav" class="nav" aria-label="주요 메뉴">${nav}</nav>
           <div class="header-actions">
-            <a class="icon-button" href="/pages/mypage/index.html" aria-label="마이페이지">
+            <a class="icon-button" href="/mypage" aria-label="마이페이지">
               <span class="material-symbols-rounded" aria-hidden="true">person</span>
             </a>
-            <a class="icon-button" href="/pages/mypage/detail.html?tab=notifications"
+            <a class="icon-button" href="/mypage/detail?tab=notifications"
                aria-label="알림" data-notification-link>
               <span class="material-symbols-rounded" aria-hidden="true">notifications</span>
               <span class="notification-badge" data-notification-badge hidden></span>
@@ -694,7 +694,7 @@
           };
         }
 
-        const response = await fetch("/pages/auth/signup.html", {
+        const response = await fetch("/auth/signup", {
           method: "GET",
           credentials: "same-origin",
         });
@@ -781,13 +781,13 @@
 
   function currentQuickTarget() {
     const path = window.location.pathname;
-    if (path === "/" || path.endsWith("/index.html") && !path.includes("/pages/")) {
+    if (path === "/") {
       return "home";
     }
-    if (path.includes("/pages/mypage/")) {
+    if (path === "/mypage" || path.startsWith("/mypage/")) {
       return "mypage";
     }
-    if (path.includes("/pages/search/")) {
+    if (path === "/search") {
       return "search";
     }
     return "";
@@ -799,6 +799,11 @@
       existing.remove();
     }
 
+    // 맛집찾기(지도) 페이지는 지도 화면을 넓게 쓰기 위해 빠른 이동(리모컨)을 표시하지 않는다.
+    if (window.location.pathname === "/map") {
+      return;
+    }
+
     const items = [
       { id: "home", label: "홈", icon: "home", href: "/" },
       ...(session.authenticated
@@ -806,14 +811,14 @@
             id: "mypage",
             label: "마이페이지",
             icon: "person",
-            href: "/pages/mypage/index.html",
+            href: "/mypage",
           }]
         : []),
       {
         id: "search",
         label: "검색",
         icon: "search",
-        href: "/pages/search/index.html",
+        href: "/search",
       },
     ];
     const active = currentQuickTarget();

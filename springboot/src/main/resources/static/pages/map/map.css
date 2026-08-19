@@ -78,7 +78,6 @@
 }
 
 .map-sidebar-heading h1 {
-  margin-bottom: 8px;
   color: var(--color-navy);
   font-size: 2.15rem;
 }
@@ -216,29 +215,28 @@
   display: none;
 }
 
-.map-action-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  margin-top: 12px;
-}
-
-.location-button {
-  display: inline-flex;
-  min-height: 38px;
-  align-items: center;
-  gap: 7px;
-  padding: 0 12px;
+/* 지도 내부 우측, 카카오 확대/축소 컨트롤(TOPRIGHT) 바로 아래에 같은 폭·같은 우측 여백으로 일렬로 붙는 아이콘 버튼
+   (카카오 컨트롤 자체가 컨테이너 기준 top/right 3px, 너비 32px라 그 값에 맞춰야 어긋나 보이지 않는다) */
+.map-locate-button {
+  position: absolute;
+  z-index: 2;
+  top: 197px;
+  right: 3px;
+  display: grid;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  padding: 0;
   border: 1px solid var(--color-line);
-  border-radius: 11px;
+  border-radius: 10px;
   color: var(--color-navy);
   background: #fff;
-  font-size: 0.78rem;
-  font-weight: 800;
+  box-shadow: var(--shadow-sm);
+  cursor: pointer;
+  transition: border-color 150ms ease, background 150ms ease;
 }
 
-.location-button:hover {
+.map-locate-button:hover {
   border-color: #c8d4e1;
   background: #f8fafc;
 }

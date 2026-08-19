@@ -81,7 +81,9 @@
       center: new kakao.maps.LatLng(37.5665, 126.978),
       level: 3,
     });
-    kakaoMap.addControl(new kakao.maps.ZoomControl(), kakao.maps.ControlPosition.RIGHT);
+    // TOPRIGHT로 고정해야 "내 위치로 이동" 버튼을 그 아래에 정확히 붙일 수 있다
+    // (RIGHT는 지도 높이에 따라 수직 중앙으로 움직여서 위치 계산이 불안정함).
+    kakaoMap.addControl(new kakao.maps.ZoomControl(), kakao.maps.ControlPosition.TOPRIGHT);
     mapPlaceholder.hidden = true;
     const showSearchAreaButton = () => {
       if ((!presetMode || editMode) && lastSearchKeyword) searchAreaButton.hidden = false;
@@ -130,7 +132,7 @@
 
   function detailHref(restaurantId) {
     const source = presetMode ? "owned" : "public";
-    return `/pages/restaurant/detail.html?source=${source}&id=${encodeURIComponent(restaurantId)}`;
+    return `/restaurant/detail?source=${source}&id=${encodeURIComponent(restaurantId)}`;
   }
 
   function closeDetailPanel() {
@@ -283,7 +285,7 @@
 
   function requireLogin() {
     if (window.FooduckSession?.authenticated) return true;
-    location.assign(`/pages/auth/login.html?next=${encodeURIComponent(`${location.pathname}${location.search}`)}`);
+    location.assign(`/auth/login?next=${encodeURIComponent(`${location.pathname}${location.search}`)}`);
     return false;
   }
 
@@ -623,7 +625,6 @@
         await searchPlaces(keyword);
       } else {
         setResultsState(0);
-        setMapStatus("검색어를 입력하거나 카테고리를 선택해 주세요.");
         renderEmptyResults("검색어를 입력하거나 카테고리를 선택하면 맛집을 보여드려요.");
       }
     } catch (error) {
