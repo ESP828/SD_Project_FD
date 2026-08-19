@@ -45,3 +45,7 @@ springboot/.sts4-cache/
 *.zip
 springboot/db-backups/
 springboot/deliverables/
+
+# Python (springboot/ai)
+__pycache__/
+*.pyc

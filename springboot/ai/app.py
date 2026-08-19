@@ -1,8 +1,9 @@
 # ai/app.py
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from typing import Optional, List
 import recommend
+import sentiment
 
 app = FastAPI()
 
@@ -15,6 +16,47 @@ class QueryRecommendationRequest(BaseModel):
     age: Optional[int] = None
     gender: Optional[str] = None
     limit: int = 120
+
+
+# ---- 감성분석 (Naive Bayes) ----
+
+class ReviewRequest(BaseModel):
+    review: str
+
+class PredictionResponse(BaseModel):
+    review: str
+    prediction: str
+    positive_probability: float
+    negative_probability: float
+
+class RestaurantReviewsRequest(BaseModel):
+    restaurantId: int
+    restaurantName: str
+    reviews: List[str]
+
+class RestaurantSentimentSummary(BaseModel):
+    restaurantId: int
+    restaurantName: str
+    reviewCount: int
+    positiveCount: int
+    negativeCount: int
+    positiveRatio: float
+
+
+@app.post("/predict/sentiment", response_model=PredictionResponse)
+def predict_sentiment(request: ReviewRequest):
+    if not sentiment.is_ready():
+        raise HTTPException(status_code=503, detail="감성분석 모델이 아직 준비되지 않았습니다.")
+    return PredictionResponse(**sentiment.predict_one(request.review))
+
+
+@app.post("/predict/sentiment/restaurant-summary", response_model=RestaurantSentimentSummary)
+def predict_sentiment_restaurant_summary(request: RestaurantReviewsRequest):
+    if not sentiment.is_ready():
+        raise HTTPException(status_code=503, detail="감성분석 모델이 아직 준비되지 않았습니다.")
+    return RestaurantSentimentSummary(
+        **sentiment.summarize_restaurant(request.restaurantId, request.restaurantName, request.reviews)
+    )
 
 @app.post("/recommendations/query")
 def recommend_by_query(req: QueryRecommendationRequest):

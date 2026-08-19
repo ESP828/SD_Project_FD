@@ -14,7 +14,11 @@ import com.example.backend.restaurant.query.PublicRestaurantMenuQueryRepository;
 import com.example.backend.restaurant.repository.PublicRestaurantRepository;
 import com.example.backend.restaurant.repository.PublicRestaurantSpecifications;
 import com.example.backend.review.dto.response.ReviewResponse;
+import com.example.backend.review.integration.sentiment.SentimentAnalysisClient;
+import com.example.backend.review.integration.sentiment.dto.RestaurantSentimentSummaryResponse;
 import com.example.backend.review.service.ReviewService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -37,6 +41,7 @@ import java.util.List;
 @RequestMapping("/api/public/map")
 public class MapRestaurantController {
 
+    private static final Logger log = LoggerFactory.getLogger(MapRestaurantController.class);
     private static final int MAX_RESULTS = 30;
     private static final int MAX_SEARCH_PAGE_SIZE = 50;
 
@@ -44,17 +49,20 @@ public class MapRestaurantController {
     private final ReviewService reviewService;
     private final PublicRestaurantFavoriteService favoriteService;
     private final PublicRestaurantMenuQueryRepository menuQueryRepository;
+    private final SentimentAnalysisClient sentimentAnalysisClient;
 
     public MapRestaurantController(
             PublicRestaurantRepository publicRestaurantRepository,
             ReviewService reviewService,
             PublicRestaurantFavoriteService favoriteService,
-            PublicRestaurantMenuQueryRepository menuQueryRepository
+            PublicRestaurantMenuQueryRepository menuQueryRepository,
+            SentimentAnalysisClient sentimentAnalysisClient
     ) {
         this.publicRestaurantRepository = publicRestaurantRepository;
         this.reviewService = reviewService;
         this.favoriteService = favoriteService;
         this.menuQueryRepository = menuQueryRepository;
+        this.sentimentAnalysisClient = sentimentAnalysisClient;
     }
 
     @GetMapping("/restaurants")
@@ -65,16 +73,39 @@ public class MapRestaurantController {
             @RequestParam BigDecimal neLng,
             @RequestParam(required = false) String keyword
     ) {
-        List<PublicRestaurant> restaurants = StringUtils.hasText(keyword)
-                ? publicRestaurantRepository.searchInBoundsByRelevance(
-                        swLat, neLat, swLng, neLng, keyword.trim(), MAX_RESULTS
-                )
-                : publicRestaurantRepository.findByLatitudeBetweenAndLongitudeBetween(
-                        swLat, neLat, swLng, neLng, PageRequest.of(0, MAX_RESULTS)
+        List<PublicRestaurant> restaurants;
+        if (StringUtils.hasText(keyword)) {
+            String trimmed = keyword.trim();
+            // 상호명·카테고리·주소에 검색어가 그대로 포함된 매장을 우선 찾는다(정확한 매장명 검색 시
+            // 그 매장만 나오도록). ngram 풀텍스트 검색은 부분 문자열이 겹치는 다른 매장까지 끌어오므로
+            // 정확 매칭 결과가 없을 때만 폴백으로 사용한다.
+            restaurants = publicRestaurantRepository.searchInBoundsByExactContains(
+                    swLat, neLat, swLng, neLng, "%" + trimmed + "%", MAX_RESULTS
+            );
+            if (restaurants.isEmpty()) {
+                restaurants = publicRestaurantRepository.searchInBoundsByRelevance(
+                        swLat, neLat, swLng, neLng, trimmed, MAX_RESULTS
                 );
+            }
+        } else {
+            restaurants = publicRestaurantRepository.findByLatitudeBetweenAndLongitudeBetween(
+                    swLat, neLat, swLng, neLng, PageRequest.of(0, MAX_RESULTS)
+            );
+        }
         List<PublicRestaurantMarkerResponse> response = restaurants.stream()
                 .map(PublicRestaurantMarkerResponse::from)
                 .toList();
+        return ApiResponse.success(response);
+    }
+
+    @GetMapping("/restaurants/find-by-name")
+    public ApiResponse<PublicRestaurantMarkerResponse> findByExactName(@RequestParam String name) {
+        // 지도 반경 제한 없이 전체 DB에서 정확히 같은 이름의 매장을 찾는다. 이름이 겹치는 매장이
+        // 둘 이상이면(같은 이름의 프랜차이즈 등) 어디로 이동해야 할지 알 수 없으므로 매칭시키지 않는다.
+        List<PublicRestaurant> matches = publicRestaurantRepository.findByName(name.trim());
+        PublicRestaurantMarkerResponse response = matches.size() == 1
+                ? PublicRestaurantMarkerResponse.from(matches.get(0))
+                : null;
         return ApiResponse.success(response);
     }
 
@@ -98,6 +129,36 @@ public class MapRestaurantController {
     @GetMapping("/restaurants/{id}/menu")
     public ApiResponse<List<MenuResponse>> getMenu(@PathVariable Long id) {
         return ApiResponse.success(menuQueryRepository.findVisibleByPublicRestaurantId(id));
+    }
+
+    /**
+     * 이 매장의 리뷰들을 FastAPI 감성분석(Naive Bayes) 서비스로 보내 긍정/부정 비율을 집계한다.
+     * 감성분석 서비스가 설정되어 있지 않거나(로컬에서 FastAPI 미기동 등) 호출에 실패하면
+     * 화면이 깨지지 않도록 null을 반환한다 - 프론트에서는 "AI 리뷰 분석 준비 중" 등으로 처리한다.
+     */
+    @GetMapping("/restaurants/{id}/sentiment-summary")
+    public ApiResponse<RestaurantSentimentSummaryResponse> getSentimentSummary(@PathVariable Long id) {
+        if (!sentimentAnalysisClient.isConfigured()) {
+            return ApiResponse.success(null);
+        }
+        PublicRestaurant restaurant = publicRestaurantRepository.findById(id)
+                .orElseThrow(() -> new BusinessException(ErrorCode.RESTAURANT_NOT_FOUND));
+        List<String> reviewTexts = reviewService.getReviewsForPublicRestaurant(id).stream()
+                .map(ReviewResponse::content)
+                .filter(StringUtils::hasText)
+                .toList();
+        if (reviewTexts.isEmpty()) {
+            return ApiResponse.success(null);
+        }
+        try {
+            RestaurantSentimentSummaryResponse summary = sentimentAnalysisClient.summarizeRestaurant(
+                    id, restaurant.getName(), reviewTexts
+            );
+            return ApiResponse.success(summary);
+        } catch (RuntimeException e) {
+            log.warn("감성분석 서비스 호출 실패 (restaurantId={}): {}", id, e.getMessage());
+            return ApiResponse.success(null);
+        }
     }
 
     @GetMapping("/restaurants/search")

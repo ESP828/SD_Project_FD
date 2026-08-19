@@ -443,6 +443,60 @@ body > [data-site-header] > .site-header {
   font-size: 0.72rem;
 }
 
+/* AI 리뷰 감성분석 */
+
+.store-sentiment-card {
+  margin-bottom: 18px;
+  padding: 16px 18px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-md);
+  background: var(--color-canvas);
+}
+
+.store-sentiment-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.store-sentiment-head .material-symbols-rounded {
+  color: var(--color-orange);
+  font-size: 1.1rem;
+}
+
+.store-sentiment-head strong {
+  color: var(--color-navy);
+  font-size: 0.88rem;
+}
+
+.store-sentiment-ratio {
+  margin-left: auto;
+  color: var(--color-orange-dark);
+  font-size: 0.9rem;
+  font-weight: 800;
+}
+
+.store-sentiment-bar {
+  overflow: hidden;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--color-line);
+}
+
+.store-sentiment-bar-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--color-orange);
+  transition: width 320ms ease;
+}
+
+.store-sentiment-caption {
+  margin: 8px 0 0;
+  color: var(--color-muted);
+  font-size: 0.76rem;
+}
+
 /* News */
 
 .store-news-header {
