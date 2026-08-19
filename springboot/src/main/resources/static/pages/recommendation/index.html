@@ -8,14 +8,15 @@
   <link rel="icon" href="/images/favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/css/common.css">
   <link rel="stylesheet" href="/pages/recommendation/recommendation.css">
+  <link rel="stylesheet" href="/css/category-hero.css">
 </head>
 <body>
   <div data-site-header data-active-nav="recommendation"></div>
 
   <main class="recommendation-main">
-    <section class="recommendation-hero">
-      <div class="container recommendation-hero-grid">
-        <div>
+    <section class="recommendation-hero category-hero category-hero--full">
+      <div class="container recommendation-hero-grid category-hero__inner">
+        <div class="category-hero__copy">
           <p class="eyebrow">Taste recommendation</p>
           <h1>내 취향을 따라<br>찾아낸 맛있는 선택</h1>
           <div class="recommendation-hero-actions">
@@ -28,7 +29,9 @@
             </a>
           </div>
         </div>
-        <img src="/images/characters/cooking.png" alt="" aria-hidden="true">
+        <div class="category-hero__visual">
+          <img class="category-hero__image" src="/images/characters/cooking.png" alt="" aria-hidden="true">
+        </div>
       </div>
     </section>
 

@@ -252,39 +252,6 @@
   display: none;
 }
 
-.home-preset-nav {
-  position: relative;
-  z-index: 2;
-  display: grid;
-  flex: 0 0 auto;
-  width: 44px;
-  height: 44px;
-  place-items: center;
-  border: 1px solid var(--color-line);
-  border-radius: 50%;
-  color: var(--color-navy);
-  background: #fff;
-  box-shadow: var(--shadow-sm);
-  font-size: 1.3rem;
-  line-height: 1;
-  cursor: pointer;
-  transition: transform 150ms ease, box-shadow 150ms ease;
-}
-
-.home-preset-nav:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-card);
-}
-
-.home-preset-nav:focus-visible {
-  outline: 3px solid var(--color-orange);
-  outline-offset: 2px;
-}
-
-.home-preset-nav[hidden] {
-  display: none;
-}
-
 /* 사진 전용 슬라이딩 타일: 평소엔 사진만, 호버 시 흰 배경 위에 제목/정보/버튼 노출 */
 .home-preset-card {
   position: relative;

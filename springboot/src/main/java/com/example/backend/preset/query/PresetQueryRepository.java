@@ -17,6 +17,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 
@@ -57,15 +58,6 @@ public class PresetQueryRepository {
                     where pt_filter.preset_id = p.preset_id
                       and pt_filter.tag_id = :tagId
                ))
-               and (:keyword = ''
-                    or lower(p.title) like :keywordLike
-                    or exists (
-                        select 1
-                          from preset_tag pt_keyword
-                          join tag t_keyword on t_keyword.tag_id = pt_keyword.tag_id
-                         where pt_keyword.preset_id = p.preset_id
-                           and lower(t_keyword.name) like :keywordLike
-                    ))
             """;
 
     private static final String LIST_GROUP = """
@@ -83,15 +75,6 @@ public class PresetQueryRepository {
                     where pt_filter.preset_id = p.preset_id
                       and pt_filter.tag_id = :tagId
                ))
-               and (:keyword = ''
-                    or lower(p.title) like :keywordLike
-                    or exists (
-                        select 1
-                          from preset_tag pt_keyword
-                          join tag t_keyword on t_keyword.tag_id = pt_keyword.tag_id
-                         where pt_keyword.preset_id = p.preset_id
-                           and lower(t_keyword.name) like :keywordLike
-                    ))
             """;
 
     private static final String DETAIL_SQL = """
@@ -366,8 +349,13 @@ public class PresetQueryRepository {
     }
 
     public long countActive(Long accountId, Integer tagId, String keyword) {
-        MapSqlParameterSource parameters = filterParameters(accountId, tagId, keyword);
-        Long count = jdbcTemplate.queryForObject(COUNT_SQL, parameters, Long.class);
+        List<String> keywordTokens = normalizeKeywordTokens(keyword);
+        MapSqlParameterSource parameters = filterParameters(accountId, tagId, keywordTokens);
+        Long count = jdbcTemplate.queryForObject(
+                COUNT_SQL + keywordFilter(keywordTokens),
+                parameters,
+                Long.class
+        );
         return count == null ? 0 : count;
     }
 
@@ -379,10 +367,11 @@ public class PresetQueryRepository {
             int offset,
             int size
     ) {
-        MapSqlParameterSource parameters = filterParameters(accountId, tagId, keyword)
+        List<String> keywordTokens = normalizeKeywordTokens(keyword);
+        MapSqlParameterSource parameters = filterParameters(accountId, tagId, keywordTokens)
                 .addValue("offset", offset)
                 .addValue("size", size);
-        String sql = LIST_SELECT + ACTIVE_FILTER + LIST_GROUP
+        String sql = LIST_SELECT + ACTIVE_FILTER + keywordFilter(keywordTokens) + LIST_GROUP
                 + orderBy(sort) + " limit :size offset :offset";
         List<PresetSummaryRow> rows = jdbcTemplate.query(sql, parameters, this::mapSummaryRow);
         return enrichSummaries(rows, accountId);
@@ -654,14 +643,79 @@ public class PresetQueryRepository {
     private static MapSqlParameterSource filterParameters(
             Long accountId,
             Integer tagId,
-            String keyword
+            List<String> keywordTokens
     ) {
-        String normalizedKeyword = keyword == null ? "" : keyword.trim().toLowerCase();
-        return new MapSqlParameterSource()
+        MapSqlParameterSource parameters = new MapSqlParameterSource()
                 .addValue("accountId", accountId)
-                .addValue("tagId", tagId)
-                .addValue("keyword", normalizedKeyword)
-                .addValue("keywordLike", "%" + normalizedKeyword + "%");
+                .addValue("tagId", tagId);
+        for (int index = 0; index < keywordTokens.size(); index++) {
+            String token = keywordTokens.get(index);
+            parameters.addValue("keywordLike" + index, "%" + token + "%");
+            parameters.addValue("keywordCompactLike" + index, "%" + compact(token) + "%");
+        }
+        return parameters;
+    }
+
+    private static List<String> normalizeKeywordTokens(String keyword) {
+        if (keyword == null || keyword.isBlank()) {
+            return List.of();
+        }
+        return List.of(keyword
+                        .replace('#', ' ')
+                        .trim()
+                        .toLowerCase(Locale.ROOT)
+                        .split("[\\s,]+"))
+                .stream()
+                .filter(token -> !token.isBlank())
+                .distinct()
+                .toList();
+    }
+
+    private static String keywordFilter(List<String> keywordTokens) {
+        StringBuilder sql = new StringBuilder();
+        for (int index = 0; index < keywordTokens.size(); index++) {
+            sql.append("""
+                       and (
+                            lower(p.title) like :keywordLike%s
+                            or lower(p.category) like :keywordLike%s
+                            or replace(replace(replace(lower(p.title), '#', ''), ',', ''), ' ', '')
+                               like :keywordCompactLike%s
+                            or replace(replace(replace(lower(p.category), '#', ''), ',', ''), ' ', '')
+                               like :keywordCompactLike%s
+                            or exists (
+                                select 1
+                                  from preset_tag pt_keyword_%s
+                                  join tag t_keyword_%s
+                                    on t_keyword_%s.tag_id = pt_keyword_%s.tag_id
+                                 where pt_keyword_%s.preset_id = p.preset_id
+                                   and (
+                                        lower(t_keyword_%s.name) like :keywordLike%s
+                                        or replace(replace(replace(lower(t_keyword_%s.name), '#', ''), ',', ''), ' ', '')
+                                           like :keywordCompactLike%s
+                                   )
+                            )
+                       )
+                    """.formatted(
+                    index,
+                    index,
+                    index,
+                    index,
+                    index,
+                    index,
+                    index,
+                    index,
+                    index,
+                    index,
+                    index,
+                    index,
+                    index
+            ));
+        }
+        return sql.toString();
+    }
+
+    private static String compact(String value) {
+        return value.replace("#", "").replace(",", "").replace(" ", "");
     }
 
     private static String orderBy(String sort) {

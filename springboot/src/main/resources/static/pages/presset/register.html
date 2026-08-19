@@ -8,22 +8,24 @@
   <link rel="icon" href="/images/favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/css/common.css">
   <link rel="stylesheet" href="/pages/presset/presset.css">
+  <link rel="stylesheet" href="/css/category-hero.css">
 </head>
 <body>
   <div data-site-header data-active-nav="presset"></div>
 
   <main class="preset-main preset-register-main">
-    <section class="preset-hero preset-register-hero">
-      <div class="container preset-hero-grid">
-        <div>
-          <a class="preset-back-link" href="/pages/presset/index.html">
+    <section class="preset-hero preset-register-hero category-hero">
+      <div class="container preset-hero-grid category-hero__inner">
+        <div class="category-hero__copy">
+          <a id="preset-back-link" class="preset-back-link" href="/pages/presset/index.html">
             <span aria-hidden="true">←</span> 보물지도로 돌아가기
           </a>
-          <p class="eyebrow">CREATE YOUR COLLECTION</p>
-          <h1 id="preset-register-title">나만의 맛집<br>보물지도 등록</h1>
-          <p class="preset-hero-copy">나만의 상황별 맛집 모음을 만들어보세요.</p>
+          <h1 id="preset-register-title">나만의 맛집<br>보물지도 <span id="preset-register-mode-label">등록</span></h1>
         </div>
-        <img src="/images/characters/cooking.png" alt="" aria-hidden="true">
+        <div class="category-hero__visual">
+          <img class="category-hero__image" src="/images/characters/treasure-map-hero.png"
+               alt="" aria-hidden="true" decoding="async" fetchpriority="high">
+        </div>
       </div>
     </section>
 
@@ -32,10 +34,9 @@
       <div class="preset-create-intro">
         <p class="eyebrow">보물지도 INFORMATION</p>
         <h2 id="preset-register-form-title">보물지도 정보를 입력해 주세요</h2>
-        <p class="muted">로그인한 계정으로 저장됩니다. 제목과 카테고리는 필수 항목입니다.</p>
       </div>
 
-      <form id="preset-create-form" class="preset-create-form surface-card" novalidate>
+      <form id="preset-create-form" class="preset-create-form preset-register-form surface-card" novalidate>
         <div class="preset-form-grid">
           <div class="preset-form-field">
             <label for="preset-title">제목 <span class="preset-required" aria-hidden="true">*</span></label>
@@ -52,7 +53,7 @@
           </div>
 
           <div class="preset-form-field">
-            <label for="preset-category-input">카테고리 <span class="preset-required" aria-hidden="true">*</span></label>
+            <label for="preset-category-input">태그 <span class="preset-required" aria-hidden="true">*</span></label>
             <input id="preset-category" name="category" type="hidden" required>
             <div id="preset-category-field" class="preset-token-field">
               <ul id="preset-category-token-list" class="preset-token-list"></ul>
@@ -93,9 +94,11 @@
         </div>
 
         <div class="preset-form-footer">
-          <a class="button button-secondary" href="/pages/presset/index.html">취소</a>
-          <button id="preset-submit" class="button button-primary" type="submit">등록</button>
           <div id="result-message" class="preset-form-result" role="status" aria-live="polite"></div>
+          <div class="preset-form-actions">
+            <a id="preset-cancel-link" class="button button-secondary" href="/pages/presset/index.html">취소</a>
+            <button id="preset-submit" class="button button-primary" type="submit">등록</button>
+          </div>
         </div>
       </form>
     </section>

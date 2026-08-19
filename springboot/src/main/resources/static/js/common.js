@@ -633,8 +633,13 @@
     document.body.append(button);
 
     let ticking = false;
+    let isVisible = false;
     const updateVisibility = () => {
-      button.hidden = window.scrollY <= 450;
+      const nextVisible = window.scrollY > 450;
+      if (nextVisible !== isVisible) {
+        isVisible = nextVisible;
+        button.hidden = !nextVisible;
+      }
       ticking = false;
     };
 

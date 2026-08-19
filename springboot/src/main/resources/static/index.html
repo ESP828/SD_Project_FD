@@ -8,14 +8,15 @@
   <link rel="icon" href="/images/favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/css/common.css">
   <link rel="stylesheet" href="/css/home.css">
+  <link rel="stylesheet" href="/css/category-hero.css">
 </head>
 <body>
   <div data-site-header data-active-nav="home"></div>
 
   <main class="home-main">
-    <section class="home-hero">
-      <div class="container hero-grid">
-        <div class="hero-copy">
+    <section class="home-hero category-hero category-hero--full">
+      <div class="container hero-grid category-hero__inner">
+        <div class="hero-copy category-hero__copy">
           <p class="eyebrow">Find your delicious moment</p>
           <h1>복잡한 고민 없이<br>원하는 맛집을 한눈에</h1>
           <div class="hero-actions">
@@ -30,8 +31,8 @@
           </div>
         </div>
 
-        <div class="hero-visual hero-visual--duck">
-          <img class="hero-duck" src="/images/home-hero-foodduck-official.png" alt="지도와 음식을 보며 맛집을 찾는 푸드덕 캐릭터">
+        <div class="hero-visual hero-visual--duck category-hero__visual">
+          <img class="hero-duck category-hero__image" src="/images/home-hero-foodduck-official.png" alt="지도와 음식을 보며 맛집을 찾는 푸드덕 캐릭터">
         </div>
       </div>
     </section>
@@ -95,27 +96,9 @@
           </a>
         </div>
         <div class="home-preset-carousel">
-          <button
-            type="button"
-            id="home-preset-prev"
-            class="home-preset-nav home-preset-nav--prev"
-            aria-label="이전 보물지도 보기"
-            hidden
-          >
-            <span aria-hidden="true">‹</span>
-          </button>
           <div id="home-preset-list" class="home-preset-list" aria-live="polite" aria-busy="true">
             <p class="home-preset-state">인기 보물지도를 불러오고 있습니다.</p>
           </div>
-          <button
-            type="button"
-            id="home-preset-next"
-            class="home-preset-nav home-preset-nav--next"
-            aria-label="다음 보물지도 보기"
-            hidden
-          >
-            <span aria-hidden="true">›</span>
-          </button>
         </div>
       </div>
     </section>
