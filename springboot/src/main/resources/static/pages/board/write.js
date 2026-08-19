@@ -16,13 +16,29 @@
   const MAX_MEDIA_COUNT = 10;
   const MAX_IMAGE_BYTES = 20 * 1024 * 1024;
   const MAX_VIDEO_BYTES = 100 * 1024 * 1024;
-  const WRITE_EMOJIS = (
-    "😀 😃 😄 😁 😆 😅 🤣 😂 🙂 🙃 🫠 😉 😊 😇 🥰 😍 🤩 😘 😗 ☺️ 😚 😙 🥲 " +
-    "😋 😛 😜 🤪 😝 🤑 🤗 🤭 🫢 🫣 🤫 🤔 🫡 🤐 🤨 😐 😑 😶 🫥 😶‍🌫️ 😏 😒 🙄 😬 " +
-    "😮‍💨 🤥 🫨 🙂‍↔️ 🙂‍↕️ 😌 😔 😪 🤤 😴 🫩 😷 🤒 🤕 🤢 🤮 🤧 🥵 🥶 🥴 😵 😵‍💫 🤯 " +
-    "🤠 🥳 🥸 😎 🤓 🧐 😕 🫤 😟 🙁 ☹️ 😮 😯 😲 😳 🥺 🥹 😦 😧 😨 😰 😥 😢 😭 😱 " +
-    "😖 😣 😞 😓 😩 😫 🥱 😤 😡 😠 🤬 😈 👿"
-  ).split(" ");
+  const WRITE_EMOJI_RECENT_KEY = "fooduck:board:write:recent-emojis";
+  const WRITE_EMOJI_GROUPS = [
+    {
+      label: "표정",
+      keywords: "표정 얼굴 웃음 감정 face smile",
+      emojis: "😀 😃 😄 😁 😆 😅 🤣 😂 🙂 🙃 😉 😊 😇 🥰 😍 🤩 😋 😎 🥹 😭 😱 🤔 🫡 😴 🤯 🥳".split(" "),
+    },
+    {
+      label: "반응",
+      keywords: "반응 손 하트 좋아요 축하 reaction hand heart",
+      emojis: "👍 👎 👏 🙌 🫶 ❤️ 🧡 💛 💚 💙 💜 🤍 🔥 ✨ 🎉 💯 👀 🙏 💪 🤝 🫰".split(" "),
+    },
+    {
+      label: "음식",
+      keywords: "음식 맛집 식사 커피 디저트 food restaurant meal coffee dessert",
+      emojis: "🍚 🍜 🍲 🍛 🍣 🍱 🍙 🍔 🍟 🍕 🌭 🌮 🌯 🥗 🥩 🍗 🥓 🍳 🥐 🍞 🧀 🍰 🍩 🍪 🍦 ☕ 🧋 🍺".split(" "),
+    },
+    {
+      label: "장소·활동",
+      keywords: "장소 여행 활동 위치 별점 place travel activity location",
+      emojis: "📍 🗺️ 🚶 🚗 🚇 ✈️ 🏠 🏪 🍽️ 🌆 🌃 🌅 ⭐ 🌟 💡 📸 🎵 🎁 ✅ ❗ ❓".split(" "),
+    },
+  ];
   const IMAGE_EXTENSIONS = new Set([
     "jpg", "jpeg", "png", "gif", "webp", "bmp",
     "tif", "tiff", "avif", "heic", "heif",
@@ -118,29 +134,112 @@
     contentInput.dispatchEvent(new Event("input", { bubbles: true }));
   }
 
+  function readRecentEditorEmojis() {
+    try {
+      const parsed = JSON.parse(localStorage.getItem(WRITE_EMOJI_RECENT_KEY) || "[]");
+      return Array.isArray(parsed)
+        ? parsed.filter((emoji) => typeof emoji === "string").slice(0, 12)
+        : [];
+    } catch (_) {
+      return [];
+    }
+  }
+
+  function rememberEditorEmoji(emoji) {
+    try {
+      const next = [
+        emoji,
+        ...readRecentEditorEmojis().filter((item) => item !== emoji),
+      ].slice(0, 12);
+      localStorage.setItem(WRITE_EMOJI_RECENT_KEY, JSON.stringify(next));
+    } catch (_) {
+      // localStorage 사용이 제한된 환경에서도 이모지 입력 자체는 유지한다.
+    }
+  }
+
   function initializeEditorEmojiPicker() {
     if (!emojiToggle || !emojiPanel || !contentInput) return;
 
-    const grid = board.element("div", "comment-emoji-grid");
-    WRITE_EMOJIS.forEach((emoji) => {
-      const button = board.element("button", "comment-emoji-option", emoji);
-      button.type = "button";
-      button.setAttribute("aria-label", `${emoji} 이모지 입력`);
-      button.addEventListener("click", () => {
-        insertEditorEmoji(emoji);
+    const searchWrap = board.element("label", "board-write-emoji-search");
+    const searchIcon = board.element("span", "material-symbols-rounded", "search");
+    searchIcon.setAttribute("aria-hidden", "true");
+    const searchInput = document.createElement("input");
+    searchInput.type = "search";
+    searchInput.placeholder = "이모지 검색 · 음식, 반응, 표정";
+    searchInput.setAttribute("aria-label", "이모지 검색");
+    searchWrap.append(searchIcon, searchInput);
+
+    const content = board.element("div", "board-write-emoji-content");
+
+    function createEmojiGrid(emojis) {
+      const grid = board.element("div", "comment-emoji-grid");
+      emojis.forEach((emoji) => {
+        const button = board.element("button", "comment-emoji-option", emoji);
+        button.type = "button";
+        button.setAttribute("aria-label", `${emoji} 이모지 입력`);
+        button.addEventListener("click", () => {
+          insertEditorEmoji(emoji);
+          rememberEditorEmoji(emoji);
+          renderEmojiGroups(searchInput.value);
+        });
+        grid.append(button);
       });
-      grid.append(button);
+      return grid;
+    }
+
+    function appendEmojiSection(label, emojis) {
+      if (!emojis.length) return;
+      const section = board.element("section", "board-write-emoji-section");
+      section.append(
+        board.element("strong", "comment-emoji-panel-title", label),
+        createEmojiGrid(emojis),
+      );
+      content.append(section);
+    }
+
+    function renderEmojiGroups(rawQuery = "") {
+      const query = String(rawQuery || "").trim().toLowerCase();
+      content.replaceChildren();
+
+      const recent = readRecentEditorEmojis();
+      if (!query && recent.length) {
+        appendEmojiSection("최근 사용", recent);
+      }
+
+      WRITE_EMOJI_GROUPS.forEach((group) => {
+        const searchable = `${group.label} ${group.keywords}`.toLowerCase();
+        if (query && !searchable.includes(query) && !group.emojis.includes(query)) {
+          return;
+        }
+        appendEmojiSection(group.label, group.emojis);
+      });
+
+      if (!content.childElementCount) {
+        content.append(
+          board.element(
+            "p",
+            "board-write-emoji-empty",
+            "검색 결과가 없습니다. 다른 검색어를 입력해보세요.",
+          ),
+        );
+      }
+    }
+
+    searchInput.addEventListener("input", () => {
+      renderEmojiGroups(searchInput.value);
     });
 
-    emojiPanel.replaceChildren(
-      board.element("strong", "comment-emoji-panel-title", "이모지"),
-      grid,
-    );
+    renderEmojiGroups();
+    emojiPanel.replaceChildren(searchWrap, content);
 
     emojiToggle.addEventListener("click", (event) => {
       event.stopPropagation();
-      if (editorEmojiOpen) closeEditorEmojiPanel();
-      else openEditorEmojiPanel();
+      if (editorEmojiOpen) {
+        closeEditorEmojiPanel();
+      } else {
+        openEditorEmojiPanel();
+        window.setTimeout(() => searchInput.focus({ preventScroll: true }), 0);
+      }
     });
 
     emojiPanel.addEventListener("click", (event) => {
@@ -918,7 +1017,7 @@
       errorMessage.textContent =
         error.message || "게시글을 저장하지 못했습니다.";
       submitButton.disabled = false;
-      submitButton.textContent = postId ? "수정 저장" : "등록하기";
+      submitButton.textContent = postId ? "수정 저장" : "게시하기";
       if (emojiToggle) emojiToggle.disabled = false;
       setMediaBusy(false);
     }

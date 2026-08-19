@@ -4,92 +4,110 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="푸드덕 커뮤니티 게시글 작성">
-  <title>새 이야기 쓰기 · 푸드덕</title>
+  <title>게시물 작성 · 푸드덕</title>
   <link rel="icon" href="/images/favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/css/common.css">
-  <link rel="stylesheet" href="/pages/board/board.css">
+  <link rel="stylesheet" href="/pages/board/board.css?v=20260819-write-minimal-v1">
 </head>
 <body>
   <div data-site-header data-active-nav="board"></div>
 
-  <main class="board-page-main">
-    <section class="board-sub-hero">
-      <div class="container board-sub-hero-grid">
-        <div>
-          <a class="board-back-link" href="/pages/board/index.html" data-list-link>
-            <span class="material-symbols-rounded" aria-hidden="true">arrow_back</span>
-            커뮤니티 목록
-          </a>
-          <p class="eyebrow">Write a story</p>
-          <h1 id="write-page-title">새 이야기 쓰기</h1>
-          <p>직접 경험한 맛집 이야기와 궁금한 내용을 자유롭게 나눠 보세요.</p>
+  <main class="board-page-main board-write-page">
+    <section class="board-write-header">
+      <div class="container board-write-header__inner">
+        <a class="board-back-link" href="/pages/board/index.html" data-list-link>
+          <span class="material-symbols-rounded" aria-hidden="true">arrow_back</span>
+          커뮤니티
+        </a>
+
+        <div class="board-write-header__row">
+          <div>
+            <p class="board-write-kicker">FOODUCK COMMUNITY</p>
+            <h1 id="write-page-title">게시물 작성</h1>
+            <p class="board-write-header__description">
+              맛집 경험, 질문, 발견한 정보를 편하게 나눠보세요.
+            </p>
+          </div>
+          <span id="editor-mode-badge" class="post-badge board-write-mode-badge">새 글</span>
         </div>
-        <img src="/images/characters/review.png" alt="" aria-hidden="true">
       </div>
     </section>
 
-    <section class="container board-editor-layout" aria-labelledby="write-page-title">
-      <form id="post-editor-form" class="board-form-card">
-        <div class="board-form-heading">
-          <div>
-            <span class="board-step-label">게시글 정보</span>
-            <h2>이야기 내용을 작성해 주세요</h2>
-          </div>
-          <span id="editor-mode-badge" class="post-badge">새 글</span>
-        </div>
-
-        <div class="editor-grid">
-          <label class="board-field">
+    <section class="container board-editor-layout board-editor-layout--composer"
+             aria-labelledby="write-page-title">
+      <form id="post-editor-form" class="board-form-card board-composer">
+        <div class="editor-grid board-composer-meta">
+          <label class="board-field board-field--compact">
             <span>게시 공간 <b aria-hidden="true">*</b></span>
             <select id="editor-board-type" required>
               <option value="GENERAL">일반 커뮤니티</option>
             </select>
           </label>
-          <label class="board-field">
+          <label class="board-field board-field--compact">
             <span>카테고리 <b aria-hidden="true">*</b></span>
             <select id="editor-category" required></select>
           </label>
         </div>
 
-        <label class="board-field">
-          <span>제목 <b aria-hidden="true">*</b></span>
-          <input id="editor-post-title" type="text" maxlength="200" required
-                 placeholder="이야기 제목을 입력해 주세요.">
-          <small><span id="title-count">0</span>/200</small>
+        <label class="board-field board-title-field">
+          <span class="board-field-head">
+            <span>제목 <b aria-hidden="true">*</b></span>
+            <small><span id="title-count">0</span>/200</small>
+          </span>
+          <input id="editor-post-title"
+                 type="text"
+                 maxlength="200"
+                 required
+                 autocomplete="off"
+                 placeholder="어떤 맛집 이야기를 나누고 싶으신가요?">
         </label>
 
-        <label class="board-field">
-          <span>내용 <b aria-hidden="true">*</b></span>
-          <textarea id="editor-post-content" maxlength="10000" rows="16" required
-                    placeholder="방문 경험과 맛집 정보를 자세히 나눠 주세요."></textarea>
-          <small><span id="content-count">0</span>/10,000</small>
-        </label>
+        <div id="board-composer-surface" class="board-composer-surface">
+          <label class="board-field board-content-field">
+            <span class="board-field-head">
+              <span>본문 <b aria-hidden="true">*</b></span>
+              <small><span id="content-count">0</span>/10,000</small>
+            </span>
+            <textarea id="editor-post-content"
+                      maxlength="10000"
+                      rows="16"
+                      required
+                      placeholder="경험한 맛, 분위기, 팁을 자유롭게 적어보세요."></textarea>
+          </label>
 
-        <div class="board-write-content-tools">
-          <button id="editor-emoji-toggle"
-                  class="comment-emoji-toggle board-write-emoji-toggle"
-                  type="button"
-                  aria-expanded="false"
-                  aria-controls="editor-emoji-panel">
-            😀 이모지
-          </button>
+          <div class="board-composer-toolbar" aria-label="게시글 작성 도구">
+            <div class="board-composer-toolbar__actions">
+              <button id="editor-emoji-toggle"
+                      class="board-composer-tool"
+                      type="button"
+                      aria-expanded="false"
+                      aria-controls="editor-emoji-panel">
+                <span class="board-composer-tool__emoji" aria-hidden="true">😊</span>
+                <span>이모지</span>
+              </button>
+
+              <button id="board-media-select-button"
+                      class="board-composer-tool"
+                      type="button">
+                <span class="material-symbols-rounded" aria-hidden="true">image</span>
+                <span>사진·동영상</span>
+              </button>
+            </div>
+
+            <p id="board-media-status"
+               class="board-write-media__status board-composer-toolbar__status"
+               aria-live="polite"></p>
+          </div>
+
+          <div id="editor-emoji-panel"
+               class="comment-emoji-panel board-write-emoji-panel"
+               role="dialog"
+               aria-label="이모지 선택"
+               hidden></div>
         </div>
-        <div id="editor-emoji-panel"
-             class="comment-emoji-panel board-write-emoji-panel"
-             role="group"
-             aria-label="이모지 선택"
-             hidden></div>
 
         <section class="board-write-media" aria-labelledby="board-media-title">
-          <div class="board-write-media__header">
-            <div>
-              <span id="board-media-title">사진·동영상 첨부</span>
-              <small>사진 20MB 이하, 동영상 100MB 이하 · 합계 최대 10개</small>
-            </div>
-            <button id="board-media-select-button"
-                    class="button button-sm button-secondary"
-                    type="button">파일 선택</button>
-          </div>
+          <span id="board-media-title" class="sr-only">사진·동영상 첨부</span>
           <input id="board-media-input"
                  type="file"
                  accept=".jpg,.jpeg,.png,.gif,.webp,.bmp,.tif,.tiff,.avif,.heic,.heif,.mp4,.webm,.ogv,.m4v,.mov,.mkv,.avi,.wmv,.flv,.mpg,.mpeg,.3gp,.3g2,image/*,video/*"
@@ -98,33 +116,29 @@
           <div id="board-media-list"
                class="board-write-media__list"
                aria-live="polite"></div>
-          <p id="board-media-status"
-             class="board-write-media__status"
-             aria-live="polite"></p>
+          <p class="board-write-media__help">
+            사진 20MB 이하 · 동영상 100MB 이하 · 최대 10개
+          </p>
         </section>
 
         <p id="editor-error" class="form-error" role="alert"></p>
 
-        <div class="editor-actions">
-          <a id="editor-cancel-link" class="button button-secondary"
+        <div class="board-community-note">
+          <span class="material-symbols-rounded" aria-hidden="true">info</span>
+          <p>
+            다른 사용자가 편하게 읽을 수 있도록 개인정보와 과도한 홍보성 내용은 한 번 더 확인해주세요.
+          </p>
+        </div>
+
+        <div class="editor-actions board-composer-actions">
+          <a id="editor-cancel-link"
+             class="button button-secondary"
              href="/pages/board/index.html">취소</a>
-          <button id="editor-submit-button" class="button button-primary" type="submit">
-            등록하기
-          </button>
+          <button id="editor-submit-button"
+                  class="button button-primary"
+                  type="submit">게시하기</button>
         </div>
       </form>
-
-      <aside class="board-writing-guide">
-        <img src="/images/characters/laptop.png" alt="" aria-hidden="true">
-        <h2>작성 전 확인해 주세요</h2>
-        <ul>
-          <li>로그인한 회원만 글을 등록할 수 있습니다.</li>
-          <li>사업자 커뮤니티는 승인된 사업자와 관리자만 이용합니다.</li>
-          <li>작성자 아이디와 회원 구분이 게시글에 함께 표시됩니다.</li>
-          <li>제목과 내용은 필수 입력 항목입니다.</li>
-          <li>사진과 동영상 원본을 첨부할 수 있으며, 브라우저가 지원하지 않는 형식은 다운로드로 제공합니다.</li>
-        </ul>
-      </aside>
     </section>
   </main>
 
@@ -133,6 +147,6 @@
   <script src="/js/api.js"></script>
   <script src="/js/common.js"></script>
   <script src="/pages/board/board-shared.js"></script>
-  <script src="/pages/board/write.js"></script>
+  <script src="/pages/board/write.js?v=20260819-write-minimal-v1"></script>
 </body>
 </html>
