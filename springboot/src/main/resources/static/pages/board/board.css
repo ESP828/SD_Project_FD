@@ -3579,3 +3579,113 @@ body.is-image-viewer-open {
   font-size: 0.9rem;
   line-height: 1.45;
 }
+
+/* 게시글 작성 페이지 사용성 보강 - 레이아웃/브랜드 디자인은 유지 */
+#post-editor-form .board-field > span {
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+#editor-post-title {
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+#editor-post-content {
+  font-size: 1rem;
+  line-height: 1.8;
+}
+
+#editor-post-title::placeholder,
+#editor-post-content::placeholder {
+  color: var(--color-subtle);
+  font-weight: 500;
+}
+
+#post-editor-form .board-field small {
+  font-size: 0.76rem;
+  line-height: 1.4;
+}
+
+.board-write-content-tools {
+  min-height: 42px;
+  margin-top: -4px;
+}
+
+.board-write-emoji-toggle {
+  display: inline-flex;
+  min-height: 40px;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 11px;
+  border: 1px solid var(--color-line);
+  border-radius: 10px;
+  background: #fff;
+  font-size: 0.8rem;
+  line-height: 1;
+}
+
+.board-write-emoji-toggle .material-symbols-rounded {
+  font-size: 1.12rem;
+}
+
+.board-write-emoji-toggle:hover,
+.board-write-emoji-toggle:focus-visible {
+  border-color: rgba(255, 152, 0, 0.4);
+  outline: 0;
+  background: rgba(255, 152, 0, 0.05);
+  box-shadow: 0 0 0 3px rgba(255, 152, 0, 0.1);
+}
+
+.board-write-emoji-panel .comment-emoji-option {
+  min-height: 40px;
+  font-size: 1.32rem;
+}
+
+.board-write-media__header > div > #board-media-title {
+  font-size: 0.9rem;
+  font-weight: 850;
+  line-height: 1.4;
+}
+
+.board-write-media__header #board-media-help {
+  font-size: 0.76rem;
+  line-height: 1.55;
+}
+
+.board-write-media__select {
+  min-height: 42px;
+  gap: 7px;
+  padding-inline: 14px;
+  white-space: nowrap;
+}
+
+.board-write-media__select .material-symbols-rounded {
+  font-size: 1.12rem;
+}
+
+.board-write-media__status,
+.board-write-media__empty {
+  font-size: 0.76rem;
+  line-height: 1.5;
+}
+
+@media (max-width: 720px) {
+  #editor-post-title,
+  #editor-post-content {
+    font-size: 1rem;
+  }
+
+  .board-write-emoji-toggle {
+    min-height: 44px;
+    padding-inline: 13px;
+  }
+
+  .board-write-media__select {
+    width: 100%;
+    min-height: 44px;
+  }
+}
+

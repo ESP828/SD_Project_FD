@@ -7,7 +7,7 @@
   <title>새 이야기 쓰기 · 푸드덕</title>
   <link rel="icon" href="/images/favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/css/common.css">
-  <link rel="stylesheet" href="/pages/board/board.css">
+  <link rel="stylesheet" href="/pages/board/board.css?v=20260819-write-usability-v1">
 </head>
 <body>
   <div data-site-header data-active-nav="board"></div>
@@ -69,9 +69,11 @@
           <button id="editor-emoji-toggle"
                   class="comment-emoji-toggle board-write-emoji-toggle"
                   type="button"
+                  aria-label="본문에 이모지 추가"
                   aria-expanded="false"
                   aria-controls="editor-emoji-panel">
-            😀 이모지
+            <span class="material-symbols-rounded" aria-hidden="true">sentiment_satisfied</span>
+            <span>이모지 추가</span>
           </button>
         </div>
         <div id="editor-emoji-panel"
@@ -84,11 +86,15 @@
           <div class="board-write-media__header">
             <div>
               <span id="board-media-title">사진·동영상 첨부</span>
-              <small>사진 20MB 이하, 동영상 100MB 이하 · 합계 최대 10개</small>
+              <small id="board-media-help">사진 20MB 이하 · 동영상 100MB 이하 · 최대 10개</small>
             </div>
             <button id="board-media-select-button"
-                    class="button button-sm button-secondary"
-                    type="button">파일 선택</button>
+                    class="button button-sm button-secondary board-write-media__select"
+                    type="button"
+                    aria-describedby="board-media-help">
+              <span class="material-symbols-rounded" aria-hidden="true">add_photo_alternate</span>
+              <span>사진·동영상 추가</span>
+            </button>
           </div>
           <input id="board-media-input"
                  type="file"
@@ -100,7 +106,8 @@
                aria-live="polite"></div>
           <p id="board-media-status"
              class="board-write-media__status"
-             aria-live="polite"></p>
+             aria-live="polite"
+             aria-atomic="true"></p>
         </section>
 
         <p id="editor-error" class="form-error" role="alert"></p>
