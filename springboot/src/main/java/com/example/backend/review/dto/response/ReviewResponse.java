@@ -13,8 +13,13 @@ public record ReviewResponse(
         byte rating,
         String content,
         LocalDateTime createdAt,
-        boolean ownedByCurrentUser
+        boolean ownedByCurrentUser,
+        List<ReviewMediaResponse> media
 ) {
+    public ReviewResponse {
+        media = media == null ? List.of() : List.copyOf(media);
+    }
+
     public static ReviewResponse from(Review review) {
         return from(review, null);
     }
@@ -27,7 +32,20 @@ public record ReviewResponse(
                 review.getRating(),
                 review.getContent(),
                 review.getCreatedAt(),
-                viewerAccountId != null && viewerAccountId.equals(authorAccountId)
+                viewerAccountId != null && viewerAccountId.equals(authorAccountId),
+                List.of()
+        );
+    }
+
+    public ReviewResponse withMedia(List<ReviewMediaResponse> media) {
+        return new ReviewResponse(
+                reviewId,
+                authorNickname,
+                rating,
+                content,
+                createdAt,
+                ownedByCurrentUser,
+                media
         );
     }
 
