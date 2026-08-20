@@ -52,6 +52,6 @@ public class AdminAccountController {
             @PathVariable Long accountId
     ) {
         adminAccountService.delete(account.accountId(), accountId);
-        return ApiResponse.success("계정을 삭제했습니다.", null);
+        return ApiResponse.success("계정을 탈퇴 처리했습니다.", null);
     }
 }

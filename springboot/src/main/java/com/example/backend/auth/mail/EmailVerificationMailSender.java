@@ -32,6 +32,7 @@ public class EmailVerificationMailSender {
         message.setText("요청하신 이메일 인증번호는 [" + code + "] 입니다. 인증번호는 5분간 유효합니다.");
         try {
             mailSender.send(message);
+            log.info("Verification email sent to {}", email);
         } catch (MailException exception) {
             log.warn("Failed to send verification email to {}", email, exception);
         }
