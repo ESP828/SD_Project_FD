@@ -12,15 +12,22 @@ import com.example.backend.restaurant.repository.RestaurantRepository;
 import com.example.backend.review.domain.entity.Review;
 import com.example.backend.review.dto.request.ReviewCreateRequest;
 import com.example.backend.review.dto.request.ReviewUpdateRequest;
+import com.example.backend.review.dto.response.ReviewMediaResponse;
 import com.example.backend.review.dto.response.ReviewResponse;
 import com.example.backend.review.exception.ReviewAlreadyExistsException;
+import com.example.backend.review.repository.ReviewMediaRepository;
 import com.example.backend.review.repository.ReviewRepository;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 @Service
 public class ReviewService {
@@ -33,25 +40,29 @@ public class ReviewService {
     private final RestaurantRepository restaurantRepository;
     private final PublicRestaurantRepository publicRestaurantRepository;
     private final AccountRepository accountRepository;
+    private final ReviewMediaRepository reviewMediaRepository;
 
     public ReviewService(
             ReviewRepository reviewRepository,
             RestaurantRepository restaurantRepository,
             PublicRestaurantRepository publicRestaurantRepository,
-            AccountRepository accountRepository
+            AccountRepository accountRepository,
+            ReviewMediaRepository reviewMediaRepository
     ) {
         this.reviewRepository = reviewRepository;
         this.restaurantRepository = restaurantRepository;
         this.publicRestaurantRepository = publicRestaurantRepository;
         this.accountRepository = accountRepository;
+        this.reviewMediaRepository = reviewMediaRepository;
     }
 
     @Transactional(readOnly = true)
     public List<ReviewResponse> getReviews(Long restaurantId, Long viewerAccountId) {
         requireReadableRestaurant(restaurantId, viewerAccountId);
-        return reviewRepository.findActiveByRestaurantId(restaurantId, PageRequest.of(0, MAX_RESULTS)).stream()
+        List<ReviewResponse> reviews = reviewRepository.findActiveByRestaurantId(restaurantId, PageRequest.of(0, MAX_RESULTS)).stream()
                 .map(review -> ReviewResponse.from(review, viewerAccountId))
                 .toList();
+        return attachMedia(reviews);
     }
 
     @Transactional(readOnly = true)
@@ -101,9 +112,10 @@ public class ReviewService {
 
     @Transactional(readOnly = true)
     public List<ReviewResponse> getReviewsForPublicRestaurant(Long publicRestaurantId) {
-        return reviewRepository.findActiveByPublicRestaurantId(publicRestaurantId, PageRequest.of(0, MAX_RESULTS)).stream()
+        List<ReviewResponse> reviews = reviewRepository.findActiveByPublicRestaurantId(publicRestaurantId, PageRequest.of(0, MAX_RESULTS)).stream()
                 .map(ReviewResponse::from)
                 .toList();
+        return attachMedia(reviews);
     }
 
     @Transactional(readOnly = true)
@@ -162,6 +174,7 @@ public class ReviewService {
     @Transactional
     public void deleteReview(Long reviewId, Long accountId) {
         Review review = requireActiveOwnedReview(reviewId, accountId);
+        reviewMediaRepository.deleteAllByReviewId(reviewId);
         reviewRepository.delete(review);
         reviewRepository.flush();
     }
@@ -180,16 +193,57 @@ public class ReviewService {
         List<ReviewResponse> items = result.getContent().stream()
                 .map(review -> ReviewResponse.from(review, viewerAccountId))
                 .toList();
+
+        Set<Long> reviewIds = new LinkedHashSet<>();
+        items.forEach(review -> reviewIds.add(review.reviewId()));
+        if (myReview != null) reviewIds.add(myReview.reviewId());
+        Map<Long, List<ReviewMediaResponse>> mediaByReviewId = findMediaByReviewIds(reviewIds);
+
+        List<ReviewResponse> itemsWithMedia = items.stream()
+                .map(review -> review.withMedia(mediaByReviewId.getOrDefault(review.reviewId(), List.of())))
+                .toList();
+        ReviewResponse myReviewWithMedia = myReview == null
+                ? null
+                : myReview.withMedia(mediaByReviewId.getOrDefault(myReview.reviewId(), List.of()));
+
         return new ReviewResponse.PageResponse(
-                items,
+                itemsWithMedia,
                 result.getTotalElements(),
                 result.getTotalPages(),
                 result.getNumber(),
                 result.getSize(),
                 result.isFirst(),
                 result.isLast(),
-                myReview
+                myReviewWithMedia
         );
+    }
+
+    private List<ReviewResponse> attachMedia(List<ReviewResponse> reviews) {
+        if (reviews == null || reviews.isEmpty()) return List.of();
+        Set<Long> reviewIds = new LinkedHashSet<>();
+        reviews.forEach(review -> reviewIds.add(review.reviewId()));
+        Map<Long, List<ReviewMediaResponse>> mediaByReviewId = findMediaByReviewIds(reviewIds);
+        return reviews.stream()
+                .map(review -> review.withMedia(mediaByReviewId.getOrDefault(review.reviewId(), List.of())))
+                .toList();
+    }
+
+    private Map<Long, List<ReviewMediaResponse>> findMediaByReviewIds(Set<Long> reviewIds) {
+        if (reviewIds == null || reviewIds.isEmpty()) return Map.of();
+        Map<Long, List<ReviewMediaResponse>> result = new HashMap<>();
+        reviewMediaRepository.findByReviewIds(reviewIds).forEach(media ->
+                result.computeIfAbsent(media.reviewId(), ignored -> new ArrayList<>())
+                        .add(new ReviewMediaResponse(
+                                media.reviewMediaId(),
+                                media.mediaType(),
+                                "/api/public/reviews/media/" + media.reviewMediaId(),
+                                media.mimeType(),
+                                media.originalName(),
+                                media.fileSize(),
+                                media.displayOrder()
+                        ))
+        );
+        return result;
     }
 
     private Review requireActiveOwnedReview(Long reviewId, Long accountId) {
