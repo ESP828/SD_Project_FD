@@ -104,7 +104,7 @@
 .accounts-table td {
   padding: 14px 16px;
   border-bottom: 1px solid var(--color-line);
-  text-align: left;
+  text-align: center;
   white-space: nowrap;
 }
 
@@ -173,6 +173,7 @@
 
 .accounts-actions {
   display: flex;
+  justify-content: center;
   gap: 8px;
 }
 

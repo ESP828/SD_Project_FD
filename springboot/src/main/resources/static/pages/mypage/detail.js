@@ -410,7 +410,9 @@
 
   function refreshNotificationView() {
     render(state.overview, state.items);
-    window.FooduckNotifications?.refreshUnreadCount();
+    window.FooduckNotifications?.setUnreadCount(
+      Number(state.overview.unreadNotificationCount || 0),
+    );
   }
 
   async function markNotificationRead(item, rerender = true) {
@@ -421,7 +423,13 @@
       0,
       Number(state.overview.unreadNotificationCount || 0) - 1,
     );
-    if (rerender) refreshNotificationView();
+    if (rerender) {
+      refreshNotificationView();
+    } else {
+      window.FooduckNotifications?.setUnreadCount(
+        Number(state.overview.unreadNotificationCount || 0),
+      );
+    }
   }
 
   async function deleteNotification(item) {
@@ -579,6 +587,11 @@
       state.overview = overviewPayload.data || {};
       state.items = Array.isArray(activityPayload.data) ? activityPayload.data : [];
       render(state.overview, state.items);
+      if (activeTab === "notifications") {
+        window.FooduckNotifications?.setUnreadCount(
+          Number(state.overview.unreadNotificationCount || 0),
+        );
+      }
     })
     .catch((error) => {
       if (!localStorage.getItem("accessToken")) {

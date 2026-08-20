@@ -233,13 +233,41 @@
       form.addEventListener("submit", async (event) => {
         event.preventDefault();
         status.className = "mypage-withdraw-status";
+
+        if (!form.checkValidity()) {
+          form.reportValidity();
+          return;
+        }
+        if (confirmation.value.trim() !== "회원탈퇴") {
+          status.classList.add("is-error");
+          status.textContent = '확인 문구로 "회원탈퇴"를 정확히 입력해 주세요.';
+          confirmation.focus();
+          return;
+        }
+
+        const accountImpacts = data.loginId
+          ? [
+              "• 현재 아이디와 비밀번호로 다시 로그인할 수 없습니다.",
+              "• 탈퇴한 계정은 복구되지 않으며, 같은 아이디·이메일로 가입해도 별도의 새 계정이 됩니다.",
+            ]
+          : ["• 현재 연결된 소셜 계정으로 다시 로그인하거나 재가입할 수 없습니다."];
+        const confirmed = window.confirm([
+          "정말 회원 탈퇴하시겠습니까?",
+          "",
+          ...accountImpacts,
+          "• 게시글·댓글·리뷰 등 작성 콘텐츠는 보존되고 작성자는 ‘탈퇴한 회원’으로 표시됩니다.",
+          "• 운영 중인 음식점이 있다면 운영 중지됩니다.",
+          "• 탈퇴 처리는 되돌릴 수 없습니다.",
+        ].join("\n"));
+        if (!confirmed) return;
+
         status.textContent = "회원 탈퇴를 처리하고 있습니다.";
         submitButton.disabled = true;
         cancelButton.disabled = true;
         try {
           await Api.patch("/mypage/account/withdraw", {
             currentPassword: password ? password.value : null,
-            confirmation: confirmation.value,
+            confirmation: confirmation.value.trim(),
           });
           await Api.logout().catch(() => Api.clearToken());
           window.location.assign("/");
@@ -276,7 +304,7 @@
         href: "/admin",
       });
     }
-    const summary = profile.createSummary(data, profileActions);
+    const summary = profile.createSummary(data, profileActions, { hideLoginId: true });
 
     const activities = element("section", "activity-grid activity-grid--mypage");
     activities.setAttribute("aria-label", "내 활동 요약");

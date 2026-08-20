@@ -144,18 +144,23 @@ verifyCodeBtn.addEventListener("click", async () => {
 const consentAllInput = document.getElementById("consent-all");
 const consentTermsInput = document.getElementById("consent-terms");
 const consentPrivacyInput = document.getElementById("consent-privacy");
+const consentAgeInput = document.getElementById("consent-age");
 
 function updateConsentAll() {
-  consentAllInput.checked = consentTermsInput.checked && consentPrivacyInput.checked;
+  consentAllInput.checked = consentTermsInput.checked
+    && consentPrivacyInput.checked
+    && consentAgeInput.checked;
 }
 
 consentAllInput.addEventListener("change", () => {
   consentTermsInput.checked = consentAllInput.checked;
   consentPrivacyInput.checked = consentAllInput.checked;
+  consentAgeInput.checked = consentAllInput.checked;
 });
 
 consentTermsInput.addEventListener("change", updateConsentAll);
 consentPrivacyInput.addEventListener("change", updateConsentAll);
+consentAgeInput.addEventListener("change", updateConsentAll);
 
 document.querySelectorAll(".consent-view-btn").forEach((button) => {
   button.addEventListener("click", () => {
@@ -189,6 +194,12 @@ signupForm.addEventListener("submit", async (event) => {
     signupMessage.textContent = "아이디 중복확인을 완료해 주세요.";
     return;
   }
+  if (!window.FooduckPassword?.isValid(passwordInput.value)) {
+    const missing = window.FooduckPassword?.missingLabels(passwordInput.value) || [];
+    signupMessage.textContent = `비밀번호 조건을 확인해 주세요${missing.length ? `: ${missing.join(", ")}` : "."}`;
+    passwordInput.reportValidity();
+    return;
+  }
   if (passwordInput.value !== passwordConfirmInput.value) {
     signupMessage.textContent = "비밀번호가 일치하지 않습니다.";
     return;
@@ -197,8 +208,8 @@ signupForm.addEventListener("submit", async (event) => {
     signupMessage.textContent = "이메일 인증을 완료해 주세요.";
     return;
   }
-  if (!consentTermsInput.checked || !consentPrivacyInput.checked) {
-    signupMessage.textContent = "이용약관과 개인정보처리방침에 모두 동의해 주세요.";
+  if (!consentTermsInput.checked || !consentPrivacyInput.checked || !consentAgeInput.checked) {
+    signupMessage.textContent = "필수 약관에 동의하고 만 14세 이상임을 확인해 주세요.";
     return;
   }
 
@@ -215,6 +226,7 @@ signupForm.addEventListener("submit", async (event) => {
         passwordConfirm: form.get("passwordConfirm"),
         email,
         nickname: form.get("nickname"),
+        ageConfirmed: consentAgeInput.checked,
       },
       { auth: false },
     );

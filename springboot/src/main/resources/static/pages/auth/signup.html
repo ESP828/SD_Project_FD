@@ -42,7 +42,7 @@
           </label>
           <label class="field">
             <span>비밀번호 <span class="field-hint">영문/숫자/특수문자 조합 8~64자</span></span>
-            <input type="password" name="password" id="signup-password" placeholder="안전한 비밀번호를 입력해 주세요" autocomplete="new-password" minlength="8" maxlength="64" pattern="^(?=.*[A-Za-z])(?=.*\d)(?=.*[^A-Za-z0-9]).+$" required>
+            <input type="password" name="password" id="signup-password" placeholder="안전한 비밀번호를 입력해 주세요" autocomplete="new-password" minlength="8" maxlength="64" pattern="^(?=.*[A-Za-z])(?=.*\d)(?=.*[^A-Za-z0-9]).+$" data-password-policy required>
           </label>
           <label class="field">
             비밀번호 확인
@@ -87,6 +87,12 @@
                 (필수) 개인정보처리방침 동의
               </label>
               <button type="button" class="consent-view-btn" data-dialog="privacy-dialog">보기</button>
+            </div>
+            <div class="consent-item">
+              <label>
+                <input type="checkbox" id="consent-age" required>
+                (필수) 만 14세 이상입니다
+              </label>
             </div>
           </div>
 

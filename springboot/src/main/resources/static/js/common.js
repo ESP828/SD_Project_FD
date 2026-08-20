@@ -267,7 +267,7 @@
     }).format(date);
   }
 
-  function createProfileSummary(data = {}, actions = []) {
+  function createProfileSummary(data = {}, actions = [], options = {}) {
     const summary = createElement("section", "profile-summary");
     const profileImage = createElement("div", "profile-image");
     const showFallbackImage = () => {
@@ -293,7 +293,9 @@
       createElement(
         "p",
         "",
-        `${data.loginId || "소셜 계정"} · 가입 ${formatProfileDate(data.createdAt)}`,
+        options.hideLoginId
+          ? `가입 ${formatProfileDate(data.createdAt)}`
+          : `${data.loginId || "소셜 계정"} · 가입 ${formatProfileDate(data.createdAt)}`,
       ),
     );
     const authorityList = createElement("div", "authority-list");
@@ -465,17 +467,8 @@
               <button type="button" class="footer-link" data-footer-dialog="footer-faq-dialog">자주 묻는 질문</button>
               <button type="button" class="footer-link" data-footer-dialog="footer-terms-dialog">이용약관</button>
               <button type="button" class="footer-link" data-footer-dialog="footer-privacy-dialog">개인정보처리방침</button>
-              <button type="button" class="footer-link" data-footer-dialog="footer-contact-dialog">문의하기</button>
-              <button type="button" class="footer-link" data-footer-dialog="footer-partner-dialog">파트너센터</button>
             </nav>
           </div>
-
-          <!--
-          <div class="footer-contact-line">
-            <span>문의사항이 있으신가요?</span>
-            <button type="button" class="footer-support-link" data-footer-dialog="footer-contact-dialog">문의하기</button>
-          </div>
-          -->
 
           <div class="footer-meta">
             <div class="footer-business">
@@ -578,54 +571,6 @@
               <h3>리뷰와 커뮤니티 글은 누가 작성하나요?</h3>
               <p>리뷰, 게시글과 댓글은 푸드덕 이용자가 직접 작성합니다. 각 작성 내용은 해당 이용자의 경험과 의견이며 푸드덕의 공식적인 의견을 의미하지 않습니다.</p>
             </section>
-            <section>
-              <h3>서비스 이용 중 문제를 발견했어요.</h3>
-              <p>사이트 하단의 <strong>문의하기</strong>를 통해 문의사항이나 오류 내용을 접수해 주세요. 확인에 도움이 되도록 문제가 발생한 화면과 상황을 함께 남겨주시면 좋습니다.</p>
-            </section>
-          </div>
-          <button type="button" class="footer-dialog-close" data-footer-dialog-close>닫기</button>
-        </dialog>`,
-
-      "footer-contact-dialog": `
-        <dialog id="footer-contact-dialog" class="footer-dialog" aria-labelledby="footer-contact-title">
-          <div class="footer-dialog-header">
-            <div>
-              <span class="footer-dialog-kicker">SUPPORT</span>
-              <h2 id="footer-contact-title">문의하기</h2>
-            </div>
-            <button type="button" class="footer-dialog-x" data-footer-dialog-close aria-label="문의하기 닫기">
-              <span class="material-symbols-rounded" aria-hidden="true">close</span>
-            </button>
-          </div>
-          <div class="footer-dialog-body">
-            <p class="footer-dialog-lead"><strong>서비스 이용 중 궁금한 점이나 오류가 있다면 문의를 남겨주세요.</strong></p>
-            <p>문제를 확인하는 데 도움이 되도록 문제가 발생한 화면과 상황, 가능하다면 재현 방법을 함께 남겨주시면 보다 정확하게 확인할 수 있습니다.</p>
-            <p>아래 문의 접수 페이지에서 내용을 작성해 주세요.</p>
-            <div class="footer-contact-actions">
-              <a class="button button-orange" href="https://github.com/ESP828/SD_Project_FD/issues">문의 접수 페이지로 이동</a>
-            </div>
-          </div>
-          <button type="button" class="footer-dialog-close" data-footer-dialog-close>닫기</button>
-        </dialog>`,
-
-      "footer-partner-dialog": `
-        <dialog id="footer-partner-dialog" class="footer-dialog" aria-labelledby="footer-partner-title">
-          <div class="footer-dialog-header">
-            <div>
-              <span class="footer-dialog-kicker">PARTNER</span>
-              <h2 id="footer-partner-title">파트너센터</h2>
-            </div>
-            <button type="button" class="footer-dialog-x" data-footer-dialog-close aria-label="파트너센터 닫기">
-              <span class="material-symbols-rounded" aria-hidden="true">close</span>
-            </button>
-          </div>
-          <div class="footer-dialog-body">
-            <p class="footer-dialog-lead"><strong>푸드덕과의 제휴 및 사업자 관련 문의는 파트너센터를 이용해 주세요.</strong></p>
-            <p>서비스 제휴, 사업자 관련 상담 등 파트너 문의가 필요한 경우 아래 파트너센터에서 내용을 남길 수 있습니다.</p>
-            <p>파트너센터로 이동한 뒤 상담 내용을 작성해 주세요.</p>
-            <div class="footer-contact-actions">
-              <a class="button button-orange" href="https://pf.kakao.com/_QrdxlG">파트너센터로 이동</a>
-            </div>
           </div>
           <button type="button" class="footer-dialog-close" data-footer-dialog-close>닫기</button>
         </dialog>`,
@@ -841,16 +786,183 @@
     document.body.append(remote);
   }
 
+  const PASSWORD_RULES = [
+    { key: "length", label: "8자 이상", test: (value) => value.length >= 8 },
+    { key: "letter", label: "영문 포함", test: (value) => /[A-Za-z]/.test(value) },
+    { key: "number", label: "숫자 포함", test: (value) => /\d/.test(value) },
+    { key: "special", label: "특수문자 포함", test: (value) => /[^A-Za-z0-9]/.test(value) },
+  ];
+  let passwordInputSequence = 0;
+
+  function evaluatePassword(value = "") {
+    const normalized = String(value);
+    const conditions = Object.fromEntries(
+      PASSWORD_RULES.map((rule) => [rule.key, rule.test(normalized)]),
+    );
+    const metCount = Object.values(conditions).filter(Boolean).length;
+    const valid = metCount === PASSWORD_RULES.length && normalized.length <= 64;
+    let strength = "empty";
+    if (normalized) {
+      if (valid && normalized.length >= 12) {
+        strength = "strong";
+      } else if (metCount >= 3) {
+        strength = "medium";
+      } else {
+        strength = "weak";
+      }
+    }
+    return {
+      conditions,
+      valid,
+      strength,
+    };
+  }
+
+  function passwordMissingLabels(value) {
+    const result = evaluatePassword(value);
+    return PASSWORD_RULES
+      .filter((rule) => !result.conditions[rule.key])
+      .map((rule) => rule.label);
+  }
+
+  function enhancePasswordPolicy(input, shell) {
+    if (!input.hasAttribute("data-password-policy") || input.dataset.passwordPolicyEnhanced === "true") {
+      return;
+    }
+    input.dataset.passwordPolicyEnhanced = "true";
+
+    const feedback = document.createElement("div");
+    feedback.className = "password-feedback";
+    feedback.id = `${input.id}-feedback`;
+    feedback.setAttribute("aria-live", "polite");
+    const describedBy = (input.getAttribute("aria-describedby") || "")
+      .split(/\s+/)
+      .filter(Boolean);
+    if (!describedBy.includes(feedback.id)) describedBy.push(feedback.id);
+    input.setAttribute("aria-describedby", describedBy.join(" "));
+    const list = document.createElement("ul");
+    list.className = "password-rule-list";
+    const ruleItems = new Map();
+    PASSWORD_RULES.forEach((rule) => {
+      const item = document.createElement("li");
+      item.dataset.passwordRule = rule.key;
+      const marker = document.createElement("span");
+      marker.className = "password-rule-icon";
+      marker.textContent = "○";
+      item.append(marker, document.createTextNode(rule.label));
+      ruleItems.set(rule.key, item);
+      list.append(item);
+    });
+
+    const strength = document.createElement("div");
+    strength.className = "password-strength";
+    strength.innerHTML = `
+      <span class="password-strength-track" aria-hidden="true"><i></i></span>
+      <span class="password-strength-label">강도: 입력 전</span>`;
+    feedback.append(list, strength);
+    shell.insertAdjacentElement("afterend", feedback);
+
+    const update = () => {
+      const result = evaluatePassword(input.value);
+      PASSWORD_RULES.forEach((rule) => {
+        const item = ruleItems.get(rule.key);
+        const met = result.conditions[rule.key];
+        item.classList.toggle("is-met", met);
+        item.querySelector(".password-rule-icon").textContent = met ? "✓" : "○";
+      });
+      feedback.dataset.strength = result.strength;
+      const strengthLabel = {
+        empty: "입력 전",
+        weak: "약함",
+        medium: "보통",
+        strong: "강함",
+      }[result.strength];
+      strength.querySelector(".password-strength-label").textContent = `강도: ${strengthLabel}`;
+
+      const missing = passwordMissingLabels(input.value);
+      input.setCustomValidity(
+        input.value && !result.valid
+          ? `비밀번호 조건을 확인해 주세요: ${missing.join(", ")}`
+          : "",
+      );
+    };
+
+    input.addEventListener("input", update);
+    input.form?.addEventListener("reset", () => window.requestAnimationFrame(update));
+    update();
+  }
+
+  function enhancePasswordInput(input) {
+    if (!(input instanceof HTMLInputElement) || input.dataset.passwordEnhanced === "true") return;
+    if (input.type !== "password") return;
+
+    input.dataset.passwordEnhanced = "true";
+    if (!input.id) {
+      passwordInputSequence += 1;
+      input.id = `fooduck-password-${passwordInputSequence}`;
+    }
+
+    const shell = document.createElement("span");
+    shell.className = "password-input-shell";
+    input.before(shell);
+    shell.append(input);
+
+    const toggle = document.createElement("button");
+    toggle.type = "button";
+    toggle.className = "password-visibility-toggle";
+    toggle.setAttribute("aria-controls", input.id);
+    toggle.setAttribute("aria-label", "비밀번호 보기");
+    toggle.setAttribute("aria-pressed", "false");
+    const icon = document.createElement("span");
+    icon.className = "material-symbols-rounded";
+    icon.setAttribute("aria-hidden", "true");
+    icon.textContent = "visibility";
+    toggle.append(icon);
+    shell.append(toggle);
+    setIcon(icon, "visibility");
+
+    toggle.addEventListener("click", () => {
+      const selectionStart = input.selectionStart;
+      const selectionEnd = input.selectionEnd;
+      const visible = input.type === "text";
+      input.type = visible ? "password" : "text";
+      toggle.setAttribute("aria-pressed", String(!visible));
+      toggle.setAttribute("aria-label", visible ? "비밀번호 보기" : "비밀번호 숨기기");
+      setIcon(icon, visible ? "visibility" : "visibility_off");
+      input.focus({ preventScroll: true });
+      if (selectionStart !== null && selectionEnd !== null) {
+        input.setSelectionRange(selectionStart, selectionEnd);
+      }
+    });
+
+    enhancePasswordPolicy(input, shell);
+  }
+
+  function enhancePasswordFields(root = document) {
+    if (root instanceof HTMLInputElement) enhancePasswordInput(root);
+    root.querySelectorAll?.('input[type="password"]:not([data-password-enhanced="true"])')
+      .forEach(enhancePasswordInput);
+  }
+
   document.querySelectorAll("[data-site-header]").forEach(renderHeader);
   document.querySelectorAll("[data-site-footer]").forEach(renderFooter);
   renderQuickRemote();
+  enhancePasswordFields();
 
-  const NOTIFICATION_CACHE_TTL_MS = 15 * 1000;
   const NOTIFICATION_CACHE_STALE_MS = 2 * 60 * 1000;
-  const notificationCacheKey = `fooduck:notification-unread:v1:${session.accountId || "unknown"}`;
+  const notificationCacheKey = `fooduck:notification-unread:v2:${session.accountId || "unknown"}`;
+  const legacyNotificationCacheKey = `fooduck:notification-unread:v1:${session.accountId || "unknown"}`;
+  let currentNotificationCount = null;
+
+  try {
+    sessionStorage.removeItem(legacyNotificationCacheKey);
+  } catch {
+    // sessionStorage가 비활성화된 환경에서는 메모리 상태만 사용한다.
+  }
 
   function applyNotificationCount(count) {
     const normalized = Math.max(0, Number(count) || 0);
+    currentNotificationCount = normalized;
     document.querySelectorAll("[data-notification-badge]").forEach((badge) => {
       badge.textContent = normalized > 99 ? "99+" : String(normalized);
       badge.hidden = normalized === 0;
@@ -889,24 +1001,41 @@
     }
   }
 
-  async function refreshNotificationBadges() {
+  function setNotificationCount(count) {
+    const normalized = Math.max(0, Number(count) || 0);
+    writeNotificationCache(normalized);
+    applyNotificationCount(normalized);
+    window.dispatchEvent(new CustomEvent("fooduck:notification-count-changed", {
+      detail: { count: normalized },
+    }));
+    return normalized;
+  }
+
+  function invalidateNotificationCache() {
+    try {
+      sessionStorage.removeItem(notificationCacheKey);
+    } catch {
+      // 저장소를 사용할 수 없어도 다음 서버 조회는 계속 진행한다.
+    }
+  }
+
+  async function refreshNotificationBadges(options = {}) {
     if (!session.authenticated) return;
 
-    const cached = readNotificationCache();
+    const force = Boolean(options?.force);
+    const cached = force ? null : readNotificationCache();
     if (cached) {
       // 페이지 이동 직후에는 최근 값을 먼저 보여줘 헤더가 API 응답을 기다리지 않게 한다.
       applyNotificationCount(cached.count);
-      if (cached.age <= NOTIFICATION_CACHE_TTL_MS) return;
     }
 
     try {
       const payload = await Api.get("/notifications/unread-count");
       const count = Math.max(0, Number(payload?.data?.count) || 0);
-      writeNotificationCache(count);
-      applyNotificationCount(count);
+      setNotificationCount(count);
     } catch {
       // 오래된 캐시라도 이미 화면에 표시했다면 네트워크 실패로 갑자기 배지를 지우지 않는다.
-      if (!cached) {
+      if (!cached && currentNotificationCount === null) {
         document.querySelectorAll("[data-notification-badge]").forEach((badge) => {
           badge.hidden = true;
         });
@@ -964,6 +1093,7 @@
       mutation.addedNodes.forEach((node) => {
         if (node.nodeType === Node.ELEMENT_NODE) {
           enhanceIcons(node);
+          enhancePasswordFields(node);
         }
       });
     });
@@ -987,6 +1117,14 @@
   };
   window.FooduckNotifications = {
     refreshUnreadCount: refreshNotificationBadges,
+    setUnreadCount: setNotificationCount,
+    invalidateCache: invalidateNotificationCache,
+  };
+  window.FooduckPassword = {
+    evaluate: evaluatePassword,
+    isValid: (value) => evaluatePassword(value).valid,
+    missingLabels: passwordMissingLabels,
+    enhance: enhancePasswordFields,
   };
 
   function initializeScrollTopButton() {

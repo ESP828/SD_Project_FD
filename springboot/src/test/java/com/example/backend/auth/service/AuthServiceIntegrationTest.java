@@ -81,7 +81,8 @@ class AuthServiceIntegrationTest {
                 "correct-password",
                 "correct-password",
                 "localtester@example.com",
-                "로컬테스터"
+                "로컬테스터",
+                true
         );
 
         authService.signup(signup);
@@ -149,7 +150,8 @@ class AuthServiceIntegrationTest {
                 "correct-password",
                 "correct-password",
                 "same-email@example.com",
-                "연결테스터"
+                "연결테스터",
+                true
         ));
         OAuthProviderClient google = fixedClient(new OAuthUserProfile(
                 SocialProvider.GOOGLE,

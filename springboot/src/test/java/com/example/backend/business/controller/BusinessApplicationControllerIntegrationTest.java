@@ -133,7 +133,7 @@ class BusinessApplicationControllerIntegrationTest {
         verification.markVerified(LocalDateTime.now().plusMinutes(30));
         emailVerificationRepository.save(verification);
         mockMvc.perform(post("/api/auth/signup").contentType(MediaType.APPLICATION_JSON).content("""
-                {"loginId":"%s","password":"%s","passwordConfirm":"%s","email":"%s","nickname":"%s"}
+                {"loginId":"%s","password":"%s","passwordConfirm":"%s","email":"%s","nickname":"%s","ageConfirmed":true}
                 """.formatted(loginId, password, password, email, nickname))).andExpect(status().isOk());
     }
 

@@ -81,7 +81,7 @@
 .community-table td {
   padding: 13px 14px;
   border-bottom: 1px solid var(--color-line);
-  text-align: left;
+  text-align: center;
   white-space: nowrap;
 }
 
@@ -138,6 +138,7 @@
 
 .community-actions {
   display: flex;
+  justify-content: center;
   gap: 6px;
 }
 

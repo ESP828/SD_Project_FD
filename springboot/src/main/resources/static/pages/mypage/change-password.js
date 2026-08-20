@@ -52,6 +52,13 @@
     event.preventDefault();
     setMessage("", false);
 
+    if (!window.FooduckPassword?.isValid(newPasswordInput.value)) {
+      const missing = window.FooduckPassword?.missingLabels(newPasswordInput.value) || [];
+      setMessage(`비밀번호 조건을 확인해 주세요${missing.length ? `: ${missing.join(", ")}` : "."}`, false);
+      newPasswordInput.reportValidity();
+      return;
+    }
+
     if (newPasswordInput.value !== newPasswordConfirmInput.value) {
       setStatus(newPasswordConfirmStatus, "비밀번호가 일치하지 않습니다.", false);
       return;
@@ -68,6 +75,7 @@
       });
       setMessage("비밀번호가 변경되었습니다.", true);
       form.reset();
+      window.requestAnimationFrame(updatePasswordConfirmStatus);
     } catch (error) {
       setMessage(error.message, false);
     } finally {

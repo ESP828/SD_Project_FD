@@ -2,6 +2,10 @@
   padding-block: 34px 76px;
 }
 
+.restaurant-form-content [hidden] {
+  display: none !important;
+}
+
 .restaurant-form-panel {
   max-width: 860px;
   margin: 0 auto;
@@ -28,6 +32,22 @@
 
 .restaurant-form-grid label.full {
   grid-column: 1 / -1;
+}
+
+.restaurant-coordinate-status {
+  grid-column: 1 / -1;
+  margin: -8px 0 0;
+  color: var(--color-muted);
+  font-size: 0.76rem;
+  font-weight: 650;
+}
+
+.restaurant-coordinate-status.is-success {
+  color: var(--color-green);
+}
+
+.restaurant-coordinate-status.is-error {
+  color: var(--color-danger);
 }
 
 .restaurant-form-grid input,

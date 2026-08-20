@@ -278,14 +278,6 @@
       metric("가게 소식", data.newsCount, "/business/detail?tab=news", "campaign"),
       metric("받은 리뷰", data.reviewCount, "/business/detail?tab=reviews", "rate_review"),
       metric("찜 받은 수", data.favoriteCount, "/business/detail?tab=favorites", "favorite"),
-      metric(
-        "평균 평점",
-        data.averageRating,
-        "/business/detail?tab=reviews",
-        "star",
-        "리뷰 보기 →",
-        formatRating,
-      ),
     );
 
     const restaurantList = element("div", "management-preview-list");

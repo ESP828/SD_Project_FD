@@ -4,6 +4,7 @@ import com.fasterxml.jackson.annotation.JsonAlias;
 import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
@@ -35,7 +36,11 @@ public record SignupRequest(
 
         @NotBlank(message = "닉네임을 입력해 주세요.")
         @Size(min = 2, max = 30, message = "닉네임은 2~30자로 입력해 주세요.")
-        String nickname
+        String nickname,
+
+        @NotNull(message = "만 14세 이상 여부를 확인해 주세요.")
+        @AssertTrue(message = "만 14세 이상만 가입할 수 있습니다.")
+        Boolean ageConfirmed
 ) {
     @AssertTrue(message = "비밀번호가 일치하지 않습니다.")
     public boolean isPasswordConfirmed() {
