@@ -592,7 +592,7 @@
     closeButton.focus();
   }
 
-  function bindReviewForm() {
+  function bindReviewForm({ onEditCancel = null } = {}) {
     const form = document.getElementById("store-review-form");
     if (!form) return;
     const editing = form.dataset.reviewMode === "edit";
@@ -700,7 +700,13 @@
       }
     });
 
-    form.querySelector("[data-review-edit-cancel]")?.addEventListener("click", () => loadReviews());
+    form.querySelector("[data-review-edit-cancel]")?.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      if (typeof onEditCancel === "function") {
+        onEditCancel();
+      }
+    });
 
     const submitButton = document.getElementById("store-review-submit");
     submitButton?.addEventListener("click", async () => {
@@ -828,8 +834,8 @@
     return (pageData?.items || []).find((review) => Number(review.reviewId) === id) || null;
   }
 
-  function bindReviewActions(pageData) {
-    panels.review.querySelectorAll("[data-review-image-viewer]").forEach((button) => {
+  function bindReviewActions(pageData, scope = panels.review) {
+    scope.querySelectorAll("[data-review-image-viewer]").forEach((button) => {
       button.addEventListener("click", () => {
         const image = button.querySelector("img");
         if (!image) return;
@@ -837,20 +843,34 @@
       });
     });
 
-    panels.review.querySelectorAll("[data-review-edit]").forEach((button) => {
+    scope.querySelectorAll("[data-review-edit]").forEach((button) => {
       button.addEventListener("click", () => {
         const review = findReviewById(pageData, button.dataset.reviewEdit);
         if (!review?.ownedByCurrentUser) return;
         const writeArea = document.getElementById("store-review-write-area");
         if (!writeArea) return;
+
+        // 수정 취소는 서버를 다시 조회하지 않고 수정 직전 화면을 그대로 복원한다.
+        // loadReviews()를 호출하면 불필요한 인증 요청이 발생하고, 401 시 Api가 토큰을
+        // 지울 수 있어 취소만 눌렀는데 로그아웃된 것처럼 보이는 문제가 생길 수 있다.
+        const previousClassName = writeArea.className;
+        const previousHtml = writeArea.innerHTML;
+
         writeArea.className = "";
         writeArea.innerHTML = reviewEditorHtml({ mode: "edit", review });
-        bindReviewForm();
+        bindReviewForm({
+          onEditCancel: () => {
+            writeArea.className = previousClassName;
+            writeArea.innerHTML = previousHtml;
+            bindReviewActions(pageData, writeArea);
+            window.FooduckIcons?.enhance(writeArea);
+          },
+        });
         writeArea.scrollIntoView({ behavior: "smooth", block: "center" });
       });
     });
 
-    panels.review.querySelectorAll("[data-review-delete]").forEach((button) => {
+    scope.querySelectorAll("[data-review-delete]").forEach((button) => {
       button.addEventListener("click", async () => {
         const review = findReviewById(pageData, button.dataset.reviewDelete);
         if (!review?.ownedByCurrentUser) return;
@@ -867,7 +887,7 @@
       });
     });
 
-    panels.review.querySelectorAll("[data-review-page]").forEach((button) => {
+    scope.querySelectorAll("[data-review-page]").forEach((button) => {
       button.addEventListener("click", async () => {
         const nextPage = Number(button.dataset.reviewPage);
         if (!Number.isInteger(nextPage) || nextPage < 0 || nextPage === reviewPage) return;
