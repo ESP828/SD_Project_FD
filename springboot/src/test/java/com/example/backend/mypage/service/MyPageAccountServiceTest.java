@@ -5,6 +5,7 @@ import com.example.backend.auth.domain.entity.AccountCredential;
 import com.example.backend.auth.domain.type.AccountStatus;
 import com.example.backend.auth.repository.AccountCredentialRepository;
 import com.example.backend.auth.repository.AccountRepository;
+import com.example.backend.auth.repository.SocialAccountRepository;
 import com.example.backend.auth.service.RefreshTokenService;
 import com.example.backend.global.exception.BusinessException;
 import com.example.backend.global.exception.ErrorCode;
@@ -38,6 +39,7 @@ class MyPageAccountServiceTest {
     @Mock RestaurantRepository restaurantRepository;
     @Mock PasswordEncoder passwordEncoder;
     @Mock RefreshTokenService refreshTokenService;
+    @Mock SocialAccountRepository socialAccountRepository;
     @Mock AccountCredential credential;
     @Mock Restaurant restaurant;
 
@@ -50,7 +52,8 @@ class MyPageAccountServiceTest {
                 credentialRepository,
                 restaurantRepository,
                 passwordEncoder,
-                refreshTokenService
+                refreshTokenService,
+                socialAccountRepository
         );
     }
 
