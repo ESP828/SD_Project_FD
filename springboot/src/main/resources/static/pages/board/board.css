@@ -1171,12 +1171,19 @@
   width: min(364px, calc(100vw - 20px));
   max-height: min(600px, calc(100vh - 20px));
   overflow-y: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
   padding: 17px;
   border: 1px solid rgba(27, 43, 61, 0.13);
   border-top: 3px solid var(--color-orange);
   border-radius: 17px;
   background: var(--color-surface);
   box-shadow: 0 20px 52px rgba(27, 43, 61, 0.22);
+}
+
+.author-menu::-webkit-scrollbar {
+  width: 0;
+  height: 0;
 }
 
 .author-menu[hidden] {
