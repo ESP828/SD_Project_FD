@@ -8,7 +8,7 @@
   const sortSelect = document.querySelector("#preset-sort-select");
   const searchReset = document.querySelector("#preset-search-reset");
   const viewTabs = Array.from(document.querySelectorAll("[data-preset-sort]"));
-  const registerLink = document.querySelector("[data-preset-register-link]");
+  const registerLinks = Array.from(document.querySelectorAll("[data-preset-register-link]"));
   const toast = document.querySelector("#preset-toast");
   const registerPath = "/presset/register";
   const createdMessageKey = "fooduck:preset-created";
@@ -69,17 +69,6 @@
     keywordInput.value = state.keyword;
     tagSelect.value = state.tagId === null ? "" : String(state.tagId);
     sortSelect.value = state.sort;
-    searchReset.disabled = !state.keyword && state.tagId === null && state.sort === "latest";
-  }
-
-  function syncDraftResetState() {
-    const draftTagId = Number.parseInt(tagSelect.value, 10);
-    const draftSort = ["latest", "popular", "favorite"].includes(sortSelect.value)
-      ? sortSelect.value
-      : "latest";
-    searchReset.disabled = !normalizeKeyword(keywordInput.value)
-      && !(Number.isSafeInteger(draftTagId) && draftTagId > 0)
-      && draftSort === "latest";
   }
 
   function syncViewTabs() {
@@ -279,7 +268,7 @@
 
   function renderTagSelectOptions() {
     tagSelect.replaceChildren();
-    const all = element("option", "", "전체 태그");
+    const all = element("option", "", "태그 전체");
     all.value = "";
     tagSelect.append(all);
     state.tags.forEach((tag) => {
@@ -413,10 +402,6 @@
     keywordInput.focus();
   });
 
-  keywordInput.addEventListener("input", syncDraftResetState);
-  tagSelect.addEventListener("change", syncDraftResetState);
-  sortSelect.addEventListener("change", syncDraftResetState);
-
   viewTabs.forEach((tab) => {
     tab.addEventListener("click", () => selectView(tab.dataset.presetSort));
     tab.addEventListener("keydown", (event) => {
@@ -440,9 +425,10 @@
   syncSearchControls();
   syncViewTabs();
   syncListUrl();
-  if (registerLink && !window.FooduckSession?.authenticated) {
-    registerLink.href =
-      `/auth/login?next=${encodeURIComponent(registerPath)}`;
+  if (!window.FooduckSession?.authenticated) {
+    registerLinks.forEach((link) => {
+      link.href = `/auth/login?next=${encodeURIComponent(registerPath)}`;
+    });
   }
   showCreatedMessage();
 

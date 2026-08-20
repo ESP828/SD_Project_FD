@@ -56,8 +56,8 @@
               </button>
             </span>
           </div>
-          <button class="button button-primary search-submit" type="submit">
-            검색하기
+          <button id="search-submit" class="button button-primary search-submit" type="submit">
+            <span id="submit-btn-text">검색하기</span>
             <span class="material-symbols-rounded" aria-hidden="true">arrow_forward</span>
           </button>
         </div>
@@ -101,9 +101,44 @@
                 <input id="search-region" type="text" placeholder="예: 강남, 성수" maxlength="50">
               </span>
             </label>
+            <label class="search-field">
+              <span class="field-label">성별</span>
+              <select id="search-gender">
+                <option value="">내 정보 기준</option>
+                <option value="MALE">남성</option>
+                <option value="FEMALE">여성</option>
+                <option value="NONE">선택 안 함</option>
+              </select>
+            </label>
+            <label class="search-field">
+              <span class="field-label">연령대</span>
+              <select id="search-age-group">
+                <option value="">내 정보 기준</option>
+                <option value="10">10대</option>
+                <option value="20">20대</option>
+                <option value="30">30대</option>
+                <option value="40">40대</option>
+                <option value="50">50대</option>
+                <option value="60">60대 이상</option>
+              </select>
+            </label>
           </div>
+          <p id="search-demographic-note" class="search-filter-note">
+            성별·연령대는 회원 정보를 바꾸지 않고 이번 검색에만 적용되며, AI 검색 결과에 반영됩니다.
+          </p>
         </div>
       </form>
+
+      <div class="search-recommend-cta surface-card">
+        <div>
+          <strong>어떤 걸 먹을지 고민되시나요?</strong>
+          <p>찜한 맛집과 취향을 분석해 나에게 맞는 맛집을 골라 드려요.</p>
+        </div>
+        <a id="search-recommend-link" class="button button-secondary" href="/recommendation">
+          나를 위한 맛집 추천 보기
+          <span class="material-symbols-rounded" aria-hidden="true">arrow_forward</span>
+        </a>
+      </div>
 
       <div class="quick-filter-row" aria-label="빠른 음식 종류">
         <span>빠른 검색</span>

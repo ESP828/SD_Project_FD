@@ -32,6 +32,14 @@
   border-right: 0;
 }
 
+/* 페이지를 열면서 저장된 사이드바 상태를 되살릴 때만 애니메이션을 끈다.
+   (로드 중 전환이 지도 생성과 겹치면 지도가 잘못된 크기로 만들어진다.)
+   사용자가 직접 토글할 때의 슬라이드 애니메이션에는 영향을 주지 않는다. */
+.map-page.is-booting .map-sidebar,
+.map-page.is-booting .place-detail-panel {
+  transition: none;
+}
+
 .map-sidebar > * {
   min-width: 382px;
 }
@@ -981,4 +989,97 @@
 
 .preset-manage-back[hidden] {
   display: none;
+}
+
+/* ----------------------------------------------------
+   현재 위치 표시
+   음식점 마커가 노란색 핀이라 현재 위치까지 같은 모양으로 찍으면 구분이 되지 않는다.
+   현재 위치는 파란색 원형 표식 + 퍼지는 링으로 따로 그린다.
+---------------------------------------------------- */
+.map-current-position {
+  position: relative;
+  display: block;
+  width: 22px;
+  height: 22px;
+  pointer-events: none;
+}
+
+.map-current-position-dot {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 16px;
+  height: 16px;
+  border: 3px solid #fff;
+  border-radius: 50%;
+  background: #1a73e8;
+  box-shadow: 0 2px 8px rgba(15, 43, 77, 0.45);
+  transform: translate(-50%, -50%);
+}
+
+.map-current-position-pulse {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: rgba(26, 115, 232, 0.22);
+  transform: translate(-50%, -50%);
+  animation: map-current-position-pulse 2s ease-out infinite;
+}
+
+@keyframes map-current-position-pulse {
+  0% {
+    opacity: 0.75;
+    transform: translate(-50%, -50%) scale(0.45);
+  }
+
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .map-current-position-pulse {
+    animation: none;
+  }
+}
+
+/* 내 주변 맛집 목록에서 보여주는 거리 */
+.place-result-distance {
+  display: inline-flex;
+  width: fit-content;
+  margin-top: 4px;
+  color: var(--color-navy);
+  font-size: 0.7rem;
+  font-weight: 800;
+}
+
+/* 검색 결과가 없을 때 다음 행동을 고를 수 있는 버튼 묶음 */
+.result-empty-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+/* 보물지도 편집 모드 안내 문구 */
+.map-search-hint {
+  margin: 8px 0 0;
+  color: var(--color-muted);
+  font-size: 0.76rem;
+  font-weight: 650;
+  line-height: 1.5;
+}
+
+.map-search-hint[hidden] {
+  display: none;
+}
+
+/* 찜 처리 중에는 disabled 대신 이 클래스만 붙여 커서가 "클릭 금지"로 바뀌지 않게 한다 */
+.place-detail-favorite.is-pending {
+  opacity: 0.6;
 }

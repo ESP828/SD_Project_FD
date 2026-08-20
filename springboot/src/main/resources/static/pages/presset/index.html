@@ -20,12 +20,14 @@
           <p class="eyebrow">treasuremap collections</p>
           <h1>나의 취향을<br>선택해놓은 맛집</h1>
           <div class="preset-hero-actions">
-            <a class="button button-primary" href="#preset-collection">모음 둘러보기</a>
             <a
-              class="button button-secondary"
+              class="button button-primary"
               href="/presset/register"
               data-preset-register-link
-            >보물지도 등록</a>
+            >
+              <span class="material-symbols-rounded" aria-hidden="true">edit</span>
+              보물지도 등록
+            </a>
           </div>
         </div>
         <div class="category-hero__visual">
@@ -80,7 +82,7 @@
             <label class="preset-search-select">
               <span class="sr-only">태그 선택</span>
               <select id="preset-tag-select" aria-label="보물지도 태그 선택">
-                <option value="">전체 태그</option>
+                <option value="">태그 전체</option>
               </select>
             </label>
             <label class="preset-search-field">
@@ -107,11 +109,21 @@
               id="preset-search-reset"
               class="button button-sm button-secondary preset-search-reset"
               type="button"
-              disabled
             >초기화</button>
           </form>
 
         </div>
+      </div>
+
+      <div class="preset-list-toolbar">
+        <a
+          class="button button-sm button-primary"
+          href="/presset/register"
+          data-preset-register-link
+        >
+          <span class="material-symbols-rounded" aria-hidden="true">edit</span>
+          보물지도 등록
+        </a>
       </div>
 
       <div
