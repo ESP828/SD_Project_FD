@@ -8,6 +8,10 @@ recommend.py와 동일한 패턴으로, 모델은 모듈 임포트 시(=서버 �
 import os
 import joblib
 
+# tfidf_vectorizer.pkl은 preprocessor로 text_normalize.normalize_text를 참조하고 있어서,
+# 이 모듈을 임포트할 수 있어야 joblib.load()가 정상적으로 역직렬화된다.
+import text_normalize  # noqa: F401
+
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 MODEL_DIR = os.path.join(BASE_DIR, "model")
 
