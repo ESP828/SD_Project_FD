@@ -58,15 +58,6 @@ public class RestaurantDetailController {
         return ApiResponse.success(restaurantService.getMenu(restaurantId, viewerAccountId));
     }
 
-    @GetMapping("/{restaurantId}/reviews")
-    public ApiResponse<List<ReviewResponse>> getReviews(
-            @PathVariable Long restaurantId,
-            @AuthenticationPrincipal AuthenticatedAccount account
-    ) {
-        Long viewerAccountId = account != null ? account.accountId() : null;
-        return ApiResponse.success(reviewService.getReviews(restaurantId, viewerAccountId));
-    }
-
     @GetMapping("/{restaurantId}/reviews/page")
     public ApiResponse<ReviewResponse.PageResponse> getReviewPage(
             @PathVariable Long restaurantId,

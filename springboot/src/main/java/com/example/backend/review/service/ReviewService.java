@@ -25,7 +25,6 @@ import java.util.List;
 @Service
 public class ReviewService {
 
-    private static final int MAX_RESULTS = 50;
     private static final int DEFAULT_PAGE_SIZE = 5;
     private static final int MAX_PAGE_SIZE = 20;
 
@@ -44,14 +43,6 @@ public class ReviewService {
         this.restaurantRepository = restaurantRepository;
         this.publicRestaurantRepository = publicRestaurantRepository;
         this.accountRepository = accountRepository;
-    }
-
-    @Transactional(readOnly = true)
-    public List<ReviewResponse> getReviews(Long restaurantId, Long viewerAccountId) {
-        requireReadableRestaurant(restaurantId, viewerAccountId);
-        return reviewRepository.findActiveByRestaurantId(restaurantId, PageRequest.of(0, MAX_RESULTS)).stream()
-                .map(review -> ReviewResponse.from(review, viewerAccountId))
-                .toList();
     }
 
     @Transactional(readOnly = true)
@@ -97,13 +88,6 @@ public class ReviewService {
         return restaurantRepository.findById(restaurantId)
                 .filter(restaurant -> restaurant.isReadableBy(viewerAccountId))
                 .orElseThrow(RestaurantNotFoundException::new);
-    }
-
-    @Transactional(readOnly = true)
-    public List<ReviewResponse> getReviewsForPublicRestaurant(Long publicRestaurantId) {
-        return reviewRepository.findActiveByPublicRestaurantId(publicRestaurantId, PageRequest.of(0, MAX_RESULTS)).stream()
-                .map(ReviewResponse::from)
-                .toList();
     }
 
     @Transactional(readOnly = true)

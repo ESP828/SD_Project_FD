@@ -574,7 +574,7 @@
     });
   }
 
-  async function loadReviews() {
+  async function loadReviews(page = 0) {
     panels.review.innerHTML = '<div class="store-empty">리뷰를 불러오는 중입니다.</div>';
     try {
       const readPath = source === "public"

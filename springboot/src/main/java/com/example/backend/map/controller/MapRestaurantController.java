@@ -121,11 +121,6 @@ public class MapRestaurantController {
         return ApiResponse.success(PublicRestaurantDetailResponse.from(restaurant, favoriteCount, favoritedByMe));
     }
 
-    @GetMapping("/restaurants/{id}/reviews")
-    public ApiResponse<List<ReviewResponse>> getReviews(@PathVariable Long id) {
-        return ApiResponse.success(reviewService.getReviewsForPublicRestaurant(id));
-    }
-
     @GetMapping("/restaurants/{id}/reviews/page")
     public ApiResponse<ReviewResponse.PageResponse> getReviewPage(
             @PathVariable Long id,
