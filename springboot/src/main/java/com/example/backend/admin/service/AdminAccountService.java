@@ -6,6 +6,7 @@ import com.example.backend.auth.domain.entity.Account;
 import com.example.backend.auth.domain.type.AccountStatus;
 import com.example.backend.auth.domain.type.AuthorityCode;
 import com.example.backend.auth.repository.AccountRepository;
+import com.example.backend.auth.repository.SocialAccountRepository;
 import com.example.backend.auth.service.AuthorityService;
 import com.example.backend.auth.service.RefreshTokenService;
 import com.example.backend.global.exception.BusinessException;
@@ -23,15 +24,18 @@ public class AdminAccountService {
     private final AccountRepository accountRepository;
     private final AuthorityService authorityService;
     private final RefreshTokenService refreshTokenService;
+    private final SocialAccountRepository socialAccountRepository;
 
     public AdminAccountService(
             AccountRepository accountRepository,
             AuthorityService authorityService,
-            RefreshTokenService refreshTokenService
+            RefreshTokenService refreshTokenService,
+            SocialAccountRepository socialAccountRepository
     ) {
         this.accountRepository = accountRepository;
         this.authorityService = authorityService;
         this.refreshTokenService = refreshTokenService;
+        this.socialAccountRepository = socialAccountRepository;
     }
 
     @Transactional(readOnly = true)
@@ -76,6 +80,9 @@ public class AdminAccountService {
         Account account = accountRepository.findById(targetAccountId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.ACCOUNT_NOT_FOUND));
         account.withdraw();
+        // 소셜 로그인 연동을 끊어서 나중에 같은 소셜 계정으로 다시 가입할 수 있게 한다
+        // (연동이 남아있으면 그 provider+providerUserId가 탈퇴한 계정에 계속 묶여서 재가입이 막힘).
+        socialAccountRepository.deleteByAccountId(targetAccountId);
         refreshTokenService.revokeAllForAccount(targetAccountId);
     }
 

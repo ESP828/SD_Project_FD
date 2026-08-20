@@ -4,6 +4,7 @@ import com.example.backend.auth.domain.entity.Account;
 import com.example.backend.auth.domain.entity.AccountCredential;
 import com.example.backend.auth.repository.AccountCredentialRepository;
 import com.example.backend.auth.repository.AccountRepository;
+import com.example.backend.auth.repository.SocialAccountRepository;
 import com.example.backend.auth.service.RefreshTokenService;
 import com.example.backend.global.exception.BusinessException;
 import com.example.backend.global.exception.ErrorCode;
@@ -24,19 +25,22 @@ public class MyPageAccountService {
     private final RestaurantRepository restaurantRepository;
     private final PasswordEncoder passwordEncoder;
     private final RefreshTokenService refreshTokenService;
+    private final SocialAccountRepository socialAccountRepository;
 
     public MyPageAccountService(
             AccountRepository accountRepository,
             AccountCredentialRepository credentialRepository,
             RestaurantRepository restaurantRepository,
             PasswordEncoder passwordEncoder,
-            RefreshTokenService refreshTokenService
+            RefreshTokenService refreshTokenService,
+            SocialAccountRepository socialAccountRepository
     ) {
         this.accountRepository = accountRepository;
         this.credentialRepository = credentialRepository;
         this.restaurantRepository = restaurantRepository;
         this.passwordEncoder = passwordEncoder;
         this.refreshTokenService = refreshTokenService;
+        this.socialAccountRepository = socialAccountRepository;
     }
 
     @Transactional
@@ -54,6 +58,9 @@ public class MyPageAccountService {
         restaurantRepository.findAllByOwnerAccountIdAndStatus(accountId, RestaurantStatus.ACTIVE)
                 .forEach(restaurant -> restaurant.deactivate());
         account.withdraw();
+        // 소셜 로그인 연동을 끊어서 나중에 같은 소셜 계정으로 다시 가입할 수 있게 한다
+        // (연동이 남아있으면 그 provider+providerUserId가 탈퇴한 계정에 계속 묶여서 재가입이 막힘).
+        socialAccountRepository.deleteByAccountId(accountId);
         refreshTokenService.revokeAllForAccount(accountId);
     }
 
