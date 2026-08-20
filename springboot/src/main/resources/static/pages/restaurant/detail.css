@@ -1693,6 +1693,18 @@ body > [data-site-header] > .site-header {
   line-height: 1.45;
 }
 
+.store-review-media-status {
+  margin: -4px 0 10px;
+  color: var(--color-navy);
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+.store-review-media-status.is-error {
+  color: var(--color-danger, #c62828);
+}
+
 .store-review-media-gallery {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
@@ -1705,10 +1717,21 @@ body > [data-site-header] > .site-header {
   display: block;
   min-width: 0;
   overflow: hidden;
+  padding: 0;
   border: 1px solid var(--color-line);
   border-radius: 12px;
   background: var(--color-canvas);
   aspect-ratio: 4 / 3;
+}
+
+.store-review-media-item.is-image {
+  width: 100%;
+  cursor: zoom-in;
+}
+
+.store-review-media-item.is-image:focus-visible {
+  outline: 3px solid var(--color-orange);
+  outline-offset: 2px;
 }
 
 .store-review-media-item img,
