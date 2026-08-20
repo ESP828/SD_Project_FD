@@ -1171,8 +1171,8 @@
   width: min(364px, calc(100vw - 20px));
   max-height: min(600px, calc(100vh - 20px));
   overflow-y: auto;
-  scrollbar-width: none;
-  -ms-overflow-style: none;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(74, 95, 117, 0.38) transparent;
   padding: 17px;
   border: 1px solid rgba(27, 43, 61, 0.13);
   border-top: 3px solid var(--color-orange);
@@ -1182,8 +1182,24 @@
 }
 
 .author-menu::-webkit-scrollbar {
-  width: 0;
-  height: 0;
+  width: 6px;
+  height: 6px;
+}
+
+.author-menu::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.author-menu::-webkit-scrollbar-thumb {
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: rgba(74, 95, 117, 0.34);
+  background-clip: padding-box;
+}
+
+.author-menu::-webkit-scrollbar-thumb:hover {
+  background: rgba(74, 95, 117, 0.52);
+  background-clip: padding-box;
 }
 
 .author-menu[hidden] {

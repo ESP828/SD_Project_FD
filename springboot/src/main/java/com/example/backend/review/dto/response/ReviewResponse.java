@@ -13,6 +13,8 @@ public record ReviewResponse(
         byte rating,
         String content,
         LocalDateTime createdAt,
+        LocalDateTime updatedAt,
+        boolean edited,
         boolean ownedByCurrentUser,
         List<ReviewMediaResponse> media
 ) {
@@ -32,6 +34,8 @@ public record ReviewResponse(
                 review.getRating(),
                 review.getContent(),
                 review.getCreatedAt(),
+                review.getUpdatedAt(),
+                isEdited(review),
                 viewerAccountId != null && viewerAccountId.equals(authorAccountId),
                 List.of()
         );
@@ -44,9 +48,17 @@ public record ReviewResponse(
                 rating,
                 content,
                 createdAt,
+                updatedAt,
+                edited,
                 ownedByCurrentUser,
                 media
         );
+    }
+
+    private static boolean isEdited(Review review) {
+        LocalDateTime createdAt = review.getCreatedAt();
+        LocalDateTime updatedAt = review.getUpdatedAt();
+        return createdAt != null && updatedAt != null && updatedAt.isAfter(createdAt);
     }
 
     // 관리자가 계정을 삭제해도 실제로는 소프트 삭제(status=WITHDRAWN)라서 계정 행과 작성자
