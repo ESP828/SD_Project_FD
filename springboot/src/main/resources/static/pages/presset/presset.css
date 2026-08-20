@@ -458,6 +458,13 @@
   outline-offset: 2px;
 }
 
+/* 목록을 보고 있는 위치에서도 바로 등록할 수 있도록 검색바 아래에 두는 생성 버튼 */
+.preset-list-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 16px;
+}
+
 .preset-discovery-panel {
   margin-bottom: 22px;
   padding: 0;
@@ -1161,6 +1168,17 @@
   font-size: 0.82rem;
 }
 
+/* 되돌리기 어려운 작업이라 삭제 버튼만 색으로 구분해 준다 */
+.preset-detail-actions .preset-detail-delete {
+  color: var(--color-danger);
+  border-color: var(--color-danger);
+}
+
+.preset-detail-actions .preset-detail-delete:hover {
+  color: #fff;
+  background: var(--color-danger);
+}
+
 .preset-detail-favorite {
   position: absolute;
   z-index: 2;
@@ -1188,6 +1206,12 @@
   align-items: flex-end;
   justify-content: space-between;
   gap: 20px;
+}
+
+.preset-restaurants-heading-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 
 .preset-restaurants-heading h2 {
@@ -1250,6 +1274,7 @@
   padding: 20px 20px 20px 8px;
 }
 
+.preset-restaurant-detail-btn,
 .preset-restaurant-map-btn,
 .preset-restaurant-actions .preset-restaurant-remove {
   width: 100%;

@@ -35,11 +35,16 @@
       <form id="place-search-form" class="map-search" role="search">
         <label class="sr-only" for="place-keyword">장소 검색어</label>
         <span class="material-symbols-rounded" aria-hidden="true">search</span>
-        <input id="place-keyword" type="search" placeholder="예: 강남 파스타" autocomplete="off">
+        <input id="place-keyword" type="search"
+               placeholder="가게 이름, 음식, 지역을 검색해보세요" autocomplete="off">
         <button type="submit" aria-label="장소 검색">
           <span class="material-symbols-rounded" aria-hidden="true">arrow_forward</span>
         </button>
       </form>
+
+      <p id="preset-add-hint" class="map-search-hint" hidden>
+        추가할 맛집을 검색해 주세요. 푸드덕에서 찾은 맛집을 골라 이 보물지도에 담을 수 있어요.
+      </p>
 
       <button id="preset-manage-back" class="preset-manage-back" type="button" hidden>
         <span class="material-symbols-rounded" aria-hidden="true">arrow_back</span>

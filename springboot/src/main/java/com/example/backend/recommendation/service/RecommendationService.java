@@ -126,6 +126,10 @@ public class RecommendationService {
         String expandedQuery = expandQueryString(request.query());
         ParsedRecommendationQuery parsedQuery = queryParser.parse(expandedQuery);
 
+        // 검색 화면 상세 조건에서 넘어온 성별·연령대. 회원 정보를 바꾸지 않고 이번 검색에만 반영한다.
+        String requestedGender = normalizeGender(request.gender());
+        Integer requestedAgeGroup = normalizeAgeGroup(request.ageGroup());
+
         // 💡 문장 속 지명(예: "신논현")을 우선 좌표로 사용한다. 지오코딩에 실패하면(지명이
         // 없거나, 카카오 API 오류/미설정) 기존처럼 GPS 좌표로 자동 폴백한다.
         Double centerLat = request.latitude();
@@ -284,6 +288,13 @@ public class RecommendationService {
                 reasons.add("선택하신 위치와 가까운 매장입니다.");
             }
 
+            finalScore += demographicBonus(
+                    requestedGender,
+                    requestedAgeGroup,
+                    !categorySmall.isEmpty() ? categorySmall : categoryLarge,
+                    reasons
+            );
+
             scoredItems.add(new RecommendedItemDto(
                     "PUBLIC",
                     restaurant.getPublicRestaurantId(),
@@ -394,30 +405,12 @@ public class RecommendationService {
                 reasons.add("자주 찜한 취향 맛집");
             }
 
-            if (age != null) {
-                int ageGroup = (age / 10) * 10;
-                if (ageGroup == 20 && (category.contains("카페") || category.contains("디저트") || category.contains("양식") || category.contains("패스트푸드"))) {
-                    baseScore += 0.1;
-                    reasons.add(ageGroup + "대 인기 스팟");
-                } else if ((ageGroup == 30 || ageGroup == 40) && (category.contains("한식") || category.contains("일식") || category.contains("중식"))) {
-                    baseScore += 0.1;
-                    reasons.add(ageGroup + "대 선호 스팟");
-                }
-            }
-
-            if (gender != null) {
-                if (gender.contains("FEMALE") || gender.contains("F")) {
-                    if (category.contains("카페") || category.contains("디저트") || category.contains("양식")) {
-                        baseScore += 0.05;
-                        reasons.add("여성 선호 스팟");
-                    }
-                } else if (gender.contains("MALE") || gender.contains("M")) {
-                    if (category.contains("한식") || category.contains("국밥") || category.contains("고기") || category.contains("주점")) {
-                        baseScore += 0.05;
-                        reasons.add("남성 선호 스팟");
-                    }
-                }
-            }
+            baseScore += demographicBonus(
+                    normalizeGender(gender),
+                    normalizeAgeGroup(age),
+                    category,
+                    reasons
+            );
 
             double distanceMeters = 0.0;
             double distanceScore = 1.0;
@@ -458,6 +451,61 @@ public class RecommendationService {
                 : "회원님을 위한 맞춤 추천 맛집";
 
         return new PersonalRecommendationResponse(true, summary, finalItems);
+    }
+
+    /**
+     * 성별·연령대에 따른 카테고리 가점. 계정 정보 기반 추천(나를 위한 맛집)과
+     * 검색 화면에서 이번 검색에만 지정한 조건 모두 같은 기준으로 처리한다.
+     */
+    private double demographicBonus(String gender, Integer ageGroup, String rawCategory, List<String> reasons) {
+        String category = rawCategory == null ? "" : rawCategory;
+        double bonus = 0.0;
+
+        if (ageGroup != null) {
+            if (ageGroup == 20 && (category.contains("카페") || category.contains("디저트") || category.contains("양식") || category.contains("패스트푸드"))) {
+                bonus += 0.1;
+                reasons.add(ageGroup + "대 인기 스팟");
+            } else if ((ageGroup == 30 || ageGroup == 40) && (category.contains("한식") || category.contains("일식") || category.contains("중식"))) {
+                bonus += 0.1;
+                reasons.add(ageGroup + "대 선호 스팟");
+            }
+        }
+
+        if ("FEMALE".equals(gender)) {
+            if (category.contains("카페") || category.contains("디저트") || category.contains("양식")) {
+                bonus += 0.05;
+                reasons.add("여성 선호 스팟");
+            }
+        } else if ("MALE".equals(gender)) {
+            if (category.contains("한식") || category.contains("국밥") || category.contains("고기") || category.contains("주점")) {
+                bonus += 0.05;
+                reasons.add("남성 선호 스팟");
+            }
+        }
+        return bonus;
+    }
+
+    /** 계정의 Gender enum 이름과 화면에서 넘어온 값을 모두 MALE/FEMALE로 정규화한다. */
+    private static String normalizeGender(String gender) {
+        if (gender == null || gender.isBlank()) {
+            return null;
+        }
+        String normalized = gender.trim().toUpperCase();
+        if (normalized.startsWith("F") || normalized.contains("FEMALE") || normalized.contains("WOMAN")) {
+            return "FEMALE";
+        }
+        if (normalized.startsWith("M") || normalized.contains("MALE") || normalized.contains("MAN")) {
+            return "MALE";
+        }
+        return null;
+    }
+
+    /** 만 나이와 연령대(10, 20, 30 ...) 어느 쪽이 들어와도 10단위 연령대로 맞춘다. */
+    private static Integer normalizeAgeGroup(Integer age) {
+        if (age == null || age < 10 || age > 120) {
+            return null;
+        }
+        return (age / 10) * 10;
     }
 
     private String expandQueryString(String query) {

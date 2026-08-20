@@ -5,6 +5,8 @@
   const keywordInput = document.getElementById("search-keyword");
   const categorySelect = document.getElementById("search-category");
   const regionInput = document.getElementById("search-region");
+  const genderSelect = document.getElementById("search-gender");
+  const ageGroupSelect = document.getElementById("search-age-group");
   const filterToggle = document.getElementById("search-filter-toggle");
   const filterPanel = document.getElementById("search-filter-panel");
 
@@ -12,6 +14,7 @@
   const aiSearchToggle = document.getElementById("ai-search-toggle");
   const searchSubmitBtn = document.getElementById("search-submit");
   const submitBtnText = document.getElementById("submit-btn-text");
+  const recommendLink = document.getElementById("search-recommend-link");
 
   const results = document.getElementById("search-results");
   const resultHeading = document.getElementById("result-heading");
@@ -29,6 +32,14 @@
   let aiRecommendationItems = [];
 
   const DEFAULT_LOCATION = { latitude: 37.4979, longitude: 127.0276 };
+
+  // 상세페이지에 다녀와도 마지막 검색 상태가 남아 있도록 하는 저장소 키.
+  // AI 모드는 사용자가 직접 끌 때까지 유지해야 해서 localStorage, 검색 결과는 탭 단위로만
+  // 살아 있으면 되므로 sessionStorage를 쓴다.
+  const AI_MODE_KEY = "fooduck:search-ai-mode";
+  const SEARCH_CACHE_KEY = "fooduck:search-cache";
+  const SEARCH_CACHE_TTL_MS = 30 * 60 * 1000;
+  const MAX_CACHED_AI_ITEMS = 300;
 
   function setFilterPanelOpen(isOpen) {
     filterPanel.hidden = !isOpen;
@@ -68,6 +79,66 @@
     button.classList.toggle("is-disabled", isAiMode);
   });
 }
+
+  // AI 모드는 사용자가 직접 끄기 전까지 유지한다(브라우저를 닫았다 열어도 그대로).
+  function storeAiModePreference(active) {
+    try {
+      localStorage.setItem(AI_MODE_KEY, active ? "1" : "0");
+    } catch (_error) {
+      /* 저장 실패해도 검색 자체는 진행한다 */
+    }
+  }
+
+  function readAiModePreference() {
+    try {
+      return localStorage.getItem(AI_MODE_KEY) === "1";
+    } catch (_error) {
+      return false;
+    }
+  }
+
+  function currentConditions() {
+    return {
+      keyword: keywordInput.value.trim(),
+      region: regionInput.value.trim(),
+      category: isAiMode ? "" : categorySelect.value,
+      gender: genderSelect ? genderSelect.value : "",
+      ageGroup: ageGroupSelect ? ageGroupSelect.value : "",
+      aiMode: isAiMode,
+    };
+  }
+
+  // 같은 조건으로 돌아왔는지 판단하는 키. 조건이 하나라도 다르면 캐시를 쓰지 않는다.
+  function conditionKey() {
+    return JSON.stringify(currentConditions());
+  }
+
+  function saveSearchCache(mode, page, data) {
+    try {
+      const payload = {
+        key: conditionKey(),
+        mode,
+        page,
+        savedAt: Date.now(),
+        data,
+      };
+      sessionStorage.setItem(SEARCH_CACHE_KEY, JSON.stringify(payload));
+    } catch (_error) {
+      /* 용량 초과 등으로 저장하지 못해도 검색 동작에는 영향이 없다 */
+    }
+  }
+
+  function readSearchCache() {
+    try {
+      const raw = sessionStorage.getItem(SEARCH_CACHE_KEY);
+      if (!raw) return null;
+      const cache = JSON.parse(raw);
+      if (!cache || Date.now() - Number(cache.savedAt || 0) > SEARCH_CACHE_TTL_MS) return null;
+      return cache;
+    } catch (_error) {
+      return null;
+    }
+  }
 
   function markerFor(place) {
     const category = place.categoryName || "";
@@ -158,9 +229,8 @@
     const actions = document.createElement("div");
     actions.className = "search-result-actions";
 
-    const sourceType = isRecommendation
-      ? (item.sourceType || "PUBLIC").toLowerCase()
-      : "public";
+    // 공공데이터 음식점과 사업자 등록 음식점은 ID 체계가 달라서 sourceType으로 상세 경로를 나눈다.
+    const sourceType = (item.sourceType || "PUBLIC").toLowerCase();
     const sourceId = isRecommendation ? item.sourceId : item.id;
     const restaurantName = isRecommendation ? item.restaurantName : item.name;
     const detailLink = document.createElement("a");
@@ -215,6 +285,8 @@ function updateUrlState(page = 0) {
   const keyword = keywordInput.value.trim();
   const region = regionInput.value.trim();
   const category = categorySelect.value;
+  const gender = genderSelect ? genderSelect.value : "";
+  const ageGroup = ageGroupSelect ? ageGroupSelect.value : "";
 
   if (keyword) params.set("keyword", keyword);
   if (region) params.set("region", region);
@@ -223,6 +295,10 @@ function updateUrlState(page = 0) {
   if (!isAiMode && category) {
     params.set("category", category);
   }
+  if (gender) params.set("gender", gender);
+  if (ageGroup) params.set("ageGroup", ageGroup);
+  // 상세페이지에서 돌아왔을 때 AI 모드가 풀리지 않도록 URL에도 남긴다.
+  if (isAiMode) params.set("ai", "1");
 
   params.set("page", String(Math.max(page, 0)));
 
@@ -252,7 +328,27 @@ function updateUrlState(page = 0) {
   // 기본적으로 현재 위치를 기준으로 검색하도록 페이지 진입 시 미리 위치 권한을 요청해둔다.
   getCurrentLocation();
 
-  // 1. 일반 키워드/지역/카테고리 검색
+  function renderPublicPage(data, { cache = true } = {}) {
+    resultHeading.hidden = false;
+    currentPage = data.page;
+
+    if (!data.items || data.items.length === 0) {
+      renderEmpty("다른 검색어나 지역으로 다시 찾아보세요.");
+      setStatus("조건에 맞는 맛집을 찾지 못했습니다.");
+      previousButton.disabled = true;
+      nextButton.disabled = true;
+      pageLabel.textContent = "1 / 1";
+      return;
+    }
+
+    results.replaceChildren(...data.items.map((item) => createResultCard(item)));
+    count.textContent = String(data.totalCount);
+    setStatus(`총 ${data.totalCount}개 중 ${data.page + 1}페이지 결과입니다.`);
+    updatePagination(data);
+    if (cache) saveSearchCache("public", data.page, data);
+  }
+
+  // 1. 일반 키워드/지역/카테고리 검색 (공공데이터 + 사업자 등록 음식점 통합)
   async function runPublicSearch(page = 0) {
     resultHeading.hidden = false;
     const params = new URLSearchParams({
@@ -272,26 +368,11 @@ function updateUrlState(page = 0) {
 
     try {
       const response = await Api.get(
-        `/public/map/restaurants/search?${params.toString()}`,
+        `/public/search/restaurants?${params.toString()}`,
         { auth: false },
       );
-      const data = response.data;
       results.removeAttribute("aria-busy");
-      currentPage = data.page;
-
-      if (data.items.length === 0) {
-        renderEmpty("다른 검색어나 지역으로 다시 찾아보세요.");
-        setStatus("조건에 맞는 맛집을 찾지 못했습니다.");
-        previousButton.disabled = true;
-        nextButton.disabled = true;
-        pageLabel.textContent = "1 / 1";
-        return;
-      }
-
-      results.replaceChildren(...data.items.map((item) => createResultCard(item)));
-      count.textContent = String(data.totalCount);
-      setStatus(`총 ${data.totalCount}개 중 ${data.page + 1}페이지 결과입니다.`);
-      updatePagination(data);
+      renderPublicPage(response.data);
     } catch (error) {
       results.removeAttribute("aria-busy");
       renderEmpty("검색 요청을 완료하지 못했습니다.");
@@ -300,7 +381,7 @@ function updateUrlState(page = 0) {
   }
 
   // ✨ AI 결과 렌더링 전용 페이징 함수 (12개 단위 슬라이싱)
-  function renderAiPage(page = 0) {
+  function renderAiPage(page = 0, { cache = true } = {}) {
     currentPage = page;
     updateUrlState(page);
 
@@ -320,6 +401,9 @@ function updateUrlState(page = 0) {
       hasPrevPage: currentPage > 0,
       hasNextPage: currentPage < totalPages - 1,
     });
+    if (cache) {
+      saveSearchCache("ai", page, { items: aiRecommendationItems.slice(0, MAX_CACHED_AI_ITEMS) });
+    }
   }
 
   // 2. AI 자연어 맛집 추천 API
@@ -354,6 +438,9 @@ function updateUrlState(page = 0) {
         longitude: coords.longitude,
         radiusMeters: 2000,
         limit: 1200, // 👈 넉넉히 가져와서 프론트에서 12개씩 페이징
+        // 상세 조건에서 고른 성별·연령대는 이번 검색에만 반영되는 값이다(회원 정보 변경 아님).
+        gender: selectedGender(),
+        ageGroup: selectedAgeGroup(),
       });
 
       results.removeAttribute("aria-busy");
@@ -378,12 +465,24 @@ function updateUrlState(page = 0) {
       if (error.status === 401) {
         alert("세션이 만료되었습니다. 일반 검색으로 전환합니다.");
         updateAiToggleUI(false);
+        storeAiModePreference(false);
         await runPublicSearch(0);
         return;
       }
       renderEmpty("검색 요청을 완료하지 못했습니다.");
       setStatus("검색 요청에 실패했습니다.", true);
     }
+  }
+
+  // "선택 안 함"은 개인화 가점을 아예 쓰지 않겠다는 뜻이라 서버에 값을 넘기지 않는다.
+  function selectedGender() {
+    const value = genderSelect ? genderSelect.value : "";
+    return value && value !== "NONE" ? value : null;
+  }
+
+  function selectedAgeGroup() {
+    const value = Number(ageGroupSelect ? ageGroupSelect.value : "");
+    return Number.isInteger(value) && value > 0 ? value : null;
   }
 
   // 3. 통합 검색 및 페이지 변경 분기
@@ -398,6 +497,24 @@ function updateUrlState(page = 0) {
     } else {
       runPublicSearch(page);
     }
+  }
+
+  // 상세페이지 등에서 돌아왔을 때, 같은 조건이면 API를 다시 부르지 않고 이전 결과를 그대로 되살린다.
+  function restoreLastSearch() {
+    const cache = readSearchCache();
+    if (!cache || cache.key !== conditionKey()) return false;
+
+    if (cache.mode === "ai") {
+      const items = Array.isArray(cache.data?.items) ? cache.data.items : [];
+      if (!items.length) return false;
+      aiRecommendationItems = items;
+      renderAiPage(Number(cache.page) || 0, { cache: false });
+    } else {
+      if (!cache.data?.items?.length) return false;
+      renderPublicPage(cache.data, { cache: false });
+    }
+    setStatus(`${status.textContent} (마지막 검색 결과)`);
+    return true;
   }
 
   // -----------------------------------------------------------------
@@ -418,6 +535,7 @@ function updateUrlState(page = 0) {
       // AI 모드 토글 시 기존 결과 초기화 후 검색 재실행
       aiRecommendationItems = [];
       updateAiToggleUI(!isAiMode);
+      storeAiModePreference(isAiMode);
       runSearch(0);
     });
   }
@@ -494,10 +612,16 @@ function scrollToTop() {
   const initialKeyword = initialParams.get("keyword") || initialParams.get("q") || "";
   const initialRegion = initialParams.get("region") || "";
   const initialCategory = initialParams.get("category") || "";
+  const initialGender = initialParams.get("gender") || "";
+  const initialAgeGroup = initialParams.get("ageGroup") || "";
   const parsedInitialPage = Number(initialParams.get("page"));
   const initialPage = Number.isInteger(parsedInitialPage)
     ? Math.max(parsedInitialPage, 0)
     : 0;
+
+  if (recommendLink) {
+    recommendLink.href = window.FooduckSession?.recommendationHref?.() || "/recommendation";
+  }
 
   if (initialKeyword) keywordInput.value = initialKeyword;
   if (initialRegion) regionInput.value = initialRegion;
@@ -513,8 +637,25 @@ function scrollToTop() {
   } else if (initialRegion) {
     setFilterPanelOpen(true);
   }
+  if (genderSelect && initialGender) genderSelect.value = initialGender;
+  if (ageGroupSelect && initialAgeGroup) ageGroupSelect.value = initialAgeGroup;
+  if (initialGender || initialAgeGroup) setFilterPanelOpen(true);
 
-  if (initialKeyword || initialRegion || initialCategory) {
+  // AI 모드는 URL에 남아 있으면 그 값을, 없으면 사용자가 마지막으로 켜둔 상태를 따른다.
+  const restoredAiMode = initialParams.has("ai")
+    ? initialParams.get("ai") === "1"
+    : readAiModePreference();
+  if (restoredAiMode && window.FooduckSession?.authenticated) {
+    updateAiToggleUI(true);
+  } else if (restoredAiMode) {
+    // 로그아웃 상태에서는 AI 검색을 쓸 수 없으므로 기록도 정리한다.
+    storeAiModePreference(false);
+  }
+
+  // 조건이 하나라도 있거나 AI 검색 상태로 돌아온 경우에만 결과를 되살리거나 다시 검색한다.
+  const hasSearchCondition = Boolean(initialKeyword || initialRegion || initialCategory)
+    || (isAiMode && initialParams.has("ai"));
+  if (hasSearchCondition && !restoreLastSearch()) {
     runSearch(initialPage);
   }
 })();
