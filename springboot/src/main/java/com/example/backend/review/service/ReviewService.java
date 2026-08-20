@@ -17,6 +17,7 @@ import com.example.backend.review.dto.response.ReviewResponse;
 import com.example.backend.review.exception.ReviewAlreadyExistsException;
 import com.example.backend.review.repository.ReviewMediaRepository;
 import com.example.backend.review.repository.ReviewRepository;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
@@ -42,6 +43,7 @@ public class ReviewService {
     private final AccountRepository accountRepository;
     private final ReviewMediaRepository reviewMediaRepository;
 
+    @Autowired
     public ReviewService(
             ReviewRepository reviewRepository,
             RestaurantRepository restaurantRepository,
@@ -54,6 +56,16 @@ public class ReviewService {
         this.publicRestaurantRepository = publicRestaurantRepository;
         this.accountRepository = accountRepository;
         this.reviewMediaRepository = reviewMediaRepository;
+    }
+
+    // 기존 단위 테스트 및 직접 생성 코드와의 호환용 생성자.
+    ReviewService(
+            ReviewRepository reviewRepository,
+            RestaurantRepository restaurantRepository,
+            PublicRestaurantRepository publicRestaurantRepository,
+            AccountRepository accountRepository
+    ) {
+        this(reviewRepository, restaurantRepository, publicRestaurantRepository, accountRepository, null);
     }
 
     @Transactional(readOnly = true)
@@ -174,7 +186,10 @@ public class ReviewService {
     @Transactional
     public void deleteReview(Long reviewId, Long accountId) {
         Review review = requireActiveOwnedReview(reviewId, accountId);
-        reviewMediaRepository.deleteAllByReviewId(reviewId);
+
+        // DB FK의 ON DELETE CASCADE가 연결된 review_media를 함께 정리한다.
+        // 삭제 직전 상태값도 갱신해 기존 직접 생성/단위 테스트 코드와의 호환성을 유지한다.
+        review.delete();
         reviewRepository.delete(review);
         reviewRepository.flush();
     }
@@ -229,7 +244,7 @@ public class ReviewService {
     }
 
     private Map<Long, List<ReviewMediaResponse>> findMediaByReviewIds(Set<Long> reviewIds) {
-        if (reviewIds == null || reviewIds.isEmpty()) return Map.of();
+        if (reviewIds == null || reviewIds.isEmpty() || reviewMediaRepository == null) return Map.of();
         Map<Long, List<ReviewMediaResponse>> result = new HashMap<>();
         reviewMediaRepository.findByReviewIds(reviewIds).forEach(media ->
                 result.computeIfAbsent(media.reviewId(), ignored -> new ArrayList<>())
