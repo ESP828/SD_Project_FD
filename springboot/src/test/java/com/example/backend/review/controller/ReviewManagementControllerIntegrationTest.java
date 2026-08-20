@@ -189,7 +189,7 @@ class ReviewManagementControllerIntegrationTest {
         mockMvc.perform(post("/api/auth/signup")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"loginId":"%s","password":"Correct1!","passwordConfirm":"Correct1!","email":"%s","nickname":"%s"}
+                                {"loginId":"%s","password":"Correct1!","passwordConfirm":"Correct1!","email":"%s","nickname":"%s","ageConfirmed":true}
                                 """.formatted(loginId, email, nickname)))
                 .andExpect(status().isOk());
     }

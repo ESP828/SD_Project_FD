@@ -36,7 +36,7 @@
     body.innerHTML = presets.map((preset) => `<tr>
       <td>${escapeHtml(preset.title)}</td><td>${escapeHtml(preset.category)}</td><td>${escapeHtml(preset.status)}</td>
       <td>${preset.restaurantCount}</td><td>${preset.tagCount}</td><td>${preset.favoriteCount}</td>
-      <td><button class="button button-secondary button-sm" data-edit="${preset.presetId}">수정</button><button class="button button-secondary button-sm" data-delete="${preset.presetId}">삭제</button></td>
+      <td><button class="button button-secondary button-sm" data-edit="${preset.presetId}">수정</button><button class="button button-danger button-sm" data-delete="${preset.presetId}">삭제</button></td>
     </tr>`).join("");
   }
 

@@ -56,6 +56,9 @@
               <span>주소 *</span>
               <input name="address" type="text" maxlength="255" required autocomplete="street-address">
             </label>
+            <p id="restaurant-coordinate-status" class="restaurant-coordinate-status full">
+              주소를 입력하면 저장 전에 지도 좌표를 자동으로 확인합니다.
+            </p>
             <label class="full">
               <span>상세 주소</span>
               <input name="addressDetail" type="text" maxlength="255">
@@ -71,14 +74,6 @@
             <label class="full">
               <span>영업시간</span>
               <input name="openingHours" type="text" maxlength="500" placeholder="예: 11:00 - 22:00">
-            </label>
-            <label>
-              <span>위도</span>
-              <input name="latitude" type="number" min="-90" max="90" step="0.0000001" placeholder="37.1234567">
-            </label>
-            <label>
-              <span>경도</span>
-              <input name="longitude" type="number" min="-180" max="180" step="0.0000001" placeholder="127.1234567">
             </label>
             <label class="full">
               <span>가게 소개</span>

@@ -338,6 +338,19 @@ h4 {
   box-shadow: var(--shadow-sm);
 }
 
+.button-danger {
+  border-color: var(--color-danger);
+  color: #fff;
+  background: var(--color-danger);
+  box-shadow: 0 8px 18px rgba(217, 63, 63, 0.2);
+}
+
+.button-danger:hover {
+  border-color: #b52f27;
+  color: #fff;
+  background: #b52f27;
+}
+
 .button-outline-gray {
   border-color: transparent;
   color: #fff;
@@ -361,6 +374,134 @@ h4 {
   transform: none;
   opacity: 0.5;
   box-shadow: none;
+}
+
+.password-input-shell {
+  position: relative;
+  display: block;
+  width: 100%;
+}
+
+.password-input-shell > input {
+  width: 100%;
+  padding-right: 50px !important;
+}
+
+.password-visibility-toggle {
+  position: absolute;
+  top: 50%;
+  right: 7px;
+  display: inline-grid;
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  transform: translateY(-50%);
+  place-items: center;
+  border: 0;
+  border-radius: 10px;
+  color: var(--color-muted);
+  background: transparent;
+  cursor: pointer;
+}
+
+.password-visibility-toggle:hover {
+  color: var(--color-navy);
+  background: #eef2f6;
+}
+
+.password-visibility-toggle:focus-visible {
+  outline: 3px solid rgba(255, 152, 0, 0.3);
+  outline-offset: 1px;
+}
+
+.password-visibility-toggle .material-symbols-rounded {
+  font-size: 21px;
+}
+
+.password-feedback {
+  display: grid;
+  gap: 10px;
+  margin-top: 2px;
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
+.password-rule-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.password-rule-list li {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--color-muted);
+}
+
+.password-rule-list li.is-met {
+  color: var(--color-green);
+}
+
+.password-rule-icon {
+  width: 14px;
+  flex: 0 0 14px;
+  text-align: center;
+}
+
+.password-strength {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--color-muted);
+}
+
+.password-strength-track {
+  display: block;
+  height: 6px;
+  flex: 1 1 auto;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #e6eaf0;
+}
+
+.password-strength-track i {
+  display: block;
+  width: 0;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--color-muted);
+  transition: width 160ms ease, background 160ms ease;
+}
+
+.password-feedback[data-strength="weak"] .password-strength-track i {
+  width: 33.333%;
+  background: var(--color-danger);
+}
+
+.password-feedback[data-strength="medium"] .password-strength-track i {
+  width: 66.666%;
+  background: var(--color-orange);
+}
+
+.password-feedback[data-strength="strong"] .password-strength-track i {
+  width: 100%;
+  background: var(--color-green);
+}
+
+.password-feedback[data-strength="weak"] .password-strength-label {
+  color: var(--color-danger);
+}
+
+.password-feedback[data-strength="medium"] .password-strength-label {
+  color: var(--color-orange-dark);
+}
+
+.password-feedback[data-strength="strong"] .password-strength-label {
+  color: var(--color-green);
 }
 
 .eyebrow,
@@ -580,44 +721,10 @@ h4 {
 }
 
 .footer-link:focus-visible,
-.footer-support-link:focus-visible,
 .footer-dialog-x:focus-visible,
 .footer-dialog-close:focus-visible {
   outline: 3px solid rgba(255, 130, 59, 0.26);
   outline-offset: 3px;
-}
-
-.footer-contact-line {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  flex-wrap: wrap;
-  margin-top: 34px;
-  padding-top: 22px;
-  border-top: 1px solid #eef1f4;
-  color: #697381;
-  font-size: 0.82rem;
-  line-height: 1.6;
-}
-
-.footer-contact-line > span {
-  font-weight: 650;
-}
-
-.footer-support-link {
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: var(--color-orange-dark);
-  font: inherit;
-  font-weight: 800;
-  text-decoration: none;
-  cursor: pointer;
-}
-
-.footer-support-link:hover {
-  text-decoration: underline;
-  text-underline-offset: 3px;
 }
 
 .footer-meta {
@@ -801,15 +908,6 @@ h4 {
 
 .footer-faq-list h3 {
   margin-top: 18px;
-}
-
-.footer-contact-actions {
-  display: flex;
-  margin-top: 22px;
-}
-
-.footer-contact-actions .button {
-  text-decoration: none;
 }
 
 .footer-dialog-close {
@@ -1155,9 +1253,5 @@ h4 {
     gap: 10px;
   }
 
-  .footer-contact-line {
-    margin-top: 28px;
-    padding-top: 18px;
-  }
 }
 

@@ -69,7 +69,8 @@ class RefreshTokenFlowIntegrationTest {
                                   "password": "correct-password1!",
                                   "passwordConfirm": "correct-password1!",
                                   "email": "%s",
-                                  "nickname": "%s"
+                                  "nickname": "%s",
+                                  "ageConfirmed": true
                                 }
                                 """.formatted(loginId, email, nickname)))
                 .andExpect(status().isOk());
@@ -137,6 +138,9 @@ class RefreshTokenFlowIntegrationTest {
     void withdrawalImmediatelyBlocksAccessRefreshAndLogin() throws Exception {
         verifyEmail("withdrawflow@example.com");
         signup("withdrawflow", "withdrawflow@example.com", "탈퇴흐름회원");
+        Long accountId = accountRepository.findByLoginId("withdrawflow")
+                .orElseThrow()
+                .getAccountId();
 
         MvcResult loginResult = mockMvc.perform(post("/api/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -165,7 +169,7 @@ class RefreshTokenFlowIntegrationTest {
                                 """))
                 .andExpect(status().isOk());
 
-        Account account = accountRepository.findByLoginId("withdrawflow").orElseThrow();
+        Account account = accountRepository.findById(accountId).orElseThrow();
         assertTrue(account.getDeletedAt() != null);
         assertTrue(account.getStatus() == AccountStatus.WITHDRAWN);
 
@@ -184,7 +188,7 @@ class RefreshTokenFlowIntegrationTest {
                                   "rememberLogin": false
                                 }
                                 """))
-                .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.code").value("AUTH_ACCOUNT_UNAVAILABLE"));
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("AUTH_INVALID_CREDENTIALS"));
     }
 }
