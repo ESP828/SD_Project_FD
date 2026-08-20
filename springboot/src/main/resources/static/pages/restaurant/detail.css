@@ -1452,3 +1452,170 @@ body > [data-site-header] > .site-header {
     bottom: calc(max(10px, env(safe-area-inset-bottom)) + 134px);
   }
 }
+
+/* Review management */
+
+.store-review-item.is-owned {
+  padding: 14px;
+  border: 1px solid rgba(255, 152, 0, 0.28);
+  border-radius: 12px;
+  background: rgba(255, 152, 0, 0.035);
+}
+
+.store-review-own-badge {
+  display: inline-flex;
+  align-items: center;
+  margin-bottom: 7px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  color: var(--color-orange-dark);
+  background: rgba(255, 152, 0, 0.12);
+  font-size: 0.7rem;
+  font-weight: 800;
+}
+
+.store-review-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 7px;
+}
+
+.store-review-footer .store-review-date {
+  margin: 0;
+}
+
+.store-review-actions,
+.store-review-owned-actions,
+.store-review-editor-actions,
+.store-review-editor-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.store-review-actions .button,
+.store-review-owned-actions .button,
+.store-review-editor-actions .button,
+.store-review-editor-meta .button {
+  justify-self: auto;
+}
+
+.store-review-owned-notice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 18px;
+  padding: 15px 16px;
+  border: 1px solid rgba(255, 152, 0, 0.25);
+  border-radius: var(--radius-md);
+  background: rgba(255, 152, 0, 0.055);
+}
+
+.store-review-owned-notice strong {
+  color: var(--color-navy);
+  font-size: 0.88rem;
+}
+
+.store-review-owned-notice p {
+  margin: 5px 0 0;
+  color: var(--color-muted);
+  font-size: 0.78rem;
+  line-height: 1.5;
+}
+
+.store-review-editor-meta {
+  justify-content: space-between;
+}
+
+.store-review-editor-meta > span {
+  color: var(--color-subtle);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.store-review-emoji-panel {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(38px, 1fr));
+  gap: 6px;
+  max-height: 190px;
+  overflow-y: auto;
+  padding: 10px;
+  border: 1px solid var(--color-line);
+  border-radius: 12px;
+  background: #fff;
+}
+
+.store-review-emoji-panel[hidden] {
+  display: none;
+}
+
+.store-review-emoji-option {
+  display: grid;
+  min-width: 38px;
+  height: 38px;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  font-size: 1.15rem;
+  cursor: pointer;
+}
+
+.store-review-emoji-option:hover,
+.store-review-emoji-option:focus-visible {
+  background: var(--color-canvas);
+  outline: none;
+}
+
+.store-review-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid var(--color-line);
+}
+
+.store-review-page-button {
+  display: grid;
+  width: 36px;
+  height: 36px;
+  place-items: center;
+  padding: 0;
+  border: 1px solid var(--color-line);
+  border-radius: 10px;
+  color: var(--color-muted);
+  background: #fff;
+  font-size: 0.78rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.store-review-page-button:hover:not(:disabled),
+.store-review-page-button:focus-visible,
+.store-review-page-button.is-active {
+  border-color: rgba(255, 152, 0, 0.5);
+  color: var(--color-orange-dark);
+  background: rgba(255, 152, 0, 0.08);
+  outline: none;
+}
+
+.store-review-page-button:disabled {
+  cursor: default;
+  opacity: 0.4;
+}
+
+@media (max-width: 560px) {
+  .store-review-owned-notice,
+  .store-review-footer {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}

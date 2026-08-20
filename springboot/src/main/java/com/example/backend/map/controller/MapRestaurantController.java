@@ -126,6 +126,17 @@ public class MapRestaurantController {
         return ApiResponse.success(reviewService.getReviewsForPublicRestaurant(id));
     }
 
+    @GetMapping("/restaurants/{id}/reviews/page")
+    public ApiResponse<ReviewResponse.PageResponse> getReviewPage(
+            @PathVariable Long id,
+            @AuthenticationPrincipal AuthenticatedAccount account,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "5") int size
+    ) {
+        Long viewerAccountId = account != null ? account.accountId() : null;
+        return ApiResponse.success(reviewService.getReviewPageForPublicRestaurant(id, viewerAccountId, page, size));
+    }
+
     @GetMapping("/restaurants/{id}/menu")
     public ApiResponse<List<MenuResponse>> getMenu(@PathVariable Long id) {
         return ApiResponse.success(menuQueryRepository.findVisibleByPublicRestaurantId(id));
@@ -143,10 +154,7 @@ public class MapRestaurantController {
         }
         PublicRestaurant restaurant = publicRestaurantRepository.findById(id)
                 .orElseThrow(() -> new BusinessException(ErrorCode.RESTAURANT_NOT_FOUND));
-        List<String> reviewTexts = reviewService.getReviewsForPublicRestaurant(id).stream()
-                .map(ReviewResponse::content)
-                .filter(StringUtils::hasText)
-                .toList();
+        List<String> reviewTexts = reviewService.getAllReviewTextsForPublicRestaurant(id);
         if (reviewTexts.isEmpty()) {
             return ApiResponse.success(null);
         }

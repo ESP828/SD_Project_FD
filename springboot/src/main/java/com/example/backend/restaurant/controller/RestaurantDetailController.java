@@ -13,6 +13,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
@@ -64,6 +65,17 @@ public class RestaurantDetailController {
     ) {
         Long viewerAccountId = account != null ? account.accountId() : null;
         return ApiResponse.success(reviewService.getReviews(restaurantId, viewerAccountId));
+    }
+
+    @GetMapping("/{restaurantId}/reviews/page")
+    public ApiResponse<ReviewResponse.PageResponse> getReviewPage(
+            @PathVariable Long restaurantId,
+            @AuthenticationPrincipal AuthenticatedAccount account,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "5") int size
+    ) {
+        Long viewerAccountId = account != null ? account.accountId() : null;
+        return ApiResponse.success(reviewService.getReviewPage(restaurantId, viewerAccountId, page, size));
     }
 
     @GetMapping("/{restaurantId}/news")

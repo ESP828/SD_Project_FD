@@ -78,6 +78,8 @@
   let storeId = null;
   let isOwner = false;
   let newsPage = requestedTab === "news" ? requestedNewsPage : 0;
+  let reviewPage = 0;
+  const REVIEW_PAGE_SIZE = 5;
   const NEWS_PAGE_SIZE = 4;
   const NEWS_COMMENT_PAGE_SIZE = 5;
   const NEWS_COMMENT_ALL_PAGE_SIZE = 100;
@@ -221,52 +223,307 @@
     `;
   }
 
-  function reviewWriteFormHtml() {
+  function reviewEmojiPanelHtml() {
+    return `
+      <div class="store-review-emoji-panel" data-review-emoji-panel hidden role="group" aria-label="이모지 선택">
+        ${NEWS_EMOJIS.map((emoji) => `
+          <button type="button" class="store-review-emoji-option" data-review-emoji="${emoji}" aria-label="${emoji} 이모지 입력">${emoji}</button>
+        `).join("")}
+      </div>
+    `;
+  }
+
+  function reviewEditorHtml({ mode = "create", review = null } = {}) {
+    const editing = mode === "edit" && review;
+    const rating = editing ? Number(review.rating) || 0 : 0;
+    const content = editing ? String(review.content || "") : "";
+    return `
+      <div class="store-write-form store-review-editor" id="store-review-form"
+           data-review-mode="${editing ? "edit" : "create"}"
+           ${editing ? `data-review-id="${review.reviewId}"` : ""}>
+        <h3>${editing ? "리뷰 수정" : "리뷰 작성"}</h3>
+        <div class="store-rating-input" id="store-review-rating" role="radiogroup" aria-label="별점">
+          ${[1, 2, 3, 4, 5].map((n) => `
+            <button type="button" data-rating="${n}" aria-label="${n}점"
+                    class="${n <= rating ? "is-selected" : ""}">★</button>
+          `).join("")}
+        </div>
+        <textarea id="store-review-content" maxlength="1000" placeholder="솔직한 리뷰를 남겨주세요 (선택)">${escapeHtml(content)}</textarea>
+        <div class="store-review-editor-meta">
+          <button type="button" class="button button-secondary button-sm store-review-emoji-toggle"
+                  data-review-emoji-toggle aria-expanded="false">😀 이모지</button>
+          <span data-review-char-count>${content.length} / 1000</span>
+        </div>
+        ${reviewEmojiPanelHtml()}
+        <div class="store-review-editor-actions">
+          ${editing ? '<button type="button" class="button button-secondary button-sm" data-review-edit-cancel>취소</button>' : ""}
+          <button type="button" class="button button-primary button-sm" id="store-review-submit">${editing ? "수정 완료" : "리뷰 등록"}</button>
+        </div>
+      </div>
+    `;
+  }
+
+  async function refreshReviewSummary() {
+    if (source !== "owned" || !storeId || !statsRow) return;
+    try {
+      const response = await Api.get(`/public/restaurants/${storeId}`, { auth: isLoggedIn });
+      const store = response.data;
+      if (!store) return;
+      const values = statsRow.querySelectorAll("strong");
+      if (values[0]) values[0].textContent = store.averageRating != null ? Number(store.averageRating).toFixed(1) : "-";
+      if (values[1]) values[1].textContent = `${Number(store.reviewCount || 0).toLocaleString("ko-KR")}건`;
+    } catch (_error) {
+      // 상단 요약 갱신 실패가 리뷰 작성/수정/삭제 결과를 막지 않도록 한다.
+    }
+  }
+
+  function reviewWriteAreaHtml(myReview) {
     if (!isLoggedIn) {
       return '<div class="store-write-signin">리뷰를 작성하려면 로그인해 주세요.</div>';
     }
+    if (!myReview) {
+      return `<div id="store-review-write-area">${reviewEditorHtml()}</div>`;
+    }
     return `
-      <div class="store-write-form" id="store-review-form">
-        <h3>리뷰 작성</h3>
-        <div class="store-rating-input" id="store-review-rating" role="radiogroup" aria-label="별점">
-          ${[1, 2, 3, 4, 5].map((n) => `<button type="button" data-rating="${n}" aria-label="${n}점">★</button>`).join("")}
+      <div id="store-review-write-area" class="store-review-owned-notice">
+        <div>
+          <strong>이미 이 가게에 리뷰를 작성했습니다.</strong>
+          <p>한 가게에는 리뷰를 하나만 작성할 수 있습니다. 작성한 리뷰는 수정하거나 삭제할 수 있습니다.</p>
         </div>
-        <textarea id="store-review-content" maxlength="1000" placeholder="솔직한 리뷰를 남겨주세요 (선택)"></textarea>
-        <button type="button" class="button button-primary button-sm" id="store-review-submit">리뷰 등록</button>
+        <div class="store-review-owned-actions">
+          <button type="button" class="button button-secondary button-sm" data-review-edit="${myReview.reviewId}">내 리뷰 수정</button>
+          <button type="button" class="button button-danger button-sm" data-review-delete="${myReview.reviewId}">삭제</button>
+        </div>
       </div>
     `;
+  }
+
+  function reviewItemHtml(review) {
+    const owned = review?.ownedByCurrentUser === true;
+    return `
+      <div class="store-review-item${owned ? " is-owned" : ""}" data-review-card="${review.reviewId ?? ""}">
+        <div class="store-review-head">
+          <span class="store-review-author" data-review-id="${review.reviewId ?? ""}">${escapeHtml(review.authorNickname)}</span>
+          <span class="store-review-rating">★ ${review.rating}.0</span>
+        </div>
+        ${owned ? '<span class="store-review-own-badge">내 리뷰</span>' : ""}
+        ${review.content ? `<p class="store-review-content">${escapeHtml(review.content)}</p>` : ""}
+        <div class="store-review-footer">
+          <p class="store-review-date">${formatDate(review.createdAt)}</p>
+          ${owned ? `
+            <div class="store-review-actions">
+              <button type="button" class="button button-secondary button-sm" data-review-edit="${review.reviewId}">수정</button>
+              <button type="button" class="button button-danger button-sm" data-review-delete="${review.reviewId}">삭제</button>
+            </div>
+          ` : ""}
+        </div>
+      </div>
+    `;
+  }
+
+  function reviewPaginationHtml(pageData) {
+    const totalPages = Math.max(0, Number(pageData?.totalPages) || 0);
+    if (totalPages <= 1) return "";
+    const currentPage = Math.max(0, Number(pageData?.page) || 0);
+    const first = pageData?.first === true || currentPage === 0;
+    const last = pageData?.last === true || currentPage + 1 >= totalPages;
+    const start = Math.max(0, Math.min(currentPage - 2, totalPages - 5));
+    const end = Math.min(totalPages, start + 5);
+    const buttons = [];
+    for (let page = start; page < end; page += 1) {
+      buttons.push(`
+        <button type="button" class="store-review-page-button${page === currentPage ? " is-active" : ""}"
+                data-review-page="${page}"${page === currentPage ? ' aria-current="page"' : ""}>${page + 1}</button>
+      `);
+    }
+    return `
+      <nav class="store-review-pagination" aria-label="리뷰 페이지">
+        <button type="button" class="store-review-page-button" data-review-page="${currentPage - 1}"
+                aria-label="이전 페이지"${first ? " disabled" : ""}>‹</button>
+        ${buttons.join("")}
+        <button type="button" class="store-review-page-button" data-review-page="${currentPage + 1}"
+                aria-label="다음 페이지"${last ? " disabled" : ""}>›</button>
+      </nav>
+    `;
+  }
+
+  function updateReviewCharacterCount(textarea, counter) {
+    if (!textarea || !counter) return;
+    counter.textContent = `${textarea.value.length} / 1000`;
+  }
+
+  function insertReviewEmoji(textarea, emoji) {
+    if (!textarea || !emoji) return;
+    const start = Number.isInteger(textarea.selectionStart) ? textarea.selectionStart : textarea.value.length;
+    const end = Number.isInteger(textarea.selectionEnd) ? textarea.selectionEnd : start;
+    const nextValue = `${textarea.value.slice(0, start)}${emoji}${textarea.value.slice(end)}`;
+    if (nextValue.length > textarea.maxLength) return;
+    textarea.value = nextValue;
+    const caret = start + emoji.length;
+    textarea.focus({ preventScroll: true });
+    textarea.setSelectionRange(caret, caret);
+    textarea.dispatchEvent(new Event("input", { bubbles: true }));
+  }
+
+  function bindReviewEmojiPicker(form) {
+    const textarea = form?.querySelector("#store-review-content");
+    const toggle = form?.querySelector("[data-review-emoji-toggle]");
+    const panel = form?.querySelector("[data-review-emoji-panel]");
+    const counter = form?.querySelector("[data-review-char-count]");
+    if (!textarea || !toggle || !panel) return;
+
+    updateReviewCharacterCount(textarea, counter);
+    textarea.addEventListener("input", () => updateReviewCharacterCount(textarea, counter));
+    toggle.addEventListener("click", () => {
+      const nextOpen = panel.hidden;
+      panel.hidden = !nextOpen;
+      toggle.setAttribute("aria-expanded", String(nextOpen));
+    });
+    panel.querySelectorAll("[data-review-emoji]").forEach((button) => {
+      button.addEventListener("click", () => insertReviewEmoji(textarea, button.dataset.reviewEmoji));
+    });
   }
 
   function bindReviewForm() {
     const form = document.getElementById("store-review-form");
     if (!form) return;
+    const editing = form.dataset.reviewMode === "edit";
+    const reviewId = Number(form.dataset.reviewId);
     let selectedRating = 0;
+    const selectedButton = [...form.querySelectorAll("[data-rating].is-selected")].at(-1);
+    if (selectedButton) selectedRating = Number(selectedButton.dataset.rating);
+
     const ratingButtons = form.querySelectorAll("[data-rating]");
     ratingButtons.forEach((button) => {
       button.addEventListener("click", () => {
         selectedRating = Number(button.dataset.rating);
-        ratingButtons.forEach((b) => b.classList.toggle("is-selected", Number(b.dataset.rating) <= selectedRating));
+        ratingButtons.forEach((candidate) => {
+          candidate.classList.toggle("is-selected", Number(candidate.dataset.rating) <= selectedRating);
+        });
       });
     });
+    bindReviewEmojiPicker(form);
+
+    form.querySelector("[data-review-edit-cancel]")?.addEventListener("click", () => loadReviews());
+
     const submitButton = document.getElementById("store-review-submit");
-    submitButton.addEventListener("click", async () => {
+    submitButton?.addEventListener("click", async () => {
       if (!selectedRating) {
         window.alert("별점을 선택해 주세요.");
         return;
       }
-      const content = document.getElementById("store-review-content").value.trim();
+      const contentInput = document.getElementById("store-review-content");
+      const content = contentInput?.value.trim() || "";
       submitButton.disabled = true;
       try {
-        const writePath = source === "public"
-          ? `/map/restaurants/${storeId}/reviews`
-          : `/restaurants/${storeId}/reviews`;
-        await Api.post(writePath, { rating: selectedRating, content: content || null });
+        if (editing) {
+          if (!Number.isSafeInteger(reviewId) || reviewId <= 0) throw new Error("수정할 리뷰를 찾을 수 없습니다.");
+          await Api.put(`/reviews/${reviewId}`, { rating: selectedRating, content: content || null });
+        } else {
+          const writePath = source === "public"
+            ? `/map/restaurants/${storeId}/reviews`
+            : `/restaurants/${storeId}/reviews`;
+          await Api.post(writePath, { rating: selectedRating, content: content || null });
+          reviewPage = 0;
+        }
+        await refreshReviewSummary();
         await loadReviews();
       } catch (error) {
-        window.alert(error.message || "리뷰 등록에 실패했습니다.");
+        window.alert(error.message || (editing ? "리뷰 수정에 실패했습니다." : "리뷰 등록에 실패했습니다."));
       } finally {
         submitButton.disabled = false;
       }
+    });
+  }
+
+  function reviewConfirmDelete() {
+    return new Promise((resolve) => {
+      const dialog = document.createElement("dialog");
+      dialog.className = "board-dialog comment-confirm-dialog";
+      dialog.innerHTML = `
+        <div class="dialog-shell comment-confirm-shell">
+          <div class="comment-confirm-heading">
+            <span class="comment-confirm-icon"><span class="material-symbols-rounded" aria-hidden="true">delete</span></span>
+            <div class="comment-confirm-copy">
+              <h2>리뷰를 삭제하시겠습니까?</h2>
+              <p>삭제한 리뷰는 되돌릴 수 없습니다. 삭제 후 이 가게에 새 리뷰를 작성할 수 있습니다.</p>
+            </div>
+          </div>
+          <div class="comment-confirm-actions">
+            <button type="button" class="button button-sm button-secondary" data-review-confirm-cancel>취소</button>
+            <button type="button" class="button button-sm button-danger" data-review-confirm-delete>삭제</button>
+          </div>
+        </div>
+      `;
+      document.body.append(dialog);
+      window.FooduckIcons?.enhance(dialog);
+      let settled = false;
+      const finish = (value) => {
+        if (settled) return;
+        settled = true;
+        dialog.close();
+        dialog.remove();
+        resolve(value);
+      };
+      dialog.querySelector("[data-review-confirm-cancel]")?.addEventListener("click", () => finish(false));
+      dialog.querySelector("[data-review-confirm-delete]")?.addEventListener("click", () => finish(true));
+      dialog.addEventListener("cancel", (event) => {
+        event.preventDefault();
+        finish(false);
+      });
+      dialog.addEventListener("click", (event) => {
+        if (event.target === dialog) finish(false);
+      });
+      dialog.showModal();
+      dialog.querySelector("[data-review-confirm-cancel]")?.focus();
+    });
+  }
+
+  function findReviewById(pageData, reviewId) {
+    const id = Number(reviewId);
+    if (Number(pageData?.myReview?.reviewId) === id) return pageData.myReview;
+    return (pageData?.items || []).find((review) => Number(review.reviewId) === id) || null;
+  }
+
+  function bindReviewActions(pageData) {
+    panels.review.querySelectorAll("[data-review-edit]").forEach((button) => {
+      button.addEventListener("click", () => {
+        const review = findReviewById(pageData, button.dataset.reviewEdit);
+        if (!review?.ownedByCurrentUser) return;
+        const writeArea = document.getElementById("store-review-write-area");
+        if (!writeArea) return;
+        writeArea.className = "";
+        writeArea.innerHTML = reviewEditorHtml({ mode: "edit", review });
+        bindReviewForm();
+        writeArea.scrollIntoView({ behavior: "smooth", block: "center" });
+      });
+    });
+
+    panels.review.querySelectorAll("[data-review-delete]").forEach((button) => {
+      button.addEventListener("click", async () => {
+        const review = findReviewById(pageData, button.dataset.reviewDelete);
+        if (!review?.ownedByCurrentUser) return;
+        if (!(await reviewConfirmDelete())) return;
+        button.disabled = true;
+        try {
+          await Api.delete(`/reviews/${review.reviewId}`);
+          await refreshReviewSummary();
+          await loadReviews();
+        } catch (error) {
+          window.alert(error.message || "리뷰 삭제에 실패했습니다.");
+          button.disabled = false;
+        }
+      });
+    });
+
+    panels.review.querySelectorAll("[data-review-page]").forEach((button) => {
+      button.addEventListener("click", async () => {
+        const nextPage = Number(button.dataset.reviewPage);
+        if (!Number.isInteger(nextPage) || nextPage < 0 || nextPage === reviewPage) return;
+        reviewPage = nextPage;
+        await loadReviews();
+        panels.review.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
     });
   }
 
@@ -292,7 +549,6 @@
       );
       links = Array.isArray(payload?.data) ? payload.data : [];
     } catch (_error) {
-      // 작성자 연결 조회가 실패해도 리뷰 본문과 닉네임은 그대로 보여준다.
       return;
     }
 
@@ -322,32 +578,35 @@
     panels.review.innerHTML = '<div class="store-empty">리뷰를 불러오는 중입니다.</div>';
     try {
       const readPath = source === "public"
-        ? `/public/map/restaurants/${storeId}/reviews`
-        : `/public/restaurants/${storeId}/reviews`;
-      const response = await Api.get(readPath, { auth: false });
-      const items = response.data || [];
+        ? `/public/map/restaurants/${storeId}/reviews/page?page=${reviewPage}&size=${REVIEW_PAGE_SIZE}`
+        : `/public/restaurants/${storeId}/reviews/page?page=${reviewPage}&size=${REVIEW_PAGE_SIZE}`;
+      const response = await Api.get(readPath, { auth: isLoggedIn });
+      const pageData = response.data || {};
+      const items = Array.isArray(pageData.items) ? pageData.items : [];
+      const totalElements = Math.max(0, Number(pageData.totalElements) || 0);
+      const totalPages = Math.max(0, Number(pageData.totalPages) || 0);
+
+      if (totalPages > 0 && reviewPage >= totalPages) {
+        reviewPage = totalPages - 1;
+        await loadReviews();
+        return;
+      }
+
       const listHtml = items.length === 0
         ? '<div class="store-empty">아직 작성된 리뷰가 없습니다.</div>'
-        : `<div class="store-review-list">${items.map((review) => `
-            <div class="store-review-item">
-              <div class="store-review-head">
-                <span class="store-review-author" data-review-id="${review.reviewId ?? ""}">${escapeHtml(review.authorNickname)}</span>
-                <span class="store-review-rating">★ ${review.rating}.0</span>
-              </div>
-              ${review.content ? `<p class="store-review-content">${escapeHtml(review.content)}</p>` : ""}
-              <p class="store-review-date">${formatDate(review.createdAt)}</p>
-            </div>
-          `).join("")}</div>`;
+        : `<div class="store-review-list">${items.map(reviewItemHtml).join("")}</div>`;
       panels.review.innerHTML = `
         <div class="store-section-card">
-          <h2>리뷰 ${items.length}건</h2>
+          <h2>리뷰 ${totalElements.toLocaleString("ko-KR")}건</h2>
           <div id="store-sentiment-card" class="store-sentiment-card" hidden></div>
-          ${reviewWriteFormHtml()}
+          ${reviewWriteAreaHtml(pageData.myReview || null)}
           ${listHtml}
+          ${reviewPaginationHtml(pageData)}
         </div>
       `;
       bindReviewAuthorMenus(items);
       bindReviewForm();
+      bindReviewActions(pageData);
       loadSentimentSummary();
     } catch (error) {
       panels.review.innerHTML = `<div class="store-empty">${error.message || "리뷰를 불러오지 못했습니다."}</div>`;
@@ -2409,7 +2668,7 @@
     return `
       <div class="store-news-actions">
         <a class="button button-secondary button-sm"
-           href="${escapeHtml(newsBoardPath("write", news.postId))}">수정·첨부</a>
+           href="${escapeHtml(newsBoardPath("write", news.postId))}">수정</a>
         <button type="button" class="button button-secondary button-sm store-news-delete"
                 data-news-delete="${escapeHtml(news.postId)}"
                 data-news-item-count="${itemCount}">삭제</button>
