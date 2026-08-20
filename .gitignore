@@ -46,6 +46,16 @@ springboot/.sts4-cache/
 springboot/db-backups/
 springboot/deliverables/
 
+# AI 추천 모델 산출물 (DB 데이터로부터 로컬에서 생성/재생성됨 - _서버실행.bat이 자동 생성)
+# 100MB+ 바이너리라 Git에 올리면 GitHub push 자체가 거부되고, DB 내용이 바뀌면 즉시 stale해짐.
+springboot/ai/model/*.npy
+springboot/ai/model/*.pkl
+springboot/ai/model/*.joblib
+springboot/ai/model/embedding_model.json
+springboot/ai/__pycache__/
+springboot/src/main/resources/recommendation/model/vocabulary.json
+springboot/src/main/resources/recommendation/model/idf.json
+springboot/src/main/resources/recommendation/model/model-meta.json
 # Python (springboot/ai)
 __pycache__/
 *.pyc
