@@ -13,6 +13,7 @@ import com.example.backend.restaurant.dto.response.MenuResponse;
 import com.example.backend.restaurant.query.PublicRestaurantMenuQueryRepository;
 import com.example.backend.restaurant.repository.PublicRestaurantRepository;
 import com.example.backend.restaurant.repository.PublicRestaurantSpecifications;
+import com.example.backend.review.dto.response.ReviewPageResponse;
 import com.example.backend.review.dto.response.ReviewResponse;
 import com.example.backend.review.integration.sentiment.SentimentAnalysisClient;
 import com.example.backend.review.integration.sentiment.dto.RestaurantSentimentSummaryResponse;
@@ -122,8 +123,12 @@ public class MapRestaurantController {
     }
 
     @GetMapping("/restaurants/{id}/reviews")
-    public ApiResponse<List<ReviewResponse>> getReviews(@PathVariable Long id) {
-        return ApiResponse.success(reviewService.getReviewsForPublicRestaurant(id));
+    public ApiResponse<ReviewPageResponse> getReviews(
+            @PathVariable Long id,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size
+    ) {
+        return ApiResponse.success(reviewService.getReviewsForPublicRestaurant(id, page, size));
     }
 
     @GetMapping("/restaurants/{id}/menu")
@@ -143,7 +148,8 @@ public class MapRestaurantController {
         }
         PublicRestaurant restaurant = publicRestaurantRepository.findById(id)
                 .orElseThrow(() -> new BusinessException(ErrorCode.RESTAURANT_NOT_FOUND));
-        List<String> reviewTexts = reviewService.getReviewsForPublicRestaurant(id).stream()
+        // 감성분석은 페이징 없이 최대한 많은 리뷰(최대 50건)를 한 번에 가져와서 집계한다.
+        List<String> reviewTexts = reviewService.getReviewsForPublicRestaurant(id, 0, 50).items().stream()
                 .map(ReviewResponse::content)
                 .filter(StringUtils::hasText)
                 .toList();

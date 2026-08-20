@@ -12,14 +12,14 @@ import com.example.backend.restaurant.repository.RestaurantRepository;
 import com.example.backend.review.domain.entity.Review;
 import com.example.backend.review.dto.request.ReviewCreateRequest;
 import com.example.backend.review.dto.request.ReviewUpdateRequest;
+import com.example.backend.review.dto.response.ReviewPageResponse;
 import com.example.backend.review.dto.response.ReviewResponse;
 import com.example.backend.review.exception.ReviewAlreadyExistsException;
 import com.example.backend.review.repository.ReviewRepository;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
-import java.util.List;
 
 @Service
 public class ReviewService {
@@ -44,11 +44,12 @@ public class ReviewService {
     }
 
     @Transactional(readOnly = true)
-    public List<ReviewResponse> getReviews(Long restaurantId, Long viewerAccountId) {
+    public ReviewPageResponse getReviews(Long restaurantId, Long viewerAccountId, int page, int size) {
         requireReadableRestaurant(restaurantId, viewerAccountId);
-        return reviewRepository.findActiveByRestaurantId(restaurantId, PageRequest.of(0, MAX_RESULTS)).stream()
-                .map(ReviewResponse::from)
-                .toList();
+        Page<ReviewResponse> result = reviewRepository
+                .findActiveByRestaurantId(restaurantId, pageable(page, size))
+                .map(ReviewResponse::from);
+        return ReviewPageResponse.from(result);
     }
 
     @Transactional
@@ -75,10 +76,15 @@ public class ReviewService {
     }
 
     @Transactional(readOnly = true)
-    public List<ReviewResponse> getReviewsForPublicRestaurant(Long publicRestaurantId) {
-        return reviewRepository.findActiveByPublicRestaurantId(publicRestaurantId, PageRequest.of(0, MAX_RESULTS)).stream()
-                .map(ReviewResponse::from)
-                .toList();
+    public ReviewPageResponse getReviewsForPublicRestaurant(Long publicRestaurantId, int page, int size) {
+        Page<ReviewResponse> result = reviewRepository
+                .findActiveByPublicRestaurantId(publicRestaurantId, pageable(page, size))
+                .map(ReviewResponse::from);
+        return ReviewPageResponse.from(result);
+    }
+
+    private PageRequest pageable(int page, int size) {
+        return PageRequest.of(Math.max(page, 0), Math.min(Math.max(size, 1), MAX_RESULTS));
     }
 
     @Transactional

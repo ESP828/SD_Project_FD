@@ -318,14 +318,20 @@
     });
   }
 
-  async function loadReviews() {
+  const REVIEW_PAGE_SIZE = 10;
+
+  async function loadReviews(page = 0) {
     panels.review.innerHTML = '<div class="store-empty">리뷰를 불러오는 중입니다.</div>';
     try {
       const readPath = source === "public"
         ? `/public/map/restaurants/${storeId}/reviews`
         : `/public/restaurants/${storeId}/reviews`;
-      const response = await Api.get(readPath, { auth: false });
-      const items = response.data || [];
+      const response = await Api.get(
+        `${readPath}?page=${page}&size=${REVIEW_PAGE_SIZE}`,
+        { auth: false },
+      );
+      const data = response.data || {};
+      const items = data.items || [];
       const listHtml = items.length === 0
         ? '<div class="store-empty">아직 작성된 리뷰가 없습니다.</div>'
         : `<div class="store-review-list">${items.map((review) => `
@@ -340,18 +346,51 @@
           `).join("")}</div>`;
       panels.review.innerHTML = `
         <div class="store-section-card">
-          <h2>리뷰 ${items.length}건</h2>
+          <h2>리뷰 ${data.totalCount ?? items.length}건</h2>
           <div id="store-sentiment-card" class="store-sentiment-card" hidden></div>
           ${reviewWriteFormHtml()}
           ${listHtml}
+          ${reviewPaginationHtml(data)}
         </div>
       `;
       bindReviewAuthorMenus(items);
       bindReviewForm();
+      bindReviewPagination();
       loadSentimentSummary();
     } catch (error) {
       panels.review.innerHTML = `<div class="store-empty">${error.message || "리뷰를 불러오지 못했습니다."}</div>`;
     }
+  }
+
+  function reviewPaginationHtml(data) {
+    const totalPages = data.totalPages || 0;
+    if (totalPages <= 1) return "";
+    const current = data.page ?? 0;
+    const pageButtons = Array.from({ length: totalPages }, (_, i) => `
+      <button type="button" class="store-review-page${i === current ? " is-active" : ""}"
+              data-page="${i}" ${i === current ? 'aria-current="page"' : ""}>${i + 1}</button>
+    `).join("");
+    return `
+      <nav class="store-review-pagination" aria-label="리뷰 페이지">
+        <button type="button" class="store-review-page-nav" data-page="${current - 1}" ${current === 0 ? "disabled" : ""} aria-label="이전 페이지">
+          <span class="material-symbols-rounded" aria-hidden="true">chevron_left</span>
+        </button>
+        ${pageButtons}
+        <button type="button" class="store-review-page-nav" data-page="${current + 1}" ${current >= totalPages - 1 ? "disabled" : ""} aria-label="다음 페이지">
+          <span class="material-symbols-rounded" aria-hidden="true">chevron_right</span>
+        </button>
+      </nav>
+    `;
+  }
+
+  function bindReviewPagination() {
+    panels.review.querySelectorAll(".store-review-pagination [data-page]").forEach((button) => {
+      button.addEventListener("click", () => {
+        if (button.disabled) return;
+        loadReviews(Number(button.dataset.page));
+        panels.review.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
+    });
   }
 
   // AI(Naive Bayes) 리뷰 감성분석 요약 카드. 감성분석 서비스가 꺼져 있거나 아직 준비되지
