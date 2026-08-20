@@ -52,7 +52,7 @@ echo.
 
 :: 💡 [1단계] AI 추천 모델 자동 실행 및 최신화 (괄호 문법 오류 해결)
 if exist "%AI_DIR%\build_embeddings.py" (
-    echo [1/2] AI 딥러닝 임베딩 생성을 진행합니다...
+    echo [1/3] AI 딥러닝 임베딩 생성을 진행합니다...
     pushd "%AI_DIR%"
     python build_embeddings.py
     if errorlevel 1 (
@@ -63,7 +63,7 @@ if exist "%AI_DIR%\build_embeddings.py" (
     popd
     echo.
 ) else if exist "%AI_DIR%\train.py" (
-    echo [1/2] AI 모델 사전 학습을 진행합니다...
+    echo [1/3] AI 모델 사전 학습을 진행합니다...
     pushd "%AI_DIR%"
     python train.py
     if errorlevel 1 (
@@ -78,8 +78,19 @@ if exist "%AI_DIR%\build_embeddings.py" (
     echo.
 )
 
-:: 💡 [2단계] Spring Boot 서버 실행
-echo [2/2] Spring Boot 백엔드 서버를 시작합니다...
+:: 💡 [2단계] AI FastAPI 서버(감성분석/추천) 실행 - 별도 창에서 계속 떠 있어야 하는 서버라 새 창으로 띄운다.
+if exist "%AI_DIR%\app.py" (
+    echo [2/3] AI FastAPI 서버를 새 창에서 실행합니다...
+    start "FOODUCK AI Server" /D "%AI_DIR%" cmd /k "pip install -q -r requirements.txt && python -m uvicorn app:app --host 127.0.0.1 --port 8000"
+    echo [INFO] AI 서버는 별도 창에서 계속 실행됩니다. 그 창을 닫으면 AI 기능이 꺼집니다.
+    echo.
+) else (
+    echo [WARN] AI 서버 파일을 찾을 수 없어 건너뜁니다: %AI_DIR%\app.py
+    echo.
+)
+
+:: 💡 [3단계] Spring Boot 서버 실행
+echo [3/3] Spring Boot 백엔드 서버를 시작합니다...
 echo 서버를 종료하려면 Ctrl+C를 누르세요.
 echo ========================================================
 echo.
