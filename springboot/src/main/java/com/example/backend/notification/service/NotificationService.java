@@ -77,7 +77,7 @@ public class NotificationService {
                 normalizeNickname(commenterNickname) + "님이 회원님의 게시글에 댓글을 남겼습니다.",
                 "POST",
                 postId,
-                "/board/detail?postId=" + postId
+                "/pages/board/detail.html?postId=" + postId
         );
     }
 
@@ -102,7 +102,7 @@ public class NotificationService {
                 content,
                 "POST",
                 postId,
-                "/board/detail?postId=" + postId
+                "/pages/board/detail.html?postId=" + postId
         );
     }
 
