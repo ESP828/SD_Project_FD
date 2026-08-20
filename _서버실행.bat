@@ -63,7 +63,7 @@ if exist "%AI_DIR%\build_embeddings.py" (
     popd
     echo.
 ) else if exist "%AI_DIR%\train.py" (
-    echo [1/2] AI 모델 사전 학습을 진행합니다...
+    echo [1/3] AI 모델 사전 학습을 진행합니다...
     pushd "%AI_DIR%"
     python train.py
     if errorlevel 1 (
@@ -78,17 +78,14 @@ if exist "%AI_DIR%\build_embeddings.py" (
     echo.
 )
 
-:: 💡 [2단계] AI 임베딩 검색 서비스(FastAPI) 상시 기동 - 별도 창 없이 현재 콘솔 로그에 편입
+:: 💡 [2단계] AI FastAPI 서버(감성분석/추천) 실행 - 별도 창에서 계속 떠 있어야 하는 서버라 새 창으로 띄운다.
 if exist "%AI_DIR%\app.py" (
-    echo [2/3] AI 의미 검색 서비스^(FastAPI^)를 이 창에서 백그라운드로 시작합니다...
-    pushd "%AI_DIR%"
-    start "" /B python -m uvicorn app:app --host 127.0.0.1 --port 8000
-    popd
-    echo [INFO] AI 서비스 로그는 아래에 이어서 출력됩니다.
-    echo         ^(Python/uvicorn이 없으면 Spring Boot는 자동으로 TF-IDF 폴백으로 동작합니다^)
+    echo [2/3] AI FastAPI 서버를 새 창에서 실행합니다...
+    start "FOODUCK AI Server" /D "%AI_DIR%" cmd /k "pip install -q -r requirements.txt && python -m uvicorn app:app --host 127.0.0.1 --port 8000"
+    echo [INFO] AI 서버는 별도 창에서 계속 실행됩니다. 그 창을 닫으면 AI 기능이 꺼집니다.
     echo.
 ) else (
-    echo [WARN] AI 서비스 스크립트^(app.py^)를 찾을 수 없어 건너뜁니다.
+    echo [WARN] AI 서버 파일을 찾을 수 없어 건너뜁니다: %AI_DIR%\app.py
     echo.
 )
 
