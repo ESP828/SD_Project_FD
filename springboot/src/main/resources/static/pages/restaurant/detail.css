@@ -443,57 +443,6 @@ body > [data-site-header] > .site-header {
   font-size: 0.72rem;
 }
 
-.store-review-pagination {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-top: 20px;
-}
-
-.store-review-page,
-.store-review-page-nav {
-  display: grid;
-  place-items: center;
-  min-width: 34px;
-  height: 34px;
-  padding: 0 8px;
-  border: 1px solid var(--color-line);
-  border-radius: var(--radius-sm, 8px);
-  color: var(--color-navy);
-  font-size: 0.84rem;
-  font-weight: 700;
-  background: #fff;
-  cursor: pointer;
-  transition: background 140ms ease, color 140ms ease, border-color 140ms ease;
-}
-
-.store-review-page:hover,
-.store-review-page-nav:hover:not(:disabled) {
-  border-color: var(--color-orange);
-  color: var(--color-orange-dark);
-}
-
-.store-review-page.is-active {
-  border-color: var(--color-orange);
-  color: #fff;
-  background: var(--color-orange);
-}
-
-.store-review-page-nav {
-  color: var(--color-muted);
-}
-
-.store-review-page-nav:disabled {
-  cursor: not-allowed;
-  opacity: 0.4;
-}
-
-.store-review-page-nav .material-symbols-rounded {
-  font-size: 1.1rem;
-}
-
 /* AI 리뷰 감성분석 */
 
 .store-sentiment-card {
@@ -1693,6 +1642,18 @@ body > [data-site-header] > .site-header {
   line-height: 1.45;
 }
 
+.store-review-media-status {
+  margin: -4px 0 10px;
+  color: var(--color-navy);
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+.store-review-media-status.is-error {
+  color: var(--color-danger, #c62828);
+}
+
 .store-review-media-gallery {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
@@ -1705,10 +1666,21 @@ body > [data-site-header] > .site-header {
   display: block;
   min-width: 0;
   overflow: hidden;
+  padding: 0;
   border: 1px solid var(--color-line);
   border-radius: 12px;
   background: var(--color-canvas);
   aspect-ratio: 4 / 3;
+}
+
+.store-review-media-item.is-image {
+  width: 100%;
+  cursor: zoom-in;
+}
+
+.store-review-media-item.is-image:focus-visible {
+  outline: 3px solid var(--color-orange);
+  outline-offset: 2px;
 }
 
 .store-review-media-item img,
