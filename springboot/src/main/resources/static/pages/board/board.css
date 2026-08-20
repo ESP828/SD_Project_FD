@@ -1361,15 +1361,6 @@
   white-space: nowrap;
 }
 
-.author-menu-account-id {
-  overflow: hidden;
-  color: var(--color-subtle);
-  font-size: 0.66rem;
-  line-height: 1.35;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 .author-menu-caption {
   display: inline-flex;
   flex: 0 0 auto;

@@ -77,7 +77,7 @@ public class NotificationService {
                 normalizeNickname(commenterNickname) + "님이 회원님의 게시글에 댓글을 남겼습니다.",
                 "POST",
                 postId,
-                "/pages/board/detail.html?postId=" + postId
+                postDetailTargetUrl(postId)
         );
     }
 
@@ -102,7 +102,7 @@ public class NotificationService {
                 content,
                 "POST",
                 postId,
-                "/pages/board/detail.html?postId=" + postId
+                postDetailTargetUrl(postId)
         );
     }
 
@@ -149,6 +149,13 @@ public class NotificationService {
                 targetId,
                 requireInternalTargetUrl(targetUrl)
         ));
+    }
+
+    private String postDetailTargetUrl(Long postId) {
+        if (postId == null || postId <= 0) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT);
+        }
+        return "/pages/board/detail.html?postId=" + postId;
     }
 
     private Notification requireOwnedNotification(Long accountId, Long notificationId) {

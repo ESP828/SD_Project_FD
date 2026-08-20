@@ -772,9 +772,6 @@ public class PostService {
         return new AuthorSummaryResponse(
                 author.getAccountId(),
                 author.getNickname(),
-                author.getLoginId() == null
-                        ? "소셜 계정"
-                        : "@" + author.getLoginId(),
                 referenceRepository.findLastPublicActivityAt(
                         authorAccountId,
                         canReadBusiness
@@ -2220,7 +2217,6 @@ public class PostService {
     public record AuthorSummaryResponse(
             Long accountId,
             String nickname,
-            String accountLabel,
             LocalDateTime lastPublicActivityAt,
             long postCount,
             long commentCount,
