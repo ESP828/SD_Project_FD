@@ -1,6 +1,7 @@
 package com.example.backend.board.mapper;
 
 import com.example.backend.auth.domain.entity.Account;
+import com.example.backend.auth.domain.type.AccountStatus;
 import com.example.backend.board.domain.entity.Comment;
 import com.example.backend.board.domain.entity.Post;
 import com.example.backend.board.domain.type.CommentStatus;
@@ -86,7 +87,7 @@ public class BoardResponseMapper {
                     makePreview(post.getContent()),
                     authorId,
                     post.getAuthor().getLoginId(),
-                    post.getAuthor().getNickname(),
+                    displayNickname(post.getAuthor()),
                     displayAuthorRole(authorId, authorRoles),
                     post.getBoardType(),
                     post.getCategory(),
@@ -152,7 +153,7 @@ public class BoardResponseMapper {
                 post.getContent(),
                 post.getAuthor().getAccountId(),
                 post.getAuthor().getLoginId(),
-                post.getAuthor().getNickname(),
+                displayNickname(post.getAuthor()),
                 authorRole,
                 post.getBoardType(),
                 post.getCategory(),
@@ -288,7 +289,7 @@ public class BoardResponseMapper {
                 comment.getParentCommentId(),
                 comment.getAuthor().getAccountId(),
                 comment.getAuthor().getLoginId(),
-                comment.getAuthor().getNickname(),
+                displayNickname(comment.getAuthor()),
                 authorRole,
                 comment.getContent(),
                 hasImage,
@@ -353,6 +354,19 @@ public class BoardResponseMapper {
                 authorRole.authorityCodes(),
                 authorRole.hasBusinessProfile()
         );
+    }
+
+    /**
+     * 관리자가 계정을 삭제하면 실제로는 소프트 삭제(status=WITHDRAWN)되어 계정 행과
+     * 작성자 연관관계는 그대로 남는다. 그래서 다른 이용자에게는 탈퇴 여부와 무관하게
+     * 실명(닉네임)이 계속 노출되지 않도록, 커뮤니티 화면에 보여줄 닉네임은 이 메서드를
+     * 거쳐서 탈퇴 상태면 "탈퇴한 회원"으로 가려준다.
+     */
+    private String displayNickname(Account author) {
+        if (author == null || author.getStatus() == AccountStatus.WITHDRAWN) {
+            return "탈퇴한 회원";
+        }
+        return author.getNickname();
     }
 
     private String makePreview(String content) {

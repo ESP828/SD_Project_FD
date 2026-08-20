@@ -15,6 +15,7 @@ import jakarta.persistence.Table;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.Objects;
 
 @Entity
@@ -112,9 +113,29 @@ public class Account {
         this.status = AccountStatus.SUSPENDED;
     }
 
+    private static final DateTimeFormatter WITHDRAW_SUFFIX_FORMAT = DateTimeFormatter.ofPattern("yyMMddHHmm");
+    private static final String WITHDRAW_MARKER = "_delete";
+
+    /**
+     * 실제로 DB 행을 지우지는 않는다(리뷰/게시글/댓글이 이 계정을 참조하고 있어서 행을
+     * 지우면 FK가 막는다). 대신 로그인 아이디를 재사용 가능하도록 비워주고, 이메일 등
+     * 개인정보를 지운 뒤 상태만 WITHDRAWN으로 바꾼다. 리뷰/게시글 작성자 표시는 이 상태를
+     * 보고 "탈퇴한 회원"으로 가려서 보여준다(ReviewResponse, BoardResponseMapper 참고).
+     */
     public void withdraw() {
         this.status = AccountStatus.WITHDRAWN;
         this.deletedAt = LocalDateTime.now();
+        if (this.loginId != null) {
+            String suffix = WITHDRAW_MARKER + this.deletedAt.format(WITHDRAW_SUFFIX_FORMAT);
+            int maxBaseLength = 50 - suffix.length();
+            String base = this.loginId.length() > maxBaseLength
+                    ? this.loginId.substring(0, maxBaseLength)
+                    : this.loginId;
+            this.loginId = base + suffix;
+        }
+        this.email = null;
+        this.profileImageUrl = null;
+        this.birthDate = null;
     }
 
     @PrePersist
