@@ -80,6 +80,17 @@
   let newsPage = requestedTab === "news" ? requestedNewsPage : 0;
   let reviewPage = 0;
   const REVIEW_PAGE_SIZE = 5;
+  const REVIEW_MAX_MEDIA_COUNT = 10;
+  const REVIEW_MAX_IMAGE_BYTES = 20 * 1024 * 1024;
+  const REVIEW_MAX_VIDEO_BYTES = 100 * 1024 * 1024;
+  const REVIEW_IMAGE_EXTENSIONS = new Set([
+    "jpg", "jpeg", "png", "gif", "webp", "bmp",
+    "tif", "tiff", "avif", "heic", "heif",
+  ]);
+  const REVIEW_VIDEO_EXTENSIONS = new Set([
+    "mp4", "webm", "ogv", "m4v", "mov", "mkv",
+    "avi", "wmv", "flv", "mpg", "mpeg", "3gp", "3g2",
+  ]);
   const NEWS_PAGE_SIZE = 4;
   const NEWS_COMMENT_PAGE_SIZE = 5;
   const NEWS_COMMENT_ALL_PAGE_SIZE = 100;
@@ -233,13 +244,62 @@
     `;
   }
 
+  function reviewMediaGalleryHtml(mediaItems) {
+    const items = Array.isArray(mediaItems) ? mediaItems : [];
+    if (items.length === 0) return "";
+    return `
+      <div class="store-review-media-gallery">
+        ${items.map((media) => {
+          const url = escapeHtml(media?.url || "");
+          const name = escapeHtml(media?.originalName || "리뷰 첨부파일");
+          if (media?.mediaType === "IMAGE") {
+            return `<a class="store-review-media-item is-image" href="${url}" target="_blank" rel="noopener noreferrer">
+              <img src="${url}" alt="${name}" loading="lazy">
+            </a>`;
+          }
+          return `<div class="store-review-media-item is-video">
+            <video src="${url}" controls preload="metadata" aria-label="${name}"></video>
+          </div>`;
+        }).join("")}
+      </div>
+    `;
+  }
+
+  function reviewExistingMediaEditorHtml(mediaItems) {
+    const items = Array.isArray(mediaItems) ? mediaItems : [];
+    if (items.length === 0) return "";
+    return items.map((media) => {
+      const id = Number(media?.reviewMediaId);
+      if (!Number.isSafeInteger(id) || id <= 0) return "";
+      const url = escapeHtml(media?.url || "");
+      const name = escapeHtml(media?.originalName || "첨부파일");
+      const preview = media?.mediaType === "IMAGE"
+        ? `<img src="${url}" alt="${name}" loading="lazy">`
+        : `<video src="${url}" preload="metadata" muted aria-label="${name}"></video>`;
+      return `
+        <div class="store-review-media-edit-item" data-review-existing-media-item data-review-media-id="${id}">
+          ${preview}
+          <div class="store-review-media-edit-copy">
+            <strong>${name}</strong>
+            <span>${reviewFormatBytes(Number(media?.fileSize) || 0)}</span>
+          </div>
+          <button type="button" class="store-review-media-remove" data-review-remove-existing-media="${id}" aria-label="${name} 삭제">
+            <span class="material-symbols-rounded" aria-hidden="true">close</span>
+          </button>
+        </div>
+      `;
+    }).join("");
+  }
+
   function reviewEditorHtml({ mode = "create", review = null } = {}) {
     const editing = mode === "edit" && review;
     const rating = editing ? Number(review.rating) || 0 : 0;
     const content = editing ? String(review.content || "") : "";
+    const existingMedia = editing && Array.isArray(review.media) ? review.media : [];
     return `
       <div class="store-write-form store-review-editor" id="store-review-form"
            data-review-mode="${editing ? "edit" : "create"}"
+           data-review-existing-media-count="${existingMedia.length}"
            ${editing ? `data-review-id="${review.reviewId}"` : ""}>
         <h3>${editing ? "리뷰 수정" : "리뷰 작성"}</h3>
         <div class="store-rating-input" id="store-review-rating" role="radiogroup" aria-label="별점">
@@ -250,11 +310,22 @@
         </div>
         <textarea id="store-review-content" maxlength="1000" placeholder="솔직한 리뷰를 남겨주세요 (선택)">${escapeHtml(content)}</textarea>
         <div class="store-review-editor-meta">
-          <button type="button" class="button button-secondary button-sm store-review-emoji-toggle"
-                  data-review-emoji-toggle aria-expanded="false">😀 이모지</button>
+          <div class="store-review-editor-tools">
+            <button type="button" class="button button-secondary button-sm store-review-emoji-toggle"
+                    data-review-emoji-toggle aria-expanded="false">😀 이모지</button>
+            <input type="file" data-review-media-input accept="image/*,video/*" multiple hidden>
+            <button type="button" class="button button-secondary button-sm" data-review-media-pick>
+              <span class="material-symbols-rounded" aria-hidden="true">attach_file</span> 사진·동영상
+            </button>
+          </div>
           <span data-review-char-count>${content.length} / 1000</span>
         </div>
+        <p class="store-review-media-help">사진·동영상 합계 최대 10개 · 사진 20MB 이하 · 동영상 100MB 이하</p>
         ${reviewEmojiPanelHtml()}
+        <div class="store-review-media-editor-list" data-review-existing-media-list>
+          ${reviewExistingMediaEditorHtml(existingMedia)}
+        </div>
+        <div class="store-review-media-editor-list" data-review-selected-media-list></div>
         <div class="store-review-editor-actions">
           ${editing ? '<button type="button" class="button button-secondary button-sm" data-review-edit-cancel>취소</button>' : ""}
           <button type="button" class="button button-primary button-sm" id="store-review-submit">${editing ? "수정 완료" : "리뷰 등록"}</button>
@@ -308,6 +379,7 @@
         </div>
         ${owned ? '<span class="store-review-own-badge">내 리뷰</span>' : ""}
         ${review.content ? `<p class="store-review-content">${escapeHtml(review.content)}</p>` : ""}
+        ${reviewMediaGalleryHtml(review.media)}
         <div class="store-review-footer">
           <p class="store-review-date">${formatDate(review.createdAt)}</p>
           ${owned ? `
@@ -384,11 +456,74 @@
     });
   }
 
+  function reviewFormatBytes(bytes) {
+    const value = Number(bytes) || 0;
+    if (value < 1024) return `${value} B`;
+    if (value < 1024 * 1024) return `${(value / 1024).toFixed(1)} KB`;
+    return `${(value / (1024 * 1024)).toFixed(1)} MB`;
+  }
+
+  function reviewMediaExtension(fileName) {
+    const name = String(fileName || "");
+    const dot = name.lastIndexOf(".");
+    return dot > 0 && dot < name.length - 1 ? name.slice(dot + 1).toLowerCase() : "";
+  }
+
+  function validateReviewMediaFile(file) {
+    if (!file || Number(file.size) <= 0) return "비어 있는 파일은 첨부할 수 없습니다.";
+    const extension = reviewMediaExtension(file.name);
+    const image = REVIEW_IMAGE_EXTENSIONS.has(extension);
+    const video = REVIEW_VIDEO_EXTENSIONS.has(extension);
+    if (!image && !video) return "지원하지 않는 파일입니다. 사진 또는 동영상 파일을 선택해 주세요.";
+    if (image && file.size > REVIEW_MAX_IMAGE_BYTES) return "사진은 한 파일당 20MB 이하만 첨부할 수 있습니다.";
+    if (video && file.size > REVIEW_MAX_VIDEO_BYTES) return "동영상은 한 파일당 100MB 이하만 첨부할 수 있습니다.";
+    const declaredType = String(file.type || "").toLowerCase();
+    if (declaredType && declaredType !== "application/octet-stream") {
+      if (image && !declaredType.startsWith("image/")) return "사진 파일 형식을 확인해 주세요.";
+      if (video && !declaredType.startsWith("video/")) return "동영상 파일 형식을 확인해 주세요.";
+    }
+    return null;
+  }
+
+  async function reviewRawUpload(reviewId, file, retried = false) {
+    const headers = {
+      Accept: "application/json",
+      "Content-Type": file.type || "application/octet-stream",
+      "X-File-Name": encodeURIComponent(file.name || "review-media"),
+    };
+    const token = Api.getToken();
+    if (token) headers.Authorization = `Bearer ${token}`;
+
+    const response = await fetch(`${Api.baseUrl}/reviews/${encodeURIComponent(reviewId)}/media`, {
+      method: "POST",
+      headers,
+      body: file,
+      credentials: "same-origin",
+    });
+
+    if (response.status === 401 && !retried && typeof Api._refreshAccessToken === "function") {
+      const refreshed = await Api._refreshAccessToken();
+      if (refreshed) return reviewRawUpload(reviewId, file, true);
+    }
+
+    const contentType = response.headers.get("content-type") || "";
+    const payload = contentType.includes("application/json") ? await response.json() : await response.text();
+    if (!response.ok) {
+      const message = typeof payload === "object" && payload ? payload.message : `첨부파일 업로드에 실패했습니다. (${response.status})`;
+      throw new Error(message || "첨부파일 업로드에 실패했습니다.");
+    }
+    return payload;
+  }
+
   function bindReviewForm() {
     const form = document.getElementById("store-review-form");
     if (!form) return;
     const editing = form.dataset.reviewMode === "edit";
     const reviewId = Number(form.dataset.reviewId);
+    const existingMediaCount = Math.max(0, Number(form.dataset.reviewExistingMediaCount) || 0);
+    const removedMediaIds = new Set();
+    let selectedMedia = [];
+    let selectedMediaSequence = 0;
     let selectedRating = 0;
     const selectedButton = [...form.querySelectorAll("[data-rating].is-selected")].at(-1);
     if (selectedButton) selectedRating = Number(selectedButton.dataset.rating);
@@ -403,6 +538,73 @@
       });
     });
     bindReviewEmojiPicker(form);
+    window.FooduckIcons?.enhance(form);
+
+    const mediaInput = form.querySelector("[data-review-media-input]");
+    const mediaPickButton = form.querySelector("[data-review-media-pick]");
+    const selectedMediaList = form.querySelector("[data-review-selected-media-list]");
+
+    const activeMediaCount = () => existingMediaCount - removedMediaIds.size + selectedMedia.length;
+    const renderSelectedMedia = () => {
+      if (!selectedMediaList) return;
+      selectedMediaList.innerHTML = selectedMedia.map((entry) => `
+        <div class="store-review-media-edit-item is-new" data-review-selected-media-id="${entry.id}">
+          <span class="store-review-media-file-icon material-symbols-rounded" aria-hidden="true">${REVIEW_VIDEO_EXTENSIONS.has(reviewMediaExtension(entry.file.name)) ? "movie" : "image"}</span>
+          <div class="store-review-media-edit-copy">
+            <strong>${escapeHtml(entry.file.name || "첨부파일")}</strong>
+            <span>${reviewFormatBytes(entry.file.size)}</span>
+          </div>
+          <button type="button" class="store-review-media-remove" data-review-remove-selected-media="${entry.id}" aria-label="선택한 첨부파일 제거">
+            <span class="material-symbols-rounded" aria-hidden="true">close</span>
+          </button>
+        </div>
+      `).join("");
+      window.FooduckIcons?.enhance(selectedMediaList);
+      selectedMediaList.querySelectorAll("[data-review-remove-selected-media]").forEach((button) => {
+        button.addEventListener("click", () => {
+          const id = Number(button.dataset.reviewRemoveSelectedMedia);
+          selectedMedia = selectedMedia.filter((entry) => entry.id !== id);
+          renderSelectedMedia();
+        });
+      });
+    };
+
+    form.querySelectorAll("[data-review-remove-existing-media]").forEach((button) => {
+      button.addEventListener("click", () => {
+        const mediaId = Number(button.dataset.reviewRemoveExistingMedia);
+        if (!Number.isSafeInteger(mediaId) || mediaId <= 0) return;
+        const item = button.closest("[data-review-existing-media-item]");
+        if (removedMediaIds.has(mediaId)) {
+          removedMediaIds.delete(mediaId);
+          item?.classList.remove("is-removed");
+          button.setAttribute("aria-label", "첨부파일 삭제");
+        } else {
+          removedMediaIds.add(mediaId);
+          item?.classList.add("is-removed");
+          button.setAttribute("aria-label", "첨부파일 삭제 취소");
+        }
+      });
+    });
+
+    mediaPickButton?.addEventListener("click", () => mediaInput?.click());
+    mediaInput?.addEventListener("change", () => {
+      const files = [...(mediaInput.files || [])];
+      mediaInput.value = "";
+      for (const file of files) {
+        const validationMessage = validateReviewMediaFile(file);
+        if (validationMessage) {
+          window.alert(`${file.name || "첨부파일"}: ${validationMessage}`);
+          continue;
+        }
+        if (activeMediaCount() >= REVIEW_MAX_MEDIA_COUNT) {
+          window.alert(`리뷰에는 사진과 동영상을 합해 최대 ${REVIEW_MAX_MEDIA_COUNT}개까지 첨부할 수 있습니다.`);
+          break;
+        }
+        selectedMediaSequence += 1;
+        selectedMedia.push({ id: selectedMediaSequence, file });
+      }
+      renderSelectedMedia();
+    });
 
     form.querySelector("[data-review-edit-cancel]")?.addEventListener("click", () => loadReviews());
 
@@ -412,24 +614,51 @@
         window.alert("별점을 선택해 주세요.");
         return;
       }
+      if (activeMediaCount() > REVIEW_MAX_MEDIA_COUNT) {
+        window.alert(`리뷰에는 사진과 동영상을 합해 최대 ${REVIEW_MAX_MEDIA_COUNT}개까지 첨부할 수 있습니다.`);
+        return;
+      }
+
       const contentInput = document.getElementById("store-review-content");
-      const content = contentInput?.value.trim() || "";
+      const reviewContent = contentInput?.value.trim() || "";
       submitButton.disabled = true;
+      let savedReviewId = editing ? reviewId : null;
+      let baseReviewSaved = false;
       try {
         if (editing) {
           if (!Number.isSafeInteger(reviewId) || reviewId <= 0) throw new Error("수정할 리뷰를 찾을 수 없습니다.");
-          await Api.put(`/reviews/${reviewId}`, { rating: selectedRating, content: content || null });
+          await Api.put(`/reviews/${reviewId}`, { rating: selectedRating, content: reviewContent || null });
+          baseReviewSaved = true;
         } else {
           const writePath = source === "public"
             ? `/map/restaurants/${storeId}/reviews`
             : `/restaurants/${storeId}/reviews`;
-          await Api.post(writePath, { rating: selectedRating, content: content || null });
+          const response = await Api.post(writePath, { rating: selectedRating, content: reviewContent || null });
+          savedReviewId = Number(response?.data?.reviewId);
+          if (!Number.isSafeInteger(savedReviewId) || savedReviewId <= 0) {
+            throw new Error("등록된 리뷰 번호를 확인하지 못했습니다.");
+          }
+          baseReviewSaved = true;
           reviewPage = 0;
         }
+
+        for (const mediaId of removedMediaIds) {
+          await Api.delete(`/reviews/${savedReviewId}/media/${mediaId}`);
+        }
+        for (const entry of selectedMedia) {
+          await reviewRawUpload(savedReviewId, entry.file);
+        }
+
         await refreshReviewSummary();
         await loadReviews();
       } catch (error) {
-        window.alert(error.message || (editing ? "리뷰 수정에 실패했습니다." : "리뷰 등록에 실패했습니다."));
+        if (baseReviewSaved) {
+          window.alert(`리뷰 내용은 저장되었지만 첨부파일 처리 중 문제가 발생했습니다.\n${error.message || "첨부파일을 다시 확인해 주세요."}`);
+          await refreshReviewSummary();
+          await loadReviews();
+        } else {
+          window.alert(error.message || (editing ? "리뷰 수정에 실패했습니다." : "리뷰 등록에 실패했습니다."));
+        }
       } finally {
         submitButton.disabled = false;
       }
@@ -446,7 +675,7 @@
             <span class="comment-confirm-icon"><span class="material-symbols-rounded" aria-hidden="true">delete</span></span>
             <div class="comment-confirm-copy">
               <h2>리뷰를 삭제하시겠습니까?</h2>
-              <p>삭제한 리뷰는 되돌릴 수 없습니다. 삭제 후 이 가게에 새 리뷰를 작성할 수 있습니다.</p>
+              <p>삭제한 리뷰와 첨부한 사진·동영상은 되돌릴 수 없습니다. 삭제 후 이 가게에 새 리뷰를 작성할 수 있습니다.</p>
             </div>
           </div>
           <div class="comment-confirm-actions">

@@ -2,8 +2,8 @@
 -- Fooduck DB 전체 재생성 스크립트 (인수인계용)
 -- ============================================================
 -- 이 파일은 Flyway가 자동으로 실행하지 않는다 (db/migration 밖에 있음).
--- db/migration/V1 ~ V10 마이그레이션 파일의 실제 내용을 그대로 순서대로
--- 합쳐서 만든 것으로, 임의로 컬럼을 추가하거나 구조를 바꾼 부분이 없다.
+-- 기존 마이그레이션과 현재 개발 기능에 필요한 스키마를 한 번에 재생성할 수 있도록
+-- 합쳐 둔 파일이며, 리뷰 사진·동영상용 review_media 테이블도 포함한다.
 --
 -- 사용법:
 --   1) 이 파일이 스키마 foodduck을 알아서 만든다 (CREATE DATABASE IF NOT EXISTS).
@@ -589,6 +589,28 @@ CREATE TABLE `review` (
         FOREIGN KEY (`account_id`) REFERENCES `account` (`account_id`) ON DELETE RESTRICT,
     CONSTRAINT `chk_review_rating` CHECK (rating BETWEEN 1 AND 5)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='음식점 리뷰';
+
+-- ------------------------------------------------------------
+-- 26-1. review_media
+-- ------------------------------------------------------------
+DROP TABLE IF EXISTS `review_media`;
+CREATE TABLE `review_media` (
+    `review_media_id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    `review_id` BIGINT UNSIGNED NOT NULL,
+    `media_type` VARCHAR(20) NOT NULL,
+    `media_data` LONGBLOB NOT NULL,
+    `mime_type` VARCHAR(100) NOT NULL,
+    `original_name` VARCHAR(255) NOT NULL,
+    `file_size` BIGINT UNSIGNED NOT NULL,
+    `display_order` INT UNSIGNED NOT NULL DEFAULT 0,
+    `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (`review_media_id`),
+    INDEX `idx_review_media_review` (`review_id`, `display_order`, `review_media_id`),
+    CONSTRAINT `fk_review_media_review`
+        FOREIGN KEY (`review_id`)
+        REFERENCES `review` (`review_id`)
+        ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- ------------------------------------------------------------
 -- 27. notification
