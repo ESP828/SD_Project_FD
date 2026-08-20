@@ -380,7 +380,7 @@
         ${review.content ? `<p class="store-review-content">${escapeHtml(review.content)}</p>` : ""}
         ${reviewMediaGalleryHtml(review.media)}
         <div class="store-review-footer">
-          <p class="store-review-date">${formatDate(review.createdAt)}</p>
+          <p class="store-review-date">${formatDate(review.createdAt)}${review.edited ? " · 수정됨" : ""}</p>
           ${owned ? `
             <div class="store-review-actions">
               <button type="button" class="button button-secondary button-sm" data-review-edit="${review.reviewId}">수정</button>

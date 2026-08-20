@@ -817,11 +817,6 @@
     const identity = element("div", "author-menu-identity");
     identity.append(
       element("strong", "author-menu-nickname", nickname),
-      element(
-        "span",
-        "author-menu-account-id",
-        summary.accountLabel || "계정 정보 없음",
-      ),
     );
     profile.append(avatar, identity);
     header.append(
