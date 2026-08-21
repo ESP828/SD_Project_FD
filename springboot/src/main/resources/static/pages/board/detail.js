@@ -1996,7 +1996,12 @@
       const params = new URLSearchParams({ category });
       const payload = await Api.patch(`/board/posts/${postId}/unpin?${params.toString()}`, {});
       invalidateBoardCache();
-      renderPost(payload.data);
+      renderPost({
+        ...post,
+        ...(payload.data || {}),
+        category,
+        pinned: false,
+      });
       showToast(toast, payload.message || "공지를 내렸습니다.");
     } catch (error) {
       showToast(toast, error.message || "공지를 내리지 못했습니다.", true);
@@ -2025,7 +2030,12 @@
       const params = new URLSearchParams({ category });
       const payload = await Api.patch(`/board/posts/${postId}/pin?${params.toString()}`, {});
       invalidateBoardCache();
-      renderPost(payload.data);
+      renderPost({
+        ...post,
+        ...(payload.data || {}),
+        category,
+        pinned: true,
+      });
       showToast(toast, payload.message || "공지로 올렸습니다.");
     } catch (error) {
       showToast(toast, error.message || "공지로 올리지 못했습니다.", true);
@@ -2313,7 +2323,6 @@
     emojiButton.setAttribute("aria-expanded", "false");
     const imageNote = element("span", "", "사진 1장 · 최대 5MB");
     tools.append(fileInput, imageButton, emojiButton, imageNote);
-    setupCommentEmojiPicker(textarea, emojiButton, emojiPanel);
 
     const preview = element("div", "comment-image-preview");
     preview.hidden = true;
@@ -2456,6 +2465,7 @@
     });
 
     form.append(label, textarea, emojiPanel, preview, submitRow);
+    setupCommentEmojiPicker(textarea, emojiButton, emojiPanel);
     mountTarget.append(form);
     activeReplyForm = form;
     textarea.focus();
