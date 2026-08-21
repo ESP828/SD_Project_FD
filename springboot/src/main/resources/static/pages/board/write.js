@@ -38,6 +38,9 @@
   const emojiToggle = document.getElementById("editor-emoji-toggle");
   const emojiPanel = document.getElementById("editor-emoji-panel");
   const restaurantSection = document.getElementById("editor-restaurant-section");
+  const restaurantToggle = document.getElementById("editor-restaurant-toggle");
+  const restaurantBody = document.getElementById("editor-restaurant-body");
+  const restaurantHelp = document.getElementById("editor-restaurant-help");
   const restaurantSearchInput = document.getElementById("editor-restaurant-search");
   const restaurantSearchButton = document.getElementById("editor-restaurant-search-button");
   const restaurantSelectedHost = document.getElementById("editor-restaurant-selected");
@@ -155,7 +158,7 @@
     emojis.populatePicker(emojiPanel, {
       gridClass: "comment-emoji-grid fooduck-custom-emoji-grid",
       buttonClass: "comment-emoji-option fooduck-custom-emoji-option",
-      title: "Pepe 이모지",
+      title: "이모지",
       onSelect: (emoji) => insertEditorEmoji(emoji.code),
     });
 
@@ -195,6 +198,17 @@
     if (!restaurantStatus) return;
     restaurantStatus.textContent = message || "";
     restaurantStatus.classList.toggle("is-error", Boolean(isError));
+  }
+
+  function setRestaurantDisclosure(open, { focus = false } = {}) {
+    if (!restaurantToggle || !restaurantBody) return;
+    const expanded = Boolean(open);
+    restaurantToggle.setAttribute("aria-expanded", String(expanded));
+    restaurantBody.hidden = !expanded;
+    restaurantSection?.classList.toggle("is-open", expanded);
+    if (expanded && focus) {
+      window.requestAnimationFrame(() => restaurantSearchInput?.focus({ preventScroll: true }));
+    }
   }
 
   function normalizeSearchRestaurant(item) {
@@ -270,15 +284,17 @@
     const change = board.element("button", "button button-sm button-secondary", "변경");
     change.type = "button";
     change.addEventListener("click", () => {
-      restaurantSearchInput?.focus({ preventScroll: true });
-      restaurantSearchInput?.select();
+      setRestaurantDisclosure(true, { focus: true });
+      window.requestAnimationFrame(() => restaurantSearchInput?.select());
     });
     const remove = board.element("button", "button button-sm button-secondary", "연결 해제");
     remove.type = "button";
     remove.addEventListener("click", () => {
       selectedRestaurant = null;
       renderSelectedRestaurant();
+      renderRestaurantResults([]);
       setRestaurantStatus("추천 맛집 연결을 해제했습니다.");
+      setRestaurantDisclosure(false);
     });
     actions.append(detail, change, remove);
     restaurantSelectedHost.append(restaurantCopyNode(selectedRestaurant, true), actions);
@@ -293,6 +309,7 @@
       restaurantResultsHost.hidden = true;
     }
     setRestaurantStatus(`${restaurant.name}을(를) 추천 맛집으로 연결했습니다.`);
+    setRestaurantDisclosure(false);
   }
 
   function renderRestaurantResults(items) {
@@ -410,6 +427,7 @@
     restaurantSection.hidden = newsMode;
     if (newsMode) {
       renderRestaurantResults([]);
+      setRestaurantDisclosure(false);
       return;
     }
     const businessMode = boardTypeSelect.value === "BUSINESS";
@@ -417,6 +435,11 @@
       restaurantSearchInput.placeholder = businessMode
         ? "내 음식점 이름을 검색해 주세요"
         : "가게 이름을 검색해 주세요";
+    }
+    if (restaurantHelp) {
+      restaurantHelp.textContent = businessMode
+        ? "내가 등록한 음식점 중에서 선택할 수 있어요."
+        : "FOODUCK에서 검색되는 음식점을 선택할 수 있어요.";
     }
     if (businessMode && selectedRestaurant && selectedRestaurant.ownedByCurrentUser !== true) {
       selectedRestaurant = null;
@@ -434,6 +457,11 @@
 
   function initializeRestaurantSelector() {
     if (!restaurantSection || !restaurantSearchInput || !restaurantSearchButton) return;
+    restaurantToggle?.addEventListener("click", () => {
+      const expanded = restaurantToggle.getAttribute("aria-expanded") === "true";
+      setRestaurantDisclosure(!expanded, { focus: !expanded });
+    });
+    setRestaurantDisclosure(false);
     restaurantSearchButton.addEventListener("click", searchRestaurants);
     restaurantSearchInput.addEventListener("input", scheduleRestaurantSearch);
     restaurantSearchInput.addEventListener("keydown", (event) => {

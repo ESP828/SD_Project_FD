@@ -2337,11 +2337,12 @@ button.author-menu-notification-link {
 
 .comment-emoji-panel {
   display: grid;
-  width: min(100%, 420px);
-  max-height: 260px;
+  width: 100%;
+  max-width: none;
+  max-height: 230px;
   gap: 8px;
   overflow-y: auto;
-  padding: 10px;
+  padding: 12px;
   border: 1px solid var(--color-line);
   border-radius: 12px;
   background: #fff;
@@ -2360,18 +2361,21 @@ button.author-menu-notification-link {
 
 .comment-emoji-grid {
   display: grid;
-  grid-template-columns: repeat(8, minmax(0, 1fr));
-  gap: 4px;
+  grid-template-columns: repeat(auto-fill, minmax(52px, 1fr));
+  gap: 8px;
 }
 
 .comment-emoji-option {
   display: inline-flex;
+  width: 100%;
   min-width: 0;
-  min-height: 36px;
+  min-height: 52px;
+  height: 52px;
   align-items: center;
   justify-content: center;
-  border: 0;
-  border-radius: 8px;
+  padding: 5px;
+  border: 1px solid transparent;
+  border-radius: 10px;
   background: transparent;
   cursor: pointer;
   font: inherit;
@@ -3718,37 +3722,69 @@ body.is-image-viewer-open {
 /* 게시글 작성/수정 - 추천 음식점 연결 */
 .board-restaurant-linker {
   display: grid;
-  gap: 10px;
-  padding: 14px;
-  border: 1px solid var(--color-line);
+  overflow: hidden;
+  border: 1px solid rgba(230, 143, 62, 0.24);
   border-radius: 14px;
-  background: #fff;
+  background: linear-gradient(180deg, #fffaf6 0%, #fffdfb 100%);
+  box-shadow: 0 6px 20px rgba(120, 72, 28, 0.045);
 }
 
 .board-restaurant-linker[hidden] {
   display: none;
 }
 
-.board-restaurant-linker__head {
+.board-restaurant-linker__toggle {
   display: flex;
-  align-items: flex-start;
+  width: 100%;
+  min-height: 58px;
+  align-items: center;
   justify-content: space-between;
   gap: 12px;
+  padding: 13px 15px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
 }
 
-.board-restaurant-linker__head > div {
+.board-restaurant-linker__toggle:hover,
+.board-restaurant-linker__toggle:focus-visible {
+  background: rgba(255, 152, 0, 0.055);
+  outline: none;
+}
+
+.board-restaurant-linker__toggle-copy {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 10px;
+}
+
+.board-restaurant-linker__icon {
   display: grid;
-  gap: 3px;
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
+  place-items: center;
+  border-radius: 10px;
+  background: rgba(255, 152, 0, 0.11);
+  font-size: 1rem;
+}
+
+.board-restaurant-linker__toggle-copy > span:last-child {
+  display: grid;
+  gap: 2px;
   min-width: 0;
 }
 
-.board-restaurant-linker__head > div > span {
+.board-restaurant-linker__toggle-copy strong {
   color: var(--color-navy);
   font-size: 0.9rem;
   font-weight: 850;
 }
 
-.board-restaurant-linker__head small,
+.board-restaurant-linker__toggle-copy small,
 .board-restaurant-linker__help,
 .board-restaurant-status {
   color: var(--color-muted);
@@ -3756,14 +3792,30 @@ body.is-image-viewer-open {
   line-height: 1.5;
 }
 
-.board-restaurant-linker__optional {
+.board-restaurant-linker__chevron {
   flex: 0 0 auto;
-  padding: 4px 8px;
-  border-radius: 999px;
   color: var(--color-muted);
-  background: var(--color-canvas);
-  font-size: 0.68rem;
-  font-weight: 800;
+  font-size: 1.2rem;
+  transition: transform 160ms ease;
+}
+
+.board-restaurant-linker.is-open .board-restaurant-linker__chevron {
+  transform: rotate(180deg);
+}
+
+.board-restaurant-linker__body {
+  display: grid;
+  gap: 9px;
+  padding: 0 14px 14px;
+  border-top: 1px solid rgba(230, 143, 62, 0.12);
+}
+
+.board-restaurant-linker__body[hidden] {
+  display: none;
+}
+
+.board-restaurant-linker__help {
+  padding-top: 11px;
 }
 
 .board-restaurant-search {
@@ -3785,12 +3837,22 @@ body.is-image-viewer-open {
   padding: 4px;
   border: 1px solid var(--color-line);
   border-radius: 12px;
-  background: var(--color-canvas);
+  background: rgba(255, 255, 255, 0.62);
 }
 
 .board-restaurant-results[hidden],
 .board-restaurant-selected[hidden] {
   display: none;
+}
+
+.board-restaurant-selected {
+  margin: 0 14px 14px;
+  border-color: rgba(230, 143, 62, 0.22);
+  background: rgba(255, 255, 255, 0.82);
+}
+
+.board-restaurant-linker.is-open .board-restaurant-selected {
+  margin-bottom: 10px;
 }
 
 .board-restaurant-result,
@@ -3802,7 +3864,7 @@ body.is-image-viewer-open {
   padding: 11px 12px;
   border: 1px solid var(--color-line);
   border-radius: 11px;
-  background: #fff;
+  background: rgba(255, 255, 255, 0.88);
 }
 
 .board-restaurant-result__copy,
@@ -3894,8 +3956,8 @@ body.is-image-viewer-open {
 }
 
 .comment-emoji-option .fooduck-custom-emoji-picker-image {
-  width: 36px;
-  height: 36px;
+  width: 42px;
+  height: 42px;
 }
 
 .board-write-emoji-panel .comment-emoji-option .fooduck-custom-emoji-picker-image {
@@ -3904,6 +3966,21 @@ body.is-image-viewer-open {
 }
 
 @media (max-width: 560px) {
+  .comment-emoji-grid {
+    grid-template-columns: repeat(auto-fill, minmax(46px, 1fr));
+    gap: 6px;
+  }
+
+  .comment-emoji-option {
+    min-height: 46px;
+    height: 46px;
+  }
+
+  .comment-emoji-option .fooduck-custom-emoji-picker-image {
+    width: 36px;
+    height: 36px;
+  }
+
   .board-restaurant-search {
     grid-template-columns: 1fr;
   }

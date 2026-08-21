@@ -7,7 +7,7 @@
   <title>새 이야기 쓰기 · 푸드덕</title>
   <link rel="icon" href="/images/favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/css/common.css?v=20260821-pepe-v1">
-  <link rel="stylesheet" href="/pages/board/board.css?v=20260821-restaurant-pepe-v1">
+  <link rel="stylesheet" href="/pages/board/board.css?v=20260821-restaurant-pepe-v2">
 </head>
 <body>
   <div data-site-header data-active-nav="board"></div>
@@ -52,24 +52,30 @@
         </div>
 
         <section id="editor-restaurant-section" class="board-restaurant-linker" aria-labelledby="editor-restaurant-title">
-          <div class="board-restaurant-linker__head">
-            <div>
-              <span id="editor-restaurant-title">추천 맛집</span>
-              <small>선택 사항 · FOODUCK에 등록된 음식점을 실제 ID로 연결합니다.</small>
-            </div>
-            <span class="board-restaurant-linker__optional">선택</span>
-          </div>
-          <div class="board-restaurant-search">
-            <input id="editor-restaurant-search" type="search" autocomplete="off"
-                   placeholder="가게 이름을 검색해 주세요" aria-describedby="editor-restaurant-help">
-            <button id="editor-restaurant-search-button" class="button button-sm button-secondary" type="button">검색</button>
-          </div>
-          <small id="editor-restaurant-help" class="board-restaurant-linker__help">
-            일반 커뮤니티는 공공데이터·등록 음식점을 함께 검색하고, 사업자 커뮤니티는 내 음식점만 선택할 수 있습니다.
-          </small>
+          <button id="editor-restaurant-toggle" class="board-restaurant-linker__toggle" type="button"
+                  aria-expanded="false" aria-controls="editor-restaurant-body">
+            <span class="board-restaurant-linker__toggle-copy">
+              <span class="board-restaurant-linker__icon" aria-hidden="true">🍴</span>
+              <span>
+                <strong id="editor-restaurant-title">추천 맛집</strong>
+                <small>선택 사항</small>
+              </span>
+            </span>
+            <span class="material-symbols-rounded board-restaurant-linker__chevron" aria-hidden="true">expand_more</span>
+          </button>
           <div id="editor-restaurant-selected" class="board-restaurant-selected" hidden></div>
-          <div id="editor-restaurant-results" class="board-restaurant-results" hidden></div>
-          <p id="editor-restaurant-status" class="board-restaurant-status" role="status" aria-live="polite"></p>
+          <div id="editor-restaurant-body" class="board-restaurant-linker__body" hidden>
+            <small id="editor-restaurant-help" class="board-restaurant-linker__help">
+              추천하는 음식점을 글에 연결할 수 있어요.
+            </small>
+            <div class="board-restaurant-search">
+              <input id="editor-restaurant-search" type="search" autocomplete="off"
+                     placeholder="가게 이름을 검색해 주세요" aria-describedby="editor-restaurant-help">
+              <button id="editor-restaurant-search-button" class="button button-sm button-secondary" type="button">검색</button>
+            </div>
+            <div id="editor-restaurant-results" class="board-restaurant-results" hidden></div>
+            <p id="editor-restaurant-status" class="board-restaurant-status" role="status" aria-live="polite"></p>
+          </div>
         </section>
 
         <label class="board-field">
@@ -94,7 +100,7 @@
                   aria-expanded="false"
                   aria-controls="editor-emoji-panel">
             <span class="board-write-action-emoji" aria-hidden="true">🐸</span>
-            <span>이모지 추가</span>
+            <span>이모지</span>
           </button>
         </div>
         <div id="editor-emoji-panel"
@@ -161,6 +167,6 @@
   <script src="/js/api.js"></script>
   <script src="/js/common.js?v=20260821-pepe-v1"></script>
   <script src="/pages/board/board-shared.js?v=20260821-pepe-v1"></script>
-  <script src="/pages/board/write.js?v=20260821-restaurant-pepe-v1"></script>
+  <script src="/pages/board/write.js?v=20260821-restaurant-pepe-v2"></script>
 </body>
 </html>

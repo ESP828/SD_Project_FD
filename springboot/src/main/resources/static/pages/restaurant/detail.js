@@ -321,7 +321,7 @@
         <div class="store-review-editor-meta">
           <div class="store-review-editor-tools">
             <button type="button" class="button button-secondary button-sm store-review-emoji-toggle"
-                    data-review-emoji-toggle aria-expanded="false">🐸 Pepe</button>
+                    data-review-emoji-toggle aria-expanded="false">🐸 이모지</button>
             <input type="file" data-review-media-input accept="image/*,video/*" multiple hidden>
             <button type="button" class="button button-secondary button-sm" data-review-media-pick>사진·동영상</button>
           </div>
@@ -1681,7 +1681,7 @@
     emojis.populatePicker(panel, {
       gridClass: "comment-emoji-grid fooduck-custom-emoji-grid",
       buttonClass: "comment-emoji-option fooduck-custom-emoji-option",
-      title: "Pepe 이모지",
+      title: "이모지",
       onSelect: (emoji) => insertNewsEmoji(textarea, emoji.code),
     });
 
@@ -2082,7 +2082,7 @@
     fileInput.accept = ".jpg,.jpeg,.png,.gif,.webp,image/jpeg,image/png,image/gif,image/webp";
     const imageButton = newsCommentElement("button", "comment-image-select", "사진 첨부");
     imageButton.type = "button";
-    const emojiButton = newsCommentElement("button", "comment-emoji-toggle", "🐸 Pepe");
+    const emojiButton = newsCommentElement("button", "comment-emoji-toggle", "🐸 이모지");
     emojiButton.type = "button";
     const emojiPanel = newsCommentElement("div", "comment-emoji-panel");
     emojiPanel.hidden = true;
@@ -2311,7 +2311,7 @@
     updateNewsCommentCharacterCount(textarea, characterCount);
 
     const emojiTools = newsCommentElement("div", "comment-image-tools comment-edit-emoji-tools");
-    const emojiButton = newsCommentElement("button", "comment-emoji-toggle", "🐸 Pepe");
+    const emojiButton = newsCommentElement("button", "comment-emoji-toggle", "🐸 이모지");
     emojiButton.type = "button";
     const emojiPanel = newsCommentElement("div", "comment-emoji-panel");
     emojiPanel.hidden = true;
@@ -2635,7 +2635,7 @@
     fileInput.accept = ".jpg,.jpeg,.png,.gif,.webp,image/jpeg,image/png,image/gif,image/webp";
     const imageButton = newsCommentElement("button", "comment-image-select", "사진 첨부");
     imageButton.type = "button";
-    const emojiButton = newsCommentElement("button", "comment-emoji-toggle", "🐸 Pepe");
+    const emojiButton = newsCommentElement("button", "comment-emoji-toggle", "🐸 이모지");
     emojiButton.type = "button";
     const emojiPanel = newsCommentElement("div", "comment-emoji-panel");
     emojiPanel.hidden = true;
