@@ -25,8 +25,5 @@
     "editor.defaultFormatter": "esbenp.prettier-vscode"
   },
   "java.compile.nullAnalysis.mode": "automatic",
-  "java.configuration.updateBuildConfiguration": "interactive",
-
-  "// Windows 한글 로케일에서 JVM 기본 인코딩이 MS949로 잡히는 문제 방지": "",
-  "java.debug.settings.vmArgs": "-Dfile.encoding=UTF-8"
+  "java.configuration.updateBuildConfiguration": "interactive"
 }

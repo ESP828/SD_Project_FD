@@ -17,7 +17,7 @@ public class RecommendationQueryParser {
 
     public ParsedRecommendationQuery parse(String query) {
         if (query == null || query.isBlank()) {
-            return new ParsedRecommendationQuery("", "", "", List.of(), List.of(), List.of(), List.of(), List.of(), false, null);
+            return new ParsedRecommendationQuery("", "", "", List.of(), List.of(), List.of(), List.of(), List.of(), false);
         }
 
         String trimmed = query.trim();
@@ -31,16 +31,6 @@ public class RecommendationQueryParser {
 
         boolean nearby = false;
         String locationText = "";
-        String inferredGender = null;
-
-        // 💡 성별 표현은 카테고리·불용어 분류와 별개로 항상 감지한다 (이 토큰이 동시에
-        // 일반 카테고리 토큰으로도 쓰이는 경우가 있어 아래 메인 루프를 건드리지 않는다).
-        for (String rawToken : rawTokens) {
-            String token = stripPostposition(rawToken);
-            if (inferredGender == null && rules.getGenderKeywords().containsKey(token)) {
-                inferredGender = rules.getGenderKeywords().get(token);
-            }
-        }
         // 💡 접미사로 확정 짓지 못한 일반 명사 토큰 중 첫 번째를 저신뢰 지명 후보로 보관한다.
         // (예: "신논현 주변에 있는 라멘집" -> "신논현"은 역/동/구/시로 끝나지 않아 locationText로는 못 잡지만
         //  문장 맨 앞에 오는 명사이므로 지명일 가능성이 높다. 실제 지명인지는 카카오 API 응답으로 검증한다.)
@@ -105,8 +95,7 @@ public class RecommendationQueryParser {
                 purposeTokens.stream().distinct().toList(),
                 atmosphereTokens.stream().distinct().toList(),
                 priceTokens.stream().distinct().toList(),
-                nearby,
-                inferredGender
+                nearby
         );
     }
 

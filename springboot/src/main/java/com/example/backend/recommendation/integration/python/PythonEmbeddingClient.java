@@ -34,7 +34,6 @@ public class PythonEmbeddingClient {
         this.timeoutMs = timeoutMs;
         this.httpClient = HttpClient.newBuilder()
                 .connectTimeout(Duration.ofMillis(timeoutMs))
-                .version(HttpClient.Version.HTTP_1_1)
                 .build();
     }
 

@@ -7,12 +7,6 @@ import sentiment
 
 app = FastAPI()
 
-class EmbeddingSearchRequest(BaseModel):
-    query: str
-    restaurantIds: List[int] = []
-    topK: int = 50
-
-
 class QueryRecommendationRequest(BaseModel):
     query: str
     latitude: float
@@ -53,12 +47,6 @@ class RestaurantSentimentSummary(BaseModel):
     negativeCount: int
     positiveRatio: float
 
-class RestaurantReviewsBatchRequest(BaseModel):
-    items: List[RestaurantReviewsRequest]
-
-class RestaurantSentimentSummaryBatch(BaseModel):
-    items: List[RestaurantSentimentSummary]
-
 
 @app.post("/predict/sentiment", response_model=PredictionResponse)
 def predict_sentiment(request: ReviewRequest):
@@ -75,37 +63,6 @@ def predict_sentiment_restaurant_summary(request: RestaurantReviewsRequest):
     return RestaurantSentimentSummary(
         **sentiment.summarize_restaurant(request.restaurantId, request.restaurantName, reviews)
     )
-
-@app.post("/predict/sentiment/restaurant-summary/batch", response_model=RestaurantSentimentSummaryBatch)
-def predict_sentiment_restaurant_summary_batch(request: RestaurantReviewsBatchRequest):
-    # 맛집 랭킹 화면처럼 매장 여러 곳을 한 번에 다뤄야 할 때, 매장마다 따로 HTTP 호출하지
-    # 않고 한 번의 요청으로 처리한다. 리뷰가 없는 매장은 건너뛴다.
-    if not sentiment.is_ready():
-        raise HTTPException(status_code=503, detail="감성분석 모델이 아직 준비되지 않았습니다.")
-    results = []
-    for item in request.items:
-        if not item.reviews:
-            continue
-        results.append(RestaurantSentimentSummary(
-            **sentiment.summarize_restaurant(item.restaurantId, item.restaurantName, item.reviews)
-        ))
-    return RestaurantSentimentSummaryBatch(items=results)
-
-
-@app.post("/embedding/search")
-def embedding_search(request: EmbeddingSearchRequest):
-    # RecommendationService가 위치/카테고리 필터를 이미 거친 후보군(restaurantIds) 안에서만
-    # KURE 임베딩 코사인 유사도를 계산해 순위를 매긴다. 임베딩(.npy)이 아직 없으면
-    # recommend.search_by_sentence_embedding이 빈 리스트를 반환하고, Java 쪽은 TF-IDF로 폴백한다.
-    results = recommend.search_by_sentence_embedding(
-        request.query, top_n=request.topK, restaurant_ids=request.restaurantIds
-    )
-    items = [
-        {"id": int(r["id"]), "score": float(r["query_similarity"])}
-        for r in results
-    ]
-    return {"items": items}
-
 
 @app.post("/recommendations/query")
 def recommend_by_query(req: QueryRecommendationRequest):

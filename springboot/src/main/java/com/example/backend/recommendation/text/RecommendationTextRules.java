@@ -14,7 +14,6 @@ public class RecommendationTextRules {
     private final Set<String> stopwords = new HashSet<>();
     private final Map<String, List<String>> synonyms = new HashMap<>();
     private final List<String> postpositions = new ArrayList<>();
-    private final Map<String, String> genderKeywords = new HashMap<>();
 
     public RecommendationTextRules() {
         initRules();
@@ -50,17 +49,6 @@ public class RecommendationTextRules {
 
         // 7. 한국어 조사
         postpositions.addAll(Arrays.asList("에서", "으로", "로는", "에는", "까지", "부터", "은", "는", "이", "가", "을", "를", "에", "와", "과", "도", "로"));
-
-        // 8. 검색 문장 속 성별 표현 -> MALE/FEMALE. 검색 화면의 별도 성별 필드가 비어 있을 때
-        // 폴백으로 쓰인다 ("남자 셋이 먹을만한 곳" 같은 문장이 UI 필드 없이도 반영되도록).
-        genderKeywords.put("남자", "MALE");
-        genderKeywords.put("남성", "MALE");
-        genderKeywords.put("남자들", "MALE");
-        genderKeywords.put("남자끼리", "MALE");
-        genderKeywords.put("여자", "FEMALE");
-        genderKeywords.put("여성", "FEMALE");
-        genderKeywords.put("여자들", "FEMALE");
-        genderKeywords.put("여자끼리", "FEMALE");
     }
 
     public Set<String> getNearbyKeywords() {
@@ -89,9 +77,5 @@ public class RecommendationTextRules {
 
     public List<String> getPostpositions() {
         return postpositions;
-    }
-
-    public Map<String, String> getGenderKeywords() {
-        return genderKeywords;
     }
 }

@@ -14,7 +14,6 @@ public record ParsedRecommendationQuery(
         List<String> purposeTokens,
         List<String> atmosphereTokens,
         List<String> priceTokens,
-        boolean nearby,
-        String inferredGender
+        boolean nearby
 ) {
 }
