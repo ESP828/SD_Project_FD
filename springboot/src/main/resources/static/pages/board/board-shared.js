@@ -148,6 +148,13 @@
     return node;
   }
 
+  function emojiTextElement(tag, className, text) {
+    const node = element(tag, className, "");
+    if (window.FooduckEmojis) window.FooduckEmojis.renderText(node, text);
+    else node.textContent = String(text ?? "");
+    return node;
+  }
+
   function icon(name) {
     const node = element("span", "material-symbols-rounded", name);
     node.setAttribute("aria-hidden", "true");
@@ -520,7 +527,7 @@
       const contentRow = element("span", "author-menu-recent-title-row");
       contentRow.append(
         element("span", `author-menu-source author-menu-source--${authorActivityType(comment) === "소식" ? "news" : "community"}`, authorActivityType(comment)),
-        element("span", "author-menu-recent-content", comment.content || "댓글 내용 없음"),
+        emojiTextElement("span", "author-menu-recent-content", comment.content || "댓글 내용 없음"),
       );
       link.append(
         contentRow,
@@ -558,7 +565,7 @@
       link.href = `/restaurant/detail?source=${source}&id=${encodeURIComponent(review.storeId)}&tab=review`;
       link.append(
         element("span", "author-menu-recent-post-title", review.restaurantName || "가게 정보 없음"),
-        element(
+        emojiTextElement(
           "span",
           "author-menu-recent-content author-menu-review-content",
           review.content || "내용 없이 별점만 남긴 리뷰",

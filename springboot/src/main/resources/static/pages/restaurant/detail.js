@@ -1,4 +1,5 @@
 (() => {
+  const emojis = window.FooduckEmojis;
   const loading = document.getElementById("store-loading");
   const errorView = document.getElementById("store-error");
   const errorMessage = document.getElementById("store-error-message");
@@ -59,6 +60,23 @@
     }[char]));
   }
 
+  function customEmojiButtonsHtml(buttonClass, dataAttribute) {
+    if (!emojis) return "";
+    return emojis.items.map((emoji) => `
+      <button type="button" class="${buttonClass}" ${dataAttribute}="${escapeHtml(emoji.code)}"
+              aria-label="Pepe ${escapeHtml(emoji.label)} 이모지 입력" title="Pepe ${escapeHtml(emoji.label)}">
+        <img class="fooduck-custom-emoji-picker-image" src="${escapeHtml(emoji.src)}"
+             alt="" loading="lazy" decoding="async">
+      </button>
+    `).join("");
+  }
+
+  function renderCustomEmojiText(target, value) {
+    if (!target) return;
+    if (emojis) emojis.renderText(target, value);
+    else target.textContent = String(value ?? "");
+  }
+
   function formatDate(value, pattern = { year: "numeric", month: "2-digit", day: "2-digit" }) {
     if (!value) return "-";
     const date = new Date(value);
@@ -102,13 +120,6 @@
     "image/webp",
   ]);
   const NEWS_COMMENT_IMAGE_NAME_PATTERN = /\.(?:jpe?g|png|gif|webp)$/i;
-  const NEWS_EMOJIS = (
-    "😀 😃 😄 😁 😆 😅 🤣 😂 🙂 🙃 🫠 😉 😊 😇 🥰 😍 🤩 😘 😗 ☺️ 😚 😙 🥲 " +
-    "😋 😛 😜 🤪 😝 🤑 🤗 🤭 🫢 🫣 🤫 🤔 🫡 🤐 🤨 😐 😑 😶 🫥 😶‍🌫️ 😏 😒 🙄 😬 " +
-    "😮‍💨 🤥 🫨 🙂‍↔️ 🙂‍↕️ 😌 😔 😪 🤤 😴 🫩 😷 🤒 🤕 🤢 🤮 🤧 🥵 🥶 🥴 😵 😵‍💫 🤯 " +
-    "🤠 🥳 🥸 😎 🤓 🧐 😕 🫤 😟 🙁 ☹️ 😮 😯 😲 😳 🥺 🥹 😦 😧 😨 😰 😥 😢 😭 😱 " +
-    "😖 😣 😞 😓 😩 😫 🥱 😤 😡 😠 🤬 😈 👿"
-  ).split(" ");
   const NEWS_MAX_MEDIA_COUNT = 10;
   const NEWS_MAX_IMAGE_BYTES = 20 * 1024 * 1024;
   const NEWS_MAX_VIDEO_BYTES = 100 * 1024 * 1024;
@@ -236,10 +247,8 @@
 
   function reviewEmojiPanelHtml() {
     return `
-      <div class="store-review-emoji-panel" data-review-emoji-panel hidden role="group" aria-label="이모지 선택">
-        ${NEWS_EMOJIS.map((emoji) => `
-          <button type="button" class="store-review-emoji-option" data-review-emoji="${emoji}" aria-label="${emoji} 이모지 입력">${emoji}</button>
-        `).join("")}
+      <div class="store-review-emoji-panel" data-review-emoji-panel hidden role="group" aria-label="Pepe 이모지 선택">
+        ${customEmojiButtonsHtml("store-review-emoji-option", "data-review-emoji")}
       </div>
     `;
   }
@@ -312,7 +321,7 @@
         <div class="store-review-editor-meta">
           <div class="store-review-editor-tools">
             <button type="button" class="button button-secondary button-sm store-review-emoji-toggle"
-                    data-review-emoji-toggle aria-expanded="false">😀 이모지</button>
+                    data-review-emoji-toggle aria-expanded="false">🐸 Pepe</button>
             <input type="file" data-review-media-input accept="image/*,video/*" multiple hidden>
             <button type="button" class="button button-secondary button-sm" data-review-media-pick>사진·동영상</button>
           </div>
@@ -975,6 +984,10 @@
           ${reviewPaginationHtml(pageData)}
         </div>
       `;
+      items.forEach((review) => {
+        const card = panels.review.querySelector(`[data-review-card="${CSS.escape(String(review.reviewId ?? ""))}"]`);
+        renderCustomEmojiText(card?.querySelector(".store-review-content"), review.content || "");
+      });
       bindReviewAuthorMenus(items);
       bindReviewForm();
       bindReviewActions(pageData);
@@ -1582,6 +1595,12 @@
     return node;
   }
 
+  function newsCommentEmojiElement(tagName, className, text) {
+    const node = newsCommentElement(tagName, className);
+    renderCustomEmojiText(node, text);
+    return node;
+  }
+
   let activeNewsEmojiPicker = null;
   let newsEmojiGlyphsPrewarmed = false;
 
@@ -1629,69 +1648,42 @@
   }
 
   function prewarmNewsEmojiPicker(panel) {
-    if (!panel) return;
-
+    if (!panel || !emojis) return;
     const warm = () => {
       if (!panel.isConnected) return;
       try {
-        if (!newsEmojiGlyphsPrewarmed) {
-          const canvas = document.createElement("canvas");
-          canvas.width = 512;
-          canvas.height = 256;
-          const context = canvas.getContext("2d");
-          if (context) {
-            context.font =
-              '20px "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", sans-serif';
-            NEWS_EMOJIS.forEach((emoji, index) => {
-              const x = (index % 16) * 32;
-              const y = Math.floor(index / 16) * 32 + 24;
-              context.fillText(emoji, x, y);
-            });
-          }
-          newsEmojiGlyphsPrewarmed = true;
-        }
-
+        emojis.items.forEach((emoji) => {
+          const image = new Image();
+          image.src = emoji.src;
+        });
         const wasHidden = panel.hidden;
         const previousVisibility = panel.style.visibility;
-        const previousPointerEvents = panel.style.pointerEvents;
         panel.style.visibility = "hidden";
-        panel.style.pointerEvents = "none";
         panel.hidden = false;
         void panel.offsetHeight;
         panel.hidden = wasHidden;
         panel.style.visibility = previousVisibility;
-        panel.style.pointerEvents = previousPointerEvents;
       } catch (_error) {
-        // prewarm 실패는 이모지 입력 기능 자체에 영향을 주지 않는다.
+        // 사전 로딩 실패는 picker 기능 자체에 영향을 주지 않는다.
       }
     };
-
-    const schedule = () => {
-      if ("requestIdleCallback" in window) {
-        window.requestIdleCallback(warm, { timeout: 350 });
-      } else {
-        window.setTimeout(warm, 50);
-      }
-    };
-    window.requestAnimationFrame(schedule);
+    if ("requestIdleCallback" in window) {
+      window.requestIdleCallback(warm, { timeout: 450 });
+    } else {
+      window.setTimeout(warm, 80);
+    }
   }
 
   function setupNewsEmojiPicker(textarea, toggle, panel) {
     if (!(textarea instanceof HTMLTextAreaElement) || !toggle || !panel) return null;
 
-    const grid = newsCommentElement("div", "comment-emoji-grid");
-    NEWS_EMOJIS.forEach((emoji) => {
-      const button = newsCommentElement("button", "comment-emoji-option", emoji);
-      button.type = "button";
-      button.setAttribute("aria-label", `${emoji} 이모지 입력`);
-      button.addEventListener("click", () => insertNewsEmoji(textarea, emoji));
-      grid.append(button);
+    if (!emojis) return null;
+    emojis.populatePicker(panel, {
+      gridClass: "comment-emoji-grid fooduck-custom-emoji-grid",
+      buttonClass: "comment-emoji-option fooduck-custom-emoji-option",
+      title: "Pepe 이모지",
+      onSelect: (emoji) => insertNewsEmoji(textarea, emoji.code),
     });
-
-    panel.replaceChildren(
-      newsCommentElement("strong", "comment-emoji-panel-title", "이모지"),
-      grid,
-    );
 
     const picker = { textarea, toggle, panel };
     toggle.addEventListener("click", (event) => {
@@ -2090,7 +2082,7 @@
     fileInput.accept = ".jpg,.jpeg,.png,.gif,.webp,image/jpeg,image/png,image/gif,image/webp";
     const imageButton = newsCommentElement("button", "comment-image-select", "사진 첨부");
     imageButton.type = "button";
-    const emojiButton = newsCommentElement("button", "comment-emoji-toggle", "😀 이모지");
+    const emojiButton = newsCommentElement("button", "comment-emoji-toggle", "🐸 Pepe");
     emojiButton.type = "button";
     const emojiPanel = newsCommentElement("div", "comment-emoji-panel");
     emojiPanel.hidden = true;
@@ -2319,7 +2311,7 @@
     updateNewsCommentCharacterCount(textarea, characterCount);
 
     const emojiTools = newsCommentElement("div", "comment-image-tools comment-edit-emoji-tools");
-    const emojiButton = newsCommentElement("button", "comment-emoji-toggle", "😀 이모지");
+    const emojiButton = newsCommentElement("button", "comment-emoji-toggle", "🐸 Pepe");
     emojiButton.type = "button";
     const emojiPanel = newsCommentElement("div", "comment-emoji-panel");
     emojiPanel.hidden = true;
@@ -2397,7 +2389,7 @@
           content: updated.content ?? content,
           edited: updated.edited ?? true,
         });
-        contentNode.textContent = comment.content;
+        renderCustomEmojiText(contentNode, comment.content);
         if (dateNode) {
           dateNode.textContent = `${formatDate(comment.createdAt, { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })} · 수정됨`;
         }
@@ -2489,7 +2481,7 @@
     );
     top.append(author, date);
 
-    const contentNode = newsCommentElement("p", "comment-content", comment.content || "");
+    const contentNode = newsCommentEmojiElement("p", "comment-content", comment.content || "");
     item.append(top, contentNode);
     const image = newsCommentImageNode(comment);
     if (image) item.append(image);
@@ -2643,7 +2635,7 @@
     fileInput.accept = ".jpg,.jpeg,.png,.gif,.webp,image/jpeg,image/png,image/gif,image/webp";
     const imageButton = newsCommentElement("button", "comment-image-select", "사진 첨부");
     imageButton.type = "button";
-    const emojiButton = newsCommentElement("button", "comment-emoji-toggle", "😀 이모지");
+    const emojiButton = newsCommentElement("button", "comment-emoji-toggle", "🐸 Pepe");
     emojiButton.type = "button";
     const emojiPanel = newsCommentElement("div", "comment-emoji-panel");
     emojiPanel.hidden = true;
@@ -3070,7 +3062,7 @@
                   aria-label="소식 내용에 이모지 추가"
                   aria-expanded="false"
                   aria-controls="store-news-emoji-panel">
-            <span class="board-write-action-emoji" aria-hidden="true">😀</span>
+            <span class="board-write-action-emoji" aria-hidden="true">🐸</span>
             <span>이모지 추가</span>
           </button>
         </div>
@@ -3585,6 +3577,8 @@
           </article>
         `).join("")}</div>`;
     renderNewsCard(bodyHtml, newsPaginationHtml(pageData));
+    const contentNodes = panels.news.querySelectorAll(".store-news-list .store-news-content");
+    items.forEach((news, index) => renderCustomEmojiText(contentNodes[index], news.content || ""));
     bindNewsAuthors(items);
     bindNewsMedia(items);
     scheduleNewsSummaryTruncationCheck();

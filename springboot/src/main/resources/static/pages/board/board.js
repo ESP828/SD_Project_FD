@@ -1,6 +1,7 @@
 (() => {
   const session = window.FooduckSession;
   const board = window.FooduckBoard;
+  const emojis = window.FooduckEmojis;
   const initialParams = new URLSearchParams(window.location.search);
   const requestedValue = initialParams.get("boardType");
   const requestedBoardType = ["BUSINESS", "BEST", "POPULAR"].includes(requestedValue)
@@ -77,6 +78,13 @@
     showToast,
     writeBoardCache,
   } = board;
+
+  function emojiTextElement(tagName, className, value) {
+    const node = element(tagName, className, "");
+    if (emojis) emojis.renderText(node, value);
+    else node.textContent = String(value ?? "");
+    return node;
+  }
 
   function isEdited(item) {
     return item?.edited === true;
@@ -301,7 +309,7 @@
     main.append(
       badges,
       element("h3", "", post.title),
-      element("p", "post-preview", post.contentPreview || "내용 미리보기 없음"),
+      emojiTextElement("p", "post-preview", post.contentPreview || "내용 미리보기 없음"),
     );
 
     const meta = element("div", "post-meta");

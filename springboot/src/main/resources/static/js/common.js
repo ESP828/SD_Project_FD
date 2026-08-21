@@ -15,6 +15,117 @@
     "ROLE_USER",
   ]);
 
+  const FOODUCK_CUSTOM_EMOJI_BASE = "/images/emojis/pepe/";
+  const FOODUCK_CUSTOM_EMOJIS = Object.freeze([
+    [":pepe_laugh:", "웃음", "pepe_laugh.gif"],
+    [":pepe_popcorn:", "팝콘", "pepe_popcorn.gif"],
+    [":pepe_sip:", "한 모금", "pepe_sip.png"],
+    [":pepe_thinking:", "생각", "pepe_thinking.png"],
+    [":pepe_perfect:", "완벽", "pepe_perfect.png"],
+    [":pepe_clap:", "박수", "pepe_clap.gif"],
+    [":pepe_love:", "좋아", "pepe_love.png"],
+    [":pepe_cool:", "쿨", "pepe_cool.png"],
+    [":pepe_blush:", "부끄", "pepe_blush.gif"],
+    [":pepe_bored:", "심심", "pepe_bored.png"],
+    [":pepe_sad:", "슬픔", "pepe_sad.png"],
+    [":pepe_please:", "제발", "pepe_please.gif"],
+    [":pepe_why:", "왜", "pepe_why.png"],
+    [":pepe_rain:", "비", "pepe_rain.gif"],
+    [":pepe_pray:", "기도", "pepe_pray.gif"],
+    [":pepe_rich:", "부자", "pepe_rich.gif"],
+    [":pepe_dnd:", "게임", "pepe_dnd.gif"],
+    [":pepe_bbq:", "바비큐", "pepe_bbq.png"],
+    [":pepe_wine:", "와인", "pepe_wine.png"],
+    [":pepe_nerd:", "공부", "pepe_nerd.jpg"],
+    [":pepe_uwu:", "우우", "pepe_uwu.png"],
+    [":pepe_dance:", "댄스", "pepe_dance.gif"],
+    [":pepe_tongue:", "메롱", "pepe_tongue.gif"],
+    [":pepe_true:", "인정", "pepe_true.png"],
+    [":pepe_hands:", "눈물", "pepe_hands.jpg"],
+    [":pepe_bye:", "안녕", "pepe_bye.gif"],
+    [":pepe_shades:", "선글라스", "pepe_shades.png"],
+    [":pepe_confident:", "자신감", "pepe_confident.png"],
+    [":pepe_bee:", "벌", "pepe_bee.png"],
+    [":pepe_wilt:", "시무룩", "pepe_wilt.png"],
+    [":pepe_pop:", "팝", "pepe_pop.png"],
+    [":pepe_pair:", "친구", "pepe_pair.png"],
+  ].map(([code, label, file]) => Object.freeze({
+    code,
+    label,
+    file,
+    src: `${FOODUCK_CUSTOM_EMOJI_BASE}${file}`,
+  })));
+  const FOODUCK_CUSTOM_EMOJI_BY_CODE = new Map(
+    FOODUCK_CUSTOM_EMOJIS.map((emoji) => [emoji.code, emoji]),
+  );
+  const FOODUCK_CUSTOM_EMOJI_PATTERN = /:pepe_[a-z0-9_-]+:/g;
+
+  function createCustomEmojiImage(emoji, className = "fooduck-custom-emoji-inline") {
+    const image = new Image();
+    image.src = emoji.src;
+    image.alt = `[Pepe ${emoji.label}]`;
+    image.title = `Pepe ${emoji.label}`;
+    image.className = className;
+    image.loading = "lazy";
+    image.decoding = "async";
+    image.dataset.fooduckEmojiCode = emoji.code;
+    return image;
+  }
+
+  function renderCustomEmojiText(target, value) {
+    if (!(target instanceof Element)) return target;
+    const text = String(value ?? "");
+    const fragment = document.createDocumentFragment();
+    let lastIndex = 0;
+    FOODUCK_CUSTOM_EMOJI_PATTERN.lastIndex = 0;
+    let match;
+    while ((match = FOODUCK_CUSTOM_EMOJI_PATTERN.exec(text)) !== null) {
+      if (match.index > lastIndex) {
+        fragment.append(document.createTextNode(text.slice(lastIndex, match.index)));
+      }
+      const emoji = FOODUCK_CUSTOM_EMOJI_BY_CODE.get(match[0]);
+      fragment.append(
+        emoji
+          ? createCustomEmojiImage(emoji)
+          : document.createTextNode(match[0]),
+      );
+      lastIndex = match.index + match[0].length;
+    }
+    if (lastIndex < text.length) {
+      fragment.append(document.createTextNode(text.slice(lastIndex)));
+    }
+    target.replaceChildren(fragment);
+    return target;
+  }
+
+  function populateCustomEmojiPicker(panel, options = {}) {
+    if (!(panel instanceof Element)) return null;
+    const grid = document.createElement("div");
+    grid.className = options.gridClass || "fooduck-custom-emoji-grid";
+    FOODUCK_CUSTOM_EMOJIS.forEach((emoji) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = options.buttonClass || "fooduck-custom-emoji-option";
+      button.setAttribute("aria-label", `Pepe ${emoji.label} 이모지 입력`);
+      button.title = `Pepe ${emoji.label}`;
+      button.dataset.fooduckEmojiCode = emoji.code;
+      button.append(createCustomEmojiImage(emoji, "fooduck-custom-emoji-picker-image"));
+      button.addEventListener("click", () => options.onSelect?.(emoji));
+      grid.append(button);
+    });
+
+    const children = [];
+    if (options.showTitle !== false) {
+      const title = document.createElement("strong");
+      title.className = options.titleClass || "comment-emoji-panel-title";
+      title.textContent = options.title || "Pepe 이모지";
+      children.push(title);
+    }
+    children.push(grid);
+    panel.replaceChildren(...children);
+    return grid;
+  }
+
   const ICON_PATHS = {
     notifications: [
       "M18 8a6 6 0 0 0-12 0c0 6.8-3 7-3 9h18c0-2-3-2.2-3-9",
@@ -1101,6 +1212,11 @@
   iconObserver.observe(document.body, { childList: true, subtree: true });
 
   window.FooduckIcons = { set: setIcon, enhance: enhanceIcons };
+  window.FooduckEmojis = {
+    items: FOODUCK_CUSTOM_EMOJIS,
+    renderText: renderCustomEmojiText,
+    populatePicker: populateCustomEmojiPicker,
+  };
   window.FooduckSession = {
     ...session,
     canManageBusiness,

@@ -18,6 +18,8 @@ public record PostUpdateRequest(
 
         Long restaurantId,
 
+        Long publicRestaurantId,
+
         @NotBlank(message = "제목을 입력해 주세요.")
         @Size(max = 200, message = "제목은 200자 이하로 입력해 주세요.")
         String title,
@@ -26,4 +28,14 @@ public record PostUpdateRequest(
         @Size(max = 10000, message = "내용은 10,000자 이하로 입력해 주세요.")
         String content
 ) {
+    /** 기존 5개 인자 호출부/테스트 호환용 생성자. */
+    public PostUpdateRequest(
+            BoardType boardType,
+            PostCategory category,
+            Long restaurantId,
+            String title,
+            String content
+    ) {
+        this(boardType, category, restaurantId, null, title, content);
+    }
 }

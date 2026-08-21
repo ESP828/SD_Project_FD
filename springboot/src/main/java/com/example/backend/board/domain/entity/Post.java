@@ -208,9 +208,9 @@ public class Post {
             }
             return;
         }
-        if (publicRestaurantId != null) {
+        if (restaurantId != null && publicRestaurantId != null) {
             throw new IllegalArgumentException(
-                    "식당 소식이 아닌 게시글에는 공공데이터 음식점을 연결할 수 없습니다."
+                    "게시글에는 자체 등록 음식점과 공공데이터 음식점을 동시에 연결할 수 없습니다."
             );
         }
     }

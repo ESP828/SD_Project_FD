@@ -625,15 +625,26 @@ public class PostService {
         BoardType readableBoardType = accessPolicy.isApprovedBusiness(currentAccount)
                 ? null
                 : BoardType.GENERAL;
-        List<Post> posts = postRepository.findRelatedPosts(
-                currentPost.getPostId(),
-                currentPost.getRestaurantId(),
-                currentPost.getCategory(),
-                PostCategory.NOTICE,
-                readableBoardType,
-                PostStatus.ACTIVE,
-                PageRequest.of(0, size)
-        );
+        List<Post> posts = currentPost.getPublicRestaurantId() == null
+                ? postRepository.findRelatedPosts(
+                        currentPost.getPostId(),
+                        currentPost.getRestaurantId(),
+                        currentPost.getCategory(),
+                        PostCategory.NOTICE,
+                        readableBoardType,
+                        PostStatus.ACTIVE,
+                        PageRequest.of(0, size)
+                )
+                : postRepository.findRelatedPostsByRestaurantReferences(
+                        currentPost.getPostId(),
+                        currentPost.getRestaurantId(),
+                        currentPost.getPublicRestaurantId(),
+                        currentPost.getCategory(),
+                        PostCategory.NOTICE,
+                        readableBoardType,
+                        PostStatus.ACTIVE,
+                        PageRequest.of(0, size)
+                );
         return responseMapper.toListItems(posts, currentAccount);
     }
 
@@ -815,12 +826,22 @@ public class PostService {
         Account currentAccount = boardUserService.require(currentAccountId);
         String title = request.title().strip();
         String content = request.content().strip();
-        accessPolicy.assertCanWrite(
-                request.boardType(),
-                request.category(),
-                request.restaurantId(),
-                currentAccount
-        );
+        if (request.publicRestaurantId() == null) {
+            accessPolicy.assertCanWrite(
+                    request.boardType(),
+                    request.category(),
+                    request.restaurantId(),
+                    currentAccount
+            );
+        } else {
+            accessPolicy.assertCanWrite(
+                    request.boardType(),
+                    request.category(),
+                    request.restaurantId(),
+                    request.publicRestaurantId(),
+                    currentAccount
+            );
+        }
         PostSubmissionKey submissionKey = new PostSubmissionKey(
                 currentAccount.getAccountId(),
                 content
@@ -837,6 +858,7 @@ public class PostService {
             Post post = Post.create(
                     currentAccount,
                     request.restaurantId(),
+                    request.publicRestaurantId(),
                     request.boardType(),
                     request.category(),
                     title,
@@ -870,15 +892,26 @@ public class PostService {
                 request.boardType(),
                 currentAccount
         );
-        accessPolicy.assertCanWrite(
-                request.boardType(),
-                request.category(),
-                request.restaurantId(),
-                currentAccount
-        );
+        if (request.publicRestaurantId() == null) {
+            accessPolicy.assertCanWrite(
+                    request.boardType(),
+                    request.category(),
+                    request.restaurantId(),
+                    currentAccount
+            );
+        } else {
+            accessPolicy.assertCanWrite(
+                    request.boardType(),
+                    request.category(),
+                    request.restaurantId(),
+                    request.publicRestaurantId(),
+                    currentAccount
+            );
+        }
 
         post.update(
                 request.restaurantId(),
+                request.publicRestaurantId(),
                 request.boardType(),
                 request.category(),
                 request.title().strip(),

@@ -229,6 +229,43 @@ public interface PostRepository extends JpaRepository<Post, Long> {
             from Post p
             join fetch p.author
             where p.status = :postStatus
+              and p.postId <> :currentPostId
+              and p.category <> :excludedCategory
+              and p.category <> com.example.backend.board.domain.type.PostCategory.NEWS
+              and (:readableBoardType is null or p.boardType = :readableBoardType)
+              and (
+                    (:restaurantId is not null and p.restaurantId = :restaurantId)
+                    or (:publicRestaurantId is not null and p.publicRestaurantId = :publicRestaurantId)
+                    or p.category = :category
+              )
+            order by
+              case
+                when :restaurantId is not null
+                     and p.restaurantId = :restaurantId then 0
+                when :publicRestaurantId is not null
+                     and p.publicRestaurantId = :publicRestaurantId then 0
+                else 1
+              end,
+              p.likeCount desc,
+              p.createdAt desc,
+              p.postId desc
+            """)
+    List<Post> findRelatedPostsByRestaurantReferences(
+            @Param("currentPostId") Long currentPostId,
+            @Param("restaurantId") Long restaurantId,
+            @Param("publicRestaurantId") Long publicRestaurantId,
+            @Param("category") PostCategory category,
+            @Param("excludedCategory") PostCategory excludedCategory,
+            @Param("readableBoardType") BoardType readableBoardType,
+            @Param("postStatus") PostStatus postStatus,
+            Pageable pageable
+    );
+
+    @Query("""
+            select p
+            from Post p
+            join fetch p.author
+            where p.status = :postStatus
               and p.boardType = :boardType
               and p.category = :questionCategory
               and not exists (

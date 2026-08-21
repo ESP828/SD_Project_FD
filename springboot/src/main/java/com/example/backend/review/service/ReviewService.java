@@ -29,12 +29,15 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Pattern;
 
 @Service
 public class ReviewService {
 
     private static final int DEFAULT_PAGE_SIZE = 5;
     private static final int MAX_PAGE_SIZE = 20;
+    private static final Pattern CUSTOM_EMOJI_SHORTCODE_PATTERN =
+            Pattern.compile(":pepe_[a-z0-9_-]+:");
 
     private final ReviewRepository reviewRepository;
     private final RestaurantRepository restaurantRepository;
@@ -137,7 +140,21 @@ public class ReviewService {
 
     @Transactional(readOnly = true)
     public List<String> getAllReviewTextsForPublicRestaurant(Long publicRestaurantId) {
-        return reviewRepository.findAllActiveContentsByPublicRestaurantId(publicRestaurantId);
+        return reviewRepository.findAllActiveContentsByPublicRestaurantId(publicRestaurantId)
+                .stream()
+                .map(ReviewService::stripCustomEmojiShortcodes)
+                .filter(text -> !text.isBlank())
+                .toList();
+    }
+
+    private static String stripCustomEmojiShortcodes(String content) {
+        if (content == null || content.isBlank()) {
+            return "";
+        }
+        return CUSTOM_EMOJI_SHORTCODE_PATTERN.matcher(content)
+                .replaceAll(" ")
+                .replaceAll("\\s+", " ")
+                .trim();
     }
 
     @Transactional

@@ -86,6 +86,16 @@ public class BoardAccessPolicy {
             Long restaurantId,
             Account account
     ) {
+        assertCanWrite(boardType, category, restaurantId, null, account);
+    }
+
+    public void assertCanWrite(
+            BoardType boardType,
+            PostCategory category,
+            Long restaurantId,
+            Long publicRestaurantId,
+            Account account
+    ) {
         if (category == PostCategory.NEWS) {
             throw new BoardException(
                     HttpStatus.BAD_REQUEST,
@@ -117,6 +127,29 @@ public class BoardAccessPolicy {
                     HttpStatus.FORBIDDEN,
                     "BOARD_BUSINESS_WRITE_FORBIDDEN",
                     "승인된 사업자 또는 관리자만 사업자 게시글을 작성할 수 있습니다."
+            );
+        }
+
+        if (restaurantId != null && publicRestaurantId != null) {
+            throw badRequest("게시글에는 음식점을 하나만 연결할 수 있습니다.");
+        }
+
+        if (publicRestaurantId != null
+                && !referenceRepository.publicRestaurantExists(publicRestaurantId)) {
+            throw new BoardException(
+                    HttpStatus.NOT_FOUND,
+                    "BOARD_PUBLIC_RESTAURANT_NOT_FOUND",
+                    "연결할 수 있는 공공데이터 음식점을 찾을 수 없습니다."
+            );
+        }
+
+        if (publicRestaurantId != null
+                && boardType == BoardType.BUSINESS
+                && !isAdmin(account)) {
+            throw new BoardException(
+                    HttpStatus.FORBIDDEN,
+                    "BOARD_RESTAURANT_OWNERSHIP_REQUIRED",
+                    "사업자 커뮤니티에는 본인이 등록한 음식점만 연결할 수 있습니다."
             );
         }
 

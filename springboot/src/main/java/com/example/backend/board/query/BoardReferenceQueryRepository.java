@@ -244,6 +244,59 @@ public class BoardReferenceQueryRepository {
         return rows.stream().findFirst();
     }
 
+    public Optional<RestaurantSummaryResponse> findPublicRestaurant(Long publicRestaurantId) {
+        List<RestaurantSummaryResponse> rows = jdbcTemplate.query(
+                """
+                select public_restaurant_id, name, road_address, lot_address
+                  from public_restaurant
+                 where public_restaurant_id = :publicRestaurantId
+                """,
+                new MapSqlParameterSource("publicRestaurantId", publicRestaurantId),
+                (resultSet, rowNumber) -> RestaurantSummaryResponse.publicRestaurant(
+                        resultSet.getLong("public_restaurant_id"),
+                        resultSet.getString("name"),
+                        firstNonBlank(
+                                resultSet.getString("road_address"),
+                                resultSet.getString("lot_address")
+                        )
+                )
+        );
+        return rows.stream().findFirst();
+    }
+
+    public Map<Long, RestaurantSummaryResponse> findPublicRestaurants(
+            Collection<Long> publicRestaurantIds
+    ) {
+        if (publicRestaurantIds == null || publicRestaurantIds.isEmpty()) {
+            return Map.of();
+        }
+        List<RestaurantSummaryResponse> rows = jdbcTemplate.query(
+                """
+                select public_restaurant_id, name, road_address, lot_address
+                  from public_restaurant
+                 where public_restaurant_id in (:publicRestaurantIds)
+                """,
+                new MapSqlParameterSource("publicRestaurantIds", publicRestaurantIds),
+                (resultSet, rowNumber) -> RestaurantSummaryResponse.publicRestaurant(
+                        resultSet.getLong("public_restaurant_id"),
+                        resultSet.getString("name"),
+                        firstNonBlank(
+                                resultSet.getString("road_address"),
+                                resultSet.getString("lot_address")
+                        )
+                )
+        );
+        return rows.stream().collect(Collectors.toUnmodifiableMap(
+                RestaurantSummaryResponse::publicRestaurantId,
+                Function.identity()
+        ));
+    }
+
+    private static String firstNonBlank(String primary, String fallback) {
+        if (primary != null && !primary.isBlank()) return primary;
+        return fallback;
+    }
+
     public Map<Long, RestaurantSummaryResponse> findRestaurants(Collection<Long> restaurantIds) {
         if (restaurantIds == null || restaurantIds.isEmpty()) {
             return Map.of();

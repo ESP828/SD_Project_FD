@@ -68,6 +68,13 @@ public class BoardResponseMapper {
                                 .filter(Objects::nonNull)
                                 .collect(Collectors.toSet())
                 );
+        Map<Long, RestaurantSummaryResponse> publicRestaurants =
+                referenceRepository.findPublicRestaurants(
+                        posts.stream()
+                                .map(Post::getPublicRestaurantId)
+                                .filter(Objects::nonNull)
+                                .collect(Collectors.toSet())
+                );
 
         Set<Long> authorIds = posts.stream()
                 .map(post -> post.getAuthor().getAccountId())
@@ -78,9 +85,12 @@ public class BoardResponseMapper {
         return posts.stream().map(post -> {
             Long authorId = post.getAuthor().getAccountId();
             Long restaurantId = post.getRestaurantId();
-            RestaurantSummaryResponse restaurant = restaurantId == null
-                    ? null
-                    : restaurants.get(restaurantId);
+            Long publicRestaurantId = post.getPublicRestaurantId();
+            RestaurantSummaryResponse restaurant = restaurantId != null
+                    ? restaurants.get(restaurantId)
+                    : publicRestaurantId == null
+                            ? null
+                            : publicRestaurants.get(publicRestaurantId);
             return new PostListItemResponse(
                     post.getPostId(),
                     post.getTitle(),
@@ -141,9 +151,13 @@ public class BoardResponseMapper {
             String authorRole,
             long viewCount
     ) {
-        RestaurantSummaryResponse restaurant = post.getRestaurantId() == null
-                ? null
-                : referenceRepository.findRestaurant(post.getRestaurantId()).orElse(null);
+        RestaurantSummaryResponse restaurant = post.getRestaurantId() != null
+                ? referenceRepository.findRestaurant(post.getRestaurantId()).orElse(null)
+                : post.getPublicRestaurantId() == null
+                        ? null
+                        : referenceRepository.findPublicRestaurant(
+                                post.getPublicRestaurantId()
+                        ).orElse(null);
         List<PostDetailResponse.MediaResponse> media = toMediaResponses(
                 referenceRepository.findPostMedia(post.getPostId())
         );

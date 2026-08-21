@@ -1,6 +1,7 @@
 (() => {
   const session = window.FooduckSession;
   const board = window.FooduckBoard;
+  const emojis = window.FooduckEmojis;
   const postId = board?.readPostId();
   const detailParams = new URLSearchParams(window.location.search);
   const sourceView = detailParams.get("from");
@@ -25,13 +26,6 @@
     "image/webp",
   ]);
   const COMMENT_IMAGE_NAME_PATTERN = /\.(?:jpe?g|png|gif|webp)$/i;
-  const COMMENT_EMOJIS = (
-    "😀 😃 😄 😁 😆 😅 🤣 😂 🙂 🙃 🫠 😉 😊 😇 🥰 😍 🤩 😘 😗 ☺️ 😚 😙 🥲 " +
-    "😋 😛 😜 🤪 😝 🤑 🤗 🤭 🫢 🫣 🤫 🤔 🫡 🤐 🤨 😐 😑 😶 🫥 😶‍🌫️ 😏 😒 🙄 😬 " +
-    "😮‍💨 🤥 🫨 🙂‍↔️ 🙂‍↕️ 😌 😔 😪 🤤 😴 🫩 😷 🤒 🤕 🤢 🤮 🤧 🥵 🥶 🥴 😵 😵‍💫 🤯 " +
-    "🤠 🥳 🥸 😎 🤓 🧐 😕 🫤 😟 🙁 ☹️ 😮 😯 😲 😳 🥺 🥹 😦 😧 😨 😰 😥 😢 😭 😱 " +
-    "😖 😣 😞 😓 😩 😫 🥱 😤 😡 😠 🤬 😈 👿"
-  ).split(" ");
   let mediaPollTimer = null;
   let mediaPollInFlight = false;
   let mediaPollDelay = MEDIA_POLL_BASE_DELAY;
@@ -89,6 +83,13 @@
     writeBoardCache,
   } = board;
 
+  function emojiTextElement(tagName, className, value) {
+    const node = element(tagName, className, "");
+    if (emojis) emojis.renderText(node, value);
+    else node.textContent = String(value ?? "");
+    return node;
+  }
+
   let activeEmojiPicker = null;
 
   function closeEmojiPicker(picker = activeEmojiPicker) {
@@ -129,19 +130,13 @@
   function setupCommentEmojiPicker(textarea, toggle, panel) {
     if (!textarea || !toggle || !panel) return null;
 
-    const grid = element("div", "comment-emoji-grid");
-    COMMENT_EMOJIS.forEach((emoji) => {
-      const button = element("button", "comment-emoji-option", emoji);
-      button.type = "button";
-      button.setAttribute("aria-label", `${emoji} 이모지 입력`);
-      button.addEventListener("click", () => insertCommentEmoji(textarea, emoji));
-      grid.append(button);
+    if (!emojis) return null;
+    emojis.populatePicker(panel, {
+      gridClass: "comment-emoji-grid fooduck-custom-emoji-grid",
+      buttonClass: "comment-emoji-option fooduck-custom-emoji-option",
+      title: "Pepe 이모지",
+      onSelect: (emoji) => insertCommentEmoji(textarea, emoji.code),
     });
-
-    panel.replaceChildren(
-      element("strong", "comment-emoji-panel-title", "이모지"),
-      grid,
-    );
 
     const picker = { textarea, toggle, panel };
     toggle.addEventListener("click", (event) => {
@@ -1678,13 +1673,19 @@
         element("strong", "", post.restaurant.name),
         element("small", "", post.restaurant.address || "주소 정보 없음"),
       );
-      const link = element("a", "button button-sm button-secondary", "지도에서 보기");
-      link.href = mapHref(post.restaurant);
+      const source = newsSource(post);
+      const link = element("a", "button button-sm button-secondary", "가게 상세 보기");
+      if (source) {
+        const params = new URLSearchParams({ source: source.source, id: String(source.id) });
+        link.href = `/restaurant/detail?${params.toString()}`;
+      } else {
+        link.href = mapHref(post.restaurant);
+      }
       restaurant.append(copy, link);
       detailContent.append(restaurant);
     }
 
-    detailContent.append(element("div", "detail-body", post.content));
+    detailContent.append(emojiTextElement("div", "detail-body", post.content));
     const mediaSection = renderPostMedia(post.media);
     if (mediaSection) detailContent.append(mediaSection);
     startMediaStatusPolling(post.media);
@@ -2112,7 +2113,7 @@
     fileInput.accept = ".jpg,.jpeg,.png,.gif,.webp,image/jpeg,image/png,image/gif,image/webp";
     const imageButton = element("button", "comment-image-select", "사진 첨부");
     imageButton.type = "button";
-    const emojiButton = element("button", "comment-emoji-toggle", "😀 이모지");
+    const emojiButton = element("button", "comment-emoji-toggle", "🐸 Pepe");
     emojiButton.type = "button";
     const emojiPanel = element("div", "comment-emoji-panel");
     emojiPanel.hidden = true;
@@ -2311,7 +2312,7 @@
         `${formatDate(comment.createdAt)}${isEdited(comment) ? " · 수정됨" : ""}`,
       ),
     );
-    item.append(top, element("div", "comment-content", comment.content));
+    item.append(top, emojiTextElement("div", "comment-content", comment.content));
 
     const image = commentImageNode(comment);
     if (image) item.append(image);
@@ -2784,7 +2785,8 @@
           content: updated.content ?? content,
           edited: updated.edited ?? true,
         });
-        contentNode.textContent = comment.content;
+        if (emojis) emojis.renderText(contentNode, comment.content);
+        else contentNode.textContent = comment.content;
         if (dateNode) {
           dateNode.textContent = `${formatDate(comment.createdAt)} · 수정됨`;
         }

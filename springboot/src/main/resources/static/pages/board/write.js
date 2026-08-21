@@ -1,6 +1,7 @@
 (() => {
   const session = window.FooduckSession;
   const board = window.FooduckBoard;
+  const emojis = window.FooduckEmojis;
   if (!session || !board) return;
 
   const currentPath = window.location.pathname + window.location.search;
@@ -16,13 +17,6 @@
   const MAX_MEDIA_COUNT = 10;
   const MAX_IMAGE_BYTES = 20 * 1024 * 1024;
   const MAX_VIDEO_BYTES = 100 * 1024 * 1024;
-  const WRITE_EMOJIS = (
-    "😀 😃 😄 😁 😆 😅 🤣 😂 🙂 🙃 🫠 😉 😊 😇 🥰 😍 🤩 😘 😗 ☺️ 😚 😙 🥲 " +
-    "😋 😛 😜 🤪 😝 🤑 🤗 🤭 🫢 🫣 🤫 🤔 🫡 🤐 🤨 😐 😑 😶 🫥 😶‍🌫️ 😏 😒 🙄 😬 " +
-    "😮‍💨 🤥 🫨 🙂‍↔️ 🙂‍↕️ 😌 😔 😪 🤤 😴 🫩 😷 🤒 🤕 🤢 🤮 🤧 🥵 🥶 🥴 😵 😵‍💫 🤯 " +
-    "🤠 🥳 🥸 😎 🤓 🧐 😕 🫤 😟 🙁 ☹️ 😮 😯 😲 😳 🥺 🥹 😦 😧 😨 😰 😥 😢 😭 😱 " +
-    "😖 😣 😞 😓 😩 😫 🥱 😤 😡 😠 🤬 😈 👿"
-  ).split(" ");
   const IMAGE_EXTENSIONS = new Set([
     "jpg", "jpeg", "png", "gif", "webp", "bmp",
     "tif", "tiff", "avif", "heic", "heif",
@@ -43,6 +37,12 @@
   const contentCount = document.getElementById("content-count");
   const emojiToggle = document.getElementById("editor-emoji-toggle");
   const emojiPanel = document.getElementById("editor-emoji-panel");
+  const restaurantSection = document.getElementById("editor-restaurant-section");
+  const restaurantSearchInput = document.getElementById("editor-restaurant-search");
+  const restaurantSearchButton = document.getElementById("editor-restaurant-search-button");
+  const restaurantSelectedHost = document.getElementById("editor-restaurant-selected");
+  const restaurantResultsHost = document.getElementById("editor-restaurant-results");
+  const restaurantStatus = document.getElementById("editor-restaurant-status");
   const errorMessage = document.getElementById("editor-error");
   const submitButton = document.getElementById("editor-submit-button");
   const cancelLink = document.getElementById("editor-cancel-link");
@@ -63,6 +63,10 @@
   let editorBaseline = null;
   let allowEditorNavigation = false;
   const removedMediaIds = new Set();
+  let selectedRestaurant = null;
+  let restaurantSearchTimer = null;
+  let restaurantSearchGeneration = 0;
+  let businessRestaurantsCache = null;
 
   if (!form) return;
 
@@ -119,75 +123,41 @@
   }
 
   function prewarmEditorEmojiPicker() {
-    if (!emojiPanel) return;
-
+    if (!emojiPanel || !emojis) return;
     const warm = () => {
-      // hidden 상태에서는 첫 오픈 시 100개가 넘는 컬러 이모지의
-      // layout/font glyph paint가 한 번에 발생할 수 있다.
-      // 사용자 입력 전에 브라우저 idle 구간에서 비용을 미리 지불한다.
       try {
-        const canvas = document.createElement("canvas");
-        canvas.width = 512;
-        canvas.height = 256;
-        const context = canvas.getContext("2d");
-        if (context) {
-          context.font =
-            '20px "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", sans-serif';
-          WRITE_EMOJIS.forEach((emoji, index) => {
-            const x = (index % 16) * 32;
-            const y = Math.floor(index / 16) * 32 + 24;
-            context.fillText(emoji, x, y);
-          });
-        }
-
+        emojis.items.forEach((emoji) => {
+          const image = new Image();
+          image.src = emoji.src;
+        });
         const wasHidden = emojiPanel.hidden;
         const previousVisibility = emojiPanel.style.visibility;
-        const previousPointerEvents = emojiPanel.style.pointerEvents;
-
         emojiPanel.style.visibility = "hidden";
-        emojiPanel.style.pointerEvents = "none";
         emojiPanel.hidden = false;
-
-        // grid layout을 한 번 계산해 첫 클릭 시 layout spike를 줄인다.
         void emojiPanel.offsetHeight;
-
         emojiPanel.hidden = wasHidden;
         emojiPanel.style.visibility = previousVisibility;
-        emojiPanel.style.pointerEvents = previousPointerEvents;
       } catch (_error) {
-        // prewarm 실패는 기능 실패가 아니므로 조용히 무시한다.
+        // 사전 로딩 실패는 picker 기능 자체에 영향을 주지 않는다.
       }
     };
-
-    const scheduleWarm = () => {
-      if ("requestIdleCallback" in window) {
-        window.requestIdleCallback(warm, { timeout: 350 });
-      } else {
-        window.setTimeout(warm, 50);
-      }
-    };
-
-    window.requestAnimationFrame(scheduleWarm);
+    if ("requestIdleCallback" in window) {
+      window.requestIdleCallback(warm, { timeout: 450 });
+    } else {
+      window.setTimeout(warm, 80);
+    }
   }
 
   function initializeEditorEmojiPicker() {
     if (!emojiToggle || !emojiPanel || !contentInput) return;
 
-    const grid = board.element("div", "comment-emoji-grid");
-    WRITE_EMOJIS.forEach((emoji) => {
-      const button = board.element("button", "comment-emoji-option", emoji);
-      button.type = "button";
-      button.setAttribute("aria-label", `${emoji} 이모지 입력`);
-      button.addEventListener("click", () => {
-        insertEditorEmoji(emoji);
-      });
-      grid.append(button);
+    if (!emojis) return;
+    emojis.populatePicker(emojiPanel, {
+      gridClass: "comment-emoji-grid fooduck-custom-emoji-grid",
+      buttonClass: "comment-emoji-option fooduck-custom-emoji-option",
+      title: "Pepe 이모지",
+      onSelect: (emoji) => insertEditorEmoji(emoji.code),
     });
-
-    emojiPanel.replaceChildren(
-      board.element("strong", "comment-emoji-panel-title", "이모지"),
-      grid,
-    );
 
     prewarmEditorEmojiPicker();
 
@@ -209,6 +179,268 @@
       if (event.key !== "Escape" || !editorEmojiOpen) return;
       closeEditorEmojiPanel();
       emojiToggle.focus({ preventScroll: true });
+    });
+  }
+
+  function restaurantSourceLabel(sourceType) {
+    return sourceType === "PUBLIC" ? "공공데이터" : "푸드덕 등록";
+  }
+
+  function selectedRestaurantKey() {
+    if (!selectedRestaurant?.id) return "NONE";
+    return `${selectedRestaurant.sourceType}:${selectedRestaurant.id}`;
+  }
+
+  function setRestaurantStatus(message, isError = false) {
+    if (!restaurantStatus) return;
+    restaurantStatus.textContent = message || "";
+    restaurantStatus.classList.toggle("is-error", Boolean(isError));
+  }
+
+  function normalizeSearchRestaurant(item) {
+    const sourceType = String(item?.sourceType || "").toUpperCase();
+    const id = Number(item?.id);
+    if (!["PUBLIC", "OWNED"].includes(sourceType) || !Number.isSafeInteger(id) || id <= 0) {
+      return null;
+    }
+    return {
+      sourceType,
+      id,
+      name: String(item?.name || "이름 없는 음식점"),
+      categoryName: String(item?.categoryName || "").trim(),
+      address: String(item?.roadAddress || item?.lotAddress || "").trim(),
+      ownedByCurrentUser: false,
+    };
+  }
+
+  function normalizeBusinessRestaurant(item) {
+    const id = Number(item?.restaurantId);
+    if (!Number.isSafeInteger(id) || id <= 0) return null;
+    return {
+      sourceType: "OWNED",
+      id,
+      name: String(item?.name || "이름 없는 음식점"),
+      categoryName: String(item?.categoryName || "").trim(),
+      address: [item?.address, item?.addressDetail]
+        .filter(Boolean)
+        .join(" ")
+        .trim(),
+      ownedByCurrentUser: true,
+    };
+  }
+
+  function restaurantDetailHref(restaurant) {
+    if (!restaurant?.id) return "#";
+    const source = restaurant.sourceType === "PUBLIC" ? "public" : "owned";
+    const params = new URLSearchParams({ source, id: String(restaurant.id) });
+    return `/restaurant/detail?${params.toString()}`;
+  }
+
+  function restaurantCopyNode(restaurant, selected = false) {
+    const copy = board.element(
+      "div",
+      selected ? "board-restaurant-selected__copy" : "board-restaurant-result__copy",
+    );
+    const title = board.element(
+      "div",
+      selected ? "board-restaurant-selected__title" : "board-restaurant-result__title",
+    );
+    title.append(
+      board.element("strong", "", restaurant.name),
+      board.element("span", "board-restaurant-source", restaurantSourceLabel(restaurant.sourceType)),
+    );
+    const meta = [restaurant.categoryName, restaurant.address].filter(Boolean).join(" · ");
+    copy.append(title, board.element("small", "", meta || "추가 정보 없음"));
+    return copy;
+  }
+
+  function renderSelectedRestaurant() {
+    if (!restaurantSelectedHost) return;
+    restaurantSelectedHost.replaceChildren();
+    if (!selectedRestaurant) {
+      restaurantSelectedHost.hidden = true;
+      return;
+    }
+
+    const actions = board.element("div", "board-restaurant-selected__actions");
+    const detail = board.element("a", "button button-sm button-secondary", "상세 보기");
+    detail.href = restaurantDetailHref(selectedRestaurant);
+    detail.target = "_blank";
+    detail.rel = "noopener";
+    const change = board.element("button", "button button-sm button-secondary", "변경");
+    change.type = "button";
+    change.addEventListener("click", () => {
+      restaurantSearchInput?.focus({ preventScroll: true });
+      restaurantSearchInput?.select();
+    });
+    const remove = board.element("button", "button button-sm button-secondary", "연결 해제");
+    remove.type = "button";
+    remove.addEventListener("click", () => {
+      selectedRestaurant = null;
+      renderSelectedRestaurant();
+      setRestaurantStatus("추천 맛집 연결을 해제했습니다.");
+    });
+    actions.append(detail, change, remove);
+    restaurantSelectedHost.append(restaurantCopyNode(selectedRestaurant, true), actions);
+    restaurantSelectedHost.hidden = false;
+  }
+
+  function selectRestaurant(restaurant) {
+    selectedRestaurant = restaurant;
+    renderSelectedRestaurant();
+    if (restaurantResultsHost) {
+      restaurantResultsHost.replaceChildren();
+      restaurantResultsHost.hidden = true;
+    }
+    setRestaurantStatus(`${restaurant.name}을(를) 추천 맛집으로 연결했습니다.`);
+  }
+
+  function renderRestaurantResults(items) {
+    if (!restaurantResultsHost) return;
+    restaurantResultsHost.replaceChildren();
+    if (!items.length) {
+      restaurantResultsHost.hidden = true;
+      return;
+    }
+    items.forEach((restaurant) => {
+      const row = board.element("article", "board-restaurant-result");
+      const actions = board.element("div", "board-restaurant-result__actions");
+      const detail = board.element("a", "button button-sm button-secondary", "보기");
+      detail.href = restaurantDetailHref(restaurant);
+      detail.target = "_blank";
+      detail.rel = "noopener";
+      const select = board.element("button", "button button-sm button-primary", "선택");
+      select.type = "button";
+      select.addEventListener("click", () => selectRestaurant(restaurant));
+      actions.append(detail, select);
+      row.append(restaurantCopyNode(restaurant), actions);
+      restaurantResultsHost.append(row);
+    });
+    restaurantResultsHost.hidden = false;
+  }
+
+  async function loadBusinessRestaurants() {
+    if (Array.isArray(businessRestaurantsCache)) return businessRestaurantsCache;
+    const payload = await Api.get("/business/restaurants");
+    businessRestaurantsCache = (Array.isArray(payload.data) ? payload.data : [])
+      .map(normalizeBusinessRestaurant)
+      .filter(Boolean);
+    return businessRestaurantsCache;
+  }
+
+  async function searchRestaurants() {
+    if (!restaurantSearchInput || !restaurantSection || restaurantSection.hidden) return;
+    const query = restaurantSearchInput.value.trim();
+    const generation = ++restaurantSearchGeneration;
+    const isBusiness = boardTypeSelect.value === "BUSINESS";
+
+    if (!isBusiness && query.length < 2) {
+      renderRestaurantResults([]);
+      setRestaurantStatus("가게 이름을 2글자 이상 입력해 주세요.");
+      return;
+    }
+
+    restaurantSearchButton.disabled = true;
+    setRestaurantStatus("음식점을 찾는 중입니다...");
+    try {
+      let results;
+      if (isBusiness) {
+        const restaurants = await loadBusinessRestaurants();
+        const needle = query.toLocaleLowerCase("ko-KR");
+        results = restaurants
+          .filter((restaurant) => {
+            if (!needle) return true;
+            return [restaurant.name, restaurant.categoryName, restaurant.address]
+              .some((value) => String(value || "").toLocaleLowerCase("ko-KR").includes(needle));
+          })
+          .slice(0, 8);
+      } else {
+        const params = new URLSearchParams({ keyword: query, page: "0", size: "8" });
+        const payload = await Api.get(`/public/search/restaurants?${params.toString()}`, { auth: false });
+        results = (Array.isArray(payload.data?.items) ? payload.data.items : [])
+          .map(normalizeSearchRestaurant)
+          .filter(Boolean);
+      }
+      if (generation !== restaurantSearchGeneration) return;
+      renderRestaurantResults(results);
+      setRestaurantStatus(
+        results.length
+          ? `${results.length}개의 음식점을 찾았습니다. 연결할 가게를 선택해 주세요.`
+          : "검색 결과가 없습니다. 가게 이름이나 검색어를 바꿔 보세요.",
+      );
+    } catch (error) {
+      if (generation !== restaurantSearchGeneration) return;
+      renderRestaurantResults([]);
+      setRestaurantStatus(error.message || "음식점을 검색하지 못했습니다.", true);
+    } finally {
+      if (generation === restaurantSearchGeneration && restaurantSearchButton) {
+        restaurantSearchButton.disabled = false;
+      }
+    }
+  }
+
+  function scheduleRestaurantSearch() {
+    window.clearTimeout(restaurantSearchTimer);
+    restaurantSearchTimer = window.setTimeout(searchRestaurants, 280);
+  }
+
+  function restoreRestaurantSelection(post) {
+    const hasPublic = Number(post?.publicRestaurantId) > 0;
+    const hasOwned = Number(post?.restaurantId) > 0;
+    if (hasPublic === hasOwned) {
+      selectedRestaurant = null;
+      renderSelectedRestaurant();
+      return;
+    }
+    const summary = post?.restaurant || {};
+    selectedRestaurant = {
+      sourceType: hasPublic ? "PUBLIC" : "OWNED",
+      id: Number(hasPublic ? post.publicRestaurantId : post.restaurantId),
+      name: String(summary.name || "연결된 음식점"),
+      categoryName: "",
+      address: String(summary.address || "").trim(),
+      ownedByCurrentUser: post?.boardType === "BUSINESS" && !hasPublic,
+    };
+    renderSelectedRestaurant();
+  }
+
+  function syncRestaurantSelectorForMode() {
+    if (!restaurantSection) return;
+    const newsMode = isNewsPost();
+    restaurantSection.hidden = newsMode;
+    if (newsMode) {
+      renderRestaurantResults([]);
+      return;
+    }
+    const businessMode = boardTypeSelect.value === "BUSINESS";
+    if (restaurantSearchInput) {
+      restaurantSearchInput.placeholder = businessMode
+        ? "내 음식점 이름을 검색해 주세요"
+        : "가게 이름을 검색해 주세요";
+    }
+    if (businessMode && selectedRestaurant && selectedRestaurant.ownedByCurrentUser !== true) {
+      selectedRestaurant = null;
+      renderSelectedRestaurant();
+      setRestaurantStatus("사업자 커뮤니티에서는 내 등록 음식점만 연결할 수 있습니다.");
+    } else {
+      setRestaurantStatus(
+        businessMode
+          ? "내가 등록한 음식점 중 하나를 선택할 수 있습니다."
+          : "공공데이터 음식점과 푸드덕 등록 음식점을 함께 검색합니다.",
+      );
+    }
+    renderRestaurantResults([]);
+  }
+
+  function initializeRestaurantSelector() {
+    if (!restaurantSection || !restaurantSearchInput || !restaurantSearchButton) return;
+    restaurantSearchButton.addEventListener("click", searchRestaurants);
+    restaurantSearchInput.addEventListener("input", scheduleRestaurantSearch);
+    restaurantSearchInput.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter") return;
+      event.preventDefault();
+      window.clearTimeout(restaurantSearchTimer);
+      void searchRestaurants();
     });
   }
 
@@ -239,6 +471,7 @@
       category: categorySelect?.value || "",
       title: titleInput?.value || "",
       content: contentInput?.value || "",
+      restaurant: selectedRestaurantKey(),
     };
   }
 
@@ -254,6 +487,7 @@
       current.category !== editorBaseline.category ||
       current.title !== editorBaseline.title ||
       current.content !== editorBaseline.content ||
+      current.restaurant !== editorBaseline.restaurant ||
       selectedMedia.length > 0 ||
       removedMediaIds.size > 0
     );
@@ -692,6 +926,7 @@
     submitButton.textContent = "수정 저장";
     boardTypeSelect.disabled = newsPost || !session.isAdmin;
     categorySelect.disabled = newsPost;
+    syncRestaurantSelectorForMode();
     cancelLink.href = newsPost
       ? newsDetailPath(postId)
       : pathWithListReturn(board.detailPath(postId));
@@ -732,6 +967,8 @@
       categorySelect.value = originalPost.category;
       titleInput.value = originalPost.title || "";
       contentInput.value = originalPost.content || "";
+      restoreRestaurantSelection(originalPost);
+      syncRestaurantSelectorForMode();
       setListLinks(originalPost.boardType);
       updateCounts();
       renderMediaList();
@@ -880,6 +1117,7 @@
   contentInput.addEventListener("input", updateCounts);
   boardTypeSelect.addEventListener("change", () => {
     if (!postId) setListLinks(boardTypeSelect.value);
+    syncRestaurantSelectorForMode();
   });
 
   mediaSelectButton?.addEventListener("click", () => {
@@ -901,7 +1139,12 @@
       : {
         boardType: boardTypeSelect.value,
         category: categorySelect.value,
-        restaurantId: originalPost?.restaurantId || null,
+        restaurantId: selectedRestaurant?.sourceType === "OWNED"
+          ? selectedRestaurant.id
+          : null,
+        publicRestaurantId: selectedRestaurant?.sourceType === "PUBLIC"
+          ? selectedRestaurant.id
+          : null,
         title,
         content,
       };
@@ -982,6 +1225,7 @@
     submitButton.disabled = true;
     businessAccessAllowed = await board.canUseBusinessBoard();
     populateOptions();
+    initializeRestaurantSelector();
 
     const requestedBoardType =
       new URLSearchParams(window.location.search).get("boardType") === "BUSINESS" &&
@@ -989,6 +1233,7 @@
         ? "BUSINESS"
         : "GENERAL";
     boardTypeSelect.value = requestedBoardType;
+    syncRestaurantSelectorForMode();
     setListLinks(requestedBoardType);
     updateCounts();
     renderMediaList();
