@@ -488,7 +488,51 @@
 }
 
 .comment-confirm-actions .button-danger {
+  border-color: #efb7b7;
+  color: var(--color-danger);
   background: #fff7f7;
+  box-shadow: none;
+}
+
+.comment-confirm-actions .button-danger:hover,
+.comment-confirm-actions .button-danger:focus-visible {
+  border-color: #df8f8f;
+  color: #a92f2f;
+  background: #ffe9e9;
+  box-shadow: 0 0 0 3px rgba(217, 63, 63, 0.08);
+}
+
+.notice-category-dialog__icon {
+  color: var(--color-orange-dark);
+  background: var(--color-orange-soft);
+}
+
+.notice-category-dialog__field {
+  display: grid;
+  gap: 8px;
+  margin-top: 18px;
+}
+
+.notice-category-dialog__field > span {
+  color: var(--color-navy);
+  font-size: 0.8rem;
+  font-weight: 800;
+}
+
+.notice-category-dialog__select {
+  width: 100%;
+  min-height: 42px;
+  padding: 0 40px 0 13px;
+  border: 1px solid var(--color-line);
+  border-radius: 12px;
+  outline: 0;
+  color: var(--color-navy);
+  background: #fff;
+}
+
+.notice-category-dialog__select:focus {
+  border-color: rgba(255, 152, 0, 0.58);
+  box-shadow: 0 0 0 3px rgba(255, 152, 0, 0.1);
 }
 
 .detail-badges {
@@ -589,7 +633,8 @@
 
 .comment-form textarea,
 .board-editor-dialog textarea {
-  resize: vertical;
+  resize: none;
+  overflow-y: hidden;
 }
 
 .comment-form textarea {
@@ -2040,7 +2085,8 @@ button.author-menu-notification-link {
 .board-field textarea {
   min-height: 340px;
   padding: 15px;
-  resize: vertical;
+  resize: none;
+  overflow-y: hidden;
   line-height: 1.75;
 }
 
@@ -2564,7 +2610,8 @@ button.author-menu-notification-link {
 .comment-reply-textarea {
   width: 100%;
   min-height: 78px;
-  resize: vertical;
+  resize: none;
+  overflow-y: hidden;
   border: 1px solid var(--color-line);
   border-radius: 10px;
   padding: 10px 12px;
@@ -2592,7 +2639,8 @@ button.author-menu-notification-link {
 .comment-edit-textarea {
   width: 100%;
   min-height: 86px;
-  resize: vertical;
+  resize: none;
+  overflow-y: hidden;
   border: 1px solid var(--color-line);
   border-radius: 10px;
   padding: 10px 12px;
@@ -2631,6 +2679,10 @@ button.author-menu-notification-link {
   margin: 0;
   color: var(--color-subtle);
   font-size: 0.72rem;
+}
+
+#comment-form .comment-submit-row {
+  justify-content: flex-end;
 }
 
 .comment-empty {
@@ -3822,11 +3874,31 @@ body.is-image-viewer-open {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 8px;
+  padding: 6px;
+  border: 1px solid rgba(230, 143, 62, 0.2);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.72);
+  box-shadow: 0 5px 16px rgba(120, 72, 28, 0.04);
 }
 
 .board-restaurant-search input {
   width: 100%;
   min-width: 0;
+  padding-left: 16px;
+  border-color: rgba(230, 143, 62, 0.18);
+  border-radius: 14px;
+  background: #fff;
+}
+
+.board-restaurant-search input:focus {
+  border-color: rgba(255, 152, 0, 0.58);
+  box-shadow: 0 0 0 3px rgba(255, 152, 0, 0.1);
+}
+
+.board-restaurant-search .button {
+  min-width: 72px;
+  border-radius: 14px;
+  padding-inline: 16px;
 }
 
 .board-restaurant-results {
@@ -3836,8 +3908,9 @@ body.is-image-viewer-open {
   overflow-y: auto;
   padding: 4px;
   border: 1px solid var(--color-line);
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.62);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.72);
+  box-shadow: 0 8px 20px rgba(120, 72, 28, 0.045);
 }
 
 .board-restaurant-results[hidden],
@@ -3863,8 +3936,8 @@ body.is-image-viewer-open {
   gap: 12px;
   padding: 11px 12px;
   border: 1px solid var(--color-line);
-  border-radius: 11px;
-  background: rgba(255, 255, 255, 0.88);
+  border-radius: 15px;
+  background: rgba(255, 255, 255, 0.9);
 }
 
 .board-restaurant-result__copy,

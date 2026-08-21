@@ -15,6 +15,7 @@ public record PostListItemResponse(
         String authorRole,
         BoardType boardType,
         PostCategory category,
+        boolean pinned,
         Long restaurantId,
         RestaurantSummaryResponse restaurant,
         long viewCount,

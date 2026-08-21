@@ -480,6 +480,40 @@ public class PostController {
         return update(postId, request, authentication);
     }
 
+    @PatchMapping("/{postId}/pin")
+    public ApiResponse<PostDetailResponse> pinPost(
+            @PathVariable Long postId,
+            @RequestParam String category,
+            Authentication authentication
+    ) {
+        return ApiResponse.success(
+                "게시글을 공지로 올렸습니다.",
+                postService.updatePinnedState(
+                        postId,
+                        category,
+                        true,
+                        BoardAuthentication.accountId(authentication)
+                )
+        );
+    }
+
+    @PatchMapping("/{postId}/unpin")
+    public ApiResponse<PostDetailResponse> unpinPost(
+            @PathVariable Long postId,
+            @RequestParam String category,
+            Authentication authentication
+    ) {
+        return ApiResponse.success(
+                "게시글을 공지에서 내렸습니다.",
+                postService.updatePinnedState(
+                        postId,
+                        category,
+                        false,
+                        BoardAuthentication.accountId(authentication)
+                )
+        );
+    }
+
     @DeleteMapping("/{postId}")
     public ApiResponse<Void> deletePost(
             @PathVariable Long postId,

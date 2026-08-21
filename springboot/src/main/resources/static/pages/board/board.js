@@ -269,7 +269,7 @@
   }
 
   function createPostRow(post, index = 0) {
-    const isNotice = post.category === "NOTICE";
+    const isNotice = post.pinned === true || post.category === "NOTICE";
     const article = element("a", isNotice ? "post-row post-row--notice" : "post-row");
     article.href = detailHrefFromCurrentList(
       post.postId,
@@ -290,13 +290,12 @@
       const rankLabel = state.boardType === "POPULAR" ? "인기" : "베스트";
       badges.append(element("span", "post-badge", `${rankLabel} ${rank}위`));
     }
-    badges.append(
-      element(
-        "span",
-        isNotice ? "post-badge post-badge--notice" : "post-badge",
-        isNotice ? "공지 · 상단 고정" : categoryLabel(post.category),
-      ),
-    );
+    if (isNotice) {
+      badges.append(element("span", "post-badge post-badge--notice", "공지 · 상단 고정"));
+    }
+    if (post.category !== "NOTICE") {
+      badges.append(element("span", "post-badge", categoryLabel(post.category)));
+    }
     if (["BEST", "POPULAR"].includes(state.boardType) || post.boardType === "BUSINESS") {
       badges.append(
         element(

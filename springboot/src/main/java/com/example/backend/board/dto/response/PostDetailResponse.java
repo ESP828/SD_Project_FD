@@ -16,6 +16,7 @@ public record PostDetailResponse(
         String authorRole,
         BoardType boardType,
         PostCategory category,
+        boolean pinned,
         Long restaurantId,
         Long publicRestaurantId,
         RestaurantSummaryResponse restaurant,

@@ -78,6 +78,9 @@ public class Post {
     @Column(name = "is_edited", nullable = false)
     private boolean edited;
 
+    @Column(name = "is_pinned", nullable = false)
+    private boolean pinned;
+
     @Column(name = "deleted_at")
     private LocalDateTime deletedAt;
 
@@ -106,6 +109,7 @@ public class Post {
         this.publicRestaurantId = publicRestaurantId;
         this.boardType = resolvedBoardType;
         this.category = resolvedCategory;
+        this.pinned = resolvedCategory == PostCategory.NOTICE;
         this.title = Objects.requireNonNull(title);
         this.content = Objects.requireNonNull(content);
         this.status = PostStatus.ACTIVE;
@@ -189,6 +193,18 @@ public class Post {
         }
     }
 
+    public void updatePinnedState(PostCategory category, boolean pinned) {
+        PostCategory nextCategory = Objects.requireNonNull(category);
+        if (nextCategory == PostCategory.NEWS || nextCategory == PostCategory.NOTICE) {
+            throw new IllegalArgumentException(
+                    "공지 고정 상태에서는 일반 게시글 카테고리를 선택해야 합니다."
+            );
+        }
+        this.category = nextCategory;
+        this.pinned = pinned;
+        this.updatedAt = LocalDateTime.now();
+    }
+
     private static void validateRestaurantReference(
             BoardType boardType,
             PostCategory category,
@@ -244,6 +260,9 @@ public class Post {
         LocalDateTime now = LocalDateTime.now();
         if (status == null) {
             status = PostStatus.ACTIVE;
+        }
+        if (category == PostCategory.NOTICE) {
+            pinned = true;
         }
         createdAt = now;
         updatedAt = now;
@@ -303,6 +322,10 @@ public class Post {
 
     public boolean isEdited() {
         return edited;
+    }
+
+    public boolean isPinned() {
+        return pinned;
     }
 
     public LocalDateTime getDeletedAt() {

@@ -619,7 +619,6 @@
       ["QUESTION", "질문"],
       ["TRAVEL", "맛집 여행"],
     ];
-    if (session.isAdmin) categories.unshift(["NOTICE", "공지"]);
     categories.forEach(([value, label]) => {
       const option = board.element("option", "", label);
       option.value = value;
@@ -696,9 +695,16 @@
     listLink.replaceChildren(icon, document.createTextNode(` ${label}`));
   }
 
+  function resizeEditorTextarea() {
+    if (!contentInput) return;
+    contentInput.style.height = "auto";
+    contentInput.style.height = `${Math.max(contentInput.scrollHeight, 340)}px`;
+  }
+
   function updateCounts() {
     titleCount.textContent = String(titleInput.value.length);
     contentCount.textContent = String(contentInput.value.length);
+    resizeEditorTextarea();
   }
 
   function setListLinks(boardType) {
@@ -1253,6 +1259,9 @@
     submitButton.disabled = true;
     businessAccessAllowed = await board.canUseBusinessBoard();
     populateOptions();
+    if (!postId && [...categorySelect.options].some((option) => option.value === "GENERAL")) {
+      categorySelect.value = "GENERAL";
+    }
     initializeRestaurantSelector();
 
     const requestedBoardType =

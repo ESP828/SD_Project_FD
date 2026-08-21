@@ -13,6 +13,13 @@
     ? requestedNewsPageValue
     : 0;
   const state = { post: null };
+  const NOTICE_CATEGORY_OPTIONS = [
+    ["GENERAL", "자유 이야기"],
+    ["RECOMMENDATION", "맛집 추천"],
+    ["REVIEW", "방문 후기"],
+    ["QUESTION", "질문"],
+    ["TRAVEL", "맛집 여행"],
+  ];
   const MEDIA_POLL_BASE_DELAY = 2500;
   const MEDIA_POLL_MAX_DELAY = 15000;
   const MEDIA_POLL_MAX_FAILURES = 5;
@@ -35,6 +42,7 @@
   let mediaPollingDisposed = false;
   let postDeleteInFlight = false;
   let noticeUnpinInFlight = false;
+  let noticePinInFlight = false;
   let sessionNicknamePromise = null;
   let cachedFallbackNoticeShown = false;
   const commentDeleteInFlight = new Set();
@@ -47,7 +55,6 @@
   const commentCount = document.getElementById("detail-comment-count");
   const commentForm = document.getElementById("comment-form");
   const commentContent = document.getElementById("comment-content");
-  const commentLoginNote = document.getElementById("comment-login-note");
   const commentList = document.getElementById("comment-list");
   const commentPagination = document.getElementById("comment-pagination");
   const commentWriteShortcut = document.getElementById("comment-write-shortcut");
@@ -90,6 +97,12 @@
     if (emojis) emojis.renderText(node, value);
     else node.textContent = String(value ?? "");
     return node;
+  }
+
+  function resizeCommentTextarea(textarea, minimumHeight = 78) {
+    if (!(textarea instanceof HTMLTextAreaElement)) return;
+    textarea.style.height = "auto";
+    textarea.style.height = `${Math.max(textarea.scrollHeight, minimumHeight)}px`;
   }
 
   let activeEmojiPicker = null;
@@ -213,6 +226,79 @@
     const length = target.value.length;
     counter.textContent = `${length} / ${maxLength}`;
     counter.classList.toggle("is-near-limit", length >= Math.floor(maxLength * 0.8));
+  }
+
+  function isPinnedPost(post = state.post) {
+    return post?.pinned === true || post?.category === "NOTICE";
+  }
+
+  function chooseNoticeCategory({
+    title,
+    message,
+    confirmLabel,
+    initialCategory,
+  }) {
+    return new Promise((resolve) => {
+      const dialog = document.createElement("dialog");
+      dialog.className = "board-dialog comment-confirm-dialog notice-category-dialog";
+
+      const shell = element("div", "dialog-shell comment-confirm-shell");
+      const heading = element("div", "comment-confirm-heading");
+      const iconWrap = element("span", "comment-confirm-icon notice-category-dialog__icon");
+      const noticeIcon = element("span", "material-symbols-rounded", "campaign");
+      noticeIcon.setAttribute("aria-hidden", "true");
+      iconWrap.append(noticeIcon);
+      const copy = element("div", "comment-confirm-copy");
+      copy.append(element("h2", "", title), element("p", "", message));
+      heading.append(iconWrap, copy);
+
+      const field = element("label", "notice-category-dialog__field");
+      field.append(element("span", "", "카테고리"));
+      const select = element("select", "notice-category-dialog__select");
+      NOTICE_CATEGORY_OPTIONS.forEach(([value, label]) => {
+        const option = element("option", "", label);
+        option.value = value;
+        select.append(option);
+      });
+      const safeInitial = NOTICE_CATEGORY_OPTIONS.some(([value]) => value === initialCategory)
+        ? initialCategory
+        : "GENERAL";
+      select.value = safeInitial;
+      field.append(select);
+
+      const actions = element("div", "comment-confirm-actions");
+      const cancel = element("button", "button button-sm button-secondary", "취소");
+      cancel.type = "button";
+      const confirm = element("button", "button button-sm button-primary", confirmLabel);
+      confirm.type = "button";
+      actions.append(cancel, confirm);
+      shell.append(heading, field, actions);
+      dialog.append(shell);
+      document.body.append(dialog);
+      window.FooduckIcons?.enhance(dialog);
+
+      let settled = false;
+      const finish = (value) => {
+        if (settled) return;
+        settled = true;
+        dialog.close();
+        dialog.remove();
+        resolve(value);
+      };
+
+      cancel.addEventListener("click", () => finish(null));
+      confirm.addEventListener("click", () => finish(select.value));
+      dialog.addEventListener("cancel", (event) => {
+        event.preventDefault();
+        finish(null);
+      });
+      dialog.addEventListener("click", (event) => {
+        if (event.target === dialog) finish(null);
+      });
+
+      dialog.showModal();
+      select.focus();
+    });
   }
 
   function confirmBoardAction({
@@ -554,9 +640,6 @@
       .then((payload) => {
         const nickname = String(payload?.data?.nickname || "").trim();
         if (nickname) session.nickname = nickname;
-        if (commentLoginNote && session.authenticated) {
-          commentLoginNote.textContent = `@${session.nickname || "회원"}으로 작성합니다.`;
-        }
         return session.nickname || null;
       })
       .catch(() => null)
@@ -581,9 +664,6 @@
       || session.authorities.includes("ROLE_ADMIN");
     session.isAdmin = session.authorities.includes("ROLE_ADMIN");
     session.hasAuthority = (authority) => session.authorities.includes(authority);
-    if (commentLoginNote) {
-      commentLoginNote.textContent = `@${session.nickname || "회원"}으로 작성합니다.`;
-    }
     void hydrateSessionNickname();
 
     const action = pendingDetailLoginAction;
@@ -1649,7 +1729,12 @@
     detailContent.replaceChildren();
 
     const badges = element("div", "detail-badges");
-    badges.append(detailBadge(categoryLabel(post.category)));
+    if (isPinnedPost(post)) {
+      badges.append(detailBadge("공지 · 상단 고정", "post-badge post-badge--notice"));
+    }
+    if (post.category !== "NOTICE") {
+      badges.append(detailBadge(categoryLabel(post.category)));
+    }
     badges.append(
       detailBadge(
         newsPost
@@ -1728,7 +1813,7 @@
       ? post.newsManageableByCurrentUser === true && Boolean(newsTarget)
       : post.ownedByCurrentUser || session.isAdmin;
     if (canManage) {
-      if (!newsPost && session.isAdmin && post.category === "NOTICE") {
+      if (!newsPost && session.isAdmin && isPinnedPost(post)) {
         const unpinButton = actionButton(
           "공지에서 내리기",
           "button button-sm button-secondary",
@@ -1736,6 +1821,14 @@
         );
         unpinButton.disabled = noticeUnpinInFlight;
         actions.append(unpinButton);
+      } else if (!newsPost && session.isAdmin && !isPinnedPost(post)) {
+        const pinButton = actionButton(
+          "공지로 올리기",
+          "button button-sm button-secondary",
+          pinNotice,
+        );
+        pinButton.disabled = noticePinInFlight;
+        actions.append(pinButton);
       }
       const editLink = element("a", "button button-sm button-secondary", "수정");
       if (newsPost) {
@@ -1881,14 +1974,15 @@
 
   async function unpinNotice(event) {
     const post = state.post;
-    if (!post || post.category !== "NOTICE" || !session.isAdmin || noticeUnpinInFlight) return;
+    if (!post || !isPinnedPost(post) || !session.isAdmin || noticeUnpinInFlight) return;
 
-    const confirmed = await confirmBoardAction({
-      title: "공지를 일반 글로 내릴까요?",
-      message: "공지 표시와 상단 고정이 해제되고 자유 이야기로 전환됩니다.",
+    const category = await chooseNoticeCategory({
+      title: "공지를 어디로 내릴까요?",
+      message: "공지에서 내린 뒤 사용할 카테고리를 선택해 주세요.",
       confirmLabel: "공지에서 내리기",
+      initialCategory: post.category,
     });
-    if (!confirmed) return;
+    if (!category) return;
 
     noticeUnpinInFlight = true;
     const button = event?.currentTarget instanceof HTMLButtonElement
@@ -1897,21 +1991,44 @@
     if (button) button.disabled = true;
 
     try {
-      const payload = await Api.patch(`/board/posts/${postId}`, {
-        boardType: post.boardType,
-        category: "GENERAL",
-        restaurantId: post.restaurantId ?? null,
-        publicRestaurantId: post.publicRestaurantId ?? null,
-        title: post.title,
-        content: post.content,
-      });
+      const params = new URLSearchParams({ category });
+      const payload = await Api.patch(`/board/posts/${postId}/unpin?${params.toString()}`, {});
       invalidateBoardCache();
       renderPost(payload.data);
-      showToast(toast, payload.message || "공지를 일반 글로 내렸습니다.");
+      showToast(toast, payload.message || "공지를 내렸습니다.");
     } catch (error) {
       showToast(toast, error.message || "공지를 내리지 못했습니다.", true);
     } finally {
       noticeUnpinInFlight = false;
+      if (button?.isConnected) button.disabled = false;
+    }
+  }
+
+  async function pinNotice(event) {
+    const post = state.post;
+    if (!post || isPinnedPost(post) || !session.isAdmin || noticePinInFlight) return;
+
+    const category = await chooseNoticeCategory({
+      title: "이 글을 공지로 올릴까요?",
+      message: "공지로 올린 뒤 표시할 카테고리를 선택해 주세요.",
+      confirmLabel: "공지로 올리기",
+      initialCategory: post.category,
+    });
+    if (!category) return;
+
+    noticePinInFlight = true;
+    const button = event?.currentTarget instanceof HTMLButtonElement ? event.currentTarget : null;
+    if (button) button.disabled = true;
+    try {
+      const params = new URLSearchParams({ category });
+      const payload = await Api.patch(`/board/posts/${postId}/pin?${params.toString()}`, {});
+      invalidateBoardCache();
+      renderPost(payload.data);
+      showToast(toast, payload.message || "공지로 올렸습니다.");
+    } catch (error) {
+      showToast(toast, error.message || "공지로 올리지 못했습니다.", true);
+    } finally {
+      noticePinInFlight = false;
       if (button?.isConnected) button.disabled = false;
     }
   }
@@ -2170,10 +2287,10 @@
     form.dataset.initialValue = textarea.value;
 
     const inputMeta = element("div", "comment-input-meta comment-input-meta--compact");
-    inputMeta.append(element("span", "", "Enter로 등록 · Shift + Enter로 줄바꿈"));
     const characterCount = element("span", "comment-character-count");
     inputMeta.append(characterCount);
     updateCharacterCount(textarea, characterCount);
+    resizeCommentTextarea(textarea, 78);
 
     const tools = element("div", "comment-image-tools");
     const fileInput = document.createElement("input");
@@ -2259,6 +2376,7 @@
     textarea.addEventListener("input", () => {
       syncReplySubmitState();
       updateCharacterCount(textarea, characterCount);
+      resizeCommentTextarea(textarea, 78);
     });
     textarea.addEventListener("keydown", (event) => {
       if (!isCommentSubmitEnter(event)) return;
@@ -2806,6 +2924,7 @@
       const original = String(comment.content || "").trim();
       save.disabled = !value || value === original;
       updateCharacterCount(textarea, characterCount);
+      resizeCommentTextarea(textarea, 86);
     };
 
     contentNode.hidden = true;
@@ -2926,8 +3045,10 @@
   });
 
   updateCharacterCount(commentContent, commentCharacterCount);
+  resizeCommentTextarea(commentContent, 105);
   commentContent.addEventListener("input", () => {
     updateCharacterCount(commentContent, commentCharacterCount);
+    resizeCommentTextarea(commentContent, 105);
   });
 
   commentWriteShortcut?.addEventListener("click", () => {
@@ -2985,6 +3106,7 @@
       invalidateBoardCache();
       commentContent.value = "";
       updateCharacterCount(commentContent, commentCharacterCount);
+      resizeCommentTextarea(commentContent, 105);
       clearCommentImageSelection();
       if (imageUploadError) {
         showToast(
@@ -3008,12 +3130,6 @@
       if (commentEmojiToggle) commentEmojiToggle.disabled = false;
     }
   });
-
-  if (!session.authenticated) {
-    commentLoginNote.textContent = "댓글 등록 시 로그인 창이 열리고, 로그인 후 이 글에서 이어서 작성합니다.";
-  } else {
-    commentLoginNote.textContent = `@${session.nickname || "회원"}으로 작성합니다.`;
-  }
 
   function initializeScrollTopButton() {
     const button = document.createElement("button");
