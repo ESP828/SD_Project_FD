@@ -15,7 +15,6 @@
   const pageTitle = document.getElementById("map-page-title");
   const presetBreadcrumb = document.getElementById("preset-map-breadcrumb");
   const presetManageBack = document.getElementById("preset-manage-back");
-  const presetAddHint = document.getElementById("preset-add-hint");
   const detailPanel = document.getElementById("place-detail-panel");
   const detailClose = document.getElementById("place-detail-close");
   const detailBody = document.getElementById("place-detail-body");
@@ -24,7 +23,11 @@
   const query = new URLSearchParams(location.search);
   const presetMode = query.has("presetId");
   const presetId = Number(query.get("presetId"));
-  const editMode = presetMode && query.has("edit");
+  // 편집 기능(목록 삭제·검색 결과 추가)은 보물지도 소유자만 쓸 수 있다.
+  // 소유자 여부는 보물지도 화면에서 edit 파라미터로 넘겨주고, 로그인 여부는 여기서 한 번 더 확인한다.
+  const editMode = presetMode
+    && query.has("edit")
+    && Boolean(window.FooduckSession?.authenticated);
   const requestedRestaurantId = Number(query.get("restaurantId"));
   const SEARCH_RADIUS_METERS = 500;
   // 첫 진입 시 보여줄 "내 주변 맛집"은 검색보다 조금 넓은 반경으로 잡는다.
@@ -411,7 +414,7 @@
   }
 
   async function removeFromPreset(button, place) {
-    if (!window.confirm(`"${place.place_name}"을(를) 이 presset에서 삭제할까요?`)) return;
+    if (!window.confirm(`"${place.place_name}"을(를) 이 보물지도에서 삭제할까요?`)) return;
     button.disabled = true;
     try {
       if (place.restaurantId > 0) {
@@ -419,7 +422,7 @@
       }
       presetItems = presetItems.filter((item) => item.restaurantId !== place.restaurantId);
       renderItems(presetItems, pageTitle.textContent);
-      setMapStatus(`"${place.place_name}"을(를) presset에서 삭제했습니다.`);
+      setMapStatus(`"${place.place_name}"을(를) 보물지도에서 삭제했습니다.`);
     } catch (error) {
       window.alert(error.message || "삭제 중 오류가 발생했습니다.");
       button.disabled = false;
@@ -478,7 +481,7 @@
       const remove = document.createElement("button");
       remove.className = "place-result-link place-result-remove";
       remove.type = "button";
-      remove.setAttribute("aria-label", `${place.place_name} presset에서 삭제`);
+      remove.setAttribute("aria-label", `${place.place_name} 보물지도에서 삭제`);
       remove.innerHTML = '<i class="fa-solid fa-trash-can" aria-hidden="true"></i> 삭제';
       remove.addEventListener("click", (event) => {
         event.stopPropagation();
@@ -609,7 +612,8 @@
     const response = await Api.get(`/presets/${presetId}/map-restaurants`);
     const data = response.data || {};
     presetItems = (data.restaurants || []).map(toPresetPlace);
-    pageTitle.textContent = editMode ? `${data.title || "보물지도"} 맛집 관리` : (data.title || "보물지도");
+    // 제목은 진입 목적과 무관하게 보물지도 이름만 쓴다(결과 목록 제목으로도 그대로 재사용된다).
+    pageTitle.textContent = data.title || "보물지도";
     document.title = `${data.title || "보물지도"} 지도 · 푸드덕`;
     return data;
   }
@@ -1126,10 +1130,8 @@
   if (presetMode) {
     mapPage.classList.add("preset-map-mode");
     if (presetBreadcrumb) presetBreadcrumb.hidden = false;
-    if (editMode) {
-      // 편집 모드로 들어온 사용자는 "맛집 추가"가 목적이므로 사용법을 먼저 알려준다.
-      if (presetAddHint) presetAddHint.hidden = false;
-    } else {
+    if (!editMode) {
+      // 조회 전용으로 들어온 사용자에게는 검색과 지역 재검색 도구를 노출하지 않는다.
       searchForm.hidden = true;
       locationButton.hidden = true;
       searchAreaButton.hidden = true;

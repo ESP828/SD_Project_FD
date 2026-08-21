@@ -22,7 +22,7 @@
         <span aria-hidden="true">›</span>
         <span>맛집 추천</span>
         <span aria-hidden="true">›</span>
-        <span aria-current="page">presset에서 가져온 맛집</span>
+        <span aria-current="page">보물지도에서 가져온 맛집</span>
       </nav>
 
       <div class="map-sidebar-heading">
@@ -42,15 +42,6 @@
         </button>
       </form>
 
-      <p id="preset-add-hint" class="map-search-hint" hidden>
-        추가할 맛집을 검색해 주세요. 푸드덕에서 찾은 맛집을 골라 이 보물지도에 담을 수 있어요.
-      </p>
-
-      <button id="preset-manage-back" class="preset-manage-back" type="button" hidden>
-        <span class="material-symbols-rounded" aria-hidden="true">arrow_back</span>
-        보물지도 맛집 목록으로
-      </button>
-
       <div class="category-list" aria-label="음식점 빠른 검색">
         <button type="button" data-category-keyword="한식">한식</button>
         <button type="button" data-category-keyword="중식">중식</button>
@@ -64,6 +55,10 @@
           <strong id="result-title">검색 결과</strong>
           <span id="result-count">0</span>
         </div>
+        <button id="preset-manage-back" class="result-summary-list-button" type="button"
+                title="보물지도 맛집 목록으로" aria-label="보물지도 맛집 목록으로" hidden>
+          <span class="material-symbols-rounded" aria-hidden="true">list</span>
+        </button>
       </div>
 
       <section id="place-results" class="place-results" aria-label="음식점 검색 결과">

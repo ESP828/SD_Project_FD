@@ -42,7 +42,6 @@
         <div>
           <p class="eyebrow">CURATED FOR YOU</p>
           <h2>취향별 보물지도를 둘러보세요</h2>
-          <p id="preset-count" class="muted">보물지도를 불러오고 있습니다.</p>
         </div>
       </div>
 
@@ -115,30 +114,36 @@
         </div>
       </div>
 
-      <div class="preset-list-toolbar">
-        <a
-          class="button button-sm button-primary"
-          href="/presset/register"
-          data-preset-register-link
-        >
-          <span class="material-symbols-rounded" aria-hidden="true">edit</span>
-          보물지도 등록
-        </a>
-      </div>
-
-      <div
-        id="preset-list"
-        class="preset-list"
-        role="status"
-        aria-live="polite"
-        aria-busy="true"
-      >
-        <div class="preset-state">
-          <span class="preset-spinner" aria-hidden="true"></span>
-          <strong>맛집 모음을 준비하고 있습니다.</strong>
+      <section class="preset-list-panel" aria-labelledby="preset-heading">
+        <div class="preset-panel-header">
+          <div>
+            <h2 id="preset-heading">전체 보물지도</h2>
+            <p id="preset-count" class="muted">보물지도를 불러오고 있습니다.</p>
+          </div>
+          <a
+            class="button button-sm button-primary"
+            href="/presset/register"
+            data-preset-register-link
+          >
+            <span class="material-symbols-rounded" aria-hidden="true">edit</span>
+            보물지도 등록
+          </a>
         </div>
-      </div>
-      <nav id="preset-pagination" class="preset-pagination" aria-label="보물지도 페이지"></nav>
+
+        <div
+          id="preset-list"
+          class="preset-list"
+          role="status"
+          aria-live="polite"
+          aria-busy="true"
+        >
+          <div class="preset-state">
+            <span class="preset-spinner" aria-hidden="true"></span>
+            <strong>맛집 모음을 준비하고 있습니다.</strong>
+          </div>
+        </div>
+        <nav id="preset-pagination" class="preset-pagination" aria-label="보물지도 페이지"></nav>
+      </section>
     </section>
   </main>
 

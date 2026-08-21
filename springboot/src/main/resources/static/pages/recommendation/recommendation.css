@@ -35,6 +35,10 @@
   gap: 10px;
 }
 
+.recommendation-main a.button.button-secondary {
+  color: var(--color-ink);
+}
+
 .recommendation-content {
   padding-top: 44px;
 }

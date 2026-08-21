@@ -211,10 +211,8 @@
       );
       if (!loginLink || session.authenticated) return;
       event.preventDefault();
-      openBoardLogin({
-        nextPath: listUrlFromState(),
-        onSuccess: () => window.location.reload(),
-      });
+      const nextPath = listUrlFromState();
+      window.location.assign(`/auth/login?next=${encodeURIComponent(nextPath)}`);
     });
 
     document.addEventListener("click", async (event) => {

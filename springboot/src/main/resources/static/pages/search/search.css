@@ -539,3 +539,8 @@
   background: linear-gradient(135deg, #ff9800, #ff5722);
   box-shadow: 0 2px 8px rgba(255, 87, 34, 0.25);
 }
+
+/* 검색 배너 안내 문구 색상 (검색 화면 전용) */
+.search-page .feature-hero p.eyebrow {
+  color: var(--color-orange-dark);
+}

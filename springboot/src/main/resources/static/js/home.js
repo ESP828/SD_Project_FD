@@ -114,7 +114,12 @@
     if (originalCards.length < 2) return;
 
     // 카드 세트를 한 번 더 복제해 이어붙여서, 오른쪽에서 왼쪽으로 끊김 없이 계속 흐르도록 만든다.
-    originalCards.forEach((card) => list.append(card.cloneNode(true)));
+    let firstClone = null;
+    originalCards.forEach((card, index) => {
+      const clone = card.cloneNode(true);
+      if (index === 0) firstClone = clone;
+      list.append(clone);
+    });
 
     // 이미지 드래그가 포인터 이벤트를 가로채지 않도록 하고 디코딩은 렌더링과 분리한다.
     list.querySelectorAll("img").forEach((img) => {
@@ -129,6 +134,12 @@
     let lastFrameTime = 0;
     const frameInterval = 1000 / 30;
     const pixelsPerMillisecond = 0.036;
+
+    function getLoopPoint() {
+      return firstClone
+        ? firstClone.offsetLeft - originalCards[0].offsetLeft
+        : 0;
+    }
 
     function isUserPaused() {
       return pointerPaused || focusPaused;
@@ -152,7 +163,7 @@
       const elapsed = Math.min(timestamp - lastFrameTime, 100);
       if (elapsed >= frameInterval) {
         lastFrameTime = timestamp;
-        const loopPoint = list.scrollWidth / 2;
+        const loopPoint = getLoopPoint();
         if (loopPoint > 0) {
           list.scrollLeft += elapsed * pixelsPerMillisecond;
           if (list.scrollLeft >= loopPoint) list.scrollLeft -= loopPoint;
