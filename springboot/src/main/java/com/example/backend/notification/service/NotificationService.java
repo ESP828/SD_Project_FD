@@ -71,12 +71,7 @@ public class NotificationService {
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public void createCommentNotification(
-            Long recipientAccountId,
-            String commenterNickname,
-            Long postId
-    ) {
-        Account recipient = requireActiveAccount(recipientAccountId);
+    public void createCommentNotification(Account recipient, String commenterNickname, Long postId) {
         create(
                 recipient,
                 NotificationType.COMMENT,

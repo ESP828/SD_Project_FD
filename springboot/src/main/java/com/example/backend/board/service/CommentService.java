@@ -53,8 +53,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 @Service
 public class CommentService {
 
-    private static final Logger LOGGER =
-            LoggerFactory.getLogger(CommentService.class);
+    private static final Logger LOGGER = LoggerFactory.getLogger(CommentService.class);
     private static final int MAX_PAGE_SIZE = 100;
     private static final int MAX_COMMENT_IMAGE_BYTES = 5 * 1024 * 1024;
     private static final int COMMENT_IMAGE_READ_CHUNK_BYTES = 1024 * 1024;
@@ -245,7 +244,7 @@ public class CommentService {
             );
             if (!post.getAuthor().getAccountId().equals(currentAccount.getAccountId())) {
                 createCommentNotificationAfterCommit(
-                        post.getAuthor().getAccountId(),
+                        post.getAuthor(),
                         currentAccount.getNickname(),
                         post.getPostId()
                 );
@@ -848,21 +847,21 @@ public class CommentService {
     }
 
     private void createCommentNotificationAfterCommit(
-            Long recipientAccountId,
+            Account recipient,
             String commenterNickname,
             Long postId
     ) {
         Runnable createNotification = () -> {
             try {
                 notificationService.createCommentNotification(
-                        recipientAccountId,
+                        recipient,
                         commenterNickname,
                         postId
                 );
             } catch (RuntimeException exception) {
                 LOGGER.warn(
                         "댓글 알림 생성에 실패했습니다. recipientAccountId={}, postId={}",
-                        recipientAccountId,
+                        recipient == null ? null : recipient.getAccountId(),
                         postId,
                         exception
                 );
@@ -870,8 +869,7 @@ public class CommentService {
         };
 
         if (!TransactionSynchronizationManager.isSynchronizationActive()
-                || !TransactionSynchronizationManager
-                .isActualTransactionActive()) {
+                || !TransactionSynchronizationManager.isActualTransactionActive()) {
             createNotification.run();
             return;
         }
