@@ -17,6 +17,8 @@ import com.example.backend.board.repository.CommentRepository;
 import com.example.backend.board.repository.PostRepository;
 import com.example.backend.notification.service.NotificationService;
 import jakarta.annotation.PostConstruct;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -51,6 +53,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 @Service
 public class CommentService {
 
+    private static final Logger LOGGER = LoggerFactory.getLogger(CommentService.class);
     private static final int MAX_PAGE_SIZE = 100;
     private static final int MAX_COMMENT_IMAGE_BYTES = 5 * 1024 * 1024;
     private static final int COMMENT_IMAGE_READ_CHUNK_BYTES = 1024 * 1024;
@@ -240,7 +243,7 @@ public class CommentService {
                     authorRole
             );
             if (!post.getAuthor().getAccountId().equals(currentAccount.getAccountId())) {
-                notificationService.createCommentNotification(
+                createCommentNotificationAfterCommit(
                         post.getAuthor(),
                         currentAccount.getNickname(),
                         post.getPostId()
@@ -841,6 +844,44 @@ public class CommentService {
                 return true;
             }
         }
+    }
+
+    private void createCommentNotificationAfterCommit(
+            Account recipient,
+            String commenterNickname,
+            Long postId
+    ) {
+        Runnable createNotification = () -> {
+            try {
+                notificationService.createCommentNotification(
+                        recipient,
+                        commenterNickname,
+                        postId
+                );
+            } catch (RuntimeException exception) {
+                LOGGER.warn(
+                        "댓글 알림 생성에 실패했습니다. recipientAccountId={}, postId={}",
+                        recipient == null ? null : recipient.getAccountId(),
+                        postId,
+                        exception
+                );
+            }
+        };
+
+        if (!TransactionSynchronizationManager.isSynchronizationActive()
+                || !TransactionSynchronizationManager.isActualTransactionActive()) {
+            createNotification.run();
+            return;
+        }
+
+        TransactionSynchronizationManager.registerSynchronization(
+                new TransactionSynchronization() {
+                    @Override
+                    public void afterCommit() {
+                        createNotification.run();
+                    }
+                }
+        );
     }
 
     private void completeCommentSubmissionAfterTransaction(
