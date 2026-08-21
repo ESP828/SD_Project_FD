@@ -44,6 +44,12 @@ public class PublicRestaurant {
     @Column(name = "category_medium_code", length = 10)
     private String categoryMediumCode;
 
+    // 공공데이터 API는 중분류명을 안 내려줘서(항상 빈 값), 소분류 코드 기준으로 우리가
+    // 정의한 대분류 그룹(한식/양식/중식/일식/아시안/카페·디저트/패스트푸드/분식/주점/구내식당·뷔페)을
+    // 대신 채워 넣는다. update()에서 매번 다시 계산한다.
+    @Column(name = "category_medium_name", length = 50)
+    private String categoryMediumName;
+
     @Column(name = "category_small_code", length = 10)
     private String categorySmallCode;
 
@@ -108,6 +114,7 @@ public class PublicRestaurant {
         this.categoryMediumCode = categoryMediumCode;
         this.categorySmallCode = categorySmallCode;
         this.categorySmallName = categorySmallName;
+        this.categoryMediumName = PublicRestaurantCategoryGroup.resolve(categorySmallCode);
         this.sidoName = sidoName;
         this.sigunguName = sigunguName;
         this.roadAddress = roadAddress;
@@ -155,6 +162,10 @@ public class PublicRestaurant {
 
     public String getCategoryMediumCode() {
         return categoryMediumCode;
+    }
+
+    public String getCategoryMediumName() {
+        return categoryMediumName;
     }
 
     public String getCategorySmallCode() {

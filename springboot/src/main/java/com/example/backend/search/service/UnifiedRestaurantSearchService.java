@@ -65,10 +65,11 @@ public class UnifiedRestaurantSearchService {
             BigDecimal swLng,
             BigDecimal neLat,
             BigDecimal neLng,
-            String keyword
+            String keyword,
+            String category
     ) {
         List<RestaurantSearchItemResponse> items = queryRepository.searchInBounds(
-                swLat, swLng, neLat, neLng, keyword, MAX_BOUNDS_RESULTS
+                swLat, swLng, neLat, neLng, keyword, category, MAX_BOUNDS_RESULTS
         );
         if (!items.isEmpty() || keyword == null || keyword.isBlank()) {
             return items;
@@ -92,9 +93,11 @@ public class UnifiedRestaurantSearchService {
     }
 
     private static RestaurantSearchItemResponse toPublicItem(PublicRestaurant restaurant) {
-        String categoryName = restaurant.getCategorySmallName() != null
-                ? restaurant.getCategorySmallName()
-                : restaurant.getCategoryLargeName();
+        String categoryName = restaurant.getCategoryMediumName() != null
+                ? restaurant.getCategoryMediumName()
+                : restaurant.getCategorySmallName() != null
+                        ? restaurant.getCategorySmallName()
+                        : restaurant.getCategoryLargeName();
         return new RestaurantSearchItemResponse(
                 "PUBLIC",
                 restaurant.getPublicRestaurantId(),

@@ -43,9 +43,10 @@ public class UnifiedRestaurantSearchController {
             @RequestParam BigDecimal swLng,
             @RequestParam BigDecimal neLat,
             @RequestParam BigDecimal neLng,
-            @RequestParam(required = false) String keyword
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) String category
     ) {
-        return ApiResponse.success(searchService.searchInBounds(swLat, swLng, neLat, neLng, keyword));
+        return ApiResponse.success(searchService.searchInBounds(swLat, swLng, neLat, neLng, keyword, category));
     }
 
     @GetMapping("/restaurants/find-by-name")
