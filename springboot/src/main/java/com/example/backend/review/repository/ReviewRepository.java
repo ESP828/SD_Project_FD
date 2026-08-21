@@ -69,6 +69,18 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
     @Query("SELECT r.content FROM Review r WHERE r.publicRestaurant.publicRestaurantId = :publicRestaurantId "
             + "AND r.status = 'ACTIVE' AND r.content IS NOT NULL AND TRIM(r.content) <> '' ORDER BY r.createdAt DESC")
     List<String> findAllActiveContentsByPublicRestaurantId(@Param("publicRestaurantId") Long publicRestaurantId);
+
+    /** 맛집 랭킹 화면에서 후보 여러 곳의 리뷰 개수/평균 평점을 한 번에 집계한다(N+1 방지). */
+    @Query("SELECT r.publicRestaurant.publicRestaurantId, COUNT(r), AVG(r.rating) FROM Review r "
+            + "WHERE r.publicRestaurant.publicRestaurantId IN :publicRestaurantIds AND r.status = 'ACTIVE' "
+            + "GROUP BY r.publicRestaurant.publicRestaurantId")
+    List<Object[]> aggregateActiveByPublicRestaurantIds(@Param("publicRestaurantIds") List<Long> publicRestaurantIds);
+
+    /** 맛집 랭킹 화면에서 후보 여러 곳의 AI 감성분석용 리뷰 본문을 한 번에 조회한다(N+1 방지). */
+    @Query("SELECT r.publicRestaurant.publicRestaurantId, r.content FROM Review r "
+            + "WHERE r.publicRestaurant.publicRestaurantId IN :publicRestaurantIds AND r.status = 'ACTIVE' "
+            + "AND r.content IS NOT NULL AND TRIM(r.content) <> ''")
+    List<Object[]> findAllActiveContentsByPublicRestaurantIds(@Param("publicRestaurantIds") List<Long> publicRestaurantIds);
     @Query("SELECT r FROM Review r WHERE r.reviewId = :reviewId "
             + "AND r.account.accountId = :accountId AND r.status = 'ACTIVE'")
     Optional<Review> findActiveOwnedReview(

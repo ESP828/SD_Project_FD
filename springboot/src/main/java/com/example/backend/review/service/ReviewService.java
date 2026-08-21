@@ -140,6 +140,45 @@ public class ReviewService {
         return reviewRepository.findAllActiveContentsByPublicRestaurantId(publicRestaurantId);
     }
 
+    /** 맛집 랭킹 화면 등 여러 매장을 한 번에 다룰 때 쓰는 리뷰 개수/평균 평점 집계 결과. */
+    public record RestaurantReviewStats(long reviewCount, double averageRating) {}
+
+    /**
+     * 후보 매장 여러 곳의 리뷰 개수·평균 평점을 한 번의 쿼리로 집계한다(랭킹 화면에서
+     * 매장마다 따로 조회하면 N+1이 되므로 배치로 처리한다). 리뷰가 없는 매장은 결과 맵에
+     * 아예 나타나지 않는다.
+     */
+    public Map<Long, RestaurantReviewStats> getReviewStatsForPublicRestaurants(List<Long> publicRestaurantIds) {
+        Map<Long, RestaurantReviewStats> stats = new HashMap<>();
+        if (publicRestaurantIds == null || publicRestaurantIds.isEmpty()) {
+            return stats;
+        }
+        for (Object[] row : reviewRepository.aggregateActiveByPublicRestaurantIds(publicRestaurantIds)) {
+            Long restaurantId = (Long) row[0];
+            long count = (Long) row[1];
+            double averageRating = row[2] != null ? ((Number) row[2]).doubleValue() : 0.0;
+            stats.put(restaurantId, new RestaurantReviewStats(count, averageRating));
+        }
+        return stats;
+    }
+
+    /**
+     * 후보 매장 여러 곳의 리뷰 본문을 매장별로 묶어서 반환한다(AI 감성분석 배치 호출용).
+     * 리뷰가 없는 매장은 결과 맵에 아예 나타나지 않는다.
+     */
+    public Map<Long, List<String>> getReviewTextsForPublicRestaurants(List<Long> publicRestaurantIds) {
+        Map<Long, List<String>> textsByRestaurantId = new HashMap<>();
+        if (publicRestaurantIds == null || publicRestaurantIds.isEmpty()) {
+            return textsByRestaurantId;
+        }
+        for (Object[] row : reviewRepository.findAllActiveContentsByPublicRestaurantIds(publicRestaurantIds)) {
+            Long restaurantId = (Long) row[0];
+            String content = (String) row[1];
+            textsByRestaurantId.computeIfAbsent(restaurantId, id -> new ArrayList<>()).add(content);
+        }
+        return textsByRestaurantId;
+    }
+
     @Transactional
     public ReviewResponse createReviewForPublicRestaurant(Long publicRestaurantId, Long accountId, ReviewCreateRequest request) {
         PublicRestaurant publicRestaurant = publicRestaurantRepository.findById(publicRestaurantId)

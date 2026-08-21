@@ -42,9 +42,10 @@ public class RecommendationController {
 
     @PostMapping("/query")
     public ResponseEntity<ApiResponse<NaturalLanguageRecommendationResponse>> recommendByQuery(
+            @AuthenticationPrincipal AuthenticatedAccount account,
             @RequestBody NaturalLanguageRecommendationRequest request
     ) {
-        NaturalLanguageRecommendationResponse response = recommendationService.recommendByQuery(request);
+        NaturalLanguageRecommendationResponse response = recommendationService.recommendByQuery(request, account);
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 

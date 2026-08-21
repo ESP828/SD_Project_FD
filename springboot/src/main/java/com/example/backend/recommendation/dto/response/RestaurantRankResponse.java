@@ -8,7 +8,6 @@ public record RestaurantRankResponse(
         Double rawRating,
         Integer reviewCount,
         Integer favoriteCount,
-        Double adjustedRatingScore,
-        Double finalRankScore,
-        Double distanceMeters
+        Double aiSentimentPositiveRatio,
+        Double finalRankScore
 ) {}

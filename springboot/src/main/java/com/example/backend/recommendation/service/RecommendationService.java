@@ -2,6 +2,7 @@ package com.example.backend.recommendation.service;
 
 import com.example.backend.auth.domain.entity.Account;
 import com.example.backend.auth.repository.AccountRepository;
+import com.example.backend.favorite.service.PublicRestaurantFavoriteService;
 import com.example.backend.global.security.principal.AuthenticatedAccount;
 import com.example.backend.recommendation.ai.DocumentBuilder;
 import com.example.backend.recommendation.integration.kakao.KakaoLocalGeocodingClient;
@@ -18,6 +19,11 @@ import com.example.backend.recommendation.score.RecommendationScoreCalculator;
 import com.example.backend.recommendation.text.ParsedRecommendationQuery;
 import com.example.backend.recommendation.text.RecommendationQueryParser;
 import com.example.backend.restaurant.domain.entity.PublicRestaurant;
+import com.example.backend.review.integration.sentiment.SentimentAnalysisClient;
+import com.example.backend.review.integration.sentiment.dto.RestaurantSentimentSummaryRequest;
+import com.example.backend.review.integration.sentiment.dto.RestaurantSentimentSummaryResponse;
+import com.example.backend.review.service.ReviewService;
+import com.example.backend.review.service.ReviewService.RestaurantReviewStats;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -57,6 +63,9 @@ public class RecommendationService {
     private final PythonEmbeddingClient pythonEmbeddingClient;
     private final KakaoLocalGeocodingClient kakaoLocalGeocodingClient;
     private final String aiModelName;
+    private final PublicRestaurantFavoriteService favoriteService;
+    private final ReviewService reviewService;
+    private final SentimentAnalysisClient sentimentAnalysisClient;
 
     public RecommendationService(RecommendationQueryParser queryParser,
                                  RecommendationModelStore modelStore,
@@ -67,7 +76,10 @@ public class RecommendationService {
                                  AccountRepository accountRepository,
                                  PythonEmbeddingClient pythonEmbeddingClient,
                                  KakaoLocalGeocodingClient kakaoLocalGeocodingClient,
-                                 @Value("${recommendation.ai.model-name:KURE-v1}") String aiModelName) {
+                                 @Value("${recommendation.ai.model-name:KURE-v1}") String aiModelName,
+                                 PublicRestaurantFavoriteService favoriteService,
+                                 ReviewService reviewService,
+                                 SentimentAnalysisClient sentimentAnalysisClient) {
         this.queryParser = queryParser;
         this.modelStore = modelStore;
         this.scoreCalculator = scoreCalculator;
@@ -78,6 +90,9 @@ public class RecommendationService {
         this.pythonEmbeddingClient = pythonEmbeddingClient;
         this.kakaoLocalGeocodingClient = kakaoLocalGeocodingClient;
         this.aiModelName = aiModelName;
+        this.favoriteService = favoriteService;
+        this.reviewService = reviewService;
+        this.sentimentAnalysisClient = sentimentAnalysisClient;
     }
 
     /**
@@ -122,12 +137,48 @@ public class RecommendationService {
     /**
      * 1. 자연어 키워드 검색 기반 추천
      */
-    public NaturalLanguageRecommendationResponse recommendByQuery(NaturalLanguageRecommendationRequest request) {
+    public NaturalLanguageRecommendationResponse recommendByQuery(
+            NaturalLanguageRecommendationRequest request, AuthenticatedAccount account
+    ) {
         String expandedQuery = expandQueryString(request.query());
         ParsedRecommendationQuery parsedQuery = queryParser.parse(expandedQuery);
 
+        // 💡 검색어에 "맛집"이 들어있고 로그인 상태면, 찜한 매장들의 카테고리를 취향
+        // 프로필로 만들어 AI 검색어에 함께 반영한다 - "맛집 추천해줘"처럼 구체적 음식 종류가
+        // 없는 질의라도 회원이 평소 찜한 취향 쪽으로 결과가 기울게 된다.
+        // 💡 매장 "이름"은 절대 프로필에 넣지 않는다 - 찜한 매장이 마침 후보 안에 있으면
+        // 검색어에 자기 이름이 그대로 들어가 자기 자신과의 유사도가 거의 100%로 튀어버려서
+        // 그 매장 하나로 결과가 쏠리는 문제가 있었다. 카테고리만으로 취향 방향성을 준다.
+        boolean wantsFavoritePersonalization = request.query() != null
+                && request.query().contains("맛집") && account != null;
+        Set<String> favoriteCategories = new LinkedHashSet<>();
+        Set<Long> favoriteRestaurantIds = new HashSet<>();
+        String favoriteProfileText = "";
+        if (wantsFavoritePersonalization) {
+            List<RestaurantCandidate> userFavorites = recommendationQueryRepository.findFavoritesByAccountId(account.accountId());
+            if (userFavorites != null && !userFavorites.isEmpty()) {
+                StringBuilder profileBuilder = new StringBuilder();
+                for (RestaurantCandidate fav : userFavorites) {
+                    if (fav.restaurantId() != null) {
+                        favoriteRestaurantIds.add(fav.restaurantId());
+                    }
+                    if (fav.categoryName() != null && !fav.categoryName().isBlank()) {
+                        profileBuilder.append(fav.categoryName()).append(" ");
+                        favoriteCategories.add(fav.categoryName());
+                    }
+                }
+                favoriteProfileText = profileBuilder.toString().trim();
+                log.info("✅ [AI검색] '맛집' 키워드 감지 - accountId={} 찜 {}건을 취향 프로필로 반영",
+                        account.accountId(), userFavorites.size());
+            }
+        }
+
         // 검색 화면 상세 조건에서 넘어온 성별·연령대. 회원 정보를 바꾸지 않고 이번 검색에만 반영한다.
+        // 화면에 별도 입력이 없으면 "남자 셋이서" 같은 검색 문장 속 표현을 폴백으로 사용한다.
         String requestedGender = normalizeGender(request.gender());
+        if (requestedGender == null) {
+            requestedGender = parsedQuery.inferredGender();
+        }
         Integer requestedAgeGroup = normalizeAgeGroup(request.ageGroup());
 
         // 💡 문장 속 지명(예: "신논현")을 우선 좌표로 사용한다. 지오코딩에 실패하면(지명이
@@ -158,22 +209,26 @@ public class RecommendationService {
 
         // 💡 AI 임베딩 의미 검색 우선 시도. 위치로 이미 좁혀진 후보 안에서만 조회하고,
         // Python 서비스가 꺼져있거나 오류가 나면 아래 TF-IDF 계산으로 자동 폴백한다.
-        // 지오코딩에 소비된 지명은 여기서도 제거한다 - 그대로 두면 "신논현역점"처럼 상호에
-        // 지명이 그대로 들어간 매장이 실제 음식 종류와 무관하게 의미 유사도까지 높게 나온다.
-        String aiQueryText = request.query();
-        if (consumedLocationToken != null && !consumedLocationToken.isBlank()) {
-            aiQueryText = aiQueryText.replace(consumedLocationToken, " ")
-                    .replaceAll("\\s+", " ")
-                    .trim();
-            if (aiQueryText.isEmpty()) {
-                aiQueryText = request.query();
-            }
+        // 지오코딩에 소비된 지명과 "맛집"/"추천" 같은 불용어는 이미 stopword 필터를 거친
+        // parsedQuery.normalizedTokens()를 써서 함께 제거한다 - 그대로 두면 지명이 그대로
+        // 들어간 매장이 실제 음식 종류와 무관하게 의미 유사도까지 높게 나오거나
+        // ("신논현역점"), "맛집 추천"처럼 아무 음식 정보 없는 문구만 남아 임베딩 점수가
+        // 노이즈가 되고 사실상 거리순 정렬로 흘러버린다. 남는 의미 있는 토큰이 없으면
+        // (예: "신논현역 맛집 추천") 억지로 채우지 않고 그대로 비워서 AI를 건너뛰고
+        // TF-IDF+거리 기반으로만 정렬되게 한다 - 노이즈 낀 AI 점수보다 정직하다.
+        String consumedLocationTokenForFilter = consumedLocationToken;
+        String aiQueryText = parsedQuery.normalizedTokens().stream()
+                .filter(token -> !token.equals(consumedLocationTokenForFilter))
+                .reduce((a, b) -> a + " " + b)
+                .orElse("");
+        if (!favoriteProfileText.isBlank()) {
+            aiQueryText = (aiQueryText + " " + favoriteProfileText).trim();
         }
         List<Long> candidateIds = candidates.stream()
                 .map(PublicRestaurant::getPublicRestaurantId)
                 .toList();
         Map<Long, Double> aiScores = null;
-        if (!candidateIds.isEmpty()) {
+        if (!candidateIds.isEmpty() && !aiQueryText.isBlank()) {
             try {
                 aiScores = pythonEmbeddingClient.search(aiQueryText, candidateIds, candidateIds.size());
                 log.info("✅ [AI검색] Python 임베딩 서비스 사용 (candidates={}, query='{}')", candidateIds.size(), aiQueryText);
@@ -211,6 +266,9 @@ public class RecommendationService {
         }
 
         for (PublicRestaurant restaurant : candidates) {
+            if (wantsFavoritePersonalization && favoriteRestaurantIds.contains(restaurant.getPublicRestaurantId())) {
+                continue;
+            }
             String name = restaurant.getName() != null ? restaurant.getName() : "";
             String categoryLarge = restaurant.getCategoryLargeName() != null ? restaurant.getCategoryLargeName() : "";
             String categorySmall = restaurant.getCategorySmallName() != null ? restaurant.getCategorySmallName() : "";
@@ -260,6 +318,9 @@ public class RecommendationService {
             if (isFastfood && !isDirectCategoryMatch) {
                 continue;
             }
+            // 💡 "점심에 먹을만한 곳" 같은 질의가 카페로 새는 문제는 여기서 문자열로 걸러내지
+            // 않는다 - Python(recommend.py) 쪽에서 KURE 임베딩으로 검색어와 카테고리의
+            // "식사 vs 카페" 의미 유사도를 계산해 aiScores(textScore)에 이미 반영되어 있다.
 
             double categoryBonus = isDirectCategoryMatch ? 0.4 : 0.0;
 
@@ -294,6 +355,13 @@ public class RecommendationService {
                     !categorySmall.isEmpty() ? categorySmall : categoryLarge,
                     reasons
             );
+
+            // 💡 "맛집" 키워드 + 로그인 상태에서만: 찜한 매장들과 같은 카테고리면 보너스.
+            if (wantsFavoritePersonalization
+                    && favoriteCategories.contains(!categorySmall.isEmpty() ? categorySmall : categoryLarge)) {
+                finalScore += 0.15;
+                reasons.add("회원님이 자주 찜한 취향과 맞는 매장입니다.");
+            }
 
             scoredItems.add(new RecommendedItemDto(
                     "PUBLIC",
@@ -385,6 +453,25 @@ public class RecommendationService {
                 minLat, maxLat, minLng, maxLng, latitude, longitude, PageRequest.of(0, 300)
         );
 
+        // 💡 찜한 매장들의 이름/카테고리로 만든 취향 프로필 텍스트와, 후보 매장들의 의미
+        // 유사도를 KURE 임베딩으로 계산해본다. Python 서비스가 꺼져있거나 오류가 나면
+        // TF-IDF(scoreCalculator.calculateTextSimilarity)로 자동 폴백한다 - recommendByQuery와
+        // 동일한 패턴.
+        String userProfileText = userProfileBuilder.toString().trim();
+        List<Long> candidateIds = candidates.stream()
+                .map(PublicRestaurant::getPublicRestaurantId)
+                .toList();
+        Map<Long, Double> aiScores = null;
+        if (!userProfileText.isBlank() && !candidateIds.isEmpty()) {
+            try {
+                aiScores = pythonEmbeddingClient.search(userProfileText, candidateIds, candidateIds.size());
+                log.info("✅ [개인화 추천] Python 임베딩 서비스 사용 (candidates={})", candidateIds.size());
+            } catch (Exception e) {
+                log.warn("⚠️ [개인화 추천] Python 임베딩 서비스 호출 실패 - TF-IDF 폴백으로 전환합니다. 원인: {}", e.getMessage());
+                aiScores = null;
+            }
+        }
+
         List<RecommendedItemDto> scoredItems = new ArrayList<>();
 
         for (PublicRestaurant candidate : candidates) {
@@ -398,8 +485,11 @@ public class RecommendationService {
             double baseScore = 0.5;
             List<String> reasons = new ArrayList<>();
 
-            String candidateDoc = documentBuilder.build(candidate);
-            double favoriteScore = scoreCalculator.calculateTextSimilarity(userProfileTokens, candidateDoc);
+            Long candidateId = candidate.getPublicRestaurantId();
+            boolean usedAiForItem = aiScores != null && aiScores.containsKey(candidateId);
+            double favoriteScore = usedAiForItem
+                    ? aiScores.get(candidateId)
+                    : scoreCalculator.calculateTextSimilarity(userProfileTokens, documentBuilder.build(candidate));
             if (favoriteScore > 0.1 || favoriteCategories.contains(category)) {
                 baseScore += 0.3;
                 reasons.add("자주 찜한 취향 맛집");
@@ -533,8 +623,28 @@ public class RecommendationService {
         double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
         return R * c;
     }
+    // AI 감성분석 배치 호출 시 매장 하나당 보내는 리뷰 개수 상한. 랭킹 화면은 후보가 최대
+    // 300곳이라, 매장마다 리뷰가 아주 많으면 배치 요청 하나가 지나치게 커지는 것을 막는다.
+    private static final int MAX_REVIEWS_PER_RESTAURANT_FOR_SENTIMENT = 50;
+
+    // 랭킹 전체(AI 감성분석 포함)를 다시 계산하는 주기. 사용자가 리뷰를 계속 새로 작성하므로
+    // 리뷰 보유 매장 수/내용이 계속 바뀌는데, 매 조회마다 전부 재계산하면(감성분석 배치 호출
+    // 포함) 리뷰 보유 매장이 늘어날수록 느려진다. 캐시로 재계산 빈도를 줄이는 대신, 새로
+    // 작성된 리뷰는 최대 이 주기만큼 늦게 반영된다(현재 5분) - 실시간성보다 응답 속도를
+    // 우선한 트레이드오프.
+    private static final java.time.Duration RANKING_CACHE_TTL = java.time.Duration.ofMinutes(5);
+    private volatile RankingCacheEntry rankingCache;
+
+    private record RankingCacheEntry(
+            List<com.example.backend.recommendation.dto.response.RestaurantRankResponse> items,
+            java.time.Instant computedAt
+    ) {}
+
     /**
-     * 💡 [맛집 랭킹] 찜(40%) + 평점(30%, 10개 미만 50% 페널티) + 리뷰(30%) 복합 랭킹 산출
+     * 💡 [맛집 랭킹] 위치/거리는 전혀 고려하지 않는다 - 전국(DB 전체)에서 실제 리뷰가 있는
+     * 매장만 모아 AI 리뷰 감성분석 긍정비율로 순위를 매긴다. 리뷰 10건 미만인 매장은
+     * 표본이 적어 신뢰도가 낮으므로 긍정비율에 0.5배 페널티를, 10건 이상이면 1배(페널티
+     * 없음)를 적용한다. 동점일 때만 찜 개수 -> 리뷰 개수 순으로 정렬한다.
      */
     public List<com.example.backend.recommendation.dto.response.RestaurantRankResponse> getTopRankedRestaurants(
             Double userLat,
@@ -542,65 +652,95 @@ public class RecommendationService {
             Double radiusMeters,
             int limit
     ) {
-        Double minLat = null, maxLat = null, minLng = null, maxLng = null;
-        double radius = (radiusMeters != null && radiusMeters > 0) ? radiusMeters : 10000.0;
+        List<com.example.backend.recommendation.dto.response.RestaurantRankResponse> allRanked = getOrComputeRankingCache();
+        return allRanked.stream().limit(limit > 0 ? limit : 10).toList();
+    }
 
-        if (userLat != null && userLng != null) {
-            double delta = radius / 111000.0;
-            minLat = userLat - delta;
-            maxLat = userLat + delta;
-            minLng = userLng - delta;
-            maxLng = userLng + delta;
+    /** 캐시가 없거나 만료됐을 때만 전체 랭킹을 다시 계산한다. */
+    private synchronized List<com.example.backend.recommendation.dto.response.RestaurantRankResponse> getOrComputeRankingCache() {
+        RankingCacheEntry cached = rankingCache;
+        if (cached != null
+                && java.time.Duration.between(cached.computedAt(), java.time.Instant.now()).compareTo(RANKING_CACHE_TTL) < 0) {
+            return cached.items();
         }
+        List<com.example.backend.recommendation.dto.response.RestaurantRankResponse> fresh = computeFullRanking();
+        rankingCache = new RankingCacheEntry(fresh, java.time.Instant.now());
+        return fresh;
+    }
 
-        // 1. 위치 반경 내 식당 조회 (없을 시 전체 300개 Fallback)
-        List<PublicRestaurant> candidates = publicQueryRepository.findCandidatesInBounds(
-                minLat, maxLat, minLng, maxLng, userLat, userLng, PageRequest.of(0, 300)
+    private List<com.example.backend.recommendation.dto.response.RestaurantRankResponse> computeFullRanking() {
+        // 리뷰가 없는 매장은 AI 점수를 매길 근거가 없어 항상 0점이므로, 애초에 리뷰가
+        // 있는 매장만 후보로 조회한다(위치 제한 없음 = 인자 전부 null).
+        List<PublicRestaurant> candidates = publicQueryRepository.findRestaurantsWithActiveReviewsInBounds(
+                null, null, null, null
         );
-
-        if (candidates == null || candidates.isEmpty()) {
-            candidates = publicQueryRepository.findCandidatesInBounds(
-                    null, null, null, null, null, null, PageRequest.of(0, 300)
-            );
-        }
 
         if (candidates == null || candidates.isEmpty()) {
             return Collections.emptyList();
         }
 
+        List<Long> candidateIds = candidates.stream()
+                .map(PublicRestaurant::getPublicRestaurantId)
+                .filter(Objects::nonNull)
+                .toList();
+
+        // 2. 찜 개수·리뷰 개수/평균 평점을 후보 전체에 대해 한 번씩만 조회한다(N+1 방지).
+        Map<Long, Long> favoriteCounts = favoriteService.countBatch(candidateIds);
+        Map<Long, RestaurantReviewStats> reviewStats = reviewService.getReviewStatsForPublicRestaurants(candidateIds);
+
+        // 3. 매장 정보 화면에 보이는 것과 같은 "AI 리뷰 감성분석 긍정비율"을 랭킹에도 반영한다.
+        // 매장마다 따로 호출하지 않고 리뷰가 있는 매장만 모아 한 번의 배치 요청으로 처리한다.
+        Map<Long, Double> positiveRatioById = new HashMap<>();
+        if (sentimentAnalysisClient.isConfigured()) {
+            Map<Long, List<String>> reviewTextsByRestaurantId =
+                    reviewService.getReviewTextsForPublicRestaurants(candidateIds);
+            if (!reviewTextsByRestaurantId.isEmpty()) {
+                Map<Long, String> nameById = candidates.stream()
+                        .filter(r -> r.getPublicRestaurantId() != null)
+                        .collect(java.util.stream.Collectors.toMap(
+                                PublicRestaurant::getPublicRestaurantId,
+                                r -> r.getName() != null ? r.getName() : ""
+                        ));
+                List<RestaurantSentimentSummaryRequest> batchItems = new ArrayList<>();
+                for (Map.Entry<Long, List<String>> entry : reviewTextsByRestaurantId.entrySet()) {
+                    List<String> reviews = entry.getValue();
+                    if (reviews.size() > MAX_REVIEWS_PER_RESTAURANT_FOR_SENTIMENT) {
+                        reviews = reviews.subList(0, MAX_REVIEWS_PER_RESTAURANT_FOR_SENTIMENT);
+                    }
+                    batchItems.add(new RestaurantSentimentSummaryRequest(
+                            entry.getKey(), nameById.getOrDefault(entry.getKey(), ""), reviews
+                    ));
+                }
+                try {
+                    for (RestaurantSentimentSummaryResponse summary : sentimentAnalysisClient.summarizeRestaurants(batchItems)) {
+                        positiveRatioById.put(summary.restaurantId(), summary.positiveRatio());
+                    }
+                } catch (RuntimeException e) {
+                    log.warn("⚠️ [맛집 랭킹] AI 감성분석 배치 호출 실패 - 감성분석 점수 없이 랭킹을 계산합니다. 원인: {}", e.getMessage());
+                }
+            }
+        }
+
         List<com.example.backend.recommendation.dto.response.RestaurantRankResponse> rankList = new ArrayList<>();
 
         for (PublicRestaurant restaurant : candidates) {
-            long id = restaurant.getPublicRestaurantId() != null ? restaurant.getPublicRestaurantId() : 1L;
-
-            // 💡 1. 지표 데이터 추출 (시연용 안정적 결정값 / 실제 DB 컬럼 연동)
-            double rawRating = 3.5 + ((id * 7 % 16) * 0.1);    // 3.5 ~ 5.0
-            int reviewCount = (int) ((id * 13) % 65);          // 0 ~ 64개
-            int favoriteCount = (int) ((id * 17) % 40);        // 0 ~ 39개
-
-            // 💡 2. 가중치 점수 계산 (100점 만점 기준)
-            // A. 찜 점수 (40점 만점, 50개 기준 정규화)
-            double favoriteScore = Math.min(favoriteCount / 50.0, 1.0) * 40.0;
-
-            // B. 평점 점수 (30점 만점, 5.0 만점 기준 정규화 + 리뷰 10개 미만 50% 페널티)
-            double baseRatingScore = (rawRating / 5.0) * 30.0;
-            double ratingScore = (reviewCount >= 10) ? baseRatingScore : (baseRatingScore * 0.5);
-
-            // C. 리뷰 수 점수 (30점 만점, 100개 기준 정규화)
-            double reviewScore = Math.min(reviewCount / 100.0, 1.0) * 30.0;
-
-            // D. 최종 복합 랭킹 점수 (최대 100.0점)
-            double finalRankScore = favoriteScore + ratingScore + reviewScore;
-
-            // 거리 계산
-            double distanceMeters = 0.0;
-            if (userLat != null && userLng != null && restaurant.getLatitude() != null && restaurant.getLongitude() != null) {
-                distanceMeters = calculateHaversineDistance(
-                        userLat, userLng,
-                        restaurant.getLatitude().doubleValue(),
-                        restaurant.getLongitude().doubleValue()
-                );
+            Long id = restaurant.getPublicRestaurantId();
+            if (id == null) {
+                continue;
             }
+
+            RestaurantReviewStats stats = reviewStats.getOrDefault(id, new RestaurantReviewStats(0, 0.0));
+            int reviewCount = (int) stats.reviewCount();
+            double rawRating = stats.averageRating();
+            int favoriteCount = favoriteCounts.getOrDefault(id, 0L).intValue();
+            Double positiveRatio = positiveRatioById.get(id);
+
+            // 💡 랭킹 점수 = AI 리뷰 감성분석 긍정비율 x 리뷰 개수 배율.
+            // 리뷰 10건 미만이면 표본이 적어 신뢰도가 낮으므로 0.5배, 10건 이상이면 1배.
+            // 리뷰가 없거나 AI 서비스가 꺼져 있으면(positiveRatio == null) 판단할 근거가
+            // 없으므로 0점 처리해 순위 맨 아래로 밀린다.
+            double reviewCountMultiplier = reviewCount >= 10 ? 1.0 : 0.5;
+            double finalRankScore = positiveRatio != null ? positiveRatio * reviewCountMultiplier : 0.0;
 
             String category = restaurant.getCategorySmallName() != null && !restaurant.getCategorySmallName().isBlank()
                     ? restaurant.getCategorySmallName()
@@ -614,9 +754,8 @@ public class RecommendationService {
                     Math.round(rawRating * 10.0) / 10.0,
                     reviewCount,
                     favoriteCount,
-                    Math.round(ratingScore * 100.0) / 100.0,
-                    Math.round(finalRankScore * 10.0) / 10.0,
-                    Math.round(distanceMeters * 10.0) / 10.0
+                    positiveRatio != null ? Math.round(positiveRatio * 10.0) / 10.0 : null,
+                    Math.round(finalRankScore * 10.0) / 10.0
             ));
         }
 
@@ -629,6 +768,7 @@ public class RecommendationService {
             return Integer.compare(b.reviewCount(), a.reviewCount());
         });
 
-        return rankList.stream().limit(limit > 0 ? limit : 10).toList();
-    }}
+        return rankList;
+    }
+}
 

@@ -1,5 +1,7 @@
 package com.example.backend.review.integration.sentiment;
 
+import com.example.backend.review.integration.sentiment.dto.RestaurantSentimentSummaryBatchRequest;
+import com.example.backend.review.integration.sentiment.dto.RestaurantSentimentSummaryBatchResponse;
 import com.example.backend.review.integration.sentiment.dto.RestaurantSentimentSummaryRequest;
 import com.example.backend.review.integration.sentiment.dto.RestaurantSentimentSummaryResponse;
 import com.example.backend.review.integration.sentiment.dto.SentimentPredictionRequest;
@@ -58,5 +60,24 @@ public class SentimentAnalysisClient {
                 .body(new RestaurantSentimentSummaryRequest(restaurantId, restaurantName, reviews))
                 .retrieve()
                 .body(RestaurantSentimentSummaryResponse.class);
+    }
+
+    /**
+     * 매장 여러 곳의 리뷰를 한 번의 호출로 분석한다(맛집 랭킹 화면처럼 매장이 많을 때
+     * 매장마다 따로 호출하면 N+1 HTTP 호출이 되므로 배치로 처리한다).
+     */
+    public List<RestaurantSentimentSummaryResponse> summarizeRestaurants(
+            List<RestaurantSentimentSummaryRequest> items
+    ) {
+        if (items.isEmpty()) {
+            return List.of();
+        }
+        RestaurantSentimentSummaryBatchResponse response = restClient.post()
+                .uri(baseUrl + "/predict/sentiment/restaurant-summary/batch")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(new RestaurantSentimentSummaryBatchRequest(items))
+                .retrieve()
+                .body(RestaurantSentimentSummaryBatchResponse.class);
+        return response != null && response.items() != null ? response.items() : List.of();
     }
 }
