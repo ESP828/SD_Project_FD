@@ -10,6 +10,7 @@ import com.example.backend.notification.dto.response.NotificationCountResponse;
 import com.example.backend.notification.dto.response.NotificationResponse;
 import com.example.backend.notification.repository.NotificationRepository;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
@@ -69,8 +70,13 @@ public class NotificationService {
         notificationRepository.delete(requireOwnedNotification(accountId, notificationId));
     }
 
-    @Transactional
-    public void createCommentNotification(Account recipient, String commenterNickname, Long postId) {
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void createCommentNotification(
+            Long recipientAccountId,
+            String commenterNickname,
+            Long postId
+    ) {
+        Account recipient = requireActiveAccount(recipientAccountId);
         create(
                 recipient,
                 NotificationType.COMMENT,
