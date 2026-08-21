@@ -124,6 +124,7 @@
 
   function insertCommentEmoji(textarea, emoji) {
     if (!textarea || !emoji) return false;
+    if (emojis?.insertIntoEditor?.(textarea, emoji)) return true;
     const value = textarea.value || "";
     const start = Number.isInteger(textarea.selectionStart) ? textarea.selectionStart : value.length;
     const end = Number.isInteger(textarea.selectionEnd) ? textarea.selectionEnd : start;
@@ -146,6 +147,7 @@
     if (!textarea || !toggle || !panel) return null;
 
     if (!emojis) return null;
+    emojis.attachEditor?.(textarea);
     emojis.populatePicker(panel, {
       gridClass: "comment-emoji-grid fooduck-custom-emoji-grid",
       buttonClass: "comment-emoji-option fooduck-custom-emoji-option",
@@ -1896,7 +1898,7 @@
     }
 
     try {
-      const payload = await Api.get(path);
+      const payload = await Api.get(path, { cache: "no-store" });
       updateCachedPostViewCount(postId, payload.data?.viewCount);
       writeBoardCache(path, payload.data);
       renderPost(payload.data);
@@ -1992,9 +1994,18 @@
 
     try {
       const params = new URLSearchParams({ category });
-      const payload = await Api.patch(`/board/posts/${postId}/unpin?${params.toString()}`, {});
-      invalidateBoardCache();
-      renderPost(payload.data);
+      const payload = await Api.patch(
+        `/board/posts/${postId}/unpin?${params.toString()}`,
+        {},
+        { cache: "no-store" },
+      );
+      invalidateBoardCache({ global: true });
+      renderPost({
+        ...post,
+        ...(payload.data || {}),
+        category,
+        pinned: false,
+      });
       showToast(toast, payload.message || "공지를 내렸습니다.");
     } catch (error) {
       showToast(toast, error.message || "공지를 내리지 못했습니다.", true);
@@ -2021,9 +2032,18 @@
     if (button) button.disabled = true;
     try {
       const params = new URLSearchParams({ category });
-      const payload = await Api.patch(`/board/posts/${postId}/pin?${params.toString()}`, {});
-      invalidateBoardCache();
-      renderPost(payload.data);
+      const payload = await Api.patch(
+        `/board/posts/${postId}/pin?${params.toString()}`,
+        {},
+        { cache: "no-store" },
+      );
+      invalidateBoardCache({ global: true });
+      renderPost({
+        ...post,
+        ...(payload.data || {}),
+        category,
+        pinned: true,
+      });
       showToast(toast, payload.message || "공지로 올렸습니다.");
     } catch (error) {
       showToast(toast, error.message || "공지로 올리지 못했습니다.", true);
@@ -2286,7 +2306,7 @@
     textarea.value = `@${targetName} `;
     form.dataset.initialValue = textarea.value;
 
-    const inputMeta = element("div", "comment-input-meta comment-input-meta--compact");
+    const inputMeta = element("div", "comment-input-meta comment-input-meta--compact comment-input-meta--footer");
     const characterCount = element("span", "comment-character-count");
     inputMeta.append(characterCount);
     updateCharacterCount(textarea, characterCount);
@@ -2311,7 +2331,6 @@
     emojiButton.setAttribute("aria-expanded", "false");
     const imageNote = element("span", "", "사진 1장 · 최대 5MB");
     tools.append(fileInput, imageButton, emojiButton, imageNote);
-    setupCommentEmojiPicker(textarea, emojiButton, emojiPanel);
 
     const preview = element("div", "comment-image-preview");
     preview.hidden = true;
@@ -2326,12 +2345,16 @@
     preview.append(previewImage, previewCopy, removeImage);
 
     const submitRow = element("div", "comment-reply-submit-row");
+    const submitTools = element("div", "comment-submit-tools");
+    submitTools.append(tools, inputMeta);
+    const submitActions = element("div", "comment-reply-actions");
     const cancel = element("button", "comment-action", "취소");
     cancel.type = "button";
     const submit = element("button", "button button-sm button-primary", "답글 등록");
     submit.type = "submit";
     submit.disabled = true;
-    submitRow.append(cancel, submit);
+    submitActions.append(cancel, submit);
+    submitRow.append(submitTools, submitActions);
 
     function syncReplySubmitState() {
       submit.disabled = !hasReplyBody(textarea.value, targetName);
@@ -2449,7 +2472,8 @@
       }
     });
 
-    form.append(label, textarea, inputMeta, tools, emojiPanel, preview, submitRow);
+    form.append(label, textarea, emojiPanel, preview, submitRow);
+    setupCommentEmojiPicker(textarea, emojiButton, emojiPanel);
     mountTarget.append(form);
     activeReplyForm = form;
     textarea.focus();
@@ -3105,6 +3129,7 @@
 
       invalidateBoardCache();
       commentContent.value = "";
+      emojis?.refreshEditor?.(commentContent);
       updateCharacterCount(commentContent, commentCharacterCount);
       resizeCommentTextarea(commentContent, 105);
       clearCommentImageSelection();

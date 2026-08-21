@@ -98,6 +98,215 @@
     return target;
   }
 
+  const FOODUCK_CUSTOM_EMOJI_EDITORS = new WeakMap();
+
+  function serializeCustomEmojiEditor(editor) {
+    const serializeNode = (node) => {
+      if (node.nodeType === Node.TEXT_NODE) {
+        return String(node.nodeValue || "").replaceAll("\u200B", "");
+      }
+      if (node.nodeType !== Node.ELEMENT_NODE) return "";
+      if (node.matches?.("img[data-fooduck-emoji-code]")) {
+        return node.dataset.fooduckEmojiCode || "";
+      }
+      if (node.tagName === "BR") return "\n";
+
+      let value = "";
+      node.childNodes.forEach((child) => {
+        value += serializeNode(child);
+      });
+      if ((node.tagName === "DIV" || node.tagName === "P") && node.nextSibling && !value.endsWith("\n")) {
+        value += "\n";
+      }
+      return value;
+    };
+
+    let value = "";
+    editor.childNodes.forEach((node) => {
+      value += serializeNode(node);
+    });
+    return value;
+  }
+
+  function attachCustomEmojiEditor(textarea) {
+    if (!(textarea instanceof HTMLTextAreaElement)) return null;
+    const existing = FOODUCK_CUSTOM_EMOJI_EDITORS.get(textarea);
+    if (existing) return existing;
+
+    const computed = window.getComputedStyle(textarea);
+    const editor = document.createElement("div");
+    editor.className = `${textarea.className || ""} fooduck-custom-emoji-editor`.trim();
+    editor.contentEditable = "true";
+    editor.setAttribute("role", "textbox");
+    editor.setAttribute("aria-multiline", "true");
+    editor.setAttribute("aria-label", textarea.getAttribute("aria-label") || "내용 입력");
+    if (textarea.required) editor.setAttribute("aria-required", "true");
+    const describedBy = textarea.getAttribute("aria-describedby");
+    if (describedBy) editor.setAttribute("aria-describedby", describedBy);
+    editor.dataset.placeholder = textarea.getAttribute("placeholder") || "";
+    const measuredHeight = Number.parseFloat(computed.height);
+    editor.style.minHeight = Number.isFinite(measuredHeight) && measuredHeight >= 48
+      ? computed.height
+      : `${Math.max(96, (Number(textarea.rows) || 4) * 24)}px`;
+    editor.style.fontFamily = computed.fontFamily;
+    editor.style.fontSize = computed.fontSize;
+    editor.style.fontWeight = computed.fontWeight;
+    editor.style.lineHeight = computed.lineHeight;
+    editor.style.letterSpacing = computed.letterSpacing;
+    editor.style.padding = computed.padding;
+    editor.style.border = computed.border;
+    editor.style.borderRadius = computed.borderRadius;
+    editor.style.backgroundColor = computed.backgroundColor;
+    editor.style.color = computed.color;
+
+    textarea.insertAdjacentElement("afterend", editor);
+    textarea.classList.add("fooduck-custom-emoji-source");
+    textarea.setAttribute("aria-hidden", "true");
+    textarea.tabIndex = -1;
+
+    let syncingFromEditor = false;
+    let lastValidValue = String(textarea.value || "");
+    let savedRange = null;
+
+    const render = () => {
+      const text = String(textarea.value || "");
+      const fragment = document.createDocumentFragment();
+      let lastIndex = 0;
+      FOODUCK_CUSTOM_EMOJI_PATTERN.lastIndex = 0;
+      let match;
+      while ((match = FOODUCK_CUSTOM_EMOJI_PATTERN.exec(text)) !== null) {
+        if (match.index > lastIndex) {
+          fragment.append(document.createTextNode(text.slice(lastIndex, match.index)));
+        }
+        const emoji = FOODUCK_CUSTOM_EMOJI_BY_CODE.get(match[0]);
+        if (emoji) {
+          const image = createCustomEmojiImage(emoji);
+          image.contentEditable = "false";
+          fragment.append(image);
+        } else {
+          fragment.append(document.createTextNode(match[0]));
+        }
+        lastIndex = match.index + match[0].length;
+      }
+      if (lastIndex < text.length) {
+        fragment.append(document.createTextNode(text.slice(lastIndex)));
+      }
+      editor.replaceChildren(fragment);
+      lastValidValue = text;
+    };
+
+    const captureSelection = () => {
+      const selection = window.getSelection();
+      if (!selection?.rangeCount) return;
+      const range = selection.getRangeAt(0);
+      if (editor.contains(range.commonAncestorContainer)) {
+        savedRange = range.cloneRange();
+      }
+    };
+
+    const placeCaretAfter = (node) => {
+      const selection = window.getSelection();
+      if (!selection) return;
+      const range = document.createRange();
+      range.setStartAfter(node);
+      range.collapse(true);
+      selection.removeAllRanges();
+      selection.addRange(range);
+      savedRange = range.cloneRange();
+    };
+
+    const syncSource = () => {
+      const nextValue = serializeCustomEmojiEditor(editor);
+      if (textarea.maxLength > 0 && nextValue.length > textarea.maxLength) {
+        textarea.value = lastValidValue;
+        render();
+        return false;
+      }
+      textarea.value = nextValue;
+      lastValidValue = nextValue;
+      syncingFromEditor = true;
+      textarea.dispatchEvent(new Event("input", { bubbles: true }));
+      syncingFromEditor = false;
+      return true;
+    };
+
+    const insertPlainText = (text) => {
+      const selection = window.getSelection();
+      let range = savedRange;
+      if (!range || !editor.contains(range.commonAncestorContainer)) {
+        range = document.createRange();
+        range.selectNodeContents(editor);
+        range.collapse(false);
+      }
+      selection.removeAllRanges();
+      selection.addRange(range);
+      range.deleteContents();
+      const node = document.createTextNode(text);
+      range.insertNode(node);
+      placeCaretAfter(node);
+      syncSource();
+    };
+
+    const insertEmoji = (code) => {
+      const emoji = FOODUCK_CUSTOM_EMOJI_BY_CODE.get(code);
+      if (!emoji) return false;
+
+      const selection = window.getSelection();
+      let range = savedRange;
+      if (!range || !editor.contains(range.commonAncestorContainer)) {
+        range = document.createRange();
+        range.selectNodeContents(editor);
+        range.collapse(false);
+      }
+      selection.removeAllRanges();
+      selection.addRange(range);
+      range.deleteContents();
+      const image = createCustomEmojiImage(emoji);
+      image.contentEditable = "false";
+      range.insertNode(image);
+      placeCaretAfter(image);
+      editor.focus({ preventScroll: true });
+      return syncSource();
+    };
+
+    editor.addEventListener("input", () => {
+      syncSource();
+      captureSelection();
+    });
+    editor.addEventListener("keyup", captureSelection);
+    editor.addEventListener("mouseup", captureSelection);
+    editor.addEventListener("focus", captureSelection);
+    editor.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter") return;
+      event.preventDefault();
+      insertPlainText("\n");
+    });
+    editor.addEventListener("paste", (event) => {
+      event.preventDefault();
+      insertPlainText(event.clipboardData?.getData("text/plain") || "");
+    });
+    textarea.addEventListener("input", () => {
+      if (!syncingFromEditor) render();
+    });
+    textarea.addEventListener("focus", () => editor.focus({ preventScroll: true }));
+    textarea.form?.addEventListener("reset", () => window.setTimeout(render, 0));
+
+    const api = { editor, insertEmoji, refresh: render };
+    FOODUCK_CUSTOM_EMOJI_EDITORS.set(textarea, api);
+    render();
+    return api;
+  }
+
+  function insertCustomEmojiIntoEditor(textarea, code) {
+    const api = FOODUCK_CUSTOM_EMOJI_EDITORS.get(textarea);
+    if (!api) return false;
+    return api.insertEmoji(code);
+  }
+
+  function refreshCustomEmojiEditor(textarea) {
+    FOODUCK_CUSTOM_EMOJI_EDITORS.get(textarea)?.refresh();
+  }
+
   function populateCustomEmojiPicker(panel, options = {}) {
     if (!(panel instanceof Element)) return null;
     const grid = document.createElement("div");
@@ -1216,6 +1425,9 @@
     items: FOODUCK_CUSTOM_EMOJIS,
     renderText: renderCustomEmojiText,
     populatePicker: populateCustomEmojiPicker,
+    attachEditor: attachCustomEmojiEditor,
+    insertIntoEditor: insertCustomEmojiIntoEditor,
+    refreshEditor: refreshCustomEmojiEditor,
   };
   window.FooduckSession = {
     ...session,

@@ -1274,3 +1274,62 @@ h4 {
   pointer-events: none;
   user-select: none;
 }
+
+
+/* Emoji-aware visual editor: textarea remains the submitted source value. */
+.fooduck-custom-emoji-source {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  min-height: 1px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  opacity: 0 !important;
+  overflow: hidden !important;
+  pointer-events: none !important;
+}
+
+.fooduck-custom-emoji-editor {
+  box-sizing: border-box;
+  display: block;
+  width: 100%;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  overflow-y: hidden;
+  resize: none;
+  cursor: text;
+}
+
+.fooduck-custom-emoji-editor:empty::before {
+  content: attr(data-placeholder);
+  color: var(--color-subtle);
+  pointer-events: none;
+}
+
+.fooduck-custom-emoji-editor:focus {
+  outline: none;
+  border-color: rgba(234, 88, 12, 0.55) !important;
+  box-shadow: 0 0 0 3px rgba(234, 88, 12, 0.10);
+}
+
+.fooduck-custom-emoji-editor .fooduck-custom-emoji-inline {
+  width: 100px;
+  height: 100px;
+  max-width: 100%;
+  margin: 4px 6px;
+  vertical-align: middle;
+}
+
+/* Keep custom emoji comfortably visible in user-generated content bodies. */
+.detail-body .fooduck-custom-emoji-inline,
+.comment-content .fooduck-custom-emoji-inline,
+.store-review-content .fooduck-custom-emoji-inline,
+.store-news-content .fooduck-custom-emoji-inline {
+  width: 100px;
+  height: 100px;
+  max-width: 100%;
+  margin: 6px 8px;
+  object-fit: contain;
+  vertical-align: middle;
+}
