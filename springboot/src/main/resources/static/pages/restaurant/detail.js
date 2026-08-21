@@ -445,6 +445,7 @@
 
   function insertReviewEmoji(textarea, emoji) {
     if (!textarea || !emoji) return;
+    if (emojis?.insertIntoEditor?.(textarea, emoji)) return;
     const start = Number.isInteger(textarea.selectionStart) ? textarea.selectionStart : textarea.value.length;
     const end = Number.isInteger(textarea.selectionEnd) ? textarea.selectionEnd : start;
     const nextValue = `${textarea.value.slice(0, start)}${emoji}${textarea.value.slice(end)}`;
@@ -469,6 +470,7 @@
     const counter = form?.querySelector("[data-review-char-count]");
     if (!textarea || !toggle || !panel) return;
 
+    emojis?.attachEditor?.(textarea);
     const syncReviewTextarea = () => {
       updateReviewCharacterCount(textarea, counter);
       resizeStoreWriteTextarea(textarea, 90);
@@ -1021,15 +1023,13 @@
 
   // AI(Naive Bayes) 리뷰 감성분석 요약 카드. 감성분석 서비스가 꺼져 있거나 아직 준비되지
   // 않아도(sentiment-api.base-url 미설정 등) 리뷰 화면 자체는 정상 동작해야 하므로,
-  // 실패하면 카드를 그냥 숨긴 채 조용히 넘어간다. 공공데이터 매장/사업자 등록 매장 둘 다 지원한다.
+  // 실패하면 카드를 그냥 숨긴 채 조용히 넘어간다. 현재는 공공데이터 매장만 지원한다.
   async function loadSentimentSummary() {
+    if (source !== "public") return;
     const card = document.getElementById("store-sentiment-card");
     if (!card) return;
     try {
-      const path = source === "public"
-        ? `/public/map/restaurants/${storeId}/sentiment-summary`
-        : `/public/restaurants/${storeId}/sentiment-summary`;
-      const response = await Api.get(path, { auth: false });
+      const response = await Api.get(`/public/map/restaurants/${storeId}/sentiment-summary`, { auth: false });
       const summary = response.data;
       if (!summary || summary.reviewCount === 0) return;
       const ratio = Math.round(summary.positiveRatio);
@@ -1652,6 +1652,7 @@
 
   function insertNewsEmoji(textarea, emoji) {
     if (!(textarea instanceof HTMLTextAreaElement) || !emoji) return false;
+    if (emojis?.insertIntoEditor?.(textarea, emoji)) return true;
     const value = textarea.value || "";
     const start = Number.isInteger(textarea.selectionStart) ? textarea.selectionStart : value.length;
     const end = Number.isInteger(textarea.selectionEnd) ? textarea.selectionEnd : start;
@@ -1702,6 +1703,7 @@
     if (!(textarea instanceof HTMLTextAreaElement) || !toggle || !panel) return null;
 
     if (!emojis) return null;
+    emojis.attachEditor?.(textarea);
     emojis.populatePicker(panel, {
       gridClass: "comment-emoji-grid fooduck-custom-emoji-grid",
       buttonClass: "comment-emoji-option fooduck-custom-emoji-option",
@@ -2798,6 +2800,7 @@
 
         window.FooduckBoard?.invalidateBoardCache?.();
         textarea.value = "";
+        emojis?.refreshEditor?.(textarea);
         clearImage();
         updateNewsCommentCharacterCount(textarea, characterCount);
         resizeNewsCommentTextarea(textarea, 105);
@@ -3806,7 +3809,7 @@
     const address = store.roadAddress || store.lotAddress || "-";
     addressEl.textContent = address;
 
-    const categoryName = store.categoryMediumName || store.categorySmallName || store.categoryLargeName;
+    const categoryName = store.categorySmallName || store.categoryLargeName;
     badgesEl.innerHTML = categoryName
       ? `<span class="store-badge store-badge--category">${escapeHtml(categoryName)}</span>`
       : "";
@@ -3837,7 +3840,7 @@
       <div class="store-section-card">
         <h2>가게 정보</h2>
         <dl class="store-basic-info">
-          <div><dt>업종(대분류)</dt><dd>${escapeHtml(store.categoryMediumName || "-")}</dd></div>
+          <div><dt>업종(대분류)</dt><dd>${escapeHtml(store.categoryLargeName || "-")}</dd></div>
           <div><dt>업종(소분류)</dt><dd>${escapeHtml(store.categorySmallName || "-")}</dd></div>
           <div><dt>도로명 주소</dt><dd>${escapeHtml(store.roadAddress || "-")}</dd></div>
           <div><dt>지번 주소</dt><dd>${escapeHtml(store.lotAddress || "-")}</dd></div>
@@ -3866,6 +3869,7 @@
     if (titleInput) titleInput.value = "";
     if (contentInput) {
       contentInput.value = "";
+      emojis?.refreshEditor?.(contentInput);
       resizeStoreWriteTextarea(contentInput, 90);
     }
     newsCreatedPostId = null;

@@ -102,6 +102,7 @@
 
   function insertEditorEmoji(emoji) {
     if (!contentInput || !emoji) return;
+    if (emojis?.insertIntoEditor?.(contentInput, emoji)) return;
 
     const value = contentInput.value || "";
     const start = Number.isInteger(contentInput.selectionStart)
@@ -155,6 +156,7 @@
     if (!emojiToggle || !emojiPanel || !contentInput) return;
 
     if (!emojis) return;
+    emojis.attachEditor?.(contentInput);
     emojis.populatePicker(emojiPanel, {
       gridClass: "comment-emoji-grid fooduck-custom-emoji-grid",
       buttonClass: "comment-emoji-option fooduck-custom-emoji-option",
@@ -1001,6 +1003,7 @@
       categorySelect.value = originalPost.category;
       titleInput.value = originalPost.title || "";
       contentInput.value = originalPost.content || "";
+      emojis?.refreshEditor?.(contentInput);
       restoreRestaurantSelection(originalPost);
       syncRestaurantSelectorForMode();
       setListLinks(originalPost.boardType);

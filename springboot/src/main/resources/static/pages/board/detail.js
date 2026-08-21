@@ -124,6 +124,7 @@
 
   function insertCommentEmoji(textarea, emoji) {
     if (!textarea || !emoji) return false;
+    if (emojis?.insertIntoEditor?.(textarea, emoji)) return true;
     const value = textarea.value || "";
     const start = Number.isInteger(textarea.selectionStart) ? textarea.selectionStart : value.length;
     const end = Number.isInteger(textarea.selectionEnd) ? textarea.selectionEnd : start;
@@ -146,6 +147,7 @@
     if (!textarea || !toggle || !panel) return null;
 
     if (!emojis) return null;
+    emojis.attachEditor?.(textarea);
     emojis.populatePicker(panel, {
       gridClass: "comment-emoji-grid fooduck-custom-emoji-grid",
       buttonClass: "comment-emoji-option fooduck-custom-emoji-option",
@@ -3105,6 +3107,7 @@
 
       invalidateBoardCache();
       commentContent.value = "";
+      emojis?.refreshEditor?.(commentContent);
       updateCharacterCount(commentContent, commentCharacterCount);
       resizeCommentTextarea(commentContent, 105);
       clearCommentImageSelection();
