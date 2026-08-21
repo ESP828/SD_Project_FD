@@ -380,7 +380,7 @@ try {
     }
     $springProcess = Start-Process `
         -FilePath $commandProcessor `
-        -ArgumentList @("/d", "/s", "/c", "mvnw.cmd spring-boot:run") `
+        -ArgumentList @("/d", "/s", "/c", "mvnw.cmd spring-boot:run -Dspring-boot.run.jvmArguments=-Dfile.encoding=UTF-8") `
         -WorkingDirectory $appDirectory `
         -NoNewWindow `
         -PassThru

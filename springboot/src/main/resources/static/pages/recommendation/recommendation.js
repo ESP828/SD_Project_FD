@@ -269,14 +269,10 @@ const RecommendationPage = {
         const name = cleanRestaurantName(rawName);
 
         const category = item.category || item.categoryName || "음식점";
-        const rawRating = typeof item.rawRating === 'number' ? item.rawRating.toFixed(1) : "0.0";
-        const reviewCount = item.reviewCount || 0;
-        const favoriteCount = item.favoriteCount || 0;
-        const isLowReview = reviewCount < 10;
-
-        const reviewBadge = isLowReview
-          ? `<span style="font-size: 10px; color: #d46b08; background: #fff7e6; padding: 1px 4px; border-radius: 3px;">리뷰 ${reviewCount}개 (평점50%)</span>`
-          : `<span style="font-size: 10px; color: #389e0d; background: #f6ffed; padding: 1px 4px; border-radius: 3px;">리뷰 ${reviewCount}개</span>`;
+        const positiveRatio = item.aiSentimentPositiveRatio;
+        const recommendBadge = typeof positiveRatio === 'number'
+          ? `<span style="font-size: 11px; font-weight: 700; color: var(--color-orange-dark); background: var(--color-orange-soft); padding: 1px 6px; border-radius: 3px; flex-shrink: 0;">추천도 ${positiveRatio}%</span>`
+          : '';
 
         html += `
           <div class="ranking-item-card"
@@ -289,16 +285,12 @@ const RecommendationPage = {
 
             <div style="flex: 1; min-width: 0;">
               <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 4px;">
-                <h5 title="${rawName}" style="margin: 0; font-size: 18px; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${name}</h5>
-                <div style="display: flex; align-items: center; gap: 6px; flex-shrink: 0; font-size: 13px;">
-                  <span style="color: #e03131; font-weight: bold;"><i class="fa-solid fa-heart" aria-hidden="true"></i> ${favoriteCount}</span>
-                  <span style="color: #f59f00; font-weight: bold;"><i class="fa-solid fa-star" aria-hidden="true"></i> ${rawRating}</span>
-                </div>
+                <h5 title="${rawName}" style="margin: 0; font-size: 18px; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0;">${name}</h5>
+                ${recommendBadge}
               </div>
 
-              <div style="display: flex; align-items: center; justify-content: space-between; font-size: 12px;">
+              <div style="font-size: 12px;">
                 <span style="color: #888;">${category}</span>
-                <div>${reviewBadge}</div>
               </div>
             </div>
           </div>

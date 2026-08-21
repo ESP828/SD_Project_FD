@@ -50,6 +50,10 @@ public class PublicRestaurantFavoriteService {
         return queryRepository.count(publicRestaurantId);
     }
 
+    public java.util.Map<Long, Long> countBatch(java.util.List<Long> publicRestaurantIds) {
+        return queryRepository.countBatch(publicRestaurantIds);
+    }
+
     private void validate(Long publicRestaurantId, Long accountId) {
         if (publicRestaurantId == null || publicRestaurantId <= 0 || accountId == null || accountId <= 0) {
             throw new BusinessException(ErrorCode.INVALID_INPUT);
