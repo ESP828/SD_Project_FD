@@ -1314,7 +1314,9 @@ h4 {
 }
 
 .fooduck-custom-emoji-editor .fooduck-custom-emoji-inline {
-  width: 1.72em;
-  height: 1.72em;
-  vertical-align: -0.43em;
+  width: 100px;
+  height: 100px;
+  max-width: 100%;
+  margin: 4px 6px;
+  vertical-align: middle;
 }

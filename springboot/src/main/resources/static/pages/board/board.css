@@ -2663,9 +2663,17 @@ button.author-menu-notification-link {
 
 .comment-reply-submit-row {
   display: flex;
-  justify-content: flex-end;
+  justify-content: space-between;
   align-items: center;
+  gap: 12px;
+}
+
+.comment-reply-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
   gap: 10px;
+  flex: 0 0 auto;
 }
 
 .comment-submit-row {
@@ -2682,7 +2690,19 @@ button.author-menu-notification-link {
 }
 
 #comment-form .comment-submit-row {
-  justify-content: flex-end;
+  align-items: center;
+}
+
+.comment-submit-tools {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  min-width: 0;
+}
+
+.comment-input-meta--footer {
+  padding-left: 2px;
 }
 
 .comment-empty {
@@ -2896,10 +2916,16 @@ button.author-menu-notification-link {
   }
 
   .comment-reply-submit-row {
-    justify-content: stretch;
+    align-items: stretch;
+    flex-direction: column;
   }
 
-  .comment-reply-submit-row .button {
+  .comment-reply-actions {
+    width: 100%;
+  }
+
+  .comment-reply-actions .button,
+  .comment-reply-actions .comment-action {
     flex: 1;
   }
 
@@ -2912,6 +2938,24 @@ button.author-menu-notification-link {
     align-items: flex-start;
     flex-direction: column;
     gap: 3px;
+  }
+
+  #comment-form .comment-submit-row {
+    align-items: stretch;
+  }
+
+  .comment-submit-tools {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .comment-input-meta--footer {
+    padding-left: 0;
+  }
+
+  #comment-form .comment-submit-row > .button {
+    align-self: flex-end;
   }
 
   .comment-heading-row {

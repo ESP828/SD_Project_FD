@@ -2288,7 +2288,7 @@
     textarea.value = `@${targetName} `;
     form.dataset.initialValue = textarea.value;
 
-    const inputMeta = element("div", "comment-input-meta comment-input-meta--compact");
+    const inputMeta = element("div", "comment-input-meta comment-input-meta--compact comment-input-meta--footer");
     const characterCount = element("span", "comment-character-count");
     inputMeta.append(characterCount);
     updateCharacterCount(textarea, characterCount);
@@ -2328,12 +2328,16 @@
     preview.append(previewImage, previewCopy, removeImage);
 
     const submitRow = element("div", "comment-reply-submit-row");
+    const submitTools = element("div", "comment-submit-tools");
+    submitTools.append(tools, inputMeta);
+    const submitActions = element("div", "comment-reply-actions");
     const cancel = element("button", "comment-action", "취소");
     cancel.type = "button";
     const submit = element("button", "button button-sm button-primary", "답글 등록");
     submit.type = "submit";
     submit.disabled = true;
-    submitRow.append(cancel, submit);
+    submitActions.append(cancel, submit);
+    submitRow.append(submitTools, submitActions);
 
     function syncReplySubmitState() {
       submit.disabled = !hasReplyBody(textarea.value, targetName);
@@ -2451,7 +2455,7 @@
       }
     });
 
-    form.append(label, textarea, inputMeta, tools, emojiPanel, preview, submitRow);
+    form.append(label, textarea, emojiPanel, preview, submitRow);
     mountTarget.append(form);
     activeReplyForm = form;
     textarea.focus();
