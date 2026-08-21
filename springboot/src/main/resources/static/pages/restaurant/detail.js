@@ -406,7 +406,7 @@
         ${review.content ? `<p class="store-review-content">${escapeHtml(review.content)}</p>` : ""}
         ${reviewMediaGalleryHtml(review.media)}
         <div class="store-review-footer">
-          <p class="store-review-date">${formatDate(review.createdAt)}${review.edited ? " · 수정됨" : ""}</p>
+          <p class="store-review-date">${formatDate(review.createdAt, { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })}${review.edited ? " · 수정됨" : ""}</p>
         </div>
       </div>
     `;
