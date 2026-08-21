@@ -456,6 +456,12 @@
     textarea.dispatchEvent(new Event("input", { bubbles: true }));
   }
 
+  function resizeStoreWriteTextarea(textarea, minimumHeight = 90) {
+    if (!(textarea instanceof HTMLTextAreaElement)) return;
+    textarea.style.height = "auto";
+    textarea.style.height = `${Math.max(textarea.scrollHeight, minimumHeight)}px`;
+  }
+
   function bindReviewEmojiPicker(form) {
     const textarea = form?.querySelector("#store-review-content");
     const toggle = form?.querySelector("[data-review-emoji-toggle]");
@@ -463,8 +469,13 @@
     const counter = form?.querySelector("[data-review-char-count]");
     if (!textarea || !toggle || !panel) return;
 
-    updateReviewCharacterCount(textarea, counter);
-    textarea.addEventListener("input", () => updateReviewCharacterCount(textarea, counter));
+    const syncReviewTextarea = () => {
+      updateReviewCharacterCount(textarea, counter);
+      resizeStoreWriteTextarea(textarea, 90);
+    };
+    syncReviewTextarea();
+    window.requestAnimationFrame(syncReviewTextarea);
+    textarea.addEventListener("input", syncReviewTextarea);
     toggle.addEventListener("click", () => {
       const nextOpen = panel.hidden;
       panel.hidden = !nextOpen;
@@ -3348,9 +3359,13 @@
       if (titleCount) titleCount.textContent = `${titleInput?.value.length || 0}/200`;
       if (contentCount) contentCount.textContent = `${contentInput?.value.length || 0}/10000`;
     };
+    const syncNewsContent = () => {
+      updateCounts();
+      resizeStoreWriteTextarea(contentInput, 90);
+    };
     titleInput?.addEventListener("input", updateCounts);
-    contentInput?.addEventListener("input", updateCounts);
-    updateCounts();
+    contentInput?.addEventListener("input", syncNewsContent);
+    syncNewsContent();
 
     if (toggleButton && form) {
       toggleButton.addEventListener("click", () => {
@@ -3359,7 +3374,11 @@
         toggleButton.setAttribute("aria-expanded", String(willOpen));
         toggleButton.textContent = willOpen ? "닫기" : "글쓰기";
         if (!willOpen) closeNewsEmojiPicker();
-        if (willOpen) titleInput?.focus();
+        if (willOpen) {
+          resizeStoreWriteTextarea(contentInput, 90);
+          window.requestAnimationFrame(() => resizeStoreWriteTextarea(contentInput, 90));
+          titleInput?.focus();
+        }
       });
     }
 
@@ -3843,7 +3862,10 @@
     const titleInput = document.getElementById("store-news-title");
     const contentInput = document.getElementById("store-news-content");
     if (titleInput) titleInput.value = "";
-    if (contentInput) contentInput.value = "";
+    if (contentInput) {
+      contentInput.value = "";
+      resizeStoreWriteTextarea(contentInput, 90);
+    }
     newsCreatedPostId = null;
     resetNewsSelectedMedia();
   }

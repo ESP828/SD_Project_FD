@@ -48,7 +48,6 @@
   const commentCount = document.getElementById("detail-comment-count");
   const commentForm = document.getElementById("comment-form");
   const commentContent = document.getElementById("comment-content");
-  const commentLoginNote = document.getElementById("comment-login-note");
   const commentList = document.getElementById("comment-list");
   const commentPagination = document.getElementById("comment-pagination");
   const commentWriteShortcut = document.getElementById("comment-write-shortcut");
@@ -561,9 +560,6 @@
       .then((payload) => {
         const nickname = String(payload?.data?.nickname || "").trim();
         if (nickname) session.nickname = nickname;
-        if (commentLoginNote && session.authenticated) {
-          commentLoginNote.textContent = `${session.nickname || "회원"} 님으로 작성합니다.`;
-        }
         return session.nickname || null;
       })
       .catch(() => null)
@@ -588,9 +584,6 @@
       || session.authorities.includes("ROLE_ADMIN");
     session.isAdmin = session.authorities.includes("ROLE_ADMIN");
     session.hasAuthority = (authority) => session.authorities.includes(authority);
-    if (commentLoginNote) {
-      commentLoginNote.textContent = `${session.nickname || "회원"} 님으로 작성합니다.`;
-    }
     void hydrateSessionNickname();
 
     const action = pendingDetailLoginAction;
@@ -3062,12 +3055,6 @@
       if (commentEmojiToggle) commentEmojiToggle.disabled = false;
     }
   });
-
-  if (!session.authenticated) {
-    commentLoginNote.textContent = "댓글 등록 시 로그인 창이 열리고, 로그인 후 이 글에서 이어서 작성합니다.";
-  } else {
-    commentLoginNote.textContent = `${session.nickname || "회원"} 님으로 작성합니다.`;
-  }
 
   function initializeScrollTopButton() {
     const button = document.createElement("button");

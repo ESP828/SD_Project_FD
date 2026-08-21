@@ -1027,7 +1027,8 @@ body > [data-site-header] > .site-header {
   border-radius: 12px;
   outline: none;
   background: #fff;
-  resize: vertical;
+  resize: none;
+  overflow-y: hidden;
   transition: border-color 160ms ease, box-shadow 160ms ease;
 }
 
