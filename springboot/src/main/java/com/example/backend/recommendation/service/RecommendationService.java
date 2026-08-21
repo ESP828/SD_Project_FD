@@ -299,7 +299,7 @@ public class RecommendationService {
                     "PUBLIC",
                     restaurant.getPublicRestaurantId(),
                     name,
-                    restaurant.getCategorySmallName() != null ? restaurant.getCategorySmallName() : restaurant.getCategoryLargeName(),
+                    displayCategoryName(restaurant),
                     restaurant.getRoadAddress(),
                     restaurant.getLatitude() != null ? restaurant.getLatitude().doubleValue() : null,
                     restaurant.getLongitude() != null ? restaurant.getLongitude().doubleValue() : null,
@@ -392,7 +392,7 @@ public class RecommendationService {
                 continue;
             }
 
-            String category = candidate.getCategorySmallName() != null ? candidate.getCategorySmallName() : candidate.getCategoryLargeName();
+            String category = displayCategoryName(candidate);
             if (category == null) category = "";
 
             double baseScore = 0.5;
@@ -483,6 +483,20 @@ public class RecommendationService {
             }
         }
         return bonus;
+    }
+
+    /**
+     * 화면에 보여줄 카테고리명. 세부 항목("경양식") 대신 정리된 대분류("양식")를 우선한다.
+     * 대분류가 없는(공공데이터 코드가 매핑표에 없는) 경우에만 세부 항목으로 대체한다.
+     */
+    private static String displayCategoryName(PublicRestaurant restaurant) {
+        if (restaurant.getCategoryMediumName() != null && !restaurant.getCategoryMediumName().isBlank()) {
+            return restaurant.getCategoryMediumName();
+        }
+        if (restaurant.getCategorySmallName() != null && !restaurant.getCategorySmallName().isBlank()) {
+            return restaurant.getCategorySmallName();
+        }
+        return restaurant.getCategoryLargeName();
     }
 
     /** 계정의 Gender enum 이름과 화면에서 넘어온 값을 모두 MALE/FEMALE로 정규화한다. */
@@ -602,9 +616,8 @@ public class RecommendationService {
                 );
             }
 
-            String category = restaurant.getCategorySmallName() != null && !restaurant.getCategorySmallName().isBlank()
-                    ? restaurant.getCategorySmallName()
-                    : (restaurant.getCategoryLargeName() != null ? restaurant.getCategoryLargeName() : "음식점");
+            String category = displayCategoryName(restaurant);
+            if (category == null || category.isBlank()) category = "음식점";
 
             rankList.add(new com.example.backend.recommendation.dto.response.RestaurantRankResponse(
                     id,

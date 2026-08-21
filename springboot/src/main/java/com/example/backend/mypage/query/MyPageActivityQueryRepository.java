@@ -98,7 +98,7 @@ public class MyPageActivityQueryRepository {
                                        null as restaurant_id,
                                        p.public_restaurant_id as public_restaurant_id,
                                        p.name as restaurant_name,
-                                       coalesce(p.category_small_name, p.category_large_name) as category_name,
+                                       coalesce(p.category_medium_name, p.category_small_name, p.category_large_name) as category_name,
                                        coalesce(p.road_address, p.lot_address) as address,
                                        null as description,
                                        f.created_at as created_at

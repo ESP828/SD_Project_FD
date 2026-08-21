@@ -106,7 +106,7 @@ public class PresetQueryRepository {
     private static final String RESTAURANTS_SQL = """
             select r.public_restaurant_id as restaurant_id,
                    r.name,
-                   coalesce(r.category_small_name, r.category_medium_name, r.category_large_name) as category_name,
+                   coalesce(r.category_medium_name, r.category_small_name, r.category_large_name) as category_name,
                    coalesce(r.road_address, r.lot_address) as address,
                    r.address_detail,
                    r.phone,
@@ -321,7 +321,7 @@ public class PresetQueryRepository {
         String sql = """
                 select r.public_restaurant_id as restaurant_id,
                        r.name,
-                       coalesce(r.category_small_name, r.category_medium_name, r.category_large_name) as category_name,
+                       coalesce(r.category_medium_name, r.category_small_name, r.category_large_name) as category_name,
                        coalesce(r.road_address, r.lot_address) as address,
                        r.address_detail
                   from public_restaurant r
