@@ -733,6 +733,7 @@
     const originLng = userLocation ? userLocation.longitude : center.getLng();
     lastSearchKeyword = "";
     lastSearchCategory = "";
+    categoryList.querySelectorAll("button").forEach((item) => item.classList.remove("is-active"));
     searchAreaButton.hidden = true;
     setMapStatus("주변 맛집을 찾고 있습니다.");
     try {
@@ -834,8 +835,14 @@
 
   async function searchPlaces(keyword) {
     const normalized = keyword.trim();
-    if (!kakaoMap || !normalized) {
-      setMapStatus(!kakaoMap ? "지도가 아직 준비되지 않았습니다." : "검색어를 입력해 주세요.", true);
+    if (!kakaoMap) {
+      setMapStatus("지도가 아직 준비되지 않았습니다.", true);
+      return;
+    }
+    // 검색어 없이 검색하면 오류로 막는 대신, 지금 보고 있는 지역 주변 맛집을 보여준다.
+    if (!normalized) {
+      keywordInput.value = "";
+      await loadRestaurantsAround(kakaoMap.getCenter(), "이 지역 맛집");
       return;
     }
     lastSearchKeyword = normalized;

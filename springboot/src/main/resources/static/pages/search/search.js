@@ -73,11 +73,7 @@
     });
   }
 
-  // 빠른 검색 버튼 비활성화/활성화 처리
-  quickButtons.forEach((button) => {
-    button.disabled = isAiMode;
-    button.classList.toggle("is-disabled", isAiMode);
-  });
+  // ✨ AI 모드에서도 빠른 검색 버튼으로 "OOO 추천해줘" 검색어를 바로 채울 수 있게 둔다.
 }
 
   // AI 모드는 사용자가 직접 끄기 전까지 유지한다(브라우저를 닫았다 열어도 그대로).
@@ -550,6 +546,9 @@ function updateUrlState(page = 0) {
     setFilterPanelOpen(filterPanel.hidden);
   });
 
+  // ✨ AI 모드에서 빠른 검색으로 채운 검색어인지 판단하기 위한 값들("OOO 추천해줘" 패턴 전체).
+  const quickCategoryValues = Array.from(quickButtons).map((button) => button.dataset.quickCategory);
+
   quickButtons.forEach((button) => {
     button.addEventListener("click", () => {
       const selectedCategory = button.dataset.quickCategory;
@@ -566,8 +565,15 @@ function updateUrlState(page = 0) {
         quickButtons.forEach((item) =>
           item.classList.toggle("is-active", item === button)
         );
-        if (isAiMode && !keywordInput.value.trim()) {
-          keywordInput.value = `${selectedCategory} 추천해줘`;
+        if (isAiMode) {
+          const currentValue = keywordInput.value.trim();
+          // 검색어가 비어 있거나, 이전에 다른 빠른 검색 버튼으로 채워둔 "OOO 추천해줘" 그대로면
+          // 새로 누른 카테고리로 바꿔 채운다. 사용자가 직접 검색어를 수정했으면 건드리지 않는다.
+          const wasQuickFilled = currentValue === ""
+            || quickCategoryValues.some((category) => currentValue === `${category} 추천해줘`);
+          if (wasQuickFilled) {
+            keywordInput.value = `${selectedCategory} 추천해줘`;
+          }
         }
       }
       aiRecommendationItems = [];

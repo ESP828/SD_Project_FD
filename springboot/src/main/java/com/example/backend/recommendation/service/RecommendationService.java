@@ -213,8 +213,11 @@ public class RecommendationService {
         for (PublicRestaurant restaurant : candidates) {
             String name = restaurant.getName() != null ? restaurant.getName() : "";
             String categoryLarge = restaurant.getCategoryLargeName() != null ? restaurant.getCategoryLargeName() : "";
+            String categoryMedium = restaurant.getCategoryMediumName() != null ? restaurant.getCategoryMediumName() : "";
             String categorySmall = restaurant.getCategorySmallName() != null ? restaurant.getCategorySmallName() : "";
-            String fullCategory = categoryLarge + " " + categorySmall;
+            // "패스트푸드"/"카페·디저트" 같은 대분류 검색어는 세부명(치킨/카페)에는 그대로 안 나타나므로
+            // 대분류(categoryMedium)도 같이 넣어야 "OOO 추천해줘" 빠른 검색이 정확히 매칭된다.
+            String fullCategory = categoryLarge + " " + categoryMedium + " " + categorySmall;
 
             boolean isDirectCategoryMatch = false;
             String matchedCategoryToken = "";

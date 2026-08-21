@@ -148,13 +148,19 @@
   background: var(--color-orange-dark);
 }
 
+.category-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin-top: 12px;
+}
+
 .category-list {
   display: flex;
+  flex-wrap: wrap;
   gap: 7px;
-  overflow-x: auto;
-  margin-top: 12px;
-  padding-bottom: 3px;
-  scrollbar-width: thin;
+  flex: 1;
+  min-width: 0;
 }
 
 .category-list button {
