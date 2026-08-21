@@ -468,7 +468,8 @@
     return true;
   }
 
-  async function loadPosts() {
+  async function loadPosts(options = {}) {
+    const forceRefresh = options.forceRefresh === true;
     const generation = ++postRequestGeneration;
     const isBest = state.boardType === "BEST";
     const isPopular = state.boardType === "POPULAR";
@@ -492,7 +493,7 @@
       : isBest
         ? `/board/posts/best/community?${params.toString()}`
         : `/board/posts?${params.toString()}`;
-    const cached = readBoardCache(path);
+    const cached = forceRefresh ? null : readBoardCache(path);
     if (cached) {
       if (generation !== postRequestGeneration) return;
       const cachedPage = normalizePostPage(cached.data);
@@ -505,7 +506,7 @@
     }
 
     try {
-      const payload = await Api.get(path);
+      const payload = await Api.get(path, { cache: "no-store" });
       const data = payload.data || (isPopular ? [] : {});
       writeBoardCache(path, data);
       if (generation !== postRequestGeneration) return;
@@ -548,7 +549,8 @@
     });
   }
 
-  async function loadBestPosts() {
+  async function loadBestPosts(options = {}) {
+    const forceRefresh = options.forceRefresh === true;
     const generation = ++bestRequestGeneration;
     const isRankedView = ["BEST", "POPULAR"].includes(state.boardType);
     if (bestPostPanel) bestPostPanel.hidden = isRankedView;
@@ -558,7 +560,7 @@
       size: "3",
     });
     const path = `/board/posts/best?${params.toString()}`;
-    const cached = readBoardCache(path);
+    const cached = forceRefresh ? null : readBoardCache(path);
     if (cached) {
       if (generation !== bestRequestGeneration) return;
       renderBestPosts(cached.data || []);
@@ -569,7 +571,7 @@
     }
 
     try {
-      const payload = await Api.get(path);
+      const payload = await Api.get(path, { cache: "no-store" });
       const posts = payload.data || [];
       writeBoardCache(path, posts);
       if (generation !== bestRequestGeneration) return;
@@ -627,7 +629,8 @@
     });
   }
 
-  async function loadUnansweredPosts() {
+  async function loadUnansweredPosts(options = {}) {
+    const forceRefresh = options.forceRefresh === true;
     if (!unansweredPostList) return;
     const generation = ++unansweredRequestGeneration;
     const params = new URLSearchParams({
@@ -637,7 +640,7 @@
       size: "3",
     });
     const path = `/board/posts/unanswered?${params.toString()}`;
-    const cached = readBoardCache(path);
+    const cached = forceRefresh ? null : readBoardCache(path);
     if (cached) {
       if (generation !== unansweredRequestGeneration) return;
       renderUnansweredPosts(cached.data || []);
@@ -650,7 +653,7 @@
     }
 
     try {
-      const payload = await Api.get(path);
+      const payload = await Api.get(path, { cache: "no-store" });
       const posts = payload.data || [];
       writeBoardCache(path, posts);
       if (generation !== unansweredRequestGeneration) return;
@@ -667,8 +670,12 @@
     }
   }
 
-  function loadBoardContent() {
-    return Promise.all([loadPosts(), loadBestPosts(), loadUnansweredPosts()]);
+  function loadBoardContent(options = {}) {
+    return Promise.all([
+      loadPosts(options),
+      loadBestPosts(options),
+      loadUnansweredPosts(options),
+    ]);
   }
 
   async function prefetchBusinessFirstPage() {
@@ -893,7 +900,11 @@
   });
 
   window.addEventListener("pageshow", (event) => {
-    if (event.persisted) loadBoardContent();
+    if (event.persisted) loadBoardContent({ forceRefresh: true });
+  });
+
+  window.addEventListener(board.cacheInvalidatedEvent, () => {
+    loadBoardContent({ forceRefresh: true });
   });
 
   window.addEventListener("pagehide", () => {

@@ -1898,7 +1898,7 @@
     }
 
     try {
-      const payload = await Api.get(path);
+      const payload = await Api.get(path, { cache: "no-store" });
       updateCachedPostViewCount(postId, payload.data?.viewCount);
       writeBoardCache(path, payload.data);
       renderPost(payload.data);
@@ -1994,8 +1994,12 @@
 
     try {
       const params = new URLSearchParams({ category });
-      const payload = await Api.patch(`/board/posts/${postId}/unpin?${params.toString()}`, {});
-      invalidateBoardCache();
+      const payload = await Api.patch(
+        `/board/posts/${postId}/unpin?${params.toString()}`,
+        {},
+        { cache: "no-store" },
+      );
+      invalidateBoardCache({ global: true });
       renderPost({
         ...post,
         ...(payload.data || {}),
@@ -2028,8 +2032,12 @@
     if (button) button.disabled = true;
     try {
       const params = new URLSearchParams({ category });
-      const payload = await Api.patch(`/board/posts/${postId}/pin?${params.toString()}`, {});
-      invalidateBoardCache();
+      const payload = await Api.patch(
+        `/board/posts/${postId}/pin?${params.toString()}`,
+        {},
+        { cache: "no-store" },
+      );
+      invalidateBoardCache({ global: true });
       renderPost({
         ...post,
         ...(payload.data || {}),

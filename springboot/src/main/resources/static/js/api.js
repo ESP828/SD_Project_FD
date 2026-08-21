@@ -21,7 +21,7 @@ const Api = {
     localStorage.removeItem("accessToken");
   },
 
-  async request(path, { method = "GET", body, auth = true, _retried = false } = {}) {
+  async request(path, { method = "GET", body, auth = true, _retried = false, cache } = {}) {
     const isFormData = typeof FormData !== "undefined" && body instanceof FormData;
     const headers = { Accept: "application/json" };
     if (body !== undefined && !isFormData) {
@@ -38,6 +38,7 @@ const Api = {
       headers,
       body: body === undefined ? undefined : isFormData ? body : JSON.stringify(body),
       credentials: "same-origin",
+      cache,
     });
 
     const contentType = response.headers.get("content-type") || "";
@@ -50,7 +51,7 @@ const Api = {
       if (response.status === 401 && auth && !_retried && path !== "/auth/refresh") {
         const refreshed = await this._refreshAccessToken();
         if (refreshed) {
-          return this.request(path, { method, body, auth, _retried: true });
+          return this.request(path, { method, body, auth, _retried: true, cache });
         }
       }
       if (response.status === 401) {

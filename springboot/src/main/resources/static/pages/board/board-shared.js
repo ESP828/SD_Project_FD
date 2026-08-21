@@ -2,6 +2,8 @@
   const BOARD_CACHE_PREFIX = "fooduck:board:v1:";
   const BOARD_CACHE_FRESH_MS = 60_000;
   const BOARD_CACHE_MAX_AGE_MS = 5 * 60_000;
+  const BOARD_CACHE_INVALIDATION_KEY = "fooduck:board:invalidate:v1";
+  const BOARD_CACHE_INVALIDATED_EVENT = "fooduck:board-cache-invalidated";
   const categoryLabels = {
     GENERAL: "자유 이야기",
     NOTICE: "공지",
@@ -29,6 +31,38 @@
   let authorActivityTooltipTarget = null;
   const AUTHOR_ACTIVITY_HINT_KEY = "fooduck:author-profile-hint:v1";
 
+
+  function boardCacheInvalidatedAt() {
+    try {
+      const value = Number(window.localStorage.getItem(BOARD_CACHE_INVALIDATION_KEY));
+      return Number.isFinite(value) && value > 0 ? value : 0;
+    } catch (_error) {
+      return 0;
+    }
+  }
+
+  function clearBoardSessionCache() {
+    try {
+      for (let index = window.sessionStorage.length - 1; index >= 0; index -= 1) {
+        const key = window.sessionStorage.key(index);
+        if (
+          key?.startsWith(BOARD_CACHE_PREFIX)
+          && key.includes(":content:")
+        ) {
+          window.sessionStorage.removeItem(key);
+        }
+      }
+    } catch (_error) {
+      // 캐시 제거 실패가 게시판 변경 작업을 막지 않도록 한다.
+    }
+  }
+
+  function notifyBoardCacheInvalidated(invalidatedAt) {
+    window.dispatchEvent(new CustomEvent(BOARD_CACHE_INVALIDATED_EVENT, {
+      detail: { invalidatedAt },
+    }));
+  }
+
   function cacheScope() {
     const session = window.FooduckSession;
     if (!session?.authenticated) return "guest";
@@ -48,8 +82,16 @@
       const entry = JSON.parse(raw);
       const hasData = entry
         && Object.prototype.hasOwnProperty.call(entry, "data");
-      const age = Date.now() - Number(entry?.savedAt);
-      if (!hasData || !Number.isFinite(age) || age < 0 || age > BOARD_CACHE_MAX_AGE_MS) {
+      const savedAt = Number(entry?.savedAt);
+      const age = Date.now() - savedAt;
+      const invalidatedAt = boardCacheInvalidatedAt();
+      if (
+        !hasData
+        || !Number.isFinite(age)
+        || age < 0
+        || age > BOARD_CACHE_MAX_AGE_MS
+        || savedAt <= invalidatedAt
+      ) {
         window.sessionStorage.removeItem(key);
         return null;
       }
@@ -66,7 +108,7 @@
     try {
       window.sessionStorage.setItem(
         cacheKey(resource),
-        JSON.stringify({ savedAt: Date.now(), data }),
+        JSON.stringify({ savedAt: Math.max(Date.now(), boardCacheInvalidatedAt() + 1), data }),
       );
     } catch (_error) {
       // 저장 공간을 사용할 수 없는 환경에서는 기존 API 호출 방식으로 동작한다.
@@ -125,21 +167,25 @@
     }
   }
 
-  function invalidateBoardCache() {
+  function invalidateBoardCache(options = {}) {
+    clearBoardSessionCache();
+
+    if (options.global !== true) return;
+
+    const invalidatedAt = Date.now();
     try {
-      for (let index = window.sessionStorage.length - 1; index >= 0; index -= 1) {
-        const key = window.sessionStorage.key(index);
-        if (
-          key?.startsWith(BOARD_CACHE_PREFIX)
-          && key.includes(":content:")
-        ) {
-          window.sessionStorage.removeItem(key);
-        }
-      }
+      window.localStorage.setItem(BOARD_CACHE_INVALIDATION_KEY, String(invalidatedAt));
     } catch (_error) {
-      // 캐시 제거 실패가 게시판 변경 작업을 막지 않도록 한다.
+      // localStorage를 사용할 수 없어도 현재 탭 캐시는 이미 제거된 상태다.
     }
+    notifyBoardCacheInvalidated(invalidatedAt);
   }
+
+  window.addEventListener("storage", (event) => {
+    if (event.key !== BOARD_CACHE_INVALIDATION_KEY) return;
+    clearBoardSessionCache();
+    notifyBoardCacheInvalidated(Number(event.newValue) || Date.now());
+  });
 
   function element(tag, className, text) {
     const node = document.createElement(tag);
@@ -1746,6 +1792,7 @@
   }
 
   window.FooduckBoard = {
+    cacheInvalidatedEvent: BOARD_CACHE_INVALIDATED_EVENT,
     authorIdentity,
     canUseBusinessBoard,
     categoryLabel,
