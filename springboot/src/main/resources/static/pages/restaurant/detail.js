@@ -146,6 +146,23 @@
   let newsCommentAuthPopupController = null;
   let pendingNewsCommentLoginAction = null;
   let newsSummaryResizeTicking = false;
+  let sessionNicknamePromise = null;
+
+  async function hydrateSessionNickname() {
+    if (!session.authenticated || session.nickname) return session.nickname || null;
+    if (sessionNicknamePromise) return sessionNicknamePromise;
+    sessionNicknamePromise = Api.get("/mypage/overview")
+      .then((payload) => {
+        const nickname = String(payload?.data?.nickname || "").trim();
+        if (nickname) session.nickname = nickname;
+        return session.nickname || null;
+      })
+      .catch(() => null)
+      .finally(() => {
+        sessionNicknamePromise = null;
+      });
+    return sessionNicknamePromise;
+  }
 
   window.addEventListener("resize", () => {
     if (newsSummaryResizeTicking) return;
@@ -1762,6 +1779,7 @@
     try {
       session.authenticated = true;
       session.loginId = payload.loginId || session.loginId || null;
+      session.nickname = payload.nickname || session.nickname || null;
       const authorities = Array.isArray(payload.authorities) ? payload.authorities : [];
       isAdmin = authorities.includes("ROLE_ADMIN") || Boolean(session.isAdmin);
       session.isAdmin = isAdmin;
@@ -1781,8 +1799,10 @@
         markNewsCommentAuthenticated();
         const action = pendingNewsCommentLoginAction;
         pendingNewsCommentLoginAction = null;
-        showNewsCommentToast("로그인되었습니다. 댓글 작성을 이어갑니다.");
-        if (typeof action === "function") window.setTimeout(action, 0);
+        void hydrateSessionNickname().finally(() => {
+          showNewsCommentToast("로그인되었습니다. 댓글 작성을 이어갑니다.");
+          if (typeof action === "function") window.setTimeout(action, 0);
+        });
       },
       onClosed: () => {
         pendingNewsCommentLoginAction = null;
@@ -2665,7 +2685,7 @@
       "p",
       "",
       isLoggedIn
-        ? `@${session.loginId || "소셜 계정"}으로 작성합니다.`
+        ? `@${session.nickname || "회원"}으로 작성합니다.`
         : "댓글 등록 시 로그인 화면으로 이동합니다.",
     );
     const submit = newsCommentElement("button", "button button-sm button-primary", "댓글 등록");
@@ -3059,11 +3079,11 @@
         <div class="board-write-content-tools">
           <button type="button" id="store-news-emoji-toggle"
                   class="comment-emoji-toggle board-write-emoji-toggle"
-                  aria-label="소식 내용에 이모지 추가"
+                  aria-label="소식 내용에 이모지 입력"
                   aria-expanded="false"
                   aria-controls="store-news-emoji-panel">
             <span class="board-write-action-emoji" aria-hidden="true">🐸</span>
-            <span>이모지 추가</span>
+            <span>이모지</span>
           </button>
         </div>
         <div id="store-news-emoji-panel"
@@ -3857,13 +3877,16 @@
 
   async function init() {
     try {
+      const nicknameTask = hydrateSessionNickname();
       if (source === "owned") {
         const response = await Api.get(`/public/restaurants/${id}`);
+        await nicknameTask;
         loading.hidden = true;
         content.hidden = false;
         renderOwnedDetail(response.data);
       } else {
         const response = await Api.get(`/public/map/restaurants/${id}`);
+        await nicknameTask;
         loading.hidden = true;
         content.hidden = false;
         renderPublicDetail(response.data);

@@ -34,6 +34,8 @@
   let mediaPollingHalted = false;
   let mediaPollingDisposed = false;
   let postDeleteInFlight = false;
+  let noticeUnpinInFlight = false;
+  let sessionNicknamePromise = null;
   let cachedFallbackNoticeShown = false;
   const commentDeleteInFlight = new Set();
 
@@ -545,6 +547,25 @@
     }
   }
 
+  async function hydrateSessionNickname() {
+    if (!session.authenticated || session.nickname) return session.nickname || null;
+    if (sessionNicknamePromise) return sessionNicknamePromise;
+    sessionNicknamePromise = Api.get("/mypage/overview")
+      .then((payload) => {
+        const nickname = String(payload?.data?.nickname || "").trim();
+        if (nickname) session.nickname = nickname;
+        if (commentLoginNote && session.authenticated) {
+          commentLoginNote.textContent = `@${session.nickname || "회원"}으로 작성합니다.`;
+        }
+        return session.nickname || null;
+      })
+      .catch(() => null)
+      .finally(() => {
+        sessionNicknamePromise = null;
+      });
+    return sessionNicknamePromise;
+  }
+
   function handleDetailLoginAuthenticated() {
     const token = Api.getToken();
     if (!token) return;
@@ -552,6 +573,7 @@
     session.authenticated = true;
     session.accountId = Number(payload.sub) || session.accountId || null;
     session.loginId = payload.loginId || session.loginId || null;
+    session.nickname = payload.nickname || session.nickname || null;
     session.authorities = Array.isArray(payload.authorities)
       ? payload.authorities.filter((value) => typeof value === "string")
       : session.authorities || [];
@@ -560,8 +582,9 @@
     session.isAdmin = session.authorities.includes("ROLE_ADMIN");
     session.hasAuthority = (authority) => session.authorities.includes(authority);
     if (commentLoginNote) {
-      commentLoginNote.textContent = `@${session.loginId || "소셜 계정"}으로 작성합니다.`;
+      commentLoginNote.textContent = `@${session.nickname || "회원"}으로 작성합니다.`;
     }
+    void hydrateSessionNickname();
 
     const action = pendingDetailLoginAction;
     const message = detailLoginSuccessMessage;
@@ -1705,6 +1728,15 @@
       ? post.newsManageableByCurrentUser === true && Boolean(newsTarget)
       : post.ownedByCurrentUser || session.isAdmin;
     if (canManage) {
+      if (!newsPost && session.isAdmin && post.category === "NOTICE") {
+        const unpinButton = actionButton(
+          "공지에서 내리기",
+          "button button-sm button-secondary",
+          unpinNotice,
+        );
+        unpinButton.disabled = noticeUnpinInFlight;
+        actions.append(unpinButton);
+      }
       const editLink = element("a", "button button-sm button-secondary", "수정");
       if (newsPost) {
         editLink.href = newsWritePath(post);
@@ -1844,6 +1876,43 @@
     } finally {
       likeInFlight = false;
       if (activeLikeButton) activeLikeButton.disabled = false;
+    }
+  }
+
+  async function unpinNotice(event) {
+    const post = state.post;
+    if (!post || post.category !== "NOTICE" || !session.isAdmin || noticeUnpinInFlight) return;
+
+    const confirmed = await confirmBoardAction({
+      title: "공지를 일반 글로 내릴까요?",
+      message: "공지 표시와 상단 고정이 해제되고 자유 이야기로 전환됩니다.",
+      confirmLabel: "공지에서 내리기",
+    });
+    if (!confirmed) return;
+
+    noticeUnpinInFlight = true;
+    const button = event?.currentTarget instanceof HTMLButtonElement
+      ? event.currentTarget
+      : null;
+    if (button) button.disabled = true;
+
+    try {
+      const payload = await Api.patch(`/board/posts/${postId}`, {
+        boardType: post.boardType,
+        category: "GENERAL",
+        restaurantId: post.restaurantId ?? null,
+        publicRestaurantId: post.publicRestaurantId ?? null,
+        title: post.title,
+        content: post.content,
+      });
+      invalidateBoardCache();
+      renderPost(payload.data);
+      showToast(toast, payload.message || "공지를 일반 글로 내렸습니다.");
+    } catch (error) {
+      showToast(toast, error.message || "공지를 내리지 못했습니다.", true);
+    } finally {
+      noticeUnpinInFlight = false;
+      if (button?.isConnected) button.disabled = false;
     }
   }
 
@@ -2943,7 +3012,7 @@
   if (!session.authenticated) {
     commentLoginNote.textContent = "댓글 등록 시 로그인 창이 열리고, 로그인 후 이 글에서 이어서 작성합니다.";
   } else {
-    commentLoginNote.textContent = `@${session.loginId || "소셜 계정"}으로 작성합니다.`;
+    commentLoginNote.textContent = `@${session.nickname || "회원"}으로 작성합니다.`;
   }
 
   function initializeScrollTopButton() {
@@ -2991,8 +3060,10 @@
       return;
     }
 
+    const nicknameTask = hydrateSessionNickname();
     try {
       await loadPost();
+      await nicknameTask;
     } catch (error) {
       renderPostError(error.message);
       commentForm.hidden = true;
