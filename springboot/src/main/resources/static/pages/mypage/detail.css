@@ -252,18 +252,20 @@
   place-items: center;
   padding: 0 6px;
   border-radius: 999px;
-  color: var(--color-muted);
+  color: var(--color-navy);
   background: #f0f1f2;
   font-size: 0.64rem;
   font-weight: 850;
   line-height: 1;
+  white-space: nowrap;
 }
 
+/* 개수 표시는 마이페이지·사업자·관리자 상단 메뉴에서 굵기와 색상을 같게 두고,
+   선택된 탭은 배경으로만 구분한다. */
 .mypage-detail-nav a:hover .mypage-detail-tab-count,
 .mypage-detail-nav a:focus-visible .mypage-detail-tab-count,
 .mypage-detail-nav a:active .mypage-detail-tab-count,
 .mypage-detail-nav a[aria-current="page"] .mypage-detail-tab-count {
-  color: var(--color-navy);
   background: rgba(255, 255, 255, 0.62);
 }
 

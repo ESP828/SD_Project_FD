@@ -99,6 +99,10 @@
   font-size: 2.2rem;
 }
 
+#login-title {
+  color: var(--color-navy);
+}
+
 .auth-intro {
   margin-bottom: 28px;
   color: var(--color-muted);
@@ -117,6 +121,14 @@
   color: var(--color-navy);
   font-size: 0.88rem;
   font-weight: 800;
+}
+
+#login-form label.field {
+  color: var(--color-ink);
+}
+
+#login-form label.field input {
+  color: var(--color-navy);
 }
 
 .field-hint {

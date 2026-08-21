@@ -26,7 +26,7 @@
           element(
             "span",
             "mypage-detail-tab-count",
-            new Intl.NumberFormat("ko-KR").format(Number(item.count) || 0),
+            `${new Intl.NumberFormat("ko-KR").format(Number(item.count) || 0)}개`,
           ),
         );
       }

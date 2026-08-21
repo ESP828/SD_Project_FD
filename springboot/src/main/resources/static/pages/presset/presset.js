@@ -1,6 +1,7 @@
 (() => {
   const list = document.querySelector("#preset-list");
   const count = document.querySelector("#preset-count");
+  const heading = document.querySelector("#preset-heading");
   const pagination = document.querySelector("#preset-pagination");
   const searchForm = document.querySelector("#preset-search-form");
   const keywordInput = document.querySelector("#preset-keyword");
@@ -72,12 +73,16 @@
   }
 
   function syncViewTabs() {
+    let activeLabel = "";
     viewTabs.forEach((tab) => {
       const active = tab.dataset.presetSort === state.sort;
       tab.classList.toggle("is-active", active);
       tab.setAttribute("aria-selected", String(active));
       tab.tabIndex = active ? 0 : -1;
+      if (active) activeLabel = tab.textContent.trim();
     });
+    // 목록 패널 제목은 선택한 보기 탭의 이름을 그대로 사용한다.
+    if (heading && activeLabel) heading.textContent = activeLabel;
   }
 
   function restoreStateFromLocation() {

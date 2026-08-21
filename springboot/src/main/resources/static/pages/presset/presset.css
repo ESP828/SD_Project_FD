@@ -458,11 +458,64 @@
   outline-offset: 2px;
 }
 
-/* 목록을 보고 있는 위치에서도 바로 등록할 수 있도록 검색바 아래에 두는 생성 버튼 */
-.preset-list-toolbar {
+/* 목록 영역은 커뮤니티 board-list-panel과 같은 틀(패널 + 헤더 + 목록 + 페이지네이션)을 사용한다. */
+.preset-list-panel {
+  overflow: hidden;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-sm);
+}
+
+/* 왼쪽 끝에는 선택한 보기 이름과 총 개수, 오른쪽 끝에는 보물지도 등록 버튼을 둔다. */
+.preset-panel-header {
   display: flex;
-  justify-content: flex-end;
-  margin-bottom: 16px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 23px 25px;
+  border-bottom: 1px solid var(--color-line);
+}
+
+.preset-panel-header h2 {
+  margin-bottom: 3px;
+  font-size: 1.2rem;
+}
+
+.preset-panel-header p {
+  margin-bottom: 0;
+  color: var(--color-muted);
+  font-size: 0.78rem;
+}
+
+.preset-list-panel .preset-list {
+  min-height: 320px;
+  padding: 22px 25px;
+}
+
+.preset-list-panel .preset-pagination {
+  align-items: center;
+  min-height: 70px;
+  margin-top: 0;
+  padding-inline: 25px;
+  border-top: 1px solid var(--color-line);
+}
+
+.preset-list-panel .preset-pagination:empty {
+  display: none;
+}
+
+@media (max-width: 520px) {
+  .preset-panel-header {
+    align-items: flex-start;
+    flex-wrap: wrap;
+    padding-inline: 18px;
+  }
+
+  .preset-list-panel .preset-list,
+  .preset-list-panel .preset-pagination {
+    padding-inline: 18px;
+  }
 }
 
 .preset-discovery-panel {
@@ -886,7 +939,7 @@
   display: -webkit-box;
   overflow: hidden;
   margin: 12px 0 0;
-  color: #102a4c;
+  color: var(--color-ink);
   font-size: clamp(1.2rem, 1.7vw, 1.5rem);
   font-weight: 800;
   line-height: 1.32;
@@ -1190,10 +1243,11 @@
   font-size: 1.28rem;
 }
 
+/* 종류 필터는 목록 패널 바깥 위쪽에 둔다. */
 .preset-filters--detail {
   max-width: none;
   justify-content: flex-start;
-  margin: 18px 0 22px;
+  margin: 0 0 14px;
 }
 
 .preset-restaurants {
@@ -1201,30 +1255,40 @@
   scroll-margin-top: 92px;
 }
 
+/* 맛집 목록은 커뮤니티 board-list-panel과 같은 틀(패널 + 헤더 + 목록)을 사용한다. */
+.preset-restaurants-panel {
+  overflow: hidden;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-sm);
+}
+
+/* 왼쪽 끝에는 제목과 총 개수, 오른쪽 끝에는 맛집 추가 버튼을 둔다. */
 .preset-restaurants-heading {
   display: flex;
-  align-items: flex-end;
+  align-items: center;
   justify-content: space-between;
-  gap: 20px;
+  gap: 18px;
+  padding: 23px 25px;
+  border-bottom: 1px solid var(--color-line);
 }
 
 .preset-restaurants-heading-copy {
   display: flex;
   flex-direction: column;
-  gap: 6px;
 }
 
 .preset-restaurants-heading h2 {
-  margin: 0;
+  margin: 0 0 3px;
   color: var(--color-navy);
-  font-size: clamp(1.45rem, 2.3vw, 2rem);
+  font-size: 1.2rem;
 }
 
 .preset-restaurants-heading p {
   margin: 0;
   color: var(--color-muted);
-  font-size: 0.84rem;
-  font-weight: 750;
+  font-size: 0.78rem;
 }
 
 .preset-restaurant-list {
@@ -1232,7 +1296,23 @@
   gap: 14px;
 }
 
+.preset-restaurants-panel .preset-restaurant-list {
+  min-height: 320px;
+  padding: 22px 25px;
+}
+
+/* 패널 안에서는 빈 결과·오류 안내가 카드 속 카드로 보이지 않게 표면 장식과 중복 여백을 뺀다. */
+.preset-list-panel .preset-state,
+.preset-restaurants-panel .preset-state {
+  min-height: 240px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
 .preset-restaurant-card {
+  position: relative;
   display: grid;
   overflow: hidden;
   grid-template-columns: 220px minmax(0, 1fr) 176px;
@@ -1253,7 +1333,7 @@
 
     .preset-restaurant-card {
       content-visibility: auto;
-      contain-intrinsic-size: auto 184px;
+      contain-intrinsic-size: auto 200px;
     }
   }
 }
@@ -1274,9 +1354,13 @@
   padding: 20px 20px 20px 8px;
 }
 
+/* 소유자 카드에만 오른쪽 위 삭제 버튼이 생기므로 그 카드에서만 위쪽을 비워 둔다. */
+.preset-restaurant-card.is-owner .preset-restaurant-actions {
+  padding-top: 46px;
+}
+
 .preset-restaurant-detail-btn,
-.preset-restaurant-map-btn,
-.preset-restaurant-actions .preset-restaurant-remove {
+.preset-restaurant-map-btn {
   width: 100%;
   min-height: 38px;
   justify-content: center;
@@ -1402,17 +1486,41 @@
   font-weight: 800;
 }
 
+/* 보물지도에서 빼기: 카드 안쪽 오른쪽 위 모서리의 X 버튼 (찜 버튼과 겹치지 않는다) */
 .preset-restaurant-remove {
-  margin-left: 0;
-  border-color: #f2c9c9;
+  position: absolute;
+  z-index: 2;
+  top: 12px;
+  right: 12px;
+  display: grid;
+  width: 26px;
+  height: 26px;
+  place-items: center;
+  padding: 0;
+  border: 1px solid #f2c9c9;
+  border-radius: 50%;
   color: #b42318;
-  background: #fff;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 2px 6px rgba(15, 43, 77, 0.14);
+}
+
+.preset-restaurant-remove .material-symbols-rounded {
+  font-size: 14px;
 }
 
 .preset-restaurant-remove:hover {
   border-color: #e99d9d;
   color: #921d14;
   background: #fff7f7;
+}
+
+.preset-restaurant-remove:focus-visible {
+  outline: 3px solid rgba(180, 35, 24, 0.28);
+  outline-offset: 2px;
+}
+
+.preset-restaurant-remove:disabled {
+  opacity: 0.5;
 }
 
 @media (max-width: 1080px) {
@@ -1651,6 +1759,11 @@
 
   .preset-restaurant-favorite {
     justify-self: end;
+  }
+
+  .preset-restaurants-heading,
+  .preset-restaurants-panel .preset-restaurant-list {
+    padding-inline: 18px;
   }
 }
 

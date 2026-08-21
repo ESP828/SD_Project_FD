@@ -693,7 +693,7 @@
     if (hasUnsavedDetailDrafts()) {
       const confirmed = await confirmBoardAction({
         title: "현재 화면에서 로그인할까요?",
-        message: "로그인 팝업이 차단되었습니다. 현재 화면에서 로그인하면 작성 중인 댓글·답글·수정 내용과 첨부한 사진은 저장되지 않습니다.",
+        message: "로그인 화면으로 이동하면 작성 중인 댓글·답글·수정 내용과 첨부한 사진은 저장되지 않습니다.",
         confirmLabel: "로그인으로 이동",
         danger: false,
         iconName: "login",
@@ -701,7 +701,7 @@
       if (!confirmed) {
         pendingDetailLoginAction = null;
         detailLoginSuccessMessage = "로그인되었습니다.";
-        showToast(toast, "팝업을 허용한 뒤 다시 로그인해 주세요.", true);
+        showToast(toast, "로그인 화면 이동을 취소했습니다.", true);
         return;
       }
     }
@@ -747,10 +747,9 @@
       );
       if (!link || session.authenticated) return;
       event.preventDefault();
-      openDetailLogin({
-        successMessage: "로그인되었습니다. 현재 게시글로 돌아갑니다.",
-        onSuccess: () => window.location.reload(),
-      });
+      const nextPath = `${window.location.pathname}${window.location.search}`;
+      const loginUrl = `/auth/login?next=${encodeURIComponent(nextPath)}`;
+      void continueDetailLoginWithoutPopup(loginUrl);
     });
   }
 
@@ -830,7 +829,7 @@
       if (!link || link.hasAttribute("download")) return;
       if (link.target && link.target.toLowerCase() !== "_self") return;
 
-      // 상세 화면의 로그인 링크는 팝업만 열고 현재 페이지를 떠나지 않는다.
+      // 상세 화면의 로그인 링크는 전용 핸들러가 작성 중인 내용을 확인한 뒤 현재 탭에서 이동한다.
       if (
         !session.authenticated &&
         link.matches('.site-header a.header-auth-button[href^="/auth/login"]')

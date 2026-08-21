@@ -55,8 +55,10 @@
   --category-hero-image-scale: 1.01;
 }
 
+/* 맛집추천 배너 캐릭터는 262.2px로 표시한다(262.2 ÷ 260px 이미지 박스).
+   cooking.png는 정사각 이미지라 실제 그림도 262.2px 폭으로 보인다. */
 .recommendation-hero.category-hero {
-  --category-hero-image-scale: 0.97;
+  --category-hero-image-scale: 1.0084615;
 }
 
 .board-hero.category-hero {
@@ -67,11 +69,21 @@
   --category-hero-image-scale: 1.02;
 }
 
+/* 보물지도 목록 배너 캐릭터만 260px 이미지 박스를 1.36배로 키워 353.6px로 표시한다. */
+.preset-hero.category-hero:not(.preset-register-hero) {
+  --category-hero-image-scale: 1.36;
+}
+
 @media (max-width: 760px) {
   .category-hero {
     height: auto;
     min-height: 522px;
     padding: 44px 0 40px;
+  }
+
+  /* 좁은 화면에서는 캐릭터가 제목·버튼 영역을 침범하지 않도록 기존 비율을 유지한다. */
+  .preset-hero.category-hero:not(.preset-register-hero) {
+    --category-hero-image-scale: 1.02;
   }
 
   .category-hero__inner {

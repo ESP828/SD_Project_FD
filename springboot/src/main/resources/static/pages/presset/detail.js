@@ -5,6 +5,7 @@
   const savedMessageKey = "fooduck:preset-created";
   let preset;
   let selectedCategory = "전체";
+  let restaurantCountLabel = null;
   let toastTimer = null;
 
   function element(tagName, className = "", text = "") {
@@ -79,7 +80,8 @@
     return names;
   }
 
-  // "지도에서 보기"는 말 그대로 조회, "맛집 추가"(editable)는 편집 화면으로 목적을 나눈다.
+  // editable을 넘기면 지도에서 목록 삭제와 검색 결과 추가까지 할 수 있다.
+  // 소유자가 아닌 사용자에게는 editable을 붙이지 않아 조회 전용으로 열린다.
   function mapPath(restaurantId, editable = false) {
     const query = new URLSearchParams({ presetId: requestedId });
     if (restaurantId) query.set("restaurantId", restaurantId);
@@ -128,6 +130,8 @@
   async function removeRestaurant(button, restaurant) {
     if (!requireLogin()) return;
     const restaurantName = restaurant.name || "선택한 맛집";
+    // 삭제 버튼이 찜 버튼 모서리의 작은 아이콘이라 실수로 눌렸을 때를 대비해 한 번 확인한다.
+    if (!window.confirm(`“${restaurantName}”을(를) 이 보물지도에서 삭제할까요?`)) return;
     button.disabled = true;
     try {
       await Api.delete(`/presets/${requestedId}/restaurants/${restaurant.restaurantId}`);
@@ -231,18 +235,27 @@
 
     if (restaurant.coordinateAvailable) {
       const map = element("a", "button button-secondary preset-restaurant-map-btn", "지도에서 보기");
-      map.href = mapPath(restaurant.restaurantId);
+      map.href = mapPath(restaurant.restaurantId, Boolean(preset.isOwner));
       actions.append(map);
     } else {
       actions.append(element("span", "preset-coordinate-missing", "지도 위치 미등록"));
     }
-    if (preset.isOwner) {
-      const remove = element("button", "button button-secondary preset-restaurant-remove", "보물지도에서 삭제");
-      remove.type = "button";
-      remove.addEventListener("click", () => removeRestaurant(remove, restaurant));
-      actions.append(remove);
-    }
     card.append(visual, body, actions);
+
+    // 보물지도에서 빼는 버튼은 카드 안쪽 오른쪽 위에 두어 찜 버튼과 겹치지 않게 한다.
+    if (preset.isOwner) {
+      card.classList.add("is-owner");
+      const remove = element("button", "preset-restaurant-remove");
+      remove.type = "button";
+      remove.setAttribute("aria-label", `${restaurant.name || "식당"} 보물지도에서 삭제`);
+      remove.title = "보물지도에서 삭제";
+      const removeIcon = element("span", "material-symbols-rounded", "close");
+      removeIcon.setAttribute("aria-hidden", "true");
+      window.FooduckIcons?.set(removeIcon, "close");
+      remove.append(removeIcon);
+      remove.addEventListener("click", () => removeRestaurant(remove, restaurant));
+      card.append(remove);
+    }
     return card;
   }
 
@@ -252,6 +265,13 @@
     const visible = selectedCategory === "전체"
       ? all
       : all.filter((restaurant) => restaurant.categoryName === selectedCategory);
+    // 패널 헤더의 개수는 지금 보고 있는 목록과 같은 수를 알려 준다.
+    if (restaurantCountLabel) {
+      const shown = selectedCategory === "전체"
+        ? Number(preset.restaurantCount ?? all.length ?? 0)
+        : visible.length;
+      restaurantCountLabel.textContent = `총 ${shown.toLocaleString("ko-KR")}곳`;
+    }
     if (!visible.length) {
       const empty = element("div", "preset-state preset-state--surface surface-card");
       empty.append(element("h3", "", "해당 종류의 음식점이 없습니다."));
@@ -295,19 +315,17 @@
     const actions = element("div", "preset-detail-actions");
     const explore = element("a", "button button-primary", "둘러보기 →");
     explore.href = "#preset-detail-restaurants";
-    // 지도 조회와 맛집 편집은 목적이 다르므로 버튼을 나눈다(지도에서 보기 = 조회 전용).
+    // 소유자는 지도에서 보기로 들어가도 목록 삭제와 검색 결과 추가를 바로 쓸 수 있다.
     const map = element("a", "button button-secondary", "지도에서 보기");
-    map.href = mapPath();
+    map.href = mapPath(undefined, Boolean(data.isOwner));
     actions.append(explore, map);
     if (data.isOwner) {
-      const addRestaurant = element("a", "button button-secondary preset-detail-add", "＋ 맛집 추가");
-      addRestaurant.href = mapPath(undefined, true);
       const edit = element("a", "button button-secondary preset-detail-edit", "⚙ 보물지도 수정");
       edit.href = `/presset/register?presetId=${encodeURIComponent(requestedId)}`;
       const remove = element("button", "button button-secondary preset-detail-delete", "🗑 보물지도 삭제");
       remove.type = "button";
       remove.addEventListener("click", () => deletePreset(remove));
-      actions.append(addRestaurant, edit, remove);
+      actions.append(edit, remove);
     }
     copy.append(actions);
 
@@ -324,13 +342,13 @@
 
     const sectionHeading = element("div", "preset-restaurants-heading");
     const sectionTitle = element("div", "preset-restaurants-heading-copy");
-    sectionTitle.append(
-      element("h2", "", "이 보물지도에 포함된 맛집"),
-      element("p", "", `총 ${restaurantCount.toLocaleString("ko-KR")}곳`),
-    );
+    const listTitle = element("h2", "", "이 보물지도에 포함된 맛집");
+    listTitle.id = "preset-restaurants-title";
+    restaurantCountLabel = element("p", "", `총 ${restaurantCount.toLocaleString("ko-KR")}곳`);
+    sectionTitle.append(listTitle, restaurantCountLabel);
     sectionHeading.append(sectionTitle);
     if (data.isOwner) {
-      // 목록을 보면서 바로 이어서 맛집을 담을 수 있도록 목록 위에도 추가 버튼을 둔다.
+      // 목록 패널 헤더 오른쪽 끝에서 바로 이어서 맛집을 담을 수 있게 한다.
       const addHere = element("a", "button button-sm button-primary", "＋ 맛집 추가");
       addHere.href = mapPath(undefined, true);
       sectionHeading.append(addHere);
@@ -354,7 +372,11 @@
       });
       categoryBar.append(button);
     });
-    section.append(sectionHeading, categoryBar, restaurantList);
+    // 필터는 목록 패널 바깥 위쪽에 두고, 제목·개수·추가 버튼과 목록은 한 패널로 묶는다.
+    const listPanel = element("section", "preset-restaurants-panel");
+    listPanel.setAttribute("aria-labelledby", listTitle.id);
+    listPanel.append(sectionHeading, restaurantList);
+    section.append(categoryBar, listPanel);
     renderRestaurants(restaurantList);
     content.append(hero, section);
   }

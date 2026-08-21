@@ -293,6 +293,42 @@
   font-size: 0.9rem;
 }
 
+/* 요약 줄 오른쪽 끝에서 보물지도 맛집 목록으로 되돌아가는 아이콘 버튼 */
+.result-summary-list-button {
+  display: grid;
+  width: 25px;
+  height: 25px;
+  flex: 0 0 auto;
+  align-self: center;
+  place-items: center;
+  padding: 0;
+  border: 1px solid var(--color-line);
+  border-radius: 10px;
+  color: var(--color-navy);
+  background: #fff;
+  box-shadow: var(--shadow-sm);
+  transition: border-color 150ms ease, color 150ms ease, background 150ms ease;
+}
+
+.result-summary-list-button .material-symbols-rounded {
+  font-size: 18px;
+}
+
+.result-summary-list-button:hover {
+  border-color: #c8d4e1;
+  color: var(--color-orange-dark);
+  background: #fffaf1;
+}
+
+.result-summary-list-button:focus-visible {
+  outline: 3px solid rgba(255, 152, 0, 0.3);
+  outline-offset: 2px;
+}
+
+.result-summary-list-button[hidden] {
+  display: none;
+}
+
 #result-count {
   display: grid;
   min-width: 25px;
@@ -978,25 +1014,6 @@
   opacity: 1;
 }
 
-.preset-manage-back {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  margin: 6px 0 0;
-  padding: 0;
-  color: var(--color-navy);
-  font-size: 0.78rem;
-  font-weight: 800;
-}
-
-.preset-manage-back:hover {
-  color: var(--color-orange-dark);
-}
-
-.preset-manage-back[hidden] {
-  display: none;
-}
-
 /* ----------------------------------------------------
    현재 위치 표시
    음식점 마커가 노란색 핀이라 현재 위치까지 같은 모양으로 찍으면 구분이 되지 않는다.
@@ -1072,20 +1089,23 @@
   margin-top: 14px;
 }
 
-/* 보물지도 편집 모드 안내 문구 */
-.map-search-hint {
-  margin: 8px 0 0;
-  color: var(--color-muted);
-  font-size: 0.76rem;
-  font-weight: 650;
-  line-height: 1.5;
-}
-
-.map-search-hint[hidden] {
-  display: none;
-}
-
 /* 찜 처리 중에는 disabled 대신 이 클래스만 붙여 커서가 "클릭 금지"로 바뀌지 않게 한다 */
 .place-detail-favorite.is-pending {
   opacity: 0.6;
+}
+
+/* 맛집찾기 화면의 주요 텍스트 색상을 공통 본문 색상으로 통일한다. */
+.map-sidebar-heading h1,
+.preset-breadcrumb [aria-current="page"],
+.place-result-name,
+.place-result-detail,
+.map-search-area-button,
+.map-placeholder strong,
+.place-detail-header h2,
+.place-detail-rating,
+.place-detail-section h3,
+.place-detail-review-head,
+.place-result-index,
+.place-result-distance {
+  color: var(--color-ink);
 }

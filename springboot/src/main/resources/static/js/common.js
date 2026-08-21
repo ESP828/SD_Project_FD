@@ -347,6 +347,14 @@
       "M3 3l18 18",
     ],
     menu: ["M4 7h16", "M4 12h16", "M4 17h16"],
+    list: [
+      "M8 6h13",
+      "M8 12h13",
+      "M8 18h13",
+      "M3.5 6h.01",
+      "M3.5 12h.01",
+      "M3.5 18h.01",
+    ],
     close: ["M6 6l12 12", "M18 6L6 18"],
     map: [
       "M9 18l-6 3V6l6-3 6 3 6-3v15l-6 3-6-3z",
@@ -782,7 +790,7 @@
               <span class="footer-brand-accent" aria-hidden="true"></span>
             </div>
 
-            <nav class="footer-links" aria-label="푸드덕 안내">
+            <nav class="footer-links" aria-label="푸드덕 안내" tabindex="0">
               <button type="button" class="footer-link" data-footer-dialog="footer-about-dialog">서비스 소개</button>
               <button type="button" class="footer-link" data-footer-dialog="footer-faq-dialog">자주 묻는 질문</button>
               <button type="button" class="footer-link" data-footer-dialog="footer-terms-dialog">이용약관</button>
