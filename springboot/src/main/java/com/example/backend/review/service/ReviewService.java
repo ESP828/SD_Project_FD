@@ -135,9 +135,16 @@ public class ReviewService {
         return toPageResponse(result, viewerAccountId, myReview);
     }
 
+    // 감성분석 요청용. 본문 텍스트가 애매하거나("ㄹㅇㅎ" 같은 무의미한 입력) 사전에 없는 단어뿐이라
+    // 감성 판단이 안 될 때는 별점으로 대신 판단해야 해서, 리뷰 엔티티(본문+별점)를 그대로 내려준다.
     @Transactional(readOnly = true)
-    public List<String> getAllReviewTextsForPublicRestaurant(Long publicRestaurantId) {
-        return reviewRepository.findAllActiveContentsByPublicRestaurantId(publicRestaurantId);
+    public List<Review> getAllReviewsForSentimentForPublicRestaurant(Long publicRestaurantId) {
+        return reviewRepository.findAllActiveForSentimentByPublicRestaurantId(publicRestaurantId);
+    }
+
+    @Transactional(readOnly = true)
+    public List<Review> getAllReviewsForSentimentForRestaurant(Long restaurantId) {
+        return reviewRepository.findAllActiveForSentimentByRestaurantId(restaurantId);
     }
 
     @Transactional

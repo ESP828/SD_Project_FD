@@ -66,9 +66,15 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
             @Param("accountId") Long accountId
     );
 
-    @Query("SELECT r.content FROM Review r WHERE r.publicRestaurant.publicRestaurantId = :publicRestaurantId "
+    // 감성분석에는 리뷰 본문뿐 아니라 별점도 같이 필요하다(본문이 "ㄹㅇㅎ"처럼 텍스트만으로는
+    // 감성을 판단할 수 없을 때 별점으로 보정하기 위함) - 그래서 content만이 아니라 엔티티 전체를 내려준다.
+    @Query("SELECT r FROM Review r WHERE r.publicRestaurant.publicRestaurantId = :publicRestaurantId "
             + "AND r.status = 'ACTIVE' AND r.content IS NOT NULL AND TRIM(r.content) <> '' ORDER BY r.createdAt DESC")
-    List<String> findAllActiveContentsByPublicRestaurantId(@Param("publicRestaurantId") Long publicRestaurantId);
+    List<Review> findAllActiveForSentimentByPublicRestaurantId(@Param("publicRestaurantId") Long publicRestaurantId);
+
+    @Query("SELECT r FROM Review r WHERE r.restaurant.restaurantId = :restaurantId "
+            + "AND r.status = 'ACTIVE' AND r.content IS NOT NULL AND TRIM(r.content) <> '' ORDER BY r.createdAt DESC")
+    List<Review> findAllActiveForSentimentByRestaurantId(@Param("restaurantId") Long restaurantId);
     @Query("SELECT r FROM Review r WHERE r.reviewId = :reviewId "
             + "AND r.account.accountId = :accountId AND r.status = 'ACTIVE'")
     Optional<Review> findActiveOwnedReview(

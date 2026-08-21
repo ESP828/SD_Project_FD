@@ -1,27 +1,36 @@
 # ai/text_normalize.py
 """
-한국어 리뷰 텍스트의 아주 가벼운 어미 정규화.
+한국어 리뷰 텍스트 정규화.
 
-형태소 분석기(Okt 등) 없이 순수 TF-IDF만 쓰다 보니, "별로에요"/"별로였어요"/"별로네요"처럼
-의미는 같지만 활용형이 다른 단어가 서로 완전히 다른 토큰으로 취급되어 학습 데이터에 없는
-활용형이 나오면 모델이 아무 근거 없이 클래스 비율(예: 긍정 67%)로만 찍는 문제가 있었다.
+핵심 방식: "별로"라는 단어가 뒤에 뭐가 붙든("별로야", "별로예요", "별로였음", "완전별로")
+그 어절 안에 알려진 감성 단어(lexicon_augmentation.py의 긍정/부정 단어)가 포함돼 있으면,
+조사/어미 종류와 상관없이 그 단어로 인식하게 만든다. 어미 목록을 일일이 나열해서 제거하는
+방식은 반말("별로야")처럼 목록에 없는 활용형이 나오면 그때마다 빠뜨리는 문제가 있었다.
 
-이 모듈은 흔한 종결어미를 어절 끝에서 제거해서 여러 활용형이 최대한 같은 어간으로 모이게
-한다. 완벽한 형태소 분석은 아니지만(예: 불규칙 활용은 처리 못함), 어휘 공백 문제를 크게
-줄여준다. TfidfVectorizer의 preprocessor로 등록해서 학습/추론 시 항상 동일하게 적용한다.
+TfidfVectorizer의 preprocessor로 등록해서 학습/추론 시 항상 동일하게 적용한다.
 """
+from lexicon_augmentation import POSITIVE_WORDS, NEGATIVE_WORDS
 
-# 어절(word) 끝에서부터 매칭한다 - 긴 접미사를 먼저 시도해야 짧은 접미사가 잘못 걸리지 않는다.
+# 긴 단어부터 먼저 검사해야 짧은 단어가 잘못 걸리지 않는다.
+# 예: "가성비꽝"을 검사할 때 "가성비"보다 "가성비꽝"을 먼저 봐야 정확하다.
+_KNOWN_STEMS = sorted(set(POSITIVE_WORDS) | set(NEGATIVE_WORDS), key=len, reverse=True)
+
+# 그래도 못 잡는 표현을 위한 보조 어미 제거(사전에 없는 새 단어에 한해서만 동작).
 _SUFFIXES = sorted([
     "습니다", "입니다", "였습니다", "했습니다",
     "이었어요", "였어요", "했어요", "이에요", "예요", "에요",
-    "해요", "네요", "어요", "아요",
+    "해요", "네요", "어요", "아요", "았어요", "었어요",
+    "이었어", "이야", "았어", "었어", "야",
 ], key=len, reverse=True)
 
 
 def _normalize_word(word: str) -> str:
+    # 1) 어절 안에 알려진 감성 단어가 포함돼 있으면, 조사/어미가 뭐든 그 단어로 정규화한다.
+    for stem in _KNOWN_STEMS:
+        if stem in word:
+            return stem
+    # 2) 사전에 없는 새로운 단어는, 흔한 종결어미만 최대한 제거해서 어간을 살린다.
     for suffix in _SUFFIXES:
-        # 접미사를 떼고도 어간이 최소 2글자는 남아야 한다 (너무 짧아지면 의미가 사라짐).
         if word.endswith(suffix) and len(word) - len(suffix) >= 2:
             return word[: -len(suffix)]
     return word
