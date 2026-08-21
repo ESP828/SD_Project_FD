@@ -696,9 +696,16 @@
     listLink.replaceChildren(icon, document.createTextNode(` ${label}`));
   }
 
+  function resizeEditorTextarea() {
+    if (!contentInput) return;
+    contentInput.style.height = "auto";
+    contentInput.style.height = `${Math.max(contentInput.scrollHeight, 340)}px`;
+  }
+
   function updateCounts() {
     titleCount.textContent = String(titleInput.value.length);
     contentCount.textContent = String(contentInput.value.length);
+    resizeEditorTextarea();
   }
 
   function setListLinks(boardType) {
@@ -1253,6 +1260,9 @@
     submitButton.disabled = true;
     businessAccessAllowed = await board.canUseBusinessBoard();
     populateOptions();
+    if (!postId && [...categorySelect.options].some((option) => option.value === "GENERAL")) {
+      categorySelect.value = "GENERAL";
+    }
     initializeRestaurantSelector();
 
     const requestedBoardType =

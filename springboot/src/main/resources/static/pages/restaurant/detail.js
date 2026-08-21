@@ -407,12 +407,6 @@
         ${reviewMediaGalleryHtml(review.media)}
         <div class="store-review-footer">
           <p class="store-review-date">${formatDate(review.createdAt)}${review.edited ? " · 수정됨" : ""}</p>
-          ${owned ? `
-            <div class="store-review-actions">
-              <button type="button" class="button button-secondary button-sm" data-review-edit="${review.reviewId}">수정</button>
-              <button type="button" class="button button-danger button-sm" data-review-delete="${review.reviewId}">삭제</button>
-            </div>
-          ` : ""}
         </div>
       </div>
     `;
@@ -2040,6 +2034,12 @@
     return wrap;
   }
 
+  function resizeNewsCommentTextarea(textarea, minimumHeight = 78) {
+    if (!(textarea instanceof HTMLTextAreaElement)) return;
+    textarea.style.height = "auto";
+    textarea.style.height = `${Math.max(textarea.scrollHeight, minimumHeight)}px`;
+  }
+
   function newsReplyTargetName(comment) {
     const raw = comment?.authorNickname || comment?.authorLoginId || "작성자";
     return String(raw).replace(/^@+/, "").trim() || "작성자";
@@ -2090,10 +2090,10 @@
     textarea.setAttribute("aria-label", `${targetName}님에게 답글`);
 
     const inputMeta = newsCommentElement("div", "comment-input-meta comment-input-meta--compact");
-    inputMeta.append(newsCommentElement("span", "", "Enter로 등록 · Shift + Enter로 줄바꿈"));
     const characterCount = newsCommentElement("span", "comment-character-count");
     inputMeta.append(characterCount);
     updateNewsCommentCharacterCount(textarea, characterCount);
+    resizeNewsCommentTextarea(textarea, 78);
 
     const tools = newsCommentElement("div", "comment-image-tools");
     const fileInput = document.createElement("input");
@@ -2142,6 +2142,7 @@
     const sync = () => {
       submit.disabled = !hasBody();
       updateNewsCommentCharacterCount(textarea, characterCount);
+      resizeNewsCommentTextarea(textarea, 78);
     };
     const clearImage = () => {
       selectedImage = null;
@@ -2357,6 +2358,7 @@
       const original = String(comment.content || "").trim();
       save.disabled = !content || content === original || newsCommentEditInFlight.has(commentId);
       updateNewsCommentCharacterCount(textarea, characterCount);
+      resizeNewsCommentTextarea(textarea, 86);
     };
 
     contentNode.hidden = true;
@@ -2643,10 +2645,10 @@
     textarea.dataset.initialValue = "";
 
     const inputMeta = newsCommentElement("div", "comment-input-meta");
-    inputMeta.append(newsCommentElement("span", "", "Enter로 등록 · Shift + Enter로 줄바꿈"));
     const characterCount = newsCommentElement("span", "comment-character-count");
     inputMeta.append(characterCount);
     updateNewsCommentCharacterCount(textarea, characterCount);
+    resizeNewsCommentTextarea(textarea, 105);
 
     const tools = newsCommentElement("div", "comment-image-tools");
     const fileInput = document.createElement("input");
@@ -2685,7 +2687,7 @@
       "p",
       "",
       isLoggedIn
-        ? `@${session.nickname || "회원"}으로 작성합니다.`
+        ? `${session.nickname || "회원"} 님으로 작성합니다.`
         : "댓글 등록 시 로그인 화면으로 이동합니다.",
     );
     const submit = newsCommentElement("button", "button button-sm button-primary", "댓글 등록");
@@ -2731,6 +2733,7 @@
 
     const syncSubmit = () => {
       updateNewsCommentCharacterCount(textarea, characterCount);
+      resizeNewsCommentTextarea(textarea, 105);
     };
     textarea.addEventListener("input", syncSubmit);
     textarea.addEventListener("keydown", (event) => {
@@ -2784,6 +2787,7 @@
         textarea.value = "";
         clearImage();
         updateNewsCommentCharacterCount(textarea, characterCount);
+        resizeNewsCommentTextarea(textarea, 105);
         if (imageUploadError && createdCommentId) {
           state.imageRetry = {
             commentId: createdCommentId,
