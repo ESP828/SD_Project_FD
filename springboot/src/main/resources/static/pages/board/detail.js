@@ -13,6 +13,13 @@
     ? requestedNewsPageValue
     : 0;
   const state = { post: null };
+  const NOTICE_CATEGORY_OPTIONS = [
+    ["GENERAL", "자유 이야기"],
+    ["RECOMMENDATION", "맛집 추천"],
+    ["REVIEW", "방문 후기"],
+    ["QUESTION", "질문"],
+    ["TRAVEL", "맛집 여행"],
+  ];
   const MEDIA_POLL_BASE_DELAY = 2500;
   const MEDIA_POLL_MAX_DELAY = 15000;
   const MEDIA_POLL_MAX_FAILURES = 5;
@@ -219,6 +226,79 @@
     const length = target.value.length;
     counter.textContent = `${length} / ${maxLength}`;
     counter.classList.toggle("is-near-limit", length >= Math.floor(maxLength * 0.8));
+  }
+
+  function isPinnedPost(post = state.post) {
+    return post?.pinned === true || post?.category === "NOTICE";
+  }
+
+  function chooseNoticeCategory({
+    title,
+    message,
+    confirmLabel,
+    initialCategory,
+  }) {
+    return new Promise((resolve) => {
+      const dialog = document.createElement("dialog");
+      dialog.className = "board-dialog comment-confirm-dialog notice-category-dialog";
+
+      const shell = element("div", "dialog-shell comment-confirm-shell");
+      const heading = element("div", "comment-confirm-heading");
+      const iconWrap = element("span", "comment-confirm-icon notice-category-dialog__icon");
+      const noticeIcon = element("span", "material-symbols-rounded", "campaign");
+      noticeIcon.setAttribute("aria-hidden", "true");
+      iconWrap.append(noticeIcon);
+      const copy = element("div", "comment-confirm-copy");
+      copy.append(element("h2", "", title), element("p", "", message));
+      heading.append(iconWrap, copy);
+
+      const field = element("label", "notice-category-dialog__field");
+      field.append(element("span", "", "카테고리"));
+      const select = element("select", "notice-category-dialog__select");
+      NOTICE_CATEGORY_OPTIONS.forEach(([value, label]) => {
+        const option = element("option", "", label);
+        option.value = value;
+        select.append(option);
+      });
+      const safeInitial = NOTICE_CATEGORY_OPTIONS.some(([value]) => value === initialCategory)
+        ? initialCategory
+        : "GENERAL";
+      select.value = safeInitial;
+      field.append(select);
+
+      const actions = element("div", "comment-confirm-actions");
+      const cancel = element("button", "button button-sm button-secondary", "취소");
+      cancel.type = "button";
+      const confirm = element("button", "button button-sm button-primary", confirmLabel);
+      confirm.type = "button";
+      actions.append(cancel, confirm);
+      shell.append(heading, field, actions);
+      dialog.append(shell);
+      document.body.append(dialog);
+      window.FooduckIcons?.enhance(dialog);
+
+      let settled = false;
+      const finish = (value) => {
+        if (settled) return;
+        settled = true;
+        dialog.close();
+        dialog.remove();
+        resolve(value);
+      };
+
+      cancel.addEventListener("click", () => finish(null));
+      confirm.addEventListener("click", () => finish(select.value));
+      dialog.addEventListener("cancel", (event) => {
+        event.preventDefault();
+        finish(null);
+      });
+      dialog.addEventListener("click", (event) => {
+        if (event.target === dialog) finish(null);
+      });
+
+      dialog.showModal();
+      select.focus();
+    });
   }
 
   function confirmBoardAction({
@@ -1649,7 +1729,12 @@
     detailContent.replaceChildren();
 
     const badges = element("div", "detail-badges");
-    badges.append(detailBadge(categoryLabel(post.category)));
+    if (isPinnedPost(post)) {
+      badges.append(detailBadge("공지 · 상단 고정", "post-badge post-badge--notice"));
+    }
+    if (post.category !== "NOTICE") {
+      badges.append(detailBadge(categoryLabel(post.category)));
+    }
     badges.append(
       detailBadge(
         newsPost
@@ -1728,7 +1813,7 @@
       ? post.newsManageableByCurrentUser === true && Boolean(newsTarget)
       : post.ownedByCurrentUser || session.isAdmin;
     if (canManage) {
-      if (!newsPost && session.isAdmin && post.category === "NOTICE") {
+      if (!newsPost && session.isAdmin && isPinnedPost(post)) {
         const unpinButton = actionButton(
           "공지에서 내리기",
           "button button-sm button-secondary",
@@ -1736,7 +1821,7 @@
         );
         unpinButton.disabled = noticeUnpinInFlight;
         actions.append(unpinButton);
-      } else if (!newsPost && session.isAdmin && post.category !== "NOTICE") {
+      } else if (!newsPost && session.isAdmin && !isPinnedPost(post)) {
         const pinButton = actionButton(
           "공지로 올리기",
           "button button-sm button-secondary",
@@ -1889,14 +1974,15 @@
 
   async function unpinNotice(event) {
     const post = state.post;
-    if (!post || post.category !== "NOTICE" || !session.isAdmin || noticeUnpinInFlight) return;
+    if (!post || !isPinnedPost(post) || !session.isAdmin || noticeUnpinInFlight) return;
 
-    const confirmed = await confirmBoardAction({
-      title: "공지를 일반 글로 내릴까요?",
-      message: "공지 표시와 상단 고정이 해제되고 자유 이야기로 전환됩니다.",
+    const category = await chooseNoticeCategory({
+      title: "공지를 어디로 내릴까요?",
+      message: "공지에서 내린 뒤 사용할 카테고리를 선택해 주세요.",
       confirmLabel: "공지에서 내리기",
+      initialCategory: post.category,
     });
-    if (!confirmed) return;
+    if (!category) return;
 
     noticeUnpinInFlight = true;
     const button = event?.currentTarget instanceof HTMLButtonElement
@@ -1905,17 +1991,11 @@
     if (button) button.disabled = true;
 
     try {
-      const payload = await Api.patch(`/board/posts/${postId}`, {
-        boardType: post.boardType,
-        category: "GENERAL",
-        restaurantId: post.restaurantId ?? null,
-        publicRestaurantId: post.publicRestaurantId ?? null,
-        title: post.title,
-        content: post.content,
-      });
+      const params = new URLSearchParams({ category });
+      const payload = await Api.patch(`/board/posts/${postId}/unpin?${params.toString()}`, {});
       invalidateBoardCache();
       renderPost(payload.data);
-      showToast(toast, payload.message || "공지를 일반 글로 내렸습니다.");
+      showToast(toast, payload.message || "공지를 내렸습니다.");
     } catch (error) {
       showToast(toast, error.message || "공지를 내리지 못했습니다.", true);
     } finally {
@@ -1926,27 +2006,22 @@
 
   async function pinNotice(event) {
     const post = state.post;
-    if (!post || post.category === "NOTICE" || !session.isAdmin || noticePinInFlight) return;
+    if (!post || isPinnedPost(post) || !session.isAdmin || noticePinInFlight) return;
 
-    const confirmed = await confirmBoardAction({
+    const category = await chooseNoticeCategory({
       title: "이 글을 공지로 올릴까요?",
-      message: "공지로 전환하면 게시판 상단에 고정됩니다.",
+      message: "공지로 올린 뒤 표시할 카테고리를 선택해 주세요.",
       confirmLabel: "공지로 올리기",
+      initialCategory: post.category,
     });
-    if (!confirmed) return;
+    if (!category) return;
 
     noticePinInFlight = true;
     const button = event?.currentTarget instanceof HTMLButtonElement ? event.currentTarget : null;
     if (button) button.disabled = true;
     try {
-      const payload = await Api.patch(`/board/posts/${postId}`, {
-        boardType: post.boardType,
-        category: "NOTICE",
-        restaurantId: post.restaurantId ?? null,
-        publicRestaurantId: post.publicRestaurantId ?? null,
-        title: post.title,
-        content: post.content,
-      });
+      const params = new URLSearchParams({ category });
+      const payload = await Api.patch(`/board/posts/${postId}/pin?${params.toString()}`, {});
       invalidateBoardCache();
       renderPost(payload.data);
       showToast(toast, payload.message || "공지로 올렸습니다.");

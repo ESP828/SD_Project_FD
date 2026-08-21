@@ -71,7 +71,7 @@ public interface PostRepository extends JpaRepository<Post, Long> {
                     or lower(p.content) like lower(concat('%', :keyword, '%'))
                     or lower(a.nickname) like lower(concat('%', :keyword, '%'))
               )
-            order by case when p.category = :noticeCategory then 0 else 1 end
+            order by case when p.pinned = true or p.category = :noticeCategory then 0 else 1 end
             """,
             countQuery = """
             select count(p)
@@ -111,7 +111,7 @@ public interface PostRepository extends JpaRepository<Post, Long> {
                     or lower(p.content) like lower(concat('%', :keyword, '%'))
                     or lower(a.nickname) like lower(concat('%', :keyword, '%'))
               )
-            order by case when p.category = :noticeCategory then 0 else 1 end,
+            order by case when p.pinned = true or p.category = :noticeCategory then 0 else 1 end,
             (
                 select count(c)
                 from Comment c
@@ -150,6 +150,7 @@ public interface PostRepository extends JpaRepository<Post, Long> {
             join fetch p.author
             where p.status = :status
               and p.createdAt >= :since
+              and p.pinned = false
               and p.category <> :excludedCategory
               and p.category <> com.example.backend.board.domain.type.PostCategory.NEWS
               and (:boardType is null or p.boardType = :boardType)
@@ -169,6 +170,7 @@ public interface PostRepository extends JpaRepository<Post, Long> {
             join fetch p.author
             where p.status = :status
               and p.likeCount >= :minimumLikeCount
+              and p.pinned = false
               and p.category <> :excludedCategory
               and p.category <> com.example.backend.board.domain.type.PostCategory.NEWS
               and (:readableBoardType is null or p.boardType = :readableBoardType)
@@ -179,6 +181,7 @@ public interface PostRepository extends JpaRepository<Post, Long> {
             from Post p
             where p.status = :status
               and p.likeCount >= :minimumLikeCount
+              and p.pinned = false
               and p.category <> :excludedCategory
               and p.category <> com.example.backend.board.domain.type.PostCategory.NEWS
               and (:readableBoardType is null or p.boardType = :readableBoardType)
@@ -197,6 +200,7 @@ public interface PostRepository extends JpaRepository<Post, Long> {
             join fetch p.author
             where p.status = :postStatus
               and p.postId <> :currentPostId
+              and p.pinned = false
               and p.category <> :excludedCategory
               and p.category <> com.example.backend.board.domain.type.PostCategory.NEWS
               and (:readableBoardType is null or p.boardType = :readableBoardType)
@@ -230,6 +234,7 @@ public interface PostRepository extends JpaRepository<Post, Long> {
             join fetch p.author
             where p.status = :postStatus
               and p.postId <> :currentPostId
+              and p.pinned = false
               and p.category <> :excludedCategory
               and p.category <> com.example.backend.board.domain.type.PostCategory.NEWS
               and (:readableBoardType is null or p.boardType = :readableBoardType)
@@ -267,6 +272,7 @@ public interface PostRepository extends JpaRepository<Post, Long> {
             join fetch p.author
             where p.status = :postStatus
               and p.boardType = :boardType
+              and p.pinned = false
               and p.category = :questionCategory
               and not exists (
                     select c.commentId

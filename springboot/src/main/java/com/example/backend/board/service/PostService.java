@@ -921,6 +921,36 @@ public class PostService {
     }
 
     @Transactional
+    public PostDetailResponse updatePinnedState(
+            Long postId,
+            String categoryValue,
+            boolean pinned,
+            Long currentAccountId
+    ) {
+        Account currentAccount = boardUserService.require(currentAccountId);
+        if (!accessPolicy.isAdmin(currentAccount)) {
+            throw new BoardException(
+                    HttpStatus.FORBIDDEN,
+                    "BOARD_NOTICE_MANAGE_FORBIDDEN",
+                    "관리자만 공지 고정 상태를 변경할 수 있습니다."
+            );
+        }
+
+        Post post = getExistingPostForUpdate(postId);
+        if (post.getCategory() == PostCategory.NEWS) {
+            throw badRequest("가게 소식은 커뮤니티 공지로 변경할 수 없습니다.");
+        }
+
+        PostCategory category = parseCategory(categoryValue);
+        if (category == null || category == PostCategory.NOTICE || category == PostCategory.NEWS) {
+            throw badRequest("공지에 적용할 일반 게시글 카테고리를 선택해 주세요.");
+        }
+
+        post.updatePinnedState(category, pinned);
+        return responseMapper.toDetail(post, currentAccount);
+    }
+
+    @Transactional
     public void deletePost(Long postId, Long currentAccountId) {
         Account currentAccount = boardUserService.require(currentAccountId);
         Post post = getExistingPostForUpdate(postId);

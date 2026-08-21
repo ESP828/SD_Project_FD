@@ -488,7 +488,51 @@
 }
 
 .comment-confirm-actions .button-danger {
+  border-color: #efb7b7;
+  color: var(--color-danger);
   background: #fff7f7;
+  box-shadow: none;
+}
+
+.comment-confirm-actions .button-danger:hover,
+.comment-confirm-actions .button-danger:focus-visible {
+  border-color: #df8f8f;
+  color: #a92f2f;
+  background: #ffe9e9;
+  box-shadow: 0 0 0 3px rgba(217, 63, 63, 0.08);
+}
+
+.notice-category-dialog__icon {
+  color: var(--color-orange-dark);
+  background: var(--color-orange-soft);
+}
+
+.notice-category-dialog__field {
+  display: grid;
+  gap: 8px;
+  margin-top: 18px;
+}
+
+.notice-category-dialog__field > span {
+  color: var(--color-navy);
+  font-size: 0.8rem;
+  font-weight: 800;
+}
+
+.notice-category-dialog__select {
+  width: 100%;
+  min-height: 42px;
+  padding: 0 40px 0 13px;
+  border: 1px solid var(--color-line);
+  border-radius: 12px;
+  outline: 0;
+  color: var(--color-navy);
+  background: #fff;
+}
+
+.notice-category-dialog__select:focus {
+  border-color: rgba(255, 152, 0, 0.58);
+  box-shadow: 0 0 0 3px rgba(255, 152, 0, 0.1);
 }
 
 .detail-badges {
@@ -3840,6 +3884,7 @@ body.is-image-viewer-open {
 .board-restaurant-search input {
   width: 100%;
   min-width: 0;
+  padding-left: 16px;
   border-color: rgba(230, 143, 62, 0.18);
   border-radius: 14px;
   background: #fff;

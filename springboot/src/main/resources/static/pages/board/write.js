@@ -619,7 +619,6 @@
       ["QUESTION", "질문"],
       ["TRAVEL", "맛집 여행"],
     ];
-    if (session.isAdmin) categories.unshift(["NOTICE", "공지"]);
     categories.forEach(([value, label]) => {
       const option = board.element("option", "", label);
       option.value = value;
