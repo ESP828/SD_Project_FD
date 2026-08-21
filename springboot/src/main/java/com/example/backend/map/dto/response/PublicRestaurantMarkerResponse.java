@@ -12,9 +12,12 @@ public record PublicRestaurantMarkerResponse(
         Double lon
 ) {
     public static PublicRestaurantMarkerResponse from(PublicRestaurant restaurant) {
-        String categoryName = restaurant.getCategorySmallName() != null
-                ? restaurant.getCategorySmallName()
-                : restaurant.getCategoryLargeName();
+        // 세부 항목("경양식") 대신 정리된 대분류("양식")를 화면에 보여준다.
+        String categoryName = restaurant.getCategoryMediumName() != null
+                ? restaurant.getCategoryMediumName()
+                : restaurant.getCategorySmallName() != null
+                        ? restaurant.getCategorySmallName()
+                        : restaurant.getCategoryLargeName();
         return new PublicRestaurantMarkerResponse(
                 restaurant.getPublicRestaurantId(),
                 restaurant.getName(),

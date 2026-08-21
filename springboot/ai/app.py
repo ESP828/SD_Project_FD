@@ -22,6 +22,7 @@ class QueryRecommendationRequest(BaseModel):
 
 class ReviewRequest(BaseModel):
     review: str
+    rating: Optional[int] = None
 
 class PredictionResponse(BaseModel):
     review: str
@@ -29,10 +30,14 @@ class PredictionResponse(BaseModel):
     positive_probability: float
     negative_probability: float
 
+class ReviewItem(BaseModel):
+    content: str
+    rating: Optional[int] = None
+
 class RestaurantReviewsRequest(BaseModel):
     restaurantId: int
     restaurantName: str
-    reviews: List[str]
+    reviews: List[ReviewItem]
 
 class RestaurantSentimentSummary(BaseModel):
     restaurantId: int
@@ -47,15 +52,16 @@ class RestaurantSentimentSummary(BaseModel):
 def predict_sentiment(request: ReviewRequest):
     if not sentiment.is_ready():
         raise HTTPException(status_code=503, detail="감성분석 모델이 아직 준비되지 않았습니다.")
-    return PredictionResponse(**sentiment.predict_one(request.review))
+    return PredictionResponse(**sentiment.predict_one(request.review, request.rating))
 
 
 @app.post("/predict/sentiment/restaurant-summary", response_model=RestaurantSentimentSummary)
 def predict_sentiment_restaurant_summary(request: RestaurantReviewsRequest):
     if not sentiment.is_ready():
         raise HTTPException(status_code=503, detail="감성분석 모델이 아직 준비되지 않았습니다.")
+    reviews = [{"content": item.content, "rating": item.rating} for item in request.reviews]
     return RestaurantSentimentSummary(
-        **sentiment.summarize_restaurant(request.restaurantId, request.restaurantName, request.reviews)
+        **sentiment.summarize_restaurant(request.restaurantId, request.restaurantName, reviews)
     )
 
 @app.post("/recommendations/query")

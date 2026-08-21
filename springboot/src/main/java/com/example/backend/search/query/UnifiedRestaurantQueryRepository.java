@@ -41,7 +41,7 @@ public class UnifiedRestaurantQueryRepository {
                    'PUBLIC' as source_type,
                    p.public_restaurant_id as id,
                    p.name as name,
-                   coalesce(p.category_small_name, p.category_medium_name, p.category_large_name) as category_name,
+                   coalesce(p.category_medium_name, p.category_small_name, p.category_large_name) as category_name,
                    p.road_address as road_address,
                    p.lot_address as lot_address,
                    p.latitude as latitude,
@@ -112,6 +112,8 @@ public class UnifiedRestaurantQueryRepository {
     /**
      * 지도 화면용 영역 조회. 지도에 마커로 찍어야 하므로 좌표가 있는 음식점만 대상으로 한다.
      * 검색어는 기존 지도 검색과 동일하게 상호명·음식 종류·주소를 함께 본다.
+     * category가 주어지면(빠른 카테고리 버튼 등) 대분류(category_medium_name)로 정확히 일치하는
+     * 매장만 추가로 걸러낸다.
      */
     public List<RestaurantSearchItemResponse> searchInBounds(
             BigDecimal swLat,
@@ -119,6 +121,7 @@ public class UnifiedRestaurantQueryRepository {
             BigDecimal neLat,
             BigDecimal neLng,
             String keyword,
+            String category,
             int limit
     ) {
         MapSqlParameterSource parameters = new MapSqlParameterSource()
@@ -132,11 +135,17 @@ public class UnifiedRestaurantQueryRepository {
         if (hasKeyword) {
             parameters.addValue("boundsKeyword", "%" + trimmed + "%");
         }
-        String ownedCondition = boundsCondition("r", hasKeyword, "r.name", "r.address", "c.name");
+        String trimmedCategory = category == null ? "" : category.trim();
+        boolean hasCategory = !trimmedCategory.isEmpty();
+        if (hasCategory) {
+            parameters.addValue("boundsCategory", trimmedCategory);
+        }
+        String ownedCondition = boundsCondition("r", hasKeyword, "r.name", "r.address", "c.name")
+                + (hasCategory ? "\n   and c.name = :boundsCategory" : "");
         String publicCondition = boundsCondition(
                 "p", hasKeyword,
-                "p.name", "p.road_address", "p.lot_address", "p.category_small_name", "p.category_large_name"
-        );
+                "p.name", "p.road_address", "p.lot_address", "p.category_medium_name"
+        ) + (hasCategory ? "\n   and p.category_medium_name = :boundsCategory" : "");
         // 상호명이 그대로 들어간 매장을 먼저, 그 다음은 이름이 짧아 일치도가 높은 매장 순으로 정렬한다.
         String order = hasKeyword
                 ? " order by t.source_order asc,"
@@ -193,7 +202,7 @@ public class UnifiedRestaurantQueryRepository {
     ) {
         return PUBLIC_SOURCE + listConditions(
                 keyword, region, category, parameters,
-                "p.name", "p.road_address", "p.lot_address", "p.category_small_name"
+                "p.name", "p.road_address", "p.lot_address", "p.category_medium_name"
         );
     }
 

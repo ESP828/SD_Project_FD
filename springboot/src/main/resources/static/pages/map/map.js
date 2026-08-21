@@ -44,6 +44,7 @@
   let currentPlaces = new Map();
   let activeMarkerEntry;
   let lastSearchKeyword = "";
+  let lastSearchCategory = "";
   let presetItems = [];
   let detailRequestToken = 0;
   let resultMode = "preset";
@@ -117,6 +118,7 @@
         onClick: () => {
           keywordInput.value = "";
           lastSearchKeyword = "";
+          lastSearchCategory = "";
           searchAreaButton.hidden = true;
           categoryList.querySelectorAll("button").forEach((item) => item.classList.remove("is-active"));
           showInitialResults();
@@ -730,6 +732,7 @@
     const originLat = userLocation ? userLocation.latitude : center.getLat();
     const originLng = userLocation ? userLocation.longitude : center.getLng();
     lastSearchKeyword = "";
+    lastSearchCategory = "";
     searchAreaButton.hidden = true;
     setMapStatus("주변 맛집을 찾고 있습니다.");
     try {
@@ -777,6 +780,7 @@
   // 해당 매장을 직접 조회해 정확한 좌표로 포커싱한다.
   async function focusRestaurant(id, sourceType = "PUBLIC") {
     lastSearchKeyword = "";
+    lastSearchCategory = "";
     searchAreaButton.hidden = true;
     setMapStatus("음식점 정보를 불러오는 중입니다.");
     const isOwned = sourceType === "OWNED";
@@ -805,7 +809,7 @@
           sourceType: "PUBLIC",
           restaurantId: detail.id,
           place_name: detail.branchName ? `${detail.name} ${detail.branchName}` : detail.name,
-          category_name: detail.categorySmallName || detail.categoryLargeName || "기타",
+          category_name: detail.categoryMediumName || detail.categorySmallName || detail.categoryLargeName || "기타",
           category_group_name: "",
           road_address_name: detail.roadAddress || "",
           address_name: detail.lotAddress || "",
@@ -835,6 +839,7 @@
       return;
     }
     lastSearchKeyword = normalized;
+    lastSearchCategory = "";
     searchAreaButton.hidden = true;
 
     // 정확히 일치하는 매장명이 DB 전체에서 딱 하나뿐이면, 지도 반경(500m) 제한 없이
@@ -873,6 +878,40 @@
   }
 
   /**
+   * 빠른 카테고리 버튼(한식/중식/... 등, 방금 정리한 대분류 기준) 검색.
+   * 매장명이 아니라 category_medium_name과 정확히 일치하는 매장만 찾는다는 점에서
+   * 이름을 입력해 찾는 searchPlaces와 다르다.
+   */
+  async function searchByCategory(category) {
+    if (!kakaoMap) {
+      setMapStatus("지도가 아직 준비되지 않았습니다.", true);
+      return;
+    }
+    lastSearchKeyword = "";
+    lastSearchCategory = category;
+    keywordInput.value = "";
+    searchAreaButton.hidden = true;
+
+    const params = boundsParams(boundsAroundCenter(kakaoMap.getCenter()));
+    params.set("category", category);
+    try {
+      setMapStatus(`“${category}” 검색 중입니다.`);
+      const response = await Api.get(`/public/search/restaurants/bounds?${params}`, { auth: false });
+      const results = (response.data || []).map(toSearchPlace);
+      renderItems(results, "검색 결과", true, "search", {
+        message: `이 지역에서 “${category}” 매장을 찾지 못했습니다. 지도를 옮겨 다른 지역에서 찾아보세요.`,
+        actions: emptySearchActions(),
+      });
+      setMapStatus(results.length ? `${results.length}개의 장소를 표시했습니다.` : "검색 결과가 없습니다.", !results.length);
+      saveMapState();
+    } catch (error) {
+      renderEmptyResults("장소 검색 중 오류가 발생했습니다.");
+      setResultsState(0);
+      setMapStatus(error.message, true);
+    }
+  }
+
+  /**
    * 가게 상세로 이동했다가 돌아와도 검색어·결과·지도 위치가 그대로 남도록 저장한다.
    * 보물지도 모드는 presetId로 항상 같은 목록을 다시 불러오므로 저장하지 않는다.
    */
@@ -885,6 +924,7 @@
         savedAt: Date.now(),
         keyword: keywordInput.value,
         lastSearchKeyword,
+        lastSearchCategory,
         resultMode,
         title: currentResultTitle,
         places: currentPlaceList,
@@ -917,6 +957,12 @@
     if (!state) return false;
     keywordInput.value = state.keyword || "";
     lastSearchKeyword = state.lastSearchKeyword || "";
+    lastSearchCategory = state.lastSearchCategory || "";
+    if (lastSearchCategory) {
+      categoryList.querySelectorAll("button").forEach((item) => {
+        item.classList.toggle("is-active", item.dataset.category === lastSearchCategory);
+      });
+    }
     if (state.center) {
       kakaoMap.setCenter(new kakao.maps.LatLng(state.center.lat, state.center.lng));
       if (state.level) kakaoMap.setLevel(state.level);
@@ -929,7 +975,7 @@
       row?.scrollIntoView({ block: "nearest" });
       selectedRestaurantId = state.selectedRestaurantId;
     }
-    if (lastSearchKeyword) searchAreaButton.hidden = false;
+    if (lastSearchKeyword || lastSearchCategory) searchAreaButton.hidden = false;
     setMapStatus("마지막으로 보던 검색 결과를 그대로 불러왔습니다.");
     return true;
   }
@@ -944,10 +990,17 @@
   });
 
   searchForm.addEventListener("submit", (event) => { event.preventDefault(); searchPlaces(keywordInput.value); });
-  categoryList.querySelectorAll("[data-category-keyword]").forEach((button) => {
-    button.addEventListener("click", () => { keywordInput.value = button.dataset.categoryKeyword; searchPlaces(button.dataset.categoryKeyword); });
+  categoryList.querySelectorAll("[data-category]").forEach((button) => {
+    button.addEventListener("click", () => {
+      categoryList.querySelectorAll("button").forEach((item) => item.classList.toggle("is-active", item === button));
+      searchByCategory(button.dataset.category);
+    });
   });
   searchAreaButton.addEventListener("click", () => {
+    if (lastSearchCategory) {
+      searchByCategory(lastSearchCategory);
+      return;
+    }
     if (lastSearchKeyword) {
       searchPlaces(lastSearchKeyword);
       return;

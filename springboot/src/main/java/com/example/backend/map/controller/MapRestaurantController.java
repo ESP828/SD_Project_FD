@@ -13,8 +13,10 @@ import com.example.backend.restaurant.dto.response.MenuResponse;
 import com.example.backend.restaurant.query.PublicRestaurantMenuQueryRepository;
 import com.example.backend.restaurant.repository.PublicRestaurantRepository;
 import com.example.backend.restaurant.repository.PublicRestaurantSpecifications;
+import com.example.backend.review.domain.entity.Review;
 import com.example.backend.review.dto.response.ReviewResponse;
 import com.example.backend.review.integration.sentiment.SentimentAnalysisClient;
+import com.example.backend.review.integration.sentiment.dto.RestaurantSentimentSummaryRequest;
 import com.example.backend.review.integration.sentiment.dto.RestaurantSentimentSummaryResponse;
 import com.example.backend.review.service.ReviewService;
 import org.slf4j.Logger;
@@ -149,13 +151,16 @@ public class MapRestaurantController {
         }
         PublicRestaurant restaurant = publicRestaurantRepository.findById(id)
                 .orElseThrow(() -> new BusinessException(ErrorCode.RESTAURANT_NOT_FOUND));
-        List<String> reviewTexts = reviewService.getAllReviewTextsForPublicRestaurant(id);
-        if (reviewTexts.isEmpty()) {
+        List<Review> reviews = reviewService.getAllReviewsForSentimentForPublicRestaurant(id);
+        if (reviews.isEmpty()) {
             return ApiResponse.success(null);
         }
+        List<RestaurantSentimentSummaryRequest.ReviewItem> reviewItems = reviews.stream()
+                .map(r -> new RestaurantSentimentSummaryRequest.ReviewItem(r.getContent(), r.getRating()))
+                .toList();
         try {
             RestaurantSentimentSummaryResponse summary = sentimentAnalysisClient.summarizeRestaurant(
-                    id, restaurant.getName(), reviewTexts
+                    id, restaurant.getName(), reviewItems
             );
             return ApiResponse.success(summary);
         } catch (RuntimeException e) {

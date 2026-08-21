@@ -48,9 +48,10 @@ public class SentimentAnalysisClient {
 
     /**
      * 한 매장의 리뷰 여러 건을 한 번에 분석해서 긍정/부정 개수·비율을 집계한다.
+     * 리뷰마다 별점을 같이 보내서, 본문만으로 감성 판단이 안 될 때 별점으로 보정할 수 있게 한다.
      */
     public RestaurantSentimentSummaryResponse summarizeRestaurant(
-            Long restaurantId, String restaurantName, List<String> reviews
+            Long restaurantId, String restaurantName, List<RestaurantSentimentSummaryRequest.ReviewItem> reviews
     ) {
         return restClient.post()
                 .uri(baseUrl + "/predict/sentiment/restaurant-summary")

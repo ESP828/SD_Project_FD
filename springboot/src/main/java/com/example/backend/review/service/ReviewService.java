@@ -29,15 +29,12 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.regex.Pattern;
 
 @Service
 public class ReviewService {
 
     private static final int DEFAULT_PAGE_SIZE = 5;
     private static final int MAX_PAGE_SIZE = 20;
-    private static final Pattern CUSTOM_EMOJI_SHORTCODE_PATTERN =
-            Pattern.compile(":pepe_[a-z0-9_-]+:");
 
     private final ReviewRepository reviewRepository;
     private final RestaurantRepository restaurantRepository;
@@ -138,23 +135,16 @@ public class ReviewService {
         return toPageResponse(result, viewerAccountId, myReview);
     }
 
+    // 감성분석 요청용. 본문 텍스트가 애매하거나("ㄹㅇㅎ" 같은 무의미한 입력) 사전에 없는 단어뿐이라
+    // 감성 판단이 안 될 때는 별점으로 대신 판단해야 해서, 리뷰 엔티티(본문+별점)를 그대로 내려준다.
     @Transactional(readOnly = true)
-    public List<String> getAllReviewTextsForPublicRestaurant(Long publicRestaurantId) {
-        return reviewRepository.findAllActiveContentsByPublicRestaurantId(publicRestaurantId)
-                .stream()
-                .map(ReviewService::stripCustomEmojiShortcodes)
-                .filter(text -> !text.isBlank())
-                .toList();
+    public List<Review> getAllReviewsForSentimentForPublicRestaurant(Long publicRestaurantId) {
+        return reviewRepository.findAllActiveForSentimentByPublicRestaurantId(publicRestaurantId);
     }
 
-    private static String stripCustomEmojiShortcodes(String content) {
-        if (content == null || content.isBlank()) {
-            return "";
-        }
-        return CUSTOM_EMOJI_SHORTCODE_PATTERN.matcher(content)
-                .replaceAll(" ")
-                .replaceAll("\\s+", " ")
-                .trim();
+    @Transactional(readOnly = true)
+    public List<Review> getAllReviewsForSentimentForRestaurant(Long restaurantId) {
+        return reviewRepository.findAllActiveForSentimentByRestaurantId(restaurantId);
     }
 
     @Transactional
