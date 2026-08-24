@@ -6,10 +6,10 @@
 .mypage-hero {
   overflow: hidden;
   padding: 56px 0 44px;
-  color: #fff;
+  color: var(--color-navy);
   background:
-    radial-gradient(circle at 86% 18%, rgba(255, 152, 0, 0.28), transparent 25%),
-    var(--color-navy);
+    radial-gradient(circle at 86% 18%, rgba(255, 152, 0, 0.2), transparent 25%),
+    #fff4df;
 }
 
 .mypage-hero-grid {
@@ -21,11 +21,11 @@
 }
 
 .mypage-hero .eyebrow {
-  color: #ffd18b;
+  color: var(--color-orange-dark);
 }
 
 .mypage-hero .eyebrow::before {
-  background: #ffd18b;
+  background: var(--color-orange);
 }
 
 .mypage-hero h1 {
