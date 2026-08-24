@@ -32,26 +32,35 @@
     </section>
 
     <section class="container board-content" aria-labelledby="board-heading">
-      <div class="board-tabs" role="tablist" aria-label="커뮤니티 구분">
-        <button id="board-tab-general" class="board-tab is-active" type="button" role="tab"
-                aria-selected="true" aria-controls="board-tabpanel" data-board-type="GENERAL">
-          일반 커뮤니티
-        </button>
-        <button id="business-board-tab" class="board-tab" type="button" role="tab"
-                aria-selected="false" aria-controls="board-tabpanel" data-board-type="BUSINESS" hidden>
-          사업자 커뮤니티
-        </button>
-        <button id="board-tab-best" class="board-tab" type="button" role="tab"
-                aria-selected="false" aria-controls="board-tabpanel" data-board-type="BEST">
-          베스트 커뮤니티
-        </button>
-        <button id="board-tab-popular" class="board-tab" type="button" role="tab"
-                aria-selected="false" aria-controls="board-tabpanel" data-board-type="POPULAR">
-          인기 이야기
-        </button>
+      <div class="board-tabs">
+        <div class="board-tab-buttons" role="tablist" aria-label="커뮤니티 구분">
+          <button id="board-tab-general" class="board-tab is-active" type="button" role="tab"
+                  aria-selected="true" aria-controls="board-tabpanel" data-board-type="GENERAL">
+            일반 커뮤니티
+          </button>
+          <button id="business-board-button" class="board-tab" type="button" role="tab"
+                  aria-selected="false" aria-controls="board-tabpanel" data-board-type="BUSINESS" hidden>
+            사업자 커뮤니티
+          </button>
+          <button id="board-tab-best" class="board-tab" type="button" role="tab"
+                  aria-selected="false" aria-controls="board-tabpanel" data-board-type="BEST">
+            베스트 커뮤니티
+          </button>
+          <button id="board-tab-popular" class="board-tab" type="button" role="tab"
+                  aria-selected="false" aria-controls="board-tabpanel" data-board-type="POPULAR">
+            인기 이야기
+          </button>
+        </div>
+        <label class="board-tab-select-label" for="board-type-select">커뮤니티 구분</label>
+        <select id="board-type-select" class="board-tab-select" aria-controls="board-tabpanel">
+          <option value="GENERAL">일반 커뮤니티</option>
+          <option id="business-board-tab" value="BUSINESS" hidden>사업자 커뮤니티</option>
+          <option value="BEST">베스트 커뮤니티</option>
+          <option value="POPULAR">인기 이야기</option>
+        </select>
       </div>
 
-      <div id="board-tabpanel" role="tabpanel" aria-labelledby="board-tab-general">
+      <div id="board-tabpanel" role="tabpanel" aria-labelledby="board-type-select">
       <form id="board-search-form" class="board-toolbar" role="search">
         <label>
           <span class="sr-only">카테고리</span>

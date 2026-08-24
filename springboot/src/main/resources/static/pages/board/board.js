@@ -46,7 +46,9 @@
   const unansweredPostList = document.getElementById("unanswered-post-list");
   const boardHeading = document.getElementById("board-heading");
   const boardTabPanel = document.getElementById("board-tabpanel");
+  const boardTypeSelect = document.getElementById("board-type-select");
   const businessTab = document.getElementById("business-board-tab");
+  const businessButton = document.getElementById("business-board-button");
   const searchForm = document.getElementById("board-search-form");
   const categorySelect = document.getElementById("board-category");
   const keywordInput = document.getElementById("board-keyword");
@@ -710,16 +712,15 @@
     const isBest = state.boardType === "BEST";
     const isPopular = state.boardType === "POPULAR";
     const isRankedView = isBest || isPopular;
-    let activeTabId = "board-tab-general";
-    document.querySelectorAll("[data-board-type]").forEach((tab) => {
+    if (boardTypeSelect) boardTypeSelect.value = state.boardType;
+    document.querySelectorAll(".board-tab-buttons [data-board-type]").forEach((tab) => {
       const active = tab.dataset.boardType === state.boardType;
       tab.classList.toggle("is-active", active);
       tab.setAttribute("aria-selected", String(active));
       tab.tabIndex = active ? 0 : -1;
-      if (active && tab.id) activeTabId = tab.id;
     });
     if (boardTabPanel) {
-      boardTabPanel.setAttribute("aria-labelledby", activeTabId);
+      boardTabPanel.setAttribute("aria-labelledby", "board-type-select");
     }
     boardHeading.textContent = isBest
       ? "베스트 커뮤니티"
@@ -749,7 +750,11 @@
     loadBoardContent();
   }
 
-  const boardTabs = Array.from(document.querySelectorAll("[data-board-type]"));
+  boardTypeSelect?.addEventListener("change", () => {
+    switchBoard(boardTypeSelect.value);
+  });
+
+  const boardTabs = Array.from(document.querySelectorAll(".board-tab-buttons [data-board-type]"));
   boardTabs.forEach((tab) => {
     tab.addEventListener("click", () => switchBoard(tab.dataset.boardType));
     tab.addEventListener("keydown", (event) => {
@@ -757,20 +762,13 @@
       const visibleTabs = boardTabs.filter((candidate) => !candidate.hidden);
       const currentIndex = visibleTabs.indexOf(tab);
       if (currentIndex < 0 || !visibleTabs.length) return;
-
       event.preventDefault();
       let nextIndex = currentIndex;
       if (event.key === "Home") nextIndex = 0;
       if (event.key === "End") nextIndex = visibleTabs.length - 1;
-      if (event.key === "ArrowLeft") {
-        nextIndex = (currentIndex - 1 + visibleTabs.length) % visibleTabs.length;
-      }
-      if (event.key === "ArrowRight") {
-        nextIndex = (currentIndex + 1) % visibleTabs.length;
-      }
-
-      const nextTab = visibleTabs[nextIndex];
-      nextTab.focus({ preventScroll: true });
+      if (event.key === "ArrowLeft") nextIndex = (currentIndex - 1 + visibleTabs.length) % visibleTabs.length;
+      if (event.key === "ArrowRight") nextIndex = (currentIndex + 1) % visibleTabs.length;
+      visibleTabs[nextIndex].focus({ preventScroll: true });
     });
   });
 
@@ -848,6 +846,7 @@
     const businessAccessPromise = board.canUseBusinessBoard().then((allowed) => {
       businessAccessAllowed = allowed;
       if (businessTab) businessTab.hidden = !businessAccessAllowed;
+      if (businessButton) businessButton.hidden = !businessAccessAllowed;
       return allowed;
     });
 

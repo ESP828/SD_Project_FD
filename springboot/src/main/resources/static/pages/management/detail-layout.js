@@ -12,6 +12,8 @@
     const nav = element("nav", "mypage-detail-nav");
     nav.setAttribute("aria-label", ariaLabel);
     nav.style.setProperty("--mypage-detail-nav-columns", Math.max(items.length, 1));
+    const select = element("select", "mypage-detail-nav-select");
+    select.setAttribute("aria-label", ariaLabel);
     items.forEach((item) => {
       const link = element("a");
       link.href = item.href;
@@ -32,7 +34,19 @@
       }
       if (item.current) link.setAttribute("aria-current", "page");
       nav.append(link);
+
+      const option = element("option", "", item.label);
+      option.value = item.href;
+      option.selected = Boolean(item.current);
+      if (item.count !== undefined && item.count !== null) {
+        option.textContent += ` (${new Intl.NumberFormat("ko-KR").format(Number(item.count) || 0)}개)`;
+      }
+      select.append(option);
     });
+    select.addEventListener("change", () => {
+      if (select.value) window.location.assign(select.value);
+    });
+    nav.append(select);
     return nav;
   }
 
