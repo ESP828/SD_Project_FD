@@ -253,6 +253,48 @@
   background: var(--color-navy);
 }
 
+/* 카테고리는 빠르게 구분할 수 있도록 색을 다양하게 쓰되,
+   크기와 형태는 동일하게 유지한다. */
+.post-badge--category {
+  box-shadow: inset 0 0 0 1px rgba(36, 52, 71, 0.08);
+}
+
+.post-badge--category-general {
+  color: #2f5f9f;
+  background: #eaf2ff;
+  box-shadow: inset 0 0 0 1px #c9dcf6;
+}
+
+.post-badge--category-recommendation {
+  color: #2f6f4f;
+  background: #eaf7ef;
+  box-shadow: inset 0 0 0 1px #c7e6d2;
+}
+
+.post-badge--category-review {
+  color: #9a5b14;
+  background: #fff1df;
+  box-shadow: inset 0 0 0 1px #f3d4a9;
+}
+
+.post-badge--category-question {
+  color: #6f4aa6;
+  background: #f3edff;
+  box-shadow: inset 0 0 0 1px #dfd1f5;
+}
+
+.post-badge--category-travel {
+  color: #27708a;
+  background: #e8f7fb;
+  box-shadow: inset 0 0 0 1px #c7e8f0;
+}
+
+.post-badge--category-news {
+  color: #a0465c;
+  background: #fff0f3;
+  box-shadow: inset 0 0 0 1px #f2ccd5;
+}
+
 .post-role {
   color: var(--color-green);
   font-size: 0.68rem;

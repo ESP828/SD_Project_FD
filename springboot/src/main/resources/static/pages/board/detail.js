@@ -1735,7 +1735,13 @@
       badges.append(detailBadge("공지 · 상단 고정", "post-badge post-badge--notice"));
     }
     if (post.category !== "NOTICE") {
-      badges.append(detailBadge(categoryLabel(post.category)));
+      const categoryClass = String(post.category || "GENERAL").toLowerCase();
+      badges.append(
+        detailBadge(
+          categoryLabel(post.category),
+          `post-badge post-badge--category post-badge--category-${categoryClass}`,
+        ),
+      );
     }
     badges.append(
       detailBadge(

@@ -304,7 +304,14 @@
       badges.append(element("span", "post-badge post-badge--notice", "공지 · 상단 고정"));
     }
     if (post.category !== "NOTICE") {
-      badges.append(element("span", "post-badge", categoryLabel(post.category)));
+      const categoryClass = String(post.category || "GENERAL").toLowerCase();
+      badges.append(
+        element(
+          "span",
+          `post-badge post-badge--category post-badge--category-${categoryClass}`,
+          categoryLabel(post.category),
+        ),
+      );
     }
     if (["BEST", "POPULAR"].includes(state.boardType) || post.boardType === "BUSINESS") {
       badges.append(
