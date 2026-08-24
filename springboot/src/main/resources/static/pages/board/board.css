@@ -4238,6 +4238,11 @@ body.is-image-viewer-open {
   gap: 8px;
 }
 
+/* 상단 이동 버튼이 보이는 게시판 화면에서는 안내 설정을 그 버튼 바로 위에 배치한다. */
+body.board-scroll-top-visible .guidance-settings {
+  bottom: 82px;
+}
+
 .guidance-settings[hidden],
 .guidance-settings-panel[hidden] {
   display: none;
@@ -4325,5 +4330,9 @@ body.is-image-viewer-open {
   .guidance-settings {
     right: 12px;
     bottom: 12px;
+  }
+
+  body.board-scroll-top-visible .guidance-settings {
+    bottom: calc(max(10px, env(safe-area-inset-bottom)) + 132px);
   }
 }

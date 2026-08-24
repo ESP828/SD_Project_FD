@@ -882,7 +882,9 @@
 
     let ticking = false;
     const updateVisibility = () => {
-      button.hidden = window.scrollY <= 450;
+      const visible = window.scrollY > 450;
+      button.hidden = !visible;
+      document.body.classList.toggle("board-scroll-top-visible", visible);
       ticking = false;
     };
 
