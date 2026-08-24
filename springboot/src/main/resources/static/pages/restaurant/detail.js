@@ -9,6 +9,7 @@
   const params = new URLSearchParams(window.location.search);
   const source = params.get("source") === "public" ? "public" : "owned";
   const id = params.get("id");
+  const returnTo = safeSearchReturnPath(params.get("returnTo"));
   const requestedTab = params.get("tab");
   const requestedNewsPageValue = Number.parseInt(params.get("newsPage"), 10);
   const requestedNewsPage = Number.isInteger(requestedNewsPageValue) && requestedNewsPageValue >= 0
@@ -20,13 +21,34 @@
     return;
   }
 
+  function safeSearchReturnPath(value) {
+    if (!value) return null;
+    try {
+      const target = new URL(value, window.location.origin);
+      const isSearchPath = target.pathname === "/search"
+        || target.pathname === "/pages/search/index.html";
+      if (target.origin !== window.location.origin || !isSearchPath) return null;
+      return `${target.pathname}${target.search}${target.hash}`;
+    } catch (_error) {
+      return null;
+    }
+  }
+
+  function cameFromSearchPage() {
+    return safeSearchReturnPath(document.referrer) !== null;
+  }
+
   const backButton = document.getElementById("store-back-button");
   if (backButton) {
     backButton.addEventListener("click", () => {
-      if (window.history.length > 1) {
+      if (window.history.length > 1 && cameFromSearchPage()) {
+        window.history.back();
+      } else if (returnTo) {
+        window.location.assign(returnTo);
+      } else if (window.history.length > 1) {
         window.history.back();
       } else {
-        window.location.href = "/pages/search/index.html";
+        window.location.href = "/search";
       }
     });
   }
