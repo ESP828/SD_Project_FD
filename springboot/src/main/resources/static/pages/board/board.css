@@ -4230,8 +4230,8 @@ body.is-image-viewer-open {
 /* 7일간 숨긴 작성자/역할 안내를 비로그인 사용자도 즉시 복원할 수 있는 로컬 안내 설정 */
 .guidance-settings {
   position: fixed;
-  right: 18px;
-  bottom: 18px;
+  right: 24px;
+  bottom: 24px;
   z-index: 1490;
   display: grid;
   justify-items: end;
@@ -4249,19 +4249,26 @@ body.board-scroll-top-visible .guidance-settings {
 }
 
 .guidance-settings-toggle {
-  min-height: 34px;
-  padding: 7px 11px;
+  display: grid;
+  width: 46px;
+  height: 46px;
+  padding: 0;
+  place-items: center;
   border: 1px solid rgba(31, 53, 76, 0.14);
-  border-radius: 999px;
+  border-radius: 50%;
   color: #435160;
   background: rgba(255, 255, 255, 0.96);
   box-shadow: 0 6px 18px rgba(16, 24, 40, 0.09);
   cursor: pointer;
   font: inherit;
-  font-size: 0.7rem;
-  font-weight: 800;
   line-height: 1;
   backdrop-filter: blur(8px);
+}
+
+.guidance-settings-toggle .material-symbols-rounded {
+  width: 22px;
+  height: 22px;
+  font-size: 22px;
 }
 
 .guidance-settings-toggle:hover,
@@ -4328,8 +4335,13 @@ body.board-scroll-top-visible .guidance-settings {
 
 @media (max-width: 560px) {
   .guidance-settings {
-    right: 12px;
+    right: 16px;
     bottom: 12px;
+  }
+
+  .guidance-settings-toggle {
+    width: 44px;
+    height: 44px;
   }
 
   body.board-scroll-top-visible .guidance-settings {

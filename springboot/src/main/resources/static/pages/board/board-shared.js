@@ -413,8 +413,13 @@
     if (!document.body) return null;
 
     const root = element("div", "guidance-settings");
-    const toggle = element("button", "guidance-settings-toggle", "안내 설정");
+    const toggle = element("button", "guidance-settings-toggle");
+    const toggleIcon = element("span", "material-symbols-rounded", "tune");
+    toggleIcon.setAttribute("aria-hidden", "true");
+    toggle.append(toggleIcon);
     toggle.type = "button";
+    toggle.title = "안내 설정";
+    toggle.setAttribute("aria-label", "안내 설정");
     toggle.setAttribute("aria-expanded", "false");
     toggle.setAttribute("aria-haspopup", "dialog");
 
