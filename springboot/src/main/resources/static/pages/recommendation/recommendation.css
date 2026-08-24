@@ -77,6 +77,30 @@
   gap: 22px;
 }
 
+/* 커뮤니티 페이지 탭과 같은 스타일: "나를 위한 맛집"/"맛집 랭킹"을 탭으로 전환한다. */
+.reco-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 18px;
+}
+
+.reco-tab {
+  min-height: 44px;
+  padding: 0 18px;
+  border: 1px solid var(--color-line);
+  border-radius: 13px;
+  color: var(--color-muted);
+  background: #fff;
+  font-size: 0.86rem;
+  font-weight: 850;
+}
+
+.reco-tab.is-active {
+  border-color: var(--color-navy);
+  color: #fff;
+  background: var(--color-navy);
+}
+
 .recommendation-primary,
 .ranking-panel,
 .preset-ranking-panel {

@@ -117,6 +117,7 @@ public class MapRestaurantController {
             @AuthenticationPrincipal AuthenticatedAccount account
     ) {
         PublicRestaurant restaurant = publicRestaurantRepository.findById(id)
+                .filter(PublicRestaurant::isActive)
                 .orElseThrow(() -> new BusinessException(ErrorCode.RESTAURANT_NOT_FOUND));
         long favoriteCount = favoriteService.count(id);
         boolean favoritedByMe = account != null && favoriteService.isFavorited(id, account.accountId());
@@ -150,6 +151,7 @@ public class MapRestaurantController {
             return ApiResponse.success(null);
         }
         PublicRestaurant restaurant = publicRestaurantRepository.findById(id)
+                .filter(PublicRestaurant::isActive)
                 .orElseThrow(() -> new BusinessException(ErrorCode.RESTAURANT_NOT_FOUND));
         List<Review> reviews = reviewService.getAllReviewsForSentimentForPublicRestaurant(id);
         if (reviews.isEmpty()) {
@@ -181,7 +183,8 @@ public class MapRestaurantController {
                 ? List.of(category)
                 : null;
         Specification<PublicRestaurant> spec = Specification
-                .where(PublicRestaurantSpecifications.nameContains(keyword))
+                .where(PublicRestaurantSpecifications.isActive())
+                .and(PublicRestaurantSpecifications.nameContains(keyword))
                 .and(PublicRestaurantSpecifications.regionContains(region))
                 .and(PublicRestaurantSpecifications.categoryIn(categoryNames));
 

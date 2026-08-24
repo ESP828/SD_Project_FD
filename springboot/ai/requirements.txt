@@ -4,7 +4,7 @@ pandas
 numpy
 scikit-learn
 fastapi
-uvicorn
+uvicorn[standard]
 pymysql
 sqlalchemy
 cryptography

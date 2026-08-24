@@ -27,6 +27,9 @@ public record NaturalLanguageRecommendationResponse(
             Double longitude,
             Double distanceMeters,
             Double score,
-            List<String> reasons
+            List<String> reasons,
+            // 리뷰가 있는 매장에 한해 카카오 이미지 검색으로 캐싱한 대표 이미지. 없으면 null -
+            // 프론트에서는 이때 카테고리 마커 아이콘으로 대체한다.
+            String imageUrl
     ) {}
 }

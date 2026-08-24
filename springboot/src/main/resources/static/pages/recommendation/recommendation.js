@@ -30,18 +30,71 @@ function cleanRestaurantName(rawName) {
   return name;
 }
 
+/**
+ * 거리 표시: 1km 이상이면 "1.2km"처럼 km 단위(소수 첫째자리)로, 1km 미만이면 "350m"처럼
+ * m 단위(정수)로 보여준다. 전부 소수점 첫째자리 km로만 나오면 가까운 거리 차이가
+ * "0.1km"로 뭉뚱그려져서 구분이 안 되는 문제가 있었다.
+ */
+function formatDistance(distanceMeters) {
+  const meters = Number(distanceMeters);
+  if (!Number.isFinite(meters) || meters < 0) return "거리 정보 없음";
+  if (meters >= 1000) return `약 ${(meters / 1000).toFixed(1)}km`;
+  return `약 ${Math.round(meters)}m`;
+}
+
+/**
+ * 매장 카테고리에 맞는 지도 마커 아이콘을 기본 이미지로 쓴다(map.js의 resolveCategoryMarker와
+ * 같은 분류 기준). 마커가 따로 없는 카테고리(아시안, 구내식당·뷔페 등)는 기본 핀 아이콘으로 대체한다.
+ */
+function resolveCategoryMarkerImage(categoryText) {
+  const category = categoryText || "";
+  if (/카페|커피|디저트|제과|베이커리/.test(category)) return "/images/markers/category_cafe.png";
+  if (/중식|중국/.test(category)) return "/images/markers/category_chinese.png";
+  if (/일식|일본|초밥|스시/.test(category)) return "/images/markers/category_japanese.png";
+  if (/양식|이탈리안|프렌치|스테이크/.test(category)) return "/images/markers/category_western.png";
+  if (/패스트푸드|햄버거|피자/.test(category)) return "/images/markers/category_fastfood.png";
+  if (/술집|호프|주점|바/.test(category)) return "/images/markers/category_pub.png";
+  if (/한식|국밥|고기|분식/.test(category)) return "/images/markers/category_korean.png";
+  return "/images/markers/state_default.svg";
+}
+
+/**
+ * 매장 썸네일 <img> 태그를 만든다. 카카오 이미지 검색으로 캐싱해둔 실사진이 있으면
+ * 그걸 채워서 보여주고(object-fit: cover), 없거나 로딩에 실패하면 카테고리 마커
+ * 아이콘으로 자동 대체한다(object-fit: contain, 마커는 원본이 여백을 가진 핀 모양이라
+ * cover로 채우면 잘려 보인다).
+ */
+function buildThumbnailImgTag(imageUrl, categoryText, sizePx, borderRadiusPx) {
+  const markerImage = resolveCategoryMarkerImage(categoryText);
+  const baseStyle = `width: ${sizePx}px; height: ${sizePx}px; flex-shrink: 0; border-radius: ${borderRadiusPx}px; background: #fff1d9; box-sizing: border-box;`;
+
+  if (imageUrl) {
+    // 실사진 로딩에 실패하면(깨진 링크 등) 마커 아이콘으로 바꿔치기하고 스타일도 마커에 맞게 되돌린다.
+    const fallbackPadding = Math.round(sizePx * 0.12);
+    const onerror = `this.onerror=null; this.src='${markerImage}'; this.style.objectFit='contain'; this.style.padding='${fallbackPadding}px';`;
+    return `<img src="${imageUrl}" alt="" aria-hidden="true" onerror="${onerror}"
+                 style="${baseStyle} object-fit: cover;">`;
+  }
+
+  const padding = Math.round(sizePx * 0.12);
+  return `<img src="${markerImage}" alt="" aria-hidden="true"
+               style="${baseStyle} object-fit: contain; padding: ${padding}px;">`;
+}
+
 function goToRestaurantDetail(targetId, targetName) {
   console.log("🔍 [식당 클릭 이동]:", { targetId, targetName });
 
-  // 1. 유효한 ID가 존재하는 경우 (검색 상세보기 링크 규격 적용)
+  // 1. 유효한 ID가 있으면 지도로 바로 이동해서 그 매장에 포커싱한다(맛집 추천은 전부
+  //    공공데이터 매장이라 sourceType은 항상 PUBLIC이다 - map.js가 ?restaurantId=로
+  //    들어오면 자동으로 focusRestaurant를 호출한다).
   if (targetId && targetId !== "undefined" && targetId !== "null" && targetId !== "") {
-    window.location.href = `/restaurant/detail?source=public&id=${targetId}`;
+    window.location.href = `/map?restaurantId=${encodeURIComponent(targetId)}`;
     return;
   }
 
-  // 2. ID가 없을 경우 상호명 검색으로 이동
+  // 2. ID가 없을 경우 상호명으로 지도 검색
   if (targetName && targetName !== "undefined" && targetName !== "null" && targetName !== "") {
-    window.location.href = `/search?keyword=${encodeURIComponent(targetName)}`;
+    window.location.href = `/map?q=${encodeURIComponent(targetName)}`;
     return;
   }
 
@@ -67,7 +120,6 @@ const RecommendationPage = {
       this.loadPersonalRecommendations(),
       this.loadRankingRecommendations()
     ]);
-    this.matchRankingHeightToPersonal();
   },
 
   getCurrentLocation: function () {
@@ -86,42 +138,67 @@ const RecommendationPage = {
 
   renderInitialLayout: function (container) {
     container.innerHTML = `
-      <div class="recommendation-grid" style="display: grid; grid-template-columns: 2fr 1fr; gap: 24px;">
-        <!-- 좌측: 나를 위한 맛집 영역 -->
-        <section id="personal-section" class="surface-card" style="padding: 24px; border-radius: 16px; background: #fff;">
-          <div class="section-header" style="margin-bottom: 20px;">
-            <h2 style="font-size: 20px; font-weight: bold; margin: 0 0 6px 0;">나를 위한 맛집</h2>
-            <p style="font-size: 13px; color: #666; margin: 0;">로그인 계정의 찜·선호도와 현재 음식점 활동 데이터를 반영합니다.</p>
-          </div>
-
-          <div id="personal-cards-container">
-            <div class="skeleton-personal-grid" aria-hidden="true">
-              <div class="skeleton-block skeleton-personal-card"></div>
-              <div class="skeleton-block skeleton-personal-card"></div>
-              <div class="skeleton-block skeleton-personal-card"></div>
-              <div class="skeleton-block skeleton-personal-card"></div>
-            </div>
-          </div>
-        </section>
-
-        <!-- 우측: 맛집 랭킹 영역 -->
-        <section id="ranking-section" class="surface-card" style="padding: 24px; border-radius: 16px; background: #fff;">
-          <div class="section-header" style="margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center;">
-            <h2 style="font-size: 18px; font-weight: bold; margin: 0;">맛집 랭킹</h2>
-            <span style="font-size: 12px; color: #888;"></span>
-          </div>
-          <div id="ranking-cards-container">
-            <div class="skeleton-ranking-list" aria-hidden="true">
-              <div class="skeleton-block skeleton-ranking-row"></div>
-              <div class="skeleton-block skeleton-ranking-row"></div>
-              <div class="skeleton-block skeleton-ranking-row"></div>
-              <div class="skeleton-block skeleton-ranking-row"></div>
-              <div class="skeleton-block skeleton-ranking-row"></div>
-            </div>
-          </div>
-        </section>
+      <div class="reco-tabs" role="tablist" aria-label="맛집 추천 구분">
+        <button id="reco-tab-personal" class="reco-tab is-active" type="button" role="tab"
+                aria-selected="true" aria-controls="personal-section">나를 위한 맛집</button>
+        <button id="reco-tab-ranking" class="reco-tab" type="button" role="tab"
+                aria-selected="false" aria-controls="ranking-section">맛집 랭킹</button>
       </div>
+
+      <!-- 나를 위한 맛집 영역 -->
+      <section id="personal-section" class="surface-card" role="tabpanel" aria-labelledby="reco-tab-personal"
+               style="padding: 24px; border-radius: 16px; background: #fff;">
+        <div class="section-header" style="margin-bottom: 20px;">
+          <h2 style="font-size: 20px; font-weight: bold; margin: 0 0 6px 0;">나를 위한 맛집</h2>
+          <p style="font-size: 13px; color: #666; margin: 0;">로그인 계정의 찜·선호도와 현재 음식점 활동 데이터를 반영합니다.</p>
+        </div>
+
+        <div id="personal-cards-container">
+          <div class="skeleton-personal-grid" aria-hidden="true">
+            <div class="skeleton-block skeleton-personal-card"></div>
+            <div class="skeleton-block skeleton-personal-card"></div>
+            <div class="skeleton-block skeleton-personal-card"></div>
+            <div class="skeleton-block skeleton-personal-card"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 맛집 랭킹 영역 -->
+      <section id="ranking-section" class="surface-card" role="tabpanel" aria-labelledby="reco-tab-ranking" hidden
+               style="padding: 24px; border-radius: 16px; background: #fff;">
+        <div class="section-header" style="margin-bottom: 16px;">
+          <h2 style="font-size: 20px; font-weight: bold; margin: 0 0 6px 0;">맛집 랭킹</h2>
+          <p style="font-size: 13px; color: #666; margin: 0;">AI 리뷰 분석 긍정비율·평점·찜 개수를 종합해서 매긴 순위입니다.</p>
+        </div>
+        <div id="ranking-cards-container">
+          <div class="skeleton-ranking-list" aria-hidden="true">
+            <div class="skeleton-block skeleton-ranking-row"></div>
+            <div class="skeleton-block skeleton-ranking-row"></div>
+            <div class="skeleton-block skeleton-ranking-row"></div>
+            <div class="skeleton-block skeleton-ranking-row"></div>
+            <div class="skeleton-block skeleton-ranking-row"></div>
+          </div>
+        </div>
+      </section>
     `;
+
+    const tabPersonal = document.getElementById("reco-tab-personal");
+    const tabRanking = document.getElementById("reco-tab-ranking");
+    const personalSection = document.getElementById("personal-section");
+    const rankingSection = document.getElementById("ranking-section");
+
+    function activateTab(name) {
+      const isPersonal = name === "personal";
+      tabPersonal.classList.toggle("is-active", isPersonal);
+      tabPersonal.setAttribute("aria-selected", String(isPersonal));
+      tabRanking.classList.toggle("is-active", !isPersonal);
+      tabRanking.setAttribute("aria-selected", String(!isPersonal));
+      personalSection.hidden = !isPersonal;
+      rankingSection.hidden = isPersonal;
+    }
+
+    tabPersonal.addEventListener("click", () => activateTab("personal"));
+    tabRanking.addEventListener("click", () => activateTab("ranking"));
   },
 
  loadPersonalRecommendations: async function () {
@@ -179,39 +256,45 @@ const RecommendationPage = {
           ? item.reasons.map(r => `<span style="font-size: 11px; color: #2e7d32; background: #e8f5e9; padding: 2px 6px; border-radius: 4px; white-space: nowrap;"><i class="fa-solid fa-lightbulb" aria-hidden="true"></i> ${r}</span>`).join('')
           : `<span style="font-size: 11px; color: #2e7d32;"><i class="fa-solid fa-lightbulb" aria-hidden="true"></i> 회원님 취향 맞춤 맛집</span>`;
 
-        const distanceKm = item.distanceMeters ? (item.distanceMeters / 1000).toFixed(1) : '0.0';
+        const distanceLabel = formatDistance(item.distanceMeters);
+        const thumbnailTag = buildThumbnailImgTag(item.imageUrl, item.category || item.categoryName, 56, 12);
 
         html += `
           <div class="surface-card personal-item-card"
                data-id="${resId}"
                data-name="${rawName}"
-               style="border: 1px solid #eee; padding: 14px; border-radius: 12px; background: #fafafa; cursor: pointer; display: flex; flex-direction: column; justify-content: space-between; min-width: 0; box-sizing: border-box; transition: transform 0.15s ease, box-shadow 0.15s ease;"
+               style="border: 1px solid #eee; padding: 14px; border-radius: 12px; background: #fafafa; cursor: pointer; display: flex; gap: 12px; align-items: flex-start; min-width: 0; box-sizing: border-box; transition: transform 0.15s ease, box-shadow 0.15s ease;"
                onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 12px rgba(0,0,0,0.08)';"
                onmouseout="this.style.transform='none'; this.style.boxShadow='none';">
 
-            <!-- 상단: 이름, 거리, 카테고리 -->
-            <div style="min-width: 0;">
-              <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; margin-bottom: 6px;">
-                <div style="display: flex; align-items: baseline; gap: 6px; min-width: 0; flex: 1;">
-                  <h4 title="${rawName}" style="margin: 0; font-size: 16px; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex-shrink: 1;">
-                    ${cleanName}
-                  </h4>
-                  <span style="font-size: 11px; color: #ff9800; font-weight: bold; flex-shrink: 0;">(약${distanceKm}km)</span>
+            <!-- 왼쪽: 매장 이미지 (사진 없으면 카테고리 마커 아이콘) -->
+            ${thumbnailTag}
+
+            <!-- 오른쪽: 이름/거리/카테고리/주소/추천 사유 -->
+            <div style="min-width: 0; flex: 1; display: flex; flex-direction: column; justify-content: space-between;">
+              <div>
+                <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; margin-bottom: 6px;">
+                  <div style="display: flex; align-items: baseline; gap: 6px; min-width: 0; flex: 1;">
+                    <h4 title="${rawName}" style="margin: 0; font-size: 16px; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex-shrink: 1;">
+                      ${cleanName}
+                    </h4>
+                    <span style="font-size: 11px; color: #ff9800; font-weight: bold; flex-shrink: 0;">(${distanceLabel})</span>
+                  </div>
+                  <span style="font-size: 11px; background: #ffe0b2; color: #e65100; padding: 2px 6px; border-radius: 4px; flex-shrink: 0; white-space: nowrap;">
+                    ${item.category || item.categoryName || '음식점'}
+                  </span>
                 </div>
-                <span style="font-size: 11px; background: #ffe0b2; color: #e65100; padding: 2px 6px; border-radius: 4px; flex-shrink: 0; white-space: nowrap;">
-                  ${item.category || item.categoryName || '음식점'}
-                </span>
+
+                <!-- 주소 -->
+                <p style="font-size: 12px; color: #666; margin: 4px 0 10px 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${item.address || ''}">
+                  <i class="fa-solid fa-location-dot" aria-hidden="true"></i> ${item.address || '주소 정보 없음'}
+                </p>
               </div>
 
-              <!-- 주소 -->
-              <p style="font-size: 12px; color: #666; margin: 4px 0 10px 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${item.address || ''}">
-                <i class="fa-solid fa-location-dot" aria-hidden="true"></i> ${item.address || '주소 정보 없음'}
-              </p>
-            </div>
-
-            <!-- 하단: 추천 사유 태그 -->
-            <div style="display: flex; flex-wrap: wrap; gap: 4px; align-items: center; margin-top: auto;">
-              ${reasonBadges}
+              <!-- 하단: 추천 사유 태그 -->
+              <div style="display: flex; flex-wrap: wrap; gap: 4px; align-items: center;">
+                ${reasonBadges}
+              </div>
             </div>
           </div>
         `;
@@ -272,11 +355,18 @@ const RecommendationPage = {
         const rawRating = typeof item.rawRating === 'number' ? item.rawRating.toFixed(1) : "0.0";
         const reviewCount = item.reviewCount || 0;
         const favoriteCount = item.favoriteCount || 0;
-        const isLowReview = reviewCount < 10;
+        // 리뷰가 적을수록 평점·긍정비율이 전체 평균 쪽으로 보정되어 반영된다(베이지안 평균).
+        const isLowReview = reviewCount < 8;
 
         const reviewBadge = isLowReview
-          ? `<span style="font-size: 10px; color: #d46b08; background: #fff7e6; padding: 1px 4px; border-radius: 3px;">리뷰 ${reviewCount}개 (평점50%)</span>`
+          ? `<span style="font-size: 10px; color: #d46b08; background: #fff7e6; padding: 1px 4px; border-radius: 3px;">리뷰 ${reviewCount}개 (신뢰도 보정됨)</span>`
           : `<span style="font-size: 10px; color: #389e0d; background: #f6ffed; padding: 1px 4px; border-radius: 3px;">리뷰 ${reviewCount}개</span>`;
+
+        const positiveBadge = typeof item.positiveRatio === "number"
+          ? `<span style="font-size: 10px; color: #1971c2; background: #e7f5ff; padding: 1px 4px; border-radius: 3px;"><i class="fa-solid fa-sparkles" aria-hidden="true"></i> AI 긍정 ${Math.round(item.positiveRatio)}%</span>`
+          : "";
+
+        const thumbnailTag = buildThumbnailImgTag(item.imageUrl, category, 48, 10);
 
         html += `
           <div class="ranking-item-card"
@@ -285,7 +375,9 @@ const RecommendationPage = {
                style="display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 10px; background: #ffffff; border: 1px solid #f0f0f0; cursor: pointer; transition: transform 0.15s ease, box-shadow 0.15s ease;"
                onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 12px rgba(0,0,0,0.08)';"
                onmouseout="this.style.transform='none'; this.style.boxShadow='none';">
-            <span style="font-weight: 800; font-size: 16px; color: ${badgeColor}; width: 22px; text-align: center;">${rankNum}</span>
+            <span style="font-weight: 800; font-size: 16px; color: ${badgeColor}; width: 22px; text-align: center; flex-shrink: 0;">${rankNum}</span>
+
+            ${thumbnailTag}
 
             <div style="flex: 1; min-width: 0;">
               <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 4px;">
@@ -298,7 +390,7 @@ const RecommendationPage = {
 
               <div style="display: flex; align-items: center; justify-content: space-between; font-size: 12px;">
                 <span style="color: #888;">${category}</span>
-                <div>${reviewBadge}</div>
+                <div style="display: flex; align-items: center; gap: 4px;">${positiveBadge}${reviewBadge}</div>
               </div>
             </div>
           </div>
@@ -318,45 +410,5 @@ const RecommendationPage = {
       console.error("❌ 랭킹 로딩 실패:", err);
       container.innerHTML = `<p style="color: #888; font-size: 13px; text-align: center; padding: 20px 0;">랭킹 목록을 불러올 수 없습니다.</p>`;
     }
-  },
-
-  /**
-   * 💡 맛집 랭킹 박스를 나를 위한 맛집 박스와 같은 높이로 맞추고,
-   * 다 안 보이는 나머지는 "더보기" 버튼을 눌러야 펼쳐지게 한다.
-   */
-  matchRankingHeightToPersonal: function () {
-    const personalSection = document.getElementById("personal-section");
-    const rankingSection = document.getElementById("ranking-section");
-    if (!personalSection || !rankingSection) return;
-
-    const targetHeight = personalSection.offsetHeight;
-    if (!targetHeight) return;
-
-    rankingSection.style.position = "relative";
-
-    // 랭킹 박스가 나를 위한 맛집 박스보다 짧으면 자를 필요 없이 높이만 맞춘다.
-    if (rankingSection.scrollHeight <= targetHeight) {
-      rankingSection.style.minHeight = targetHeight + "px";
-      return;
-    }
-
-    rankingSection.style.maxHeight = targetHeight + "px";
-    rankingSection.style.overflow = "hidden";
-
-    const moreWrap = document.createElement("div");
-    moreWrap.id = "ranking-more-wrap";
-    moreWrap.style.cssText = "position: absolute; left: 0; right: 0; bottom: 0; padding: 44px 24px 16px; background: linear-gradient(180deg, rgba(255,255,255,0) 0%, #fff 60%); display: flex; justify-content: center;";
-    moreWrap.innerHTML = `
-      <button type="button" id="ranking-more-btn"
-              style="padding: 8px 22px; border: 1px solid #ddd; border-radius: 999px; background: #fff; box-shadow: var(--shadow-sm); font-weight: 800; font-size: 13px; color: #333; cursor: pointer;">
-        더보기
-      </button>`;
-    rankingSection.appendChild(moreWrap);
-
-    moreWrap.querySelector("#ranking-more-btn").addEventListener("click", () => {
-      rankingSection.style.maxHeight = "none";
-      rankingSection.style.overflow = "visible";
-      moreWrap.remove();
-    });
   }
 };

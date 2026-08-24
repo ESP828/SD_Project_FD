@@ -17,7 +17,8 @@ public interface PublicRecommendationQueryRepository extends JpaRepository<Publi
     //    잘라내게 되어 실제로 반경 안에 있는 매장이 후보에서 통째로 누락될 수 있다.)
     @Query("""
         SELECT p FROM PublicRestaurant p
-        WHERE (:minLat IS NULL OR p.latitude >= :minLat)
+        WHERE p.status = com.example.backend.restaurant.domain.type.RestaurantStatus.ACTIVE
+          AND (:minLat IS NULL OR p.latitude >= :minLat)
           AND (:maxLat IS NULL OR p.latitude <= :maxLat)
           AND (:minLng IS NULL OR p.longitude >= :minLng)
           AND (:maxLng IS NULL OR p.longitude <= :maxLng)
@@ -45,6 +46,7 @@ public interface PublicRecommendationQueryRepository extends JpaRepository<Publi
         SELECT p FROM PublicRestaurant p
         JOIN Favorite f ON p.publicRestaurantId = f.id.restaurantId
         WHERE f.id.accountId = :accountId
+          AND p.status = com.example.backend.restaurant.domain.type.RestaurantStatus.ACTIVE
     """)
     List<PublicRestaurant> findFavoritesByAccountId(@Param("accountId") Long accountId);
 
