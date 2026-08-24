@@ -364,7 +364,7 @@
         boardListCriteria.textContent = "기준 : 최근 30일, 추천순";
         boardListCriteria.hidden = false;
       } else if (state.boardType === "BEST") {
-        boardListCriteria.textContent = "기준 : 추천 3개 이상, 기간 제한 없음";
+        boardListCriteria.textContent = "기준 : 추천 3개 이상";
         boardListCriteria.hidden = false;
       } else {
         boardListCriteria.textContent = "";
@@ -775,7 +775,7 @@
         boardListCriteria.textContent = "기준 : 최근 30일, 추천순";
         boardListCriteria.hidden = false;
       } else if (isBest) {
-        boardListCriteria.textContent = "기준 : 추천 3개 이상, 기간 제한 없음";
+        boardListCriteria.textContent = "기준 : 추천 3개 이상";
         boardListCriteria.hidden = false;
       } else {
         boardListCriteria.textContent = "";
