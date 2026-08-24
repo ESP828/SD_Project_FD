@@ -17,9 +17,9 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.regex.Pattern;
 
 @Repository
 public class PresetQueryRepository {
@@ -650,8 +650,8 @@ public class PresetQueryRepository {
                 .addValue("tagId", tagId);
         for (int index = 0; index < keywordTokens.size(); index++) {
             String token = keywordTokens.get(index);
-            parameters.addValue("keywordLike" + index, "%" + token + "%");
-            parameters.addValue("keywordCompactLike" + index, "%" + compact(token) + "%");
+            parameters.addValue("keywordPattern" + index, Pattern.quote(token));
+            parameters.addValue("keywordCompactPattern" + index, Pattern.quote(compact(token)));
         }
         return parameters;
     }
@@ -663,7 +663,6 @@ public class PresetQueryRepository {
         return List.of(keyword
                         .replace('#', ' ')
                         .trim()
-                        .toLowerCase(Locale.ROOT)
                         .split("[\\s,]+"))
                 .stream()
                 .filter(token -> !token.isBlank())
@@ -676,12 +675,18 @@ public class PresetQueryRepository {
         for (int index = 0; index < keywordTokens.size(); index++) {
             sql.append("""
                        and (
-                            lower(p.title) like :keywordLike%s
-                            or lower(p.category) like :keywordLike%s
-                            or replace(replace(replace(lower(p.title), '#', ''), ',', ''), ' ', '')
-                               like :keywordCompactLike%s
-                            or replace(replace(replace(lower(p.category), '#', ''), ',', ''), ' ', '')
-                               like :keywordCompactLike%s
+                            regexp_like(p.title, :keywordPattern%s, 'c')
+                            or regexp_like(p.category, :keywordPattern%s, 'c')
+                            or regexp_like(
+                                replace(replace(replace(p.title, '#', ''), ',', ''), ' ', ''),
+                                :keywordCompactPattern%s,
+                                'c'
+                            )
+                            or regexp_like(
+                                replace(replace(replace(p.category, '#', ''), ',', ''), ' ', ''),
+                                :keywordCompactPattern%s,
+                                'c'
+                            )
                             or exists (
                                 select 1
                                   from preset_tag pt_keyword_%s
@@ -689,9 +694,12 @@ public class PresetQueryRepository {
                                     on t_keyword_%s.tag_id = pt_keyword_%s.tag_id
                                  where pt_keyword_%s.preset_id = p.preset_id
                                    and (
-                                        lower(t_keyword_%s.name) like :keywordLike%s
-                                        or replace(replace(replace(lower(t_keyword_%s.name), '#', ''), ',', ''), ' ', '')
-                                           like :keywordCompactLike%s
+                                        regexp_like(t_keyword_%s.name, :keywordPattern%s, 'c')
+                                        or regexp_like(
+                                            replace(replace(replace(t_keyword_%s.name, '#', ''), ',', ''), ' ', ''),
+                                            :keywordCompactPattern%s,
+                                            'c'
+                                        )
                                    )
                             )
                        )

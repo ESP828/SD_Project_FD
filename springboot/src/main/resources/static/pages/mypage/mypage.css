@@ -300,10 +300,11 @@
   white-space: nowrap;
 }
 
+/* 개요 카드 수치는 마이페이지·사업자·관리자가 이 파일을 공유하므로 여기 한 곳에서만 관리한다. */
 .activity-card-value {
   margin-top: 5px;
   color: #191d23;
-  font-size: 1.7rem;
+  font-size: 25px;
   font-weight: 850;
   line-height: 1;
   letter-spacing: -0.035em;

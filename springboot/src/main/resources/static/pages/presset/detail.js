@@ -122,6 +122,18 @@
     return false;
   }
 
+  /**
+   * 찜 버튼 안에 하트 아이콘을 넣는다.
+   * 찜/해제 상태는 클래스와 aria 속성으로만 표현하고 버튼 내용은 건드리지 않는다.
+   * (textContent를 갈아치우면 아이콘 SVG가 지워진다.)
+   */
+  function appendFavoriteIcon(button) {
+    const icon = element("span", "material-symbols-rounded", "favorite");
+    icon.setAttribute("aria-hidden", "true");
+    window.FooduckIcons?.set(icon, "favorite");
+    button.append(icon);
+  }
+
   async function reloadPreset() {
     const payload = await Api.get(`/presets/${requestedId}`);
     render(payload.data || {});
@@ -130,7 +142,7 @@
   async function removeRestaurant(button, restaurant) {
     if (!requireLogin()) return;
     const restaurantName = restaurant.name || "선택한 맛집";
-    // 삭제 버튼이 찜 버튼 모서리의 작은 아이콘이라 실수로 눌렸을 때를 대비해 한 번 확인한다.
+    // 삭제 버튼이 찜 버튼 옆의 작은 아이콘이라 실수로 눌렸을 때를 대비해 한 번 확인한다.
     if (!window.confirm(`“${restaurantName}”을(를) 이 보물지도에서 삭제할까요?`)) return;
     button.disabled = true;
     try {
@@ -155,7 +167,6 @@
       button.classList.toggle("is-active", preset.favoriteByCurrentUser);
       button.setAttribute("aria-pressed", String(preset.favoriteByCurrentUser));
       button.setAttribute("aria-label", preset.favoriteByCurrentUser ? "보물지도 찜 해제" : "보물지도 찜");
-      button.textContent = preset.favoriteByCurrentUser ? "♥" : "♡";
       document.querySelector("[data-preset-favorite-count]")
         ?.replaceChildren(document.createTextNode(`♡ 찜 ${preset.favoriteCount.toLocaleString("ko-KR")}`));
     } catch (error) {
@@ -179,7 +190,6 @@
         "aria-label",
         restaurant.favoriteByCurrentUser ? `${restaurant.name || "식당"} 찜 해제` : `${restaurant.name || "식당"} 찜`,
       );
-      button.textContent = restaurant.favoriteByCurrentUser ? "♥" : "♡";
     } catch (error) {
       showToast(error.message || "식당 찜 상태를 변경하지 못했습니다.", true);
     } finally {
@@ -195,7 +205,9 @@
       element("span", "preset-restaurant-number", String(index + 1).padStart(2, "0")),
     );
 
-    const body = element("div", "preset-restaurant-body");
+    const body = element("a", "preset-restaurant-body preset-restaurant-body-link");
+    body.href = restaurantDetailPath(restaurant.restaurantId);
+    body.setAttribute("aria-label", `${restaurant.name || "음식점"} 상세페이지 보기`);
     body.append(element("h3", "", restaurant.name || "이름 정보 없음"));
     const address = [restaurant.address, restaurant.addressDetail].filter(Boolean).join(" ");
     const basicInfo = [restaurant.categoryName, address].filter(Boolean).join(" · ");
@@ -214,12 +226,12 @@
 
     const actions = element("div", "preset-restaurant-actions");
 
-    const favorite = element(
-      "button",
-      "preset-restaurant-favorite",
-      restaurant.favoriteByCurrentUser ? "♥" : "♡",
-    );
+    // 찜과 삭제(X)는 카드 오른쪽 위 모서리에 나란히 둔다(왼쪽 찜, 오른쪽 삭제).
+    const actionRow = element("div", "preset-restaurant-action-row");
+
+    const favorite = element("button", "preset-restaurant-favorite");
     favorite.type = "button";
+    appendFavoriteIcon(favorite);
     favorite.classList.toggle("is-active", restaurant.favoriteByCurrentUser);
     favorite.setAttribute("aria-pressed", String(Boolean(restaurant.favoriteByCurrentUser)));
     favorite.setAttribute(
@@ -227,24 +239,10 @@
       restaurant.favoriteByCurrentUser ? `${restaurant.name || "식당"} 찜 해제` : `${restaurant.name || "식당"} 찜`,
     );
     favorite.addEventListener("click", () => toggleRestaurantFavorite(favorite, restaurant));
-    actions.append(favorite);
+    actionRow.append(favorite);
 
-    const detail = element("a", "button button-primary preset-restaurant-detail-btn", "상세보기");
-    detail.href = restaurantDetailPath(restaurant.restaurantId);
-    actions.append(detail);
-
-    if (restaurant.coordinateAvailable) {
-      const map = element("a", "button button-secondary preset-restaurant-map-btn", "지도에서 보기");
-      map.href = mapPath(restaurant.restaurantId, Boolean(preset.isOwner));
-      actions.append(map);
-    } else {
-      actions.append(element("span", "preset-coordinate-missing", "지도 위치 미등록"));
-    }
-    card.append(visual, body, actions);
-
-    // 보물지도에서 빼는 버튼은 카드 안쪽 오른쪽 위에 두어 찜 버튼과 겹치지 않게 한다.
+    // 보물지도에서 빼는 버튼은 소유자에게만 보이고, 찜 버튼 오른쪽에 여백을 두고 놓인다.
     if (preset.isOwner) {
-      card.classList.add("is-owner");
       const remove = element("button", "preset-restaurant-remove");
       remove.type = "button";
       remove.setAttribute("aria-label", `${restaurant.name || "식당"} 보물지도에서 삭제`);
@@ -254,8 +252,20 @@
       window.FooduckIcons?.set(removeIcon, "close");
       remove.append(removeIcon);
       remove.addEventListener("click", () => removeRestaurant(remove, restaurant));
-      card.append(remove);
+      actionRow.append(remove);
     }
+
+    actions.append(actionRow);
+
+    if (restaurant.coordinateAvailable) {
+      const map = element("a", "button button-secondary preset-restaurant-map-btn", "지도에서 보기");
+      map.href = mapPath(restaurant.restaurantId, Boolean(preset.isOwner));
+      actions.append(map);
+    } else {
+      actions.append(element("span", "preset-coordinate-missing", "지도 위치 미등록"));
+    }
+    // 정보 링크와 액션 영역을 형제 요소로 유지해 하트·삭제·지도 버튼 클릭이 상세 이동으로 이어지지 않게 한다.
+    card.append(visual, body, actions);
     return card;
   }
 
@@ -313,12 +323,10 @@
     copy.append(stats);
 
     const actions = element("div", "preset-detail-actions");
-    const explore = element("a", "button button-primary", "둘러보기 →");
-    explore.href = "#preset-detail-restaurants";
     // 소유자는 지도에서 보기로 들어가도 목록 삭제와 검색 결과 추가를 바로 쓸 수 있다.
     const map = element("a", "button button-secondary", "지도에서 보기");
     map.href = mapPath(undefined, Boolean(data.isOwner));
-    actions.append(explore, map);
+    actions.append(map);
     if (data.isOwner) {
       const edit = element("a", "button button-secondary preset-detail-edit", "⚙ 보물지도 수정");
       edit.href = `/presset/register?presetId=${encodeURIComponent(requestedId)}`;
@@ -329,8 +337,9 @@
     }
     copy.append(actions);
 
-    const favorite = element("button", "preset-detail-favorite", data.favoriteByCurrentUser ? "♥" : "♡");
+    const favorite = element("button", "preset-detail-favorite");
     favorite.type = "button";
+    appendFavoriteIcon(favorite);
     favorite.classList.toggle("is-active", data.favoriteByCurrentUser);
     favorite.setAttribute("aria-pressed", String(Boolean(data.favoriteByCurrentUser)));
     favorite.setAttribute("aria-label", data.favoriteByCurrentUser ? "보물지도 찜 해제" : "보물지도 찜");

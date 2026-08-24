@@ -645,13 +645,14 @@
 }
 
 .preset-card-actions {
+  position: relative;
   display: flex;
   min-width: 0;
   align-items: stretch;
   justify-content: center;
   flex-direction: column;
   gap: 9px;
-  padding: 22px 22px 22px 8px;
+  padding: 64px 18px 20px 8px;
 }
 
 .preset-card-actions .button {
@@ -692,25 +693,40 @@
 .preset-detail-favorite {
   display: grid;
   place-items: center;
-  border: 1px solid rgba(15, 43, 77, 0.13);
+  /* 고정 크기 원형 아이콘 버튼이라 button의 UA 기본 padding(1px 6px)을 지워야 하트가 정확히 가운데 온다. */
+  padding: 0;
+  border: 1px solid var(--color-line);
   color: var(--color-muted);
   background: rgba(255, 255, 255, 0.94);
-  font-weight: 900;
+}
+
+.preset-favorite-button .material-symbols-rounded,
+.preset-detail-favorite .material-symbols-rounded {
+  font-size: 22px;
 }
 
 .preset-favorite-button {
-  align-self: flex-end;
+  position: absolute;
+  z-index: 2;
+  top: 14px;
+  right: 18px;
   width: 40px;
   height: 40px;
   border-radius: 50%;
-  font-size: 1.25rem;
 }
 
+/* 찜 상태 색은 지도·가게 상세와 같은 주황 계열로 통일한다. */
 .preset-favorite-button.is-active,
 .preset-detail-favorite.is-active {
-  border-color: #ffbd91;
-  color: #f15a24;
-  background: #fff4ec;
+  border-color: #ffd9a8;
+  color: #ff9800;
+  background: #fff8ee;
+}
+
+/* 찜한 상태에서는 하트 안쪽까지 채운다(아이콘 SVG는 기본이 fill: none인 외곽선이다). */
+.preset-favorite-button.is-active .material-symbols-rounded svg,
+.preset-detail-favorite.is-active .material-symbols-rounded svg {
+  fill: currentColor;
 }
 
 .preset-card:hover {
@@ -1240,7 +1256,6 @@
   width: 42px;
   height: 42px;
   border-radius: 50%;
-  font-size: 1.28rem;
 }
 
 /* 종류 필터는 목록 패널 바깥 위쪽에 둔다. */
@@ -1293,6 +1308,9 @@
 
 .preset-restaurant-list {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-auto-rows: max-content;
+  align-content: start;
   gap: 14px;
 }
 
@@ -1314,9 +1332,12 @@
 .preset-restaurant-card {
   position: relative;
   display: grid;
+  width: 100%;
+  height: auto;
   overflow: hidden;
   grid-template-columns: 220px minmax(0, 1fr) 176px;
   min-height: 184px;
+  align-self: start;
   align-items: stretch;
   border: 1px solid var(--color-line);
   border-radius: 15px;
@@ -1349,20 +1370,25 @@
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  justify-content: center;
+  justify-content: flex-start;
   gap: 9px;
   padding: 20px 20px 20px 8px;
 }
 
-/* 소유자 카드에만 오른쪽 위 삭제 버튼이 생기므로 그 카드에서만 위쪽을 비워 둔다. */
-.preset-restaurant-card.is-owner .preset-restaurant-actions {
-  padding-top: 46px;
+/* 카드 오른쪽 위 모서리에 놓이는 [찜][삭제] 한 줄.
+   카드가 position: relative 라 기준이 카드이고, 왼쪽 위 순번 배지와 반대쪽이라 겹치지 않는다. */
+.preset-restaurant-action-row {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-bottom: 8px;
 }
 
-.preset-restaurant-detail-btn,
 .preset-restaurant-map-btn {
   width: 100%;
   min-height: 38px;
+  margin-top: 10px;
   justify-content: center;
   padding: 0 12px;
   border-radius: 9px;
@@ -1371,7 +1397,9 @@
 
 .preset-restaurant-visual {
   position: relative;
+  height: 184px;
   min-height: 184px;
+  align-self: start;
   background: var(--color-cream);
 }
 
@@ -1398,6 +1426,29 @@
   justify-content: center;
   flex-direction: column;
   padding: 26px 32px;
+}
+
+.preset-restaurant-body-link {
+  color: inherit;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.preset-restaurant-body-link:visited {
+  color: inherit;
+}
+
+.preset-restaurant-body-link h3 {
+  transition: color 160ms ease;
+}
+
+.preset-restaurant-body-link:hover h3 {
+  color: var(--color-orange-dark);
+}
+
+.preset-restaurant-body-link:focus-visible {
+  outline: 3px solid rgba(255, 152, 0, 0.28);
+  outline-offset: -3px;
 }
 
 .preset-restaurant-category {
@@ -1453,24 +1504,34 @@
   color: #b86700;
 }
 
+/* 모서리에서 삭제(X) 버튼과 나란히 놓이므로 지름과 아이콘 크기를 X와 똑같이 맞춘다. */
 .preset-restaurant-favorite {
   display: grid;
-  width: 40px;
-  height: 40px;
+  width: 34px;
+  height: 34px;
+  flex: 0 0 auto;
   place-items: center;
-  align-self: flex-end;
-  border: 1px solid rgba(15, 43, 77, 0.13);
+  /* 고정 크기 원형 아이콘 버튼이라 button의 UA 기본 padding을 지운다. */
+  padding: 0;
+  border: 1px solid var(--color-line);
   border-radius: 50%;
   color: var(--color-muted);
   background: #fff;
-  font-size: 1.2rem;
-  font-weight: 900;
+  box-shadow: var(--shadow-sm);
+}
+
+.preset-restaurant-favorite .material-symbols-rounded {
+  font-size: 20px;
 }
 
 .preset-restaurant-favorite.is-active {
-  border-color: #ffbd91;
-  color: #f15a24;
-  background: #fff4ec;
+  border-color: #ffd9a8;
+  color: #ff9800;
+  background: #fff8ee;
+}
+
+.preset-restaurant-favorite.is-active .material-symbols-rounded svg {
+  fill: currentColor;
 }
 
 .preset-coordinate-missing {
@@ -1486,36 +1547,33 @@
   font-weight: 800;
 }
 
-/* 보물지도에서 빼기: 카드 안쪽 오른쪽 위 모서리의 X 버튼 (찜 버튼과 겹치지 않는다) */
+/* 보물지도에서 빼기: 액션 영역 첫 줄에서 찜 버튼 오른쪽에 놓이는 X 버튼.
+   맛집찾기 상세 패널의 닫기 버튼(map.css .place-detail-close)과 같은 모양으로 맞춘다.
+   (map.css는 이 페이지에서 로드되지 않으므로 시각값만 여기에 옮겨 적었다.) */
 .preset-restaurant-remove {
-  position: absolute;
-  z-index: 2;
-  top: 12px;
-  right: 12px;
   display: grid;
-  width: 26px;
-  height: 26px;
+  width: 34px;
+  height: 34px;
+  flex: 0 0 auto;
   place-items: center;
   padding: 0;
-  border: 1px solid #f2c9c9;
+  border: 1px solid var(--color-line);
   border-radius: 50%;
-  color: #b42318;
-  background: rgba(255, 255, 255, 0.94);
-  box-shadow: 0 2px 6px rgba(15, 43, 77, 0.14);
+  color: var(--color-navy);
+  background: #fff;
+  box-shadow: var(--shadow-sm);
 }
 
 .preset-restaurant-remove .material-symbols-rounded {
-  font-size: 14px;
+  font-size: 20px;
 }
 
 .preset-restaurant-remove:hover {
-  border-color: #e99d9d;
-  color: #921d14;
-  background: #fff7f7;
+  color: var(--color-orange-dark);
 }
 
 .preset-restaurant-remove:focus-visible {
-  outline: 3px solid rgba(180, 35, 24, 0.28);
+  outline: 3px solid rgba(255, 152, 0, 0.3);
   outline-offset: 2px;
 }
 
@@ -1671,8 +1729,8 @@
 
   .preset-card-actions {
     display: grid;
-    grid-template-columns: 40px minmax(0, 1fr) minmax(0, 1fr);
-    padding: 0 22px 22px;
+    grid-template-columns: minmax(0, 1fr);
+    padding: 64px 22px 22px;
   }
 
   .preset-card-actions .button {
@@ -1700,13 +1758,8 @@
   }
 
   .preset-restaurant-actions {
-    display: grid;
-    grid-template-columns: 40px repeat(2, minmax(0, 1fr));
-    padding: 0 25px 25px;
-  }
-
-  .preset-restaurant-favorite {
-    align-self: center;
+    display: flex;
+    padding: 20px 25px 25px;
   }
 
   .preset-restaurants-heading {
@@ -1747,18 +1800,6 @@
 
   .preset-card-actions {
     grid-template-columns: 1fr;
-  }
-
-  .preset-favorite-button {
-    justify-self: end;
-  }
-
-  .preset-restaurant-actions {
-    grid-template-columns: 1fr;
-  }
-
-  .preset-restaurant-favorite {
-    justify-self: end;
   }
 
   .preset-restaurants-heading,

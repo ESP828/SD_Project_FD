@@ -102,6 +102,18 @@
     return `/presset/detail?presetId=${encodeURIComponent(presetId)}`;
   }
 
+  /**
+   * 찜 버튼 안에 하트 아이콘을 넣는다.
+   * 찜/해제 상태는 클래스와 aria 속성으로만 표현하고 버튼 내용은 건드리지 않는다.
+   * (textContent를 갈아치우면 아이콘 SVG가 지워진다.)
+   */
+  function appendFavoriteIcon(button) {
+    const icon = element("span", "material-symbols-rounded", "favorite");
+    icon.setAttribute("aria-hidden", "true");
+    window.FooduckIcons?.set(icon, "favorite");
+    button.append(icon);
+  }
+
   function imagePlaceholder(className = "preset-image-placeholder") {
     const placeholder = element("span", className, "이미지 없음");
     placeholder.setAttribute("aria-label", "등록 이미지 없음");
@@ -158,7 +170,6 @@
       button.classList.toggle("is-active", preset.favoriteByCurrentUser);
       button.setAttribute("aria-pressed", String(preset.favoriteByCurrentUser));
       button.setAttribute("aria-label", preset.favoriteByCurrentUser ? "보물지도 찜 해제" : "보물지도 찜");
-      button.textContent = preset.favoriteByCurrentUser ? "♥" : "♡";
       button.closest(".preset-card")?.querySelector("[data-favorite-count]")
         ?.replaceChildren(document.createTextNode(`♡ 저장 ${preset.favoriteCount.toLocaleString("ko-KR")}`));
     } catch (error) {
@@ -244,8 +255,9 @@
 
     const actions = element("div", "preset-card-actions");
 
-    const favorite = element("button", "preset-favorite-button", preset.favoriteByCurrentUser ? "♥" : "♡");
+    const favorite = element("button", "preset-favorite-button");
     favorite.type = "button";
+    appendFavoriteIcon(favorite);
     favorite.classList.toggle("is-active", preset.favoriteByCurrentUser);
     favorite.setAttribute("aria-pressed", String(Boolean(preset.favoriteByCurrentUser)));
     favorite.setAttribute("aria-label", preset.favoriteByCurrentUser ? "보물지도 찜 해제" : "보물지도 찜");
@@ -258,9 +270,7 @@
     const mapQuery = new URLSearchParams({ presetId: preset.presetId });
     if (preset.isOwner) mapQuery.set("edit", "1");
     goMap.href = `/map?${mapQuery.toString()}`;
-    const goDetail = element("a", "button button-primary preset-card-cta", "둘러보기 →");
-    goDetail.href = detailPath(preset.presetId);
-    actions.append(favorite, goMap, goDetail);
+    actions.append(favorite, goMap);
     card.append(actions);
 
     card.addEventListener("click", (event) => {

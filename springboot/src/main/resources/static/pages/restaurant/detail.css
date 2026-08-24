@@ -192,6 +192,11 @@ body > [data-site-header] > .site-header {
   background: #fff;
 }
 
+/* 찜한 상태에서는 하트 안쪽까지 채운다(아이콘 SVG는 기본이 fill: none인 외곽선이다). */
+.store-favorite-btn.is-favorited .material-symbols-rounded svg {
+  fill: currentColor;
+}
+
 .store-stats-row {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));

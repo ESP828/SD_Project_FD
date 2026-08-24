@@ -344,6 +344,32 @@ class PresetControllerIntegrationTest {
     }
 
     @Test
+    @DisplayName("보물지도 영문 제목과 입력 태그 및 연결 태그 검색은 대소문자를 구분한다")
+    void searchesEnglishPresetFieldsCaseSensitively() throws Exception {
+        Long casePresetId = createPreset("CaseSensitiveMap", accountId);
+        jdbcTemplate.update(
+                "update preset set category = ? where preset_id = ?",
+                "CafeTag",
+                casePresetId
+        );
+        jdbcTemplate.update("insert into tag (name) values (?)", "LinkedTag");
+        Integer linkedTagId = jdbcTemplate.queryForObject("select max(tag_id) from tag", Integer.class);
+        jdbcTemplate.update(
+                "insert into preset_tag (preset_id, tag_id, display_order) values (?, ?, ?)",
+                casePresetId,
+                linkedTagId,
+                1
+        );
+
+        assertPresetSearchResult("CaseSensitive", casePresetId, 1);
+        assertPresetSearchResult("casesensitive", null, 0);
+        assertPresetSearchResult("CafeTag", casePresetId, 1);
+        assertPresetSearchResult("cafetag", null, 0);
+        assertPresetSearchResult("#LinkedTag", casePresetId, 1);
+        assertPresetSearchResult("#linkedtag", null, 0);
+    }
+
+    @Test
     @DisplayName("상세 조회는 조회 수를 원자적으로 증가시키고 음식점을 반환한다")
     void getsPresetDetail() throws Exception {
         mockMvc.perform(get("/api/presets/{presetId}", presetId))
@@ -535,6 +561,15 @@ class PresetControllerIntegrationTest {
                 .andExpect(status().isOk()).andExpect(content().string(containsString("preset-detail")));
         mockMvc.perform(get("/pages/admin/presets.html"))
                 .andExpect(status().isOk()).andExpect(content().string(containsString("preset-admin-dashboard")));
+    }
+
+    private void assertPresetSearchResult(String keyword, Long expectedPresetId, int expectedCount) throws Exception {
+        var result = mockMvc.perform(get("/api/presets").param("keyword", keyword))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.totalElements").value(expectedCount));
+        if (expectedPresetId != null) {
+            result.andExpect(jsonPath("$.data.content[0].presetId").value(expectedPresetId));
+        }
     }
 
     private Long createPreset(String title, Long ownerAccountId) {

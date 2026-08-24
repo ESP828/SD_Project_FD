@@ -13,7 +13,7 @@
   const sidebarToggleIcon = sidebarToggleButton.querySelector(".material-symbols-rounded");
   const searchAreaButton = document.getElementById("search-area-button");
   const pageTitle = document.getElementById("map-page-title");
-  const presetBreadcrumb = document.getElementById("preset-map-breadcrumb");
+  const mapBackButton = document.getElementById("map-back-button");
   const presetManageBack = document.getElementById("preset-manage-back");
   const detailPanel = document.getElementById("place-detail-panel");
   const detailClose = document.getElementById("place-detail-close");
@@ -29,6 +29,9 @@
     && query.has("edit")
     && Boolean(window.FooduckSession?.authenticated);
   const requestedRestaurantId = Number(query.get("restaurantId"));
+  // 같은 사이트에서 링크로 넘어왔는지. 이때만 브라우저 기록으로 되돌릴 수 있다.
+  const cameFromSameSite = document.referrer.startsWith(`${location.origin}/`)
+    && window.history.length > 1;
   const SEARCH_RADIUS_METERS = 500;
   // 첫 진입 시 보여줄 "내 주변 맛집"은 검색보다 조금 넓은 반경으로 잡는다.
   const NEARBY_RADIUS_METERS = 1200;
@@ -43,9 +46,11 @@
 
   let kakaoMap;
   let currentPositionMarker;
+  // 지금 목록에 떠 있는 결과의 마커(검색·주변·보물지도 목록)와,
+  // 보물지도에 담긴 맛집 마커를 따로 관리한다. 뒤쪽은 검색 중에도 지도에 남는다.
   let markerEntries = new Map();
+  let presetMarkerEntries = new Map();
   let currentPlaces = new Map();
-  let activeMarkerEntry;
   let lastSearchKeyword = "";
   let lastSearchCategory = "";
   let presetItems = [];
@@ -73,6 +78,41 @@
   function setResultsState(count, title = "검색 결과") {
     resultTitle.textContent = title;
     resultCount.textContent = String(count);
+  }
+
+  function setActiveCategoryButton(activeButton = null) {
+    categoryList.querySelectorAll("[data-category]").forEach((button) => {
+      const isActive = button === activeButton;
+      button.classList.toggle("is-active", isActive);
+      button.setAttribute("aria-pressed", String(isActive));
+    });
+  }
+
+  function clearSavedMapState() {
+    try {
+      sessionStorage.removeItem(MAP_STATE_KEY);
+    } catch (_error) {
+      /* 저장소를 사용할 수 없어도 화면 초기화는 계속한다. */
+    }
+  }
+
+  function hasActiveCategorySearch() {
+    return Boolean(lastSearchCategory || categoryList.querySelector("[data-category].is-active"));
+  }
+
+  async function resetCategorySearchOnReturn() {
+    if (presetMode || !hasActiveCategorySearch()) return;
+
+    lastSearchCategory = "";
+    lastSearchKeyword = "";
+    keywordInput.value = "";
+    searchAreaButton.hidden = true;
+    selectedRestaurantId = null;
+    currentPlaceList = [];
+    setActiveCategoryButton();
+    clearResultMarkers();
+    clearSavedMapState();
+    await showInitialResults();
   }
 
   /**
@@ -123,7 +163,7 @@
           lastSearchKeyword = "";
           lastSearchCategory = "";
           searchAreaButton.hidden = true;
-          categoryList.querySelectorAll("button").forEach((item) => item.classList.remove("is-active"));
+          setActiveCategoryButton();
           showInitialResults();
         },
       },
@@ -162,7 +202,8 @@
     mapPlaceholder.hidden = true;
     const showSearchAreaButton = () => {
       // 검색 중이거나 주변 맛집을 보고 있을 때만 "이 지역에서 찾기"를 노출한다.
-      if ((!presetMode || editMode) && (lastSearchKeyword || resultMode === "nearby")) {
+      // (보물지도 목록을 보고 있을 때는 두 조건 모두 아니라서 자동으로 숨는다.)
+      if (lastSearchKeyword || resultMode === "nearby") {
         searchAreaButton.hidden = false;
       }
     };
@@ -182,14 +223,17 @@
   }
 
   function resolveCategoryMarker(place) {
-    const category = `${place.category_name || ""} ${place.category_group_name || ""}`;
-    if (/카페|커피|디저트|제과|베이커리/.test(category)) return "category_cafe.png";
-    if (/중식|중국/.test(category)) return "category_chinese.png";
-    if (/일식|일본|초밥|스시/.test(category)) return "category_japanese.png";
-    if (/양식|이탈리안|프렌치|스테이크/.test(category)) return "category_western.png";
-    if (/패스트푸드|햄버거|피자/.test(category)) return "category_fastfood.png";
-    if (/술집|호프|주점|바/.test(category)) return "category_pub.png";
-    if (/한식|국밥|고기|분식/.test(category)) return "category_korean.png";
+    const category = `${place.category_name || ""} ${place.category_group_name || ""}`.trim();
+    if (/카페|커피|디저트|제과|베이커리/.test(category)) return "category_cafe.svg";
+    if (/중식|중국/.test(category)) return "category_chinese.svg";
+    if (/일식|일본|초밥|스시/.test(category)) return "category_japanese.svg";
+    if (/아시안|아시아|동남아|베트남|태국|인도/.test(category)) return "category_ Asianfood.svg";
+    if (/구내식당|뷔페/.test(category)) return "category_ buffet.svg";
+    if (/분식|떡볶이|김밥/.test(category)) return "category_snackfood.svg";
+    if (/양식|이탈리안|프렌치|스테이크/.test(category)) return "category_western.svg";
+    if (/패스트푸드|햄버거|피자/.test(category)) return "category_fastfood.svg";
+    if (/술집|호프|주점|바/.test(category)) return "category_pub.svg";
+    if (/한식|국밥|고기/.test(category)) return "category_korean.svg";
     return "state_default.svg";
   }
 
@@ -200,11 +244,56 @@
       && !(latitude === 0 && longitude === 0);
   }
 
-  function clearMarkers() {
+  function createPlaceMarker(place, zIndex) {
+    const position = new kakao.maps.LatLng(place.y, place.x);
+    const assetName = resolveCategoryMarker(place);
+    const marker = new kakao.maps.Marker({ map: kakaoMap, position, image: getMarkerImage(assetName), zIndex });
+    const entry = { marker, position, place, assetName };
+    kakao.maps.event.addListener(marker, "click", () => {
+      selectRestaurant(place.restaurantId, false);
+      placeResults.querySelector(`[data-restaurant-id="${place.restaurantId}"]`)
+        ?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    });
+    return entry;
+  }
+
+  // 마커는 두 레이어에 나뉘어 있으니 조회는 항상 이 함수를 거친다.
+  function findMarkerEntry(key) {
+    return markerEntries.get(key) || presetMarkerEntries.get(key);
+  }
+
+  /**
+   * 보물지도에 담긴 맛집 마커를 presetItems와 맞춘다.
+   * 목록을 다시 그려도 마커를 지우지 않고 추가·제거만 해서 검색 중에도 계속 보이게 한다.
+   */
+  function syncPresetMarkers() {
+    if (!presetMode || !kakaoMap) return;
+    const alive = new Set();
+    presetItems.forEach((place) => {
+      if (!place.coordinateAvailable) return;
+      const key = String(place.restaurantId);
+      alive.add(key);
+      const entry = presetMarkerEntries.get(key);
+      if (entry) {
+        // 목록을 다시 받아오면 place 객체가 새로 만들어지므로 최신 것으로 갈아끼운다.
+        entry.place = place;
+        return;
+      }
+      // 검색 결과 마커(zIndex 1~)보다 위에 올려 보물지도 맛집이 가려지지 않게 한다.
+      presetMarkerEntries.set(key, createPlaceMarker(place, 1000 + presetMarkerEntries.size));
+    });
+    presetMarkerEntries.forEach((entry, key) => {
+      if (alive.has(key)) return;
+      entry.marker.setMap(null);
+      presetMarkerEntries.delete(key);
+    });
+  }
+
+  // 목록 마커만 정리한다. 보물지도 마커는 syncPresetMarkers가 따로 관리해 그대로 남는다.
+  function clearResultMarkers() {
     markerEntries.forEach((entry) => entry.marker.setMap(null));
     markerEntries.clear();
     currentPlaces.clear();
-    activeMarkerEntry = undefined;
     closeDetailPanel();
   }
 
@@ -369,22 +458,34 @@
     const row = placeResults.querySelector(`[data-restaurant-id="${key}"]`);
     placeResults.querySelector(".place-result.is-active")?.classList.remove("is-active");
     row?.classList.add("is-active");
-    const entry = markerEntries.get(key);
+    const entry = findMarkerEntry(key);
     const place = entry?.place || currentPlaces.get(key);
     if (!place) {
       setMapStatus("음식점 정보를 찾을 수 없습니다.", true);
       return;
     }
     if (entry) {
-      if (activeMarkerEntry) activeMarkerEntry.marker.setImage(getMarkerImage(activeMarkerEntry.assetName));
-      activeMarkerEntry = entry;
-      entry.marker.setImage(getMarkerImage("state_selected.svg"));
       if (moveMap) kakaoMap.panTo(entry.position);
       setMapStatus(`“${place.place_name}” 위치를 선택했습니다.`);
     } else {
       setMapStatus("이 음식점은 등록된 좌표가 없어 지도에는 표시되지 않습니다.", true);
     }
     openDetailPanel(place, prefetch);
+  }
+
+  // 지도 화면의 검색·카테고리·상세 패널 조작은 브라우저 기록을 남기지 않으므로,
+  // 화면 안에서 무엇을 했든 back() 한 번이면 지도로 들어오기 직전 화면으로 나간다.
+  function goToPreviousPage() {
+    if (cameFromSameSite) {
+      window.history.back();
+      return;
+    }
+    // 주소를 직접 입력해 들어온 경우처럼 되돌릴 기록이 없을 때의 대체 목적지.
+    location.assign(
+      presetMode && Number.isSafeInteger(presetId) && presetId > 0
+        ? `/presset/detail?presetId=${encodeURIComponent(presetId)}`
+        : "/",
+    );
   }
 
   function requireLogin() {
@@ -398,7 +499,10 @@
     try {
       await Api.post(`/presets/${presetId}/restaurants/${place.restaurantId}`);
       button.classList.add("is-added");
-      button.innerHTML = '<span class="material-symbols-rounded" aria-hidden="true">check_circle</span> 추가됨';
+      // 아이콘만 있는 버튼이므로 상태 안내는 접근성 이름과 툴팁으로 함께 바꿔 준다.
+      button.innerHTML = '<span class="material-symbols-rounded" aria-hidden="true">check_circle</span>';
+      button.title = "보물지도에 추가됨";
+      button.setAttribute("aria-label", `${place.place_name} 보물지도에 추가됨`);
       window.FooduckIcons?.enhance(button);
       await new Promise((resolve) => setTimeout(resolve, 500));
       await fetchPresetData();
@@ -442,25 +546,24 @@
     markerImage.alt = "";
     const body = document.createElement("div");
     body.className = "place-result-body";
+    // 왼쪽 열은 가게 정보와 상세보기, 오른쪽 열은 순번과 보물지도 추가·삭제 버튼이다.
+    const main = document.createElement("div");
+    main.className = "place-result-main";
+    const info = document.createElement("div");
+    info.className = "place-result-info";
     const select = document.createElement("button");
     select.className = "place-result-select";
     select.type = "button";
-    const top = document.createElement("span");
-    top.className = "place-result-top";
     const name = document.createElement("span");
     name.className = "place-result-name";
     name.textContent = place.place_name;
-    const number = document.createElement("span");
-    number.className = "place-result-index";
-    number.textContent = String(index + 1).padStart(2, "0");
-    top.append(name, number);
     const category = document.createElement("span");
     category.className = "place-result-category";
     category.textContent = place.category_name || "기타";
     const address = document.createElement("span");
     address.className = "place-result-address";
     address.textContent = place.road_address_name || place.address_name || "주소 정보 없음";
-    select.append(top, category, address);
+    select.append(name, category, address);
     if (Number.isFinite(place.distanceMeters)) {
       const distance = document.createElement("span");
       distance.className = "place-result-distance";
@@ -476,42 +579,51 @@
       select.append(missing);
     }
     select.addEventListener("click", () => selectRestaurant(place.restaurantId));
-    body.append(select);
-    const actions = document.createElement("div");
-    actions.className = "place-result-actions";
-    if (editMode && resultMode === "preset") {
-      const remove = document.createElement("button");
-      remove.className = "place-result-link place-result-remove";
-      remove.type = "button";
-      remove.setAttribute("aria-label", `${place.place_name} 보물지도에서 삭제`);
-      remove.innerHTML = '<i class="fa-solid fa-trash-can" aria-hidden="true"></i> 삭제';
-      remove.addEventListener("click", (event) => {
-        event.stopPropagation();
-        removeFromPreset(remove, place);
-      });
-      actions.append(remove);
-    }
-    // 보물지도에는 공공데이터 음식점만 담을 수 있어서, 사업자 등록 매장에는 추가 버튼을 두지 않는다.
-    if (editMode && resultMode === "search" && !isOwnedPlace(place)) {
-      const add = document.createElement("button");
-      add.className = "place-result-link place-result-add";
-      add.type = "button";
-      add.setAttribute("aria-label", `${place.place_name} 보물지도에 추가`);
-      add.innerHTML = '<span class="material-symbols-rounded" aria-hidden="true">add</span> 보물지도에 추가';
-      add.addEventListener("click", (event) => {
-        event.stopPropagation();
-        addToPreset(add, place);
-      });
-      actions.append(add);
-    }
+    // 상세보기는 주소(그리고 거리·좌표 안내) 바로 아래 줄에 둔다.
     const detail = document.createElement("a");
     detail.className = "place-result-link place-result-detail";
     detail.href = detailHref(place);
     // 새 탭으로 열면 상세페이지의 뒤로가기가 검색 화면으로 빠져 버려서, 같은 탭에서 이동시킨다.
     detail.addEventListener("click", () => saveMapState());
     detail.innerHTML = '<span class="material-symbols-rounded" aria-hidden="true">open_in_new</span>상세보기';
-    actions.append(detail);
-    body.append(actions);
+    info.append(select, detail);
+    // 오른쪽 열은 위에 순번, 맨 아래에 편집 버튼을 둔다.
+    // 보물지도 목록의 삭제와 검색 결과의 추가가 같은 자리에 같은 크기로 놓이도록 맞춘다.
+    const side = document.createElement("div");
+    side.className = "place-result-side";
+    const number = document.createElement("span");
+    number.className = "place-result-index";
+    number.textContent = String(index + 1).padStart(2, "0");
+    side.append(number);
+    if (editMode && resultMode === "preset") {
+      const remove = document.createElement("button");
+      remove.className = "place-result-side-button place-result-remove";
+      remove.type = "button";
+      remove.title = "보물지도에서 삭제";
+      remove.setAttribute("aria-label", `${place.place_name} 보물지도에서 삭제`);
+      remove.innerHTML = '<span class="material-symbols-rounded" aria-hidden="true">delete</span>';
+      remove.addEventListener("click", (event) => {
+        event.stopPropagation();
+        removeFromPreset(remove, place);
+      });
+      side.append(remove);
+    }
+    // 보물지도에는 공공데이터 음식점만 담을 수 있어서, 사업자 등록 매장에는 추가 버튼을 두지 않는다.
+    if (editMode && resultMode === "search" && !isOwnedPlace(place)) {
+      const add = document.createElement("button");
+      add.className = "place-result-side-button place-result-add";
+      add.type = "button";
+      add.title = "보물지도에 추가";
+      add.setAttribute("aria-label", `${place.place_name} 보물지도에 추가`);
+      add.innerHTML = '<span class="material-symbols-rounded" aria-hidden="true">add</span>';
+      add.addEventListener("click", (event) => {
+        event.stopPropagation();
+        addToPreset(add, place);
+      });
+      side.append(add);
+    }
+    main.append(info, side);
+    body.append(main);
     article.append(markerImage, body);
     return article;
   }
@@ -520,8 +632,11 @@
     resultMode = mode;
     currentPlaceList = items;
     currentResultTitle = title;
-    presetManageBack.hidden = !(editMode && mode === "search");
-    clearMarkers();
+    // 보물지도로 들어온 화면에서 검색·주변 목록을 보고 있으면, 소유자가 아니어도
+    // 원래 보물지도 목록으로 되돌아갈 수 있어야 한다.
+    presetManageBack.hidden = !(presetMode && mode !== "preset");
+    clearResultMarkers();
+    syncPresetMarkers();
     placeResults.replaceChildren();
     items.forEach((place) => currentPlaces.set(String(place.restaurantId), place));
     items.forEach((place, index) => placeResults.append(createResultRow(place, index)));
@@ -538,17 +653,17 @@
     let markerCount = 0;
     items.forEach((place) => {
       if (!place.coordinateAvailable) return;
-      const position = new kakao.maps.LatLng(place.y, place.x);
-      const assetName = resolveCategoryMarker(place);
-      const marker = new kakao.maps.Marker({ map: kakaoMap, position, image: getMarkerImage(assetName), zIndex: markerCount + 1 });
-      const entry = { marker, position, place, assetName };
-      markerEntries.set(String(place.restaurantId), entry);
-      kakao.maps.event.addListener(marker, "click", () => {
-        selectRestaurant(place.restaurantId, false);
-        placeResults.querySelector(`[data-restaurant-id="${place.restaurantId}"]`)
-          ?.scrollIntoView({ behavior: "smooth", block: "nearest" });
-      });
-      bounds.extend(position);
+      const key = String(place.restaurantId);
+      // 같은 가게가 이미 보물지도 마커로 떠 있으면 겹쳐 그리지 않고 그 마커를 그대로 쓴다.
+      const presetEntry = presetMarkerEntries.get(key);
+      if (presetEntry) {
+        bounds.extend(presetEntry.position);
+        markerCount += 1;
+        return;
+      }
+      const entry = createPlaceMarker(place, markerCount + 1);
+      markerEntries.set(key, entry);
+      bounds.extend(entry.position);
       markerCount += 1;
     });
     if (fitBounds && markerCount > 0) kakaoMap.setBounds(bounds);
@@ -737,7 +852,7 @@
     const originLng = userLocation ? userLocation.longitude : center.getLng();
     lastSearchKeyword = "";
     lastSearchCategory = "";
-    categoryList.querySelectorAll("button").forEach((item) => item.classList.remove("is-active"));
+    setActiveCategoryButton();
     searchAreaButton.hidden = true;
     setMapStatus("주변 맛집을 찾고 있습니다.");
     try {
@@ -851,6 +966,7 @@
     }
     lastSearchKeyword = normalized;
     lastSearchCategory = "";
+    setActiveCategoryButton();
     searchAreaButton.hidden = true;
 
     // 정확히 일치하는 매장명이 DB 전체에서 딱 하나뿐이면, 지도 반경(500m) 제한 없이
@@ -928,6 +1044,10 @@
    */
   function saveMapState() {
     if (presetMode || !kakaoMap) return;
+    if (hasActiveCategorySearch()) {
+      clearSavedMapState();
+      return;
+    }
     try {
       const center = kakaoMap.getCenter();
       sessionStorage.setItem(MAP_STATE_KEY, JSON.stringify({
@@ -956,6 +1076,10 @@
       // 다른 조건(q, restaurantId 등)으로 들어온 경우에는 이전 상태를 되살리지 않는다.
       if (!state || state.search !== location.search) return null;
       if (Date.now() - Number(state.savedAt || 0) > MAP_STATE_TTL_MS) return null;
+      if (state.lastSearchCategory) {
+        clearSavedMapState();
+        return null;
+      }
       if (!Array.isArray(state.places) || !state.places.length) return null;
       return state;
     } catch (_error) {
@@ -991,19 +1115,29 @@
     return true;
   }
 
-  window.addEventListener("pagehide", saveMapState);
+  window.addEventListener("pagehide", () => {
+    if (!presetMode && hasActiveCategorySearch()) {
+      clearSavedMapState();
+      return;
+    }
+    saveMapState();
+  });
+
+  window.addEventListener("pageshow", (event) => {
+    if (!event.persisted) return;
+    void resetCategorySearchOnReturn();
+  });
 
   detailClose.addEventListener("click", () => {
-    if (activeMarkerEntry) activeMarkerEntry.marker.setImage(getMarkerImage(activeMarkerEntry.assetName));
-    activeMarkerEntry = undefined;
     placeResults.querySelector(".place-result.is-active")?.classList.remove("is-active");
     closeDetailPanel();
   });
 
   searchForm.addEventListener("submit", (event) => { event.preventDefault(); searchPlaces(keywordInput.value); });
   categoryList.querySelectorAll("[data-category]").forEach((button) => {
+    button.setAttribute("aria-pressed", "false");
     button.addEventListener("click", () => {
-      categoryList.querySelectorAll("button").forEach((item) => item.classList.toggle("is-active", item === button));
+      setActiveCategoryButton(button);
       searchByCategory(button.dataset.category);
     });
   });
@@ -1022,6 +1156,12 @@
     keywordInput.value = "";
     loadPreset();
   });
+  if (mapBackButton) {
+    // 되돌릴 기록이 있을 때만 노출한다. 보물지도에서 들어온 경우에는 돌아갈 화면이
+    // 확실하므로(fallback 존재) 기록이 없어도 버튼을 남긴다.
+    mapBackButton.hidden = !(cameFromSameSite || presetMode);
+    mapBackButton.addEventListener("click", goToPreviousPage);
+  }
   locationButton.addEventListener("click", () => {
     if (!kakaoMap) {
       setMapStatus("현재 위치를 확인할 수 없습니다.", true);
@@ -1188,14 +1328,10 @@
   }
 
   if (presetMode) {
+    // 검색 도구는 소유자가 아닌 회원과 비회원에게도 열어 둔다.
+    // (검색을 할 수 있어야 요약 줄의 "보물지도 맛집 목록으로" 버튼도 의미가 있다.)
+    // 목록 삭제·검색 결과 추가 같은 편집만 editMode로 소유자에게 한정한다.
     mapPage.classList.add("preset-map-mode");
-    if (presetBreadcrumb) presetBreadcrumb.hidden = false;
-    if (!editMode) {
-      // 조회 전용으로 들어온 사용자에게는 검색과 지역 재검색 도구를 노출하지 않는다.
-      searchForm.hidden = true;
-      locationButton.hidden = true;
-      searchAreaButton.hidden = true;
-    }
   }
 
   (async () => {

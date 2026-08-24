@@ -53,6 +53,9 @@
   width: 26px;
   height: 56px;
   place-items: center;
+  /* button의 UA 기본 padding(1px 6px)을 지운다. 그대로 두면 26px 폭에서 콘텐츠 박스가
+     12px만 남아 20.8px 아이콘이 넘쳐, 꺾쇠가 버튼 가운데에서 어긋나 보인다. */
+  padding: 0;
   border: 1px solid var(--color-line);
   border-radius: 0 10px 10px 0;
   color: var(--color-navy);
@@ -188,31 +191,41 @@
   box-shadow: 0 6px 14px rgba(255, 152, 0, 0.28);
 }
 
-.preset-breadcrumb {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  margin-bottom: 12px;
-  color: var(--color-subtle);
-  font-size: 0.78rem;
-  font-weight: 700;
+/* 사이드바 맨 위에서 이전 페이지로 나가는 버튼.
+   화면에는 화살표 아이콘만 보여야 하므로 배경·테두리·그림자를 두지 않고,
+   클릭 영역만 아이콘 주변으로 넓혀 둔다.
+   색은 커뮤니티 상세 화면의 목록 복귀 링크(.board-back-link)와 같은 기준을 쓴다. */
+.map-back-button {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  /* .map-sidebar > * 의 min-width(382px)를 그대로 받으면 아이콘이 사이드바 가운데로 밀린다. */
+  min-width: 0;
+  margin: 0 0 6px;
+  padding: 0;
+  border: 0;
+  background: none;
+  box-shadow: none;
+  color: var(--color-muted);
+  cursor: pointer;
 }
 
-.preset-breadcrumb[hidden] {
-  display: none;
+.map-back-button .material-symbols-rounded {
+  font-size: 24px;
 }
 
-.preset-breadcrumb a {
-  color: var(--color-subtle);
-}
-
-.preset-breadcrumb a:hover {
-  color: var(--color-orange-dark);
-}
-
-.preset-breadcrumb [aria-current="page"] {
+.map-back-button:hover {
   color: var(--color-navy);
-  font-weight: 850;
+}
+
+.map-back-button:focus-visible {
+  outline: 3px solid rgba(255, 152, 0, 0.3);
+  outline-offset: 2px;
+}
+
+.map-back-button[hidden] {
+  display: none;
 }
 
 .map-helper-text {
@@ -407,6 +420,7 @@
 }
 
 .place-result-select {
+  display: block;
   width: 100%;
   padding: 0;
   border: 0;
@@ -414,14 +428,28 @@
   background: transparent;
 }
 
-.place-result-top {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
+/* 카드 본문은 왼쪽(가게 정보 + 상세보기) / 오른쪽(순번 + 보물지도 편집) 두 열로 나뉜다. */
+.place-result-main {
+  display: grid;
+  grid-template-columns: 1fr auto;
   gap: 12px;
 }
 
+.place-result-info {
+  min-width: 0;
+}
+
+/* 순번은 위, 편집 버튼은 열 맨 아래에 붙는다(버튼이 없어도 순번 위치는 그대로). */
+.place-result-side {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 10px;
+}
+
 .place-result-name {
+  display: block;
   margin: 0;
   overflow: hidden;
   color: var(--color-navy);
@@ -469,11 +497,26 @@
   margin-top: 3px;
 }
 
-.place-result-actions {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  margin-top: 8px;
+/* 순번 아래에 놓이는 보물지도 추가·삭제 아이콘 버튼.
+   두 버튼이 같은 크기라 목록과 검색 결과를 오가도 카드 배치가 흔들리지 않는다. */
+.place-result-side-button {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+
+.place-result-side-button .material-symbols-rounded {
+  font-size: 18px;
+}
+
+.place-result-side-button:focus-visible {
+  outline: 3px solid rgba(255, 152, 0, 0.3);
+  outline-offset: 2px;
 }
 
 .place-result-link {
@@ -484,10 +527,6 @@
   color: var(--color-navy);
   font-size: 0.72rem;
   font-weight: 800;
-}
-
-.place-result-actions .place-result-link {
-  margin-top: 0;
 }
 
 .place-result-link:hover {
@@ -678,6 +717,8 @@
   width: 34px;
   height: 34px;
   place-items: center;
+  /* 접기 버튼과 같은 이유로 UA 기본 padding을 지운다(34px에서 콘텐츠 박스 20px < 아이콘 24px). */
+  padding: 0;
   border: 1px solid var(--color-line);
   border-radius: 50%;
   color: var(--color-navy);
@@ -747,6 +788,11 @@
   color: #ff9800;
   border-color: #ffd9a8;
   background: #fff8ee;
+}
+
+/* 찜한 상태에서는 하트 안쪽까지 채운다(아이콘 SVG는 기본이 fill: none인 외곽선이다). */
+.place-detail-favorite.is-favorited .material-symbols-rounded svg {
+  fill: currentColor;
 }
 
 .place-detail-rating {
@@ -982,7 +1028,6 @@
 }
 
 .place-result-remove {
-  margin-left: auto;
   color: var(--color-danger);
 }
 
@@ -996,7 +1041,6 @@
 }
 
 .place-result-add {
-  margin-left: auto;
   color: var(--color-orange-dark);
 }
 
@@ -1096,7 +1140,6 @@
 
 /* 맛집찾기 화면의 주요 텍스트 색상을 공통 본문 색상으로 통일한다. */
 .map-sidebar-heading h1,
-.preset-breadcrumb [aria-current="page"],
 .place-result-name,
 .place-result-detail,
 .map-search-area-button,
