@@ -50,6 +50,7 @@
   // 보물지도에 담긴 맛집 마커를 따로 관리한다. 뒤쪽은 검색 중에도 지도에 남는다.
   let markerEntries = new Map();
   let presetMarkerEntries = new Map();
+  let activeMarkerEntry = null;
   let currentPlaces = new Map();
   let lastSearchKeyword = "";
   let lastSearchCategory = "";
@@ -222,6 +223,11 @@
     return image;
   }
 
+  function selectedMarkerAssetName(assetName) {
+    if (!assetName.startsWith("category_") || !assetName.endsWith(".svg")) return assetName;
+    return assetName.replace(/\.svg$/i, "_selected.svg");
+  }
+
   function resolveCategoryMarker(place) {
     const category = `${place.category_name || ""} ${place.category_group_name || ""}`.trim();
     if (/카페|커피|디저트|제과|베이커리/.test(category)) return "category_cafe.svg";
@@ -281,7 +287,13 @@
     const position = new kakao.maps.LatLng(place.y, place.x);
     const assetName = resolveCategoryMarker(place);
     const marker = new kakao.maps.Marker({ map: kakaoMap, position, image: getMarkerImage(assetName), zIndex });
-    const entry = { marker, position, place, assetName };
+    const entry = {
+      marker,
+      position,
+      place,
+      assetName,
+      selectedAssetName: selectedMarkerAssetName(assetName),
+    };
     kakao.maps.event.addListener(marker, "click", () => {
       selectRestaurant(place.restaurantId, false);
       placeResults.querySelector(`[data-restaurant-id="${place.restaurantId}"]`)
@@ -293,6 +305,20 @@
   // 마커는 두 레이어에 나뉘어 있으니 조회는 항상 이 함수를 거친다.
   function findMarkerEntry(key) {
     return markerEntries.get(key) || presetMarkerEntries.get(key);
+  }
+
+  function restoreActiveMarker() {
+    if (!activeMarkerEntry) return;
+    activeMarkerEntry.marker.setImage(getMarkerImage(activeMarkerEntry.assetName));
+    activeMarkerEntry = null;
+  }
+
+  function activateMarker(entry) {
+    if (activeMarkerEntry && activeMarkerEntry !== entry) {
+      activeMarkerEntry.marker.setImage(getMarkerImage(activeMarkerEntry.assetName));
+    }
+    entry.marker.setImage(getMarkerImage(entry.selectedAssetName));
+    activeMarkerEntry = entry;
   }
 
   /**
@@ -343,6 +369,7 @@
 
   function closeDetailPanel() {
     detailRequestToken += 1;
+    restoreActiveMarker();
     if (!detailPanel.classList.contains("is-open")) return;
     rememberMapAnchor();
     detailPanel.classList.remove("is-open");
@@ -603,13 +630,16 @@
     const entry = findMarkerEntry(key);
     const place = entry?.place || currentPlaces.get(key);
     if (!place) {
+      restoreActiveMarker();
       setMapStatus("음식점 정보를 찾을 수 없습니다.", true);
       return;
     }
     if (entry) {
+      activateMarker(entry);
       if (moveMap) kakaoMap.panTo(entry.position);
       setMapStatus(`“${place.place_name}” 위치를 선택했습니다.`);
     } else {
+      restoreActiveMarker();
       setMapStatus("이 음식점은 등록된 좌표가 없어 지도에는 표시되지 않습니다.", true);
     }
     openDetailPanel(place, prefetch);

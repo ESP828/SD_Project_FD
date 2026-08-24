@@ -9,6 +9,22 @@
   const HOME_PRESET_CACHE_TTL_MS = 2 * 60 * 1000;
   const HOME_PRESET_CACHE_STALE_MS = 30 * 60 * 1000;
 
+  function markPresetVisualEmpty(visual, image = null) {
+    visual.classList.add("is-empty");
+    image?.remove();
+  }
+
+  // Image error events do not bubble, so capture them at the list level. This
+  // also covers cards cloned later by the automatic carousel.
+  list.addEventListener("error", (event) => {
+    const image = event.target;
+    if (!(image instanceof HTMLImageElement)) return;
+
+    const visual = image.closest(".home-preset-visual");
+    if (!visual || !list.contains(visual)) return;
+    markPresetVisualEmpty(visual, image);
+  }, true);
+
   function readPresetCache() {
     try {
       const raw = sessionStorage.getItem(HOME_PRESET_CACHE_KEY);
@@ -46,8 +62,10 @@
 
     const visual = document.createElement("div");
     visual.className = "home-preset-visual";
-    const thumbnail = preset.imageUrl
-      || (Array.isArray(preset.thumbnailImageUrls) ? preset.thumbnailImageUrls[0] : null);
+    const thumbnail = [
+      preset.imageUrl,
+      ...(Array.isArray(preset.thumbnailImageUrls) ? preset.thumbnailImageUrls : []),
+    ].find((value) => typeof value === "string" && value.trim())?.trim() || null;
     if (thumbnail) {
       const img = new Image();
       img.src = thumbnail;
@@ -55,7 +73,10 @@
       img.loading = "lazy";
       img.decoding = "async";
       img.fetchPriority = "low";
+      img.draggable = false;
       visual.append(img);
+    } else {
+      markPresetVisualEmpty(visual);
     }
     link.append(visual);
 

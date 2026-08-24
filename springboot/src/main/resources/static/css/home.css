@@ -288,6 +288,10 @@
   background: var(--color-cream);
 }
 
+.home-preset-visual.is-empty {
+  background: #ffd1d8;
+}
+
 .home-preset-visual img {
   width: 100%;
   height: 100%;
