@@ -35,6 +35,7 @@
   let guidanceSettingsRoot = null;
   let guidanceSettingsToggle = null;
   let guidanceSettingsPanel = null;
+  let authorGuidanceSurfaceAvailable = false;
   const AUTHOR_ACTIVITY_HINT_KEY = "fooduck:author-profile-hint:v1";
 
 
@@ -394,7 +395,7 @@
     const state = guidanceState();
     const hasSkippedGuidance = state.author;
 
-    if (!hasSkippedGuidance) {
+    if (!hasSkippedGuidance || !authorGuidanceSurfaceAvailable) {
       closeGuidanceSettings();
       if (guidanceSettingsRoot) guidanceSettingsRoot.hidden = true;
       return;
@@ -1628,6 +1629,8 @@
             : "COMMUNITY";
         enableAuthorMenu(trigger, author, normalizedContext);
         wrapper.append(trigger);
+        authorGuidanceSurfaceAvailable = true;
+        syncGuidanceSettingsControl();
       } else {
         wrapper.append(nickname);
       }
