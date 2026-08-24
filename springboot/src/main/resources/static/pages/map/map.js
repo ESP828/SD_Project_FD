@@ -350,7 +350,10 @@
               <span class="place-detail-review-author" data-map-review-author-id="${Number(review.reviewId) || 0}">${escapeHtml(review.authorNickname || "익명")}</span>
               <span>★ ${review.rating}.0</span>
             </div>
-            <p class="place-detail-review-copy"></p>
+            <div class="place-detail-review-body">
+              <p class="place-detail-review-copy"></p>
+              <time class="place-detail-review-date"></time>
+            </div>
           </div>
         `).join("")
       : '<div class="place-detail-empty">아직 작성된 리뷰가 없습니다.</div>';
@@ -385,14 +388,23 @@
     `;
 
     const reviewCopies = detailBody.querySelectorAll(".place-detail-review-copy");
+    const reviewDates = detailBody.querySelectorAll(".place-detail-review-date");
     reviews.slice(0, 3).forEach((review, index) => {
-      const target = reviewCopies[index];
-      if (!target) return;
-      const reviewText = `${review.content || "내용 없음"} · ${formatDate(review.createdAt)}`;
-      if (window.FooduckEmojis) {
-        window.FooduckEmojis.renderText(target, reviewText);
-      } else {
-        target.textContent = reviewText;
+      const copyTarget = reviewCopies[index];
+      const dateTarget = reviewDates[index];
+      if (copyTarget) {
+        const reviewText = review.content || "내용 없음";
+        if (window.FooduckEmojis) {
+          window.FooduckEmojis.renderText(copyTarget, reviewText);
+        } else {
+          copyTarget.textContent = reviewText;
+        }
+      }
+      if (dateTarget) {
+        dateTarget.textContent = formatDate(review.createdAt);
+        if (review.createdAt) {
+          dateTarget.dateTime = String(review.createdAt);
+        }
       }
     });
 
