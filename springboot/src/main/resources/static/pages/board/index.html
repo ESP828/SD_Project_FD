@@ -88,8 +88,11 @@
         <section class="board-list-panel" aria-labelledby="board-heading">
           <div class="board-panel-header">
             <div>
-              <h2 id="board-heading">일반 커뮤니티</h2>
-              <p><strong id="board-total-count">0</strong>개의 이야기</p>
+              <div class="board-heading-row">
+                <h2 id="board-heading">일반 커뮤니티</h2>
+                <span id="popular-rank-range" class="popular-rank-range" hidden></span>
+              </div>
+              <p><strong id="board-total-count">0</strong><span id="board-total-summary">개의 이야기</span></p>
             </div>
             <a id="write-button" class="button button-sm button-primary"
                href="/board/write?boardType=GENERAL" data-write-link hidden>

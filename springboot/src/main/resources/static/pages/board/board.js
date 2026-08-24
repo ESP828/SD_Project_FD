@@ -41,6 +41,8 @@
 
   const boardList = document.getElementById("board-list");
   const totalCount = document.getElementById("board-total-count");
+  const totalSummary = document.getElementById("board-total-summary");
+  const popularRankRange = document.getElementById("popular-rank-range");
   const pagination = document.getElementById("board-pagination");
   const bestPostPanel = document.getElementById("best-post-panel");
   const bestPostList = document.getElementById("best-post-list");
@@ -286,8 +288,16 @@
       const rank = state.boardType === "POPULAR"
         ? state.page * POPULAR_PAGE_SIZE + index + 1
         : state.page * state.size + index + 1;
-      const rankLabel = state.boardType === "POPULAR" ? "인기" : "베스트";
-      badges.append(element("span", "post-badge", `${rankLabel} ${rank}위`));
+      const rankBadge = element(
+        "span",
+        "post-badge",
+        state.boardType === "POPULAR" ? `#${rank}` : `베스트 ${rank}위`,
+      );
+      if (state.boardType === "POPULAR") {
+        rankBadge.setAttribute("aria-label", `인기 ${rank}위`);
+        rankBadge.title = `인기 ${rank}위`;
+      }
+      badges.append(rankBadge);
     }
     if (isNotice) {
       badges.append(element("span", "post-badge post-badge--notice", "공지 · 상단 고정"));
@@ -341,10 +351,38 @@
     return article;
   }
 
+  function syncListRankingMeta(pageData, posts = []) {
+    const isPopular = state.boardType === "POPULAR";
+
+    if (totalSummary) {
+      totalSummary.textContent = isPopular
+        ? "개 · 최근 30일 · 추천순 · 20개씩 보기"
+        : "개의 이야기";
+    }
+
+    if (!popularRankRange) return;
+
+    if (!isPopular || !posts.length) {
+      popularRankRange.hidden = true;
+      popularRankRange.textContent = "";
+      return;
+    }
+
+    const pageNumber = Math.max(0, Number(pageData?.page) || state.page || 0);
+    const pageSize = Math.max(1, Number(pageData?.size) || POPULAR_PAGE_SIZE);
+    const startRank = pageNumber * pageSize + 1;
+    const endRank = startRank + posts.length - 1;
+
+    popularRankRange.textContent = `${startRank}–${endRank}위`;
+    popularRankRange.hidden = false;
+  }
+
   function renderPosts(pageData) {
-    totalCount.textContent = String(pageData.totalElements || 0);
+    const totalElements = Math.max(0, Number(pageData.totalElements) || 0);
+    totalCount.textContent = String(totalElements);
     boardList.replaceChildren();
     const posts = pageData.content || [];
+    syncListRankingMeta(pageData, posts);
     if (!posts.length) {
       const empty = element("div", "board-empty");
       const image = new Image();
@@ -717,6 +755,15 @@
         : state.boardType === "BUSINESS"
           ? "사업자 커뮤니티"
           : "일반 커뮤니티";
+    if (totalSummary) {
+      totalSummary.textContent = isPopular
+        ? "개 · 최근 30일 · 추천순 · 20개씩 보기"
+        : "개의 이야기";
+    }
+    if (popularRankRange && !isPopular) {
+      popularRankRange.hidden = true;
+      popularRankRange.textContent = "";
+    }
     searchForm.hidden = isRankedView;
     writeLinks.forEach((link) => {
       link.hidden = isRankedView;

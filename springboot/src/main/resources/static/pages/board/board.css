@@ -140,6 +140,20 @@
   font-size: 1.2rem;
 }
 
+.board-heading-row {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.popular-rank-range {
+  color: var(--color-orange-dark);
+  font-size: 0.78rem;
+  font-weight: 850;
+  white-space: nowrap;
+}
+
 .board-panel-header p {
   margin-bottom: 0;
   color: var(--color-muted);
