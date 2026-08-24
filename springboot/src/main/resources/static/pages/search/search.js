@@ -30,6 +30,9 @@
 
   // 💡 AI 추천 전체 결과를 저장해두는 전역 배열
   let aiRecommendationItems = [];
+  let aiRecommendationMeta = null;
+  let publicSearchPageData = null;
+  let renderedSearchMode = null;
 
   const DEFAULT_LOCATION = { latitude: 37.4979, longitude: 127.0276 };
 
@@ -38,8 +41,9 @@
   // 살아 있으면 되므로 sessionStorage를 쓴다.
   const AI_MODE_KEY = "fooduck:search-ai-mode";
   const SEARCH_CACHE_KEY = "fooduck:search-cache";
+  const SEARCH_CACHE_VERSION = 3;
   const SEARCH_CACHE_TTL_MS = 30 * 60 * 1000;
-  const MAX_CACHED_AI_ITEMS = 300;
+  const MAX_CACHED_AI_ITEMS = 1200;
 
   function setFilterPanelOpen(isOpen) {
     filterPanel.hidden = !isOpen;
@@ -49,6 +53,17 @@
   function setStatus(message, isError = false) {
     status.textContent = message;
     status.classList.toggle("is-error", isError);
+  }
+
+  function recommendationMeta(data) {
+    if (!data) return null;
+    return {
+      engineUsed: data.engineUsed || null,
+      fallback: Boolean(data.fallback),
+      fallbackReason: data.fallbackReason || null,
+      relaxedFilters: Array.isArray(data.relaxedFilters) ? data.relaxedFilters : [],
+      resolvedConstraints: Array.isArray(data.resolvedConstraints) ? data.resolvedConstraints : [],
+    };
   }
 
   function updateAiToggleUI(active) {
@@ -105,16 +120,21 @@
   }
 
   // 같은 조건으로 돌아왔는지 판단하는 키. 조건이 하나라도 다르면 캐시를 쓰지 않는다.
-  function conditionKey() {
-    return JSON.stringify(currentConditions());
+  function conditionKey(conditions = currentConditions()) {
+    return JSON.stringify(conditions);
   }
 
   function saveSearchCache(mode, page, data) {
     try {
+      const conditions = currentConditions();
       const payload = {
-        key: conditionKey(),
+        version: SEARCH_CACHE_VERSION,
+        key: conditionKey(conditions),
+        conditions,
         mode,
         page,
+        searchUrl: currentSearchUrl(),
+        scrollY: Math.max(0, window.scrollY || 0),
         savedAt: Date.now(),
         data,
       };
@@ -129,11 +149,37 @@
       const raw = sessionStorage.getItem(SEARCH_CACHE_KEY);
       if (!raw) return null;
       const cache = JSON.parse(raw);
-      if (!cache || Date.now() - Number(cache.savedAt || 0) > SEARCH_CACHE_TTL_MS) return null;
+      if (!cache || cache.version !== SEARCH_CACHE_VERSION) return null;
+      if (Date.now() - Number(cache.savedAt || 0) > SEARCH_CACHE_TTL_MS) return null;
       return cache;
     } catch (_error) {
       return null;
     }
+  }
+
+  function currentSearchUrl() {
+    return `${window.location.pathname}${window.location.search}${window.location.hash}`;
+  }
+
+  function persistVisibleSearchState() {
+    if (renderedSearchMode === "ai" && aiRecommendationItems.length > 0) {
+      saveSearchCache("ai", currentPage, {
+        items: aiRecommendationItems.slice(0, MAX_CACHED_AI_ITEMS),
+        meta: aiRecommendationMeta,
+      });
+      return;
+    }
+    if (renderedSearchMode === "public" && publicSearchPageData) {
+      saveSearchCache("public", currentPage, publicSearchPageData);
+    }
+  }
+
+  function restoreScrollPosition(cache) {
+    const scrollY = Number(cache?.scrollY);
+    if (!Number.isFinite(scrollY) || scrollY < 0) return;
+    window.requestAnimationFrame(() => {
+      window.scrollTo({ top: scrollY, left: 0, behavior: "auto" });
+    });
   }
 
   function markerFor(place) {
@@ -197,10 +243,13 @@
     body.append(category, title, address);
 
     if (isRecommendation) {
+      const distanceLabel = Number.isFinite(item.distanceMeters)
+        ? `약 ${(item.distanceMeters / 1000).toFixed(1)}km 거리`
+        : "거리 정보 없음";
       const distanceInfo = createTextRow(
         "search-result-distance",
         "near_me",
-        `약 ${(item.distanceMeters / 1000).toFixed(1)}km 거리 (매칭점수 ${(item.score * 100).toFixed(0)}점)`,
+        `${distanceLabel} (매칭점수 ${(item.score * 100).toFixed(0)}점)`,
       );
       distanceInfo.style.fontSize = "0.85rem";
       distanceInfo.style.color = "#007bff";
@@ -231,8 +280,15 @@
     const restaurantName = isRecommendation ? item.restaurantName : item.name;
     const detailLink = document.createElement("a");
     detailLink.className = "button button-primary";
-    detailLink.href = `/restaurant/detail?source=${sourceType}&id=${sourceId}`;
+    const detailParams = new URLSearchParams({
+      source: sourceType,
+      id: String(sourceId),
+      returnTo: currentSearchUrl(),
+    });
+    detailLink.href = `/restaurant/detail?${detailParams.toString()}`;
     detailLink.textContent = "상세보기";
+    detailLink.addEventListener("pointerdown", persistVisibleSearchState);
+    detailLink.addEventListener("click", persistVisibleSearchState);
 
     const mapLink = document.createElement("a");
     mapLink.className = "button button-secondary";
@@ -327,6 +383,8 @@ function updateUrlState(page = 0) {
   function renderPublicPage(data, { cache = true } = {}) {
     resultHeading.hidden = false;
     currentPage = data.page;
+    publicSearchPageData = data;
+    renderedSearchMode = "public";
 
     if (!data.items || data.items.length === 0) {
       renderEmpty("다른 검색어나 지역으로 다시 찾아보세요.");
@@ -334,6 +392,7 @@ function updateUrlState(page = 0) {
       previousButton.disabled = true;
       nextButton.disabled = true;
       pageLabel.textContent = "1 / 1";
+      if (cache) saveSearchCache("public", data.page, data);
       return;
     }
 
@@ -379,6 +438,7 @@ function updateUrlState(page = 0) {
   // ✨ AI 결과 렌더링 전용 페이징 함수 (12개 단위 슬라이싱)
   function renderAiPage(page = 0, { cache = true } = {}) {
     currentPage = page;
+    renderedSearchMode = "ai";
     updateUrlState(page);
 
     const totalCount = aiRecommendationItems.length;
@@ -389,7 +449,56 @@ function updateUrlState(page = 0) {
 
     results.replaceChildren(...pagedItems.map((item) => createResultCard(item, true)));
     count.textContent = String(totalCount);
-    setStatus(`총 ${totalCount}개 추천 결과 중 ${page + 1}페이지입니다.`);
+    const notices = [];
+    const relaxedLabels = {
+      CATEGORY: "카테고리",
+      PRICE_DATA_UNAVAILABLE: "가격",
+      RATING_DATA_UNAVAILABLE: "평점",
+      DEMOGRAPHIC_PROFILE_UNAVAILABLE: "성별·연령",
+      ATMOSPHERE_DATA_UNAVAILABLE: "분위기",
+      SUITABILITY_DATA_UNAVAILABLE: "동반자·이용 목적",
+      AMENITY_DATA_UNAVAILABLE: "편의시설",
+      HOURS_DATA_UNAVAILABLE: "영업시간",
+      MENU_ATTRIBUTE_DATA_UNAVAILABLE: "식단·메뉴 속성",
+      AVAILABILITY_DATA_UNAVAILABLE: "예약·대기",
+      QUALITY_GUARANTEE_DATA_UNAVAILABLE: "만족도 보장",
+      MULTIPLE_LOCATIONS_DATA_UNAVAILABLE: "복수 위치",
+      SEMANTIC_EVIDENCE_LOW: "의미 일치 근거",
+    };
+    const relaxed = (aiRecommendationMeta?.relaxedFilters || [])
+      .map((filter) => relaxedLabels[filter] || filter);
+    if (relaxed.length > 0) {
+      notices.push(`${relaxed.join(", ")} 조건은 데이터 부족으로 완화했습니다.`);
+    }
+    const resolvedLabels = {
+      PARKING_VERIFIED_PUBLIC_DATA: "주차",
+      PET_FRIENDLY_VERIFIED_PUBLIC_DATA: "애견동반",
+      PLAYROOM_VERIFIED_PUBLIC_DATA: "놀이방",
+      WIFI_VERIFIED_PUBLIC_DATA: "와이파이",
+      MULTILINGUAL_MENU_VERIFIED_PUBLIC_DATA: "다국어 메뉴",
+      DELIVERY_VERIFIED_PUBLIC_DATA: "배달",
+      MIN_RATING_VERIFIED_FOODUCK_REVIEWS: "평점",
+      MIN_RATING_VERIFIED_OFFICIAL_DATA: "공식 평점",
+      MAX_PRICE_VERIFIED_PUBLIC_MENU: "메뉴 가격",
+      LATE_HOURS_VERIFIED_PUBLIC_DATA: "늦은 시간 영업",
+      EARLY_OPENING_VERIFIED_PUBLIC_DATA: "아침 영업",
+      SUNDAY_HOURS_VERIFIED_PUBLIC_DATA: "일요일 영업",
+      ALL_DAY_HOURS_VERIFIED_PUBLIC_DATA: "24시간 영업",
+      VEGAN_MENU_LABEL_VERIFIED_PUBLIC_DATA: "비건 표기 메뉴",
+      VEGETARIAN_MENU_LABEL_VERIFIED_PUBLIC_DATA: "채식 표기 메뉴",
+      GLUTEN_FREE_MENU_LABEL_VERIFIED_PUBLIC_DATA: "글루텐프리 표기 메뉴",
+      QUALITY_AWARD_VERIFIED_PUBLIC_DATA: "공식 어워드",
+    };
+    const resolved = (aiRecommendationMeta?.resolvedConstraints || [])
+      .map((constraint) => resolvedLabels[constraint] || constraint);
+    if (resolved.length > 0) {
+      notices.push(`${resolved.join(", ")} 조건은 검증된 근거로 적용했습니다.`);
+    }
+    if (aiRecommendationMeta?.fallback) {
+      notices.push("KURE 연결이 지연되어 TF-IDF 대체 모델로 계산했습니다.");
+    }
+    const noticeText = notices.length > 0 ? ` ${notices.join(" ")}` : "";
+    setStatus(`총 ${totalCount}개 추천 결과 중 ${page + 1}페이지입니다.${noticeText}`);
 
     updatePagination({
       page: currentPage,
@@ -398,7 +507,10 @@ function updateUrlState(page = 0) {
       hasNextPage: currentPage < totalPages - 1,
     });
     if (cache) {
-      saveSearchCache("ai", page, { items: aiRecommendationItems.slice(0, MAX_CACHED_AI_ITEMS) });
+      saveSearchCache("ai", page, {
+        items: aiRecommendationItems.slice(0, MAX_CACHED_AI_ITEMS),
+        meta: aiRecommendationMeta,
+      });
     }
   }
 
@@ -444,6 +556,7 @@ function updateUrlState(page = 0) {
 
       if (!data || !data.items || data.items.length === 0) {
         aiRecommendationItems = [];
+        aiRecommendationMeta = recommendationMeta(data);
         renderEmpty("다른 검색어나 지역으로 다시 찾아보세요.");
         setStatus("조건에 맞는 맛집을 찾지 못했습니다.");
         previousButton.disabled = true;
@@ -454,6 +567,7 @@ function updateUrlState(page = 0) {
 
       // 결과 보관 후 12개씩 잘라서 출력 실행
       aiRecommendationItems = data.items;
+      aiRecommendationMeta = recommendationMeta(data);
       renderAiPage(page);
 
     } catch (error) {
@@ -504,12 +618,14 @@ function updateUrlState(page = 0) {
       const items = Array.isArray(cache.data?.items) ? cache.data.items : [];
       if (!items.length) return false;
       aiRecommendationItems = items;
+      aiRecommendationMeta = cache.data?.meta || null;
       renderAiPage(Number(cache.page) || 0, { cache: false });
     } else {
       if (!cache.data?.items?.length) return false;
       renderPublicPage(cache.data, { cache: false });
     }
     setStatus(`${status.textContent} (마지막 검색 결과)`);
+    restoreScrollPosition(cache);
     return true;
   }
 
@@ -519,17 +635,9 @@ function updateUrlState(page = 0) {
 
   if (aiSearchToggle) {
     aiSearchToggle.addEventListener("click", () => {
-      const isAuthenticated = Boolean(window.FooduckSession?.authenticated);
-
-      if (!isAuthenticated) {
-        if (confirm("AI 추천 검색 기능은 로그인 후 이용하실 수 있습니다.\n로그인 페이지로 이동하시겠습니까?")) {
-          window.location.href = "/auth/login";
-        }
-        return;
-      }
-
       // AI 모드 토글 시 기존 결과 초기화 후 검색 재실행
       aiRecommendationItems = [];
+      aiRecommendationMeta = null;
       updateAiToggleUI(!isAiMode);
       storeAiModePreference(isAiMode);
       runSearch(0);
@@ -539,6 +647,7 @@ function updateUrlState(page = 0) {
   form.addEventListener("submit", (event) => {
     event.preventDefault();
     aiRecommendationItems = []; // 새 검색 시 캐시 초기화
+    aiRecommendationMeta = null;
     runSearch(0);
   });
 
@@ -577,6 +686,7 @@ function updateUrlState(page = 0) {
         }
       }
       aiRecommendationItems = [];
+      aiRecommendationMeta = null;
       runSearch(0);
     });
   });
@@ -609,6 +719,18 @@ function scrollToTop() {
   nextButton.addEventListener("click", () => {
     runSearch(currentPage + 1);
     scrollToTop();
+  });
+
+  // BFCache 복원과 일반 페이지 이동 모두에서 마지막으로 보던 결과를 보존한다.
+  window.addEventListener("pagehide", persistVisibleSearchState);
+  window.addEventListener("pageshow", (event) => {
+    if (!event.persisted) return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("ai") === "1" && !isAiMode) {
+      updateAiToggleUI(true);
+      storeAiModePreference(true);
+    }
+    restoreLastSearch();
   });
 
   // 초기화 및 실행
@@ -651,11 +773,9 @@ function scrollToTop() {
   const restoredAiMode = initialParams.has("ai")
     ? initialParams.get("ai") === "1"
     : readAiModePreference();
-  if (restoredAiMode && window.FooduckSession?.authenticated) {
+  if (restoredAiMode) {
     updateAiToggleUI(true);
-  } else if (restoredAiMode) {
-    // 로그아웃 상태에서는 AI 검색을 쓸 수 없으므로 기록도 정리한다.
-    storeAiModePreference(false);
+    if (initialParams.get("ai") === "1") storeAiModePreference(true);
   }
 
   // 조건이 하나라도 있거나 AI 검색 상태로 돌아온 경우에만 결과를 되살리거나 다시 검색한다.

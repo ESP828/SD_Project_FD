@@ -195,38 +195,38 @@ function Install-PythonDependencies {
 function Invoke-AiModelPreparation {
     param([Parameter(Mandatory = $true)]$Runtime)
 
+    $tfidfDirectory = Join-Path $appDirectory "src\main\resources\recommendation\model"
+    $missingTfidfFiles = @("vocabulary.json", "idf.json", "model-meta.json") |
+        Where-Object { -not (Test-Path -LiteralPath (Join-Path $tfidfDirectory $_) -PathType Leaf) }
+    if ($missingTfidfFiles.Count -gt 0) {
+        Write-Warning "TF-IDF fallback files are missing. Run: python ai\build_search_index.py --tfidf"
+    }
+
     if ($env:FOODUCK_SKIP_AI_MODEL_PREPARATION -eq "true") {
-        Write-Host "[2/4] AI model preparation skipped by environment setting."
+        if ([string]::IsNullOrWhiteSpace($env:FOODUCK_KURE_INDEX_COMPATIBLE)) {
+            $env:FOODUCK_KURE_INDEX_COMPATIBLE = "false"
+        }
+        Write-Host "[2/4] AI index verification skipped by environment setting."
         return
     }
 
-    $buildEmbeddingsScript = Join-Path $aiDirectory "build_embeddings.py"
-    $trainingScript = Join-Path $aiDirectory "train.py"
-    $scriptToRun = $null
-    $stepDescription = $null
-
-    if (Test-Path -LiteralPath $buildEmbeddingsScript -PathType Leaf) {
-        $scriptToRun = $buildEmbeddingsScript
-        $stepDescription = "Refreshing AI recommendation data"
-    }
-    elseif (Test-Path -LiteralPath $trainingScript -PathType Leaf) {
-        $scriptToRun = $trainingScript
-        $stepDescription = "Training the AI model"
-    }
-    else {
-        Write-Warning "No AI model preparation script was found."
+    $indexScript = Join-Path $aiDirectory "build_search_index.py"
+    if (-not (Test-Path -LiteralPath $indexScript -PathType Leaf)) {
+        $env:FOODUCK_KURE_INDEX_COMPATIBLE = "false"
+        Write-Warning "AI index verification script was not found. KURE will remain disabled."
         return
     }
 
-    Write-Host "[2/4] $stepDescription..."
+    Write-Host "[2/4] Verifying the KURE index against MySQL..."
     Push-Location $aiDirectory
     try {
-        $scriptArguments = @($Runtime.PrefixArguments) + @($scriptToRun)
+        $scriptArguments = @($Runtime.PrefixArguments) + @($indexScript, "--verify")
         & $Runtime.FilePath @scriptArguments
         $preparationExitCode = $LASTEXITCODE
     }
     catch {
-        Write-Warning "AI model preparation failed: $($_.Exception.Message)"
+        $env:FOODUCK_KURE_INDEX_COMPATIBLE = "false"
+        Write-Warning "AI index verification failed: $($_.Exception.Message). KURE will remain disabled."
         return
     }
     finally {
@@ -234,8 +234,11 @@ function Invoke-AiModelPreparation {
     }
 
     if ($preparationExitCode -ne 0) {
-        Write-Warning "AI model preparation exited with code $preparationExitCode. Starting with existing model files."
+        $env:FOODUCK_KURE_INDEX_COMPATIBLE = "false"
+        Write-Warning "AI index verification exited with code $preparationExitCode. Spring will use TF-IDF fallback."
+        return
     }
+    $env:FOODUCK_KURE_INDEX_COMPATIBLE = "true"
 }
 
 function Test-TcpPortInUse {

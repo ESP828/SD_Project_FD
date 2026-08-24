@@ -4,12 +4,16 @@ import com.example.backend.recommendation.model.RecommendationModelStore;
 import org.springframework.stereotype.Component;
 
 import java.util.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * 파싱된 검색어 토큰과 맛집 문서 간의 TF-IDF 코사인 유사도를 계산하는 클래스
  */
 @Component
 public class RecommendationScoreCalculator {
+
+    private static final Pattern WORD_PATTERN = Pattern.compile("[\\p{L}\\p{N}_]+");
 
     private final RecommendationModelStore modelStore;
 
@@ -32,44 +36,53 @@ public class RecommendationScoreCalculator {
             return 0.0;
         }
 
-        int vocabSize = vocab.size();
+        Map<Integer, Double> queryVector = vectorize(tokenize(queryTokens), vocab, idfList);
+        Map<Integer, Double> documentVector =
+                vectorize(tokenize(List.of(restaurantDoc)), vocab, idfList);
 
-        // 1. Query TF-IDF 벡터 생성
-        double[] queryVector = new double[vocabSize];
-        for (String token : queryTokens) {
-            if (vocab.containsKey(token)) {
-                int index = vocab.get(token);
-                double idf = idfList.get(index);
-                queryVector[index] += 1.0 * idf; // TF * IDF
-            }
-        }
-
-        // 2. Restaurant Doc TF-IDF 벡터 생성
-        double[] docVector = new double[vocabSize];
-        String[] docTokens = restaurantDoc.split("\\s+");
-        for (String token : docTokens) {
-            if (vocab.containsKey(token)) {
-                int index = vocab.get(token);
-                double idf = idfList.get(index);
-                docVector[index] += 1.0 * idf;
-            }
-        }
-
-        // 3. 코사인 유사도 계산 (Cosine Similarity = dot_product / (norm(A) * norm(B)))
-        double dotProduct = 0.0;
-        double queryNormSq = 0.0;
-        double docNormSq = 0.0;
-
-        for (int i = 0; i < vocabSize; i++) {
-            dotProduct += queryVector[i] * docVector[i];
-            queryNormSq += queryVector[i] * queryVector[i];
-            docNormSq += docVector[i] * docVector[i];
-        }
+        double dotProduct = queryVector.entrySet().stream()
+                .mapToDouble(entry -> entry.getValue() * documentVector.getOrDefault(entry.getKey(), 0.0))
+                .sum();
+        double queryNormSq = queryVector.values().stream()
+                .mapToDouble(value -> value * value)
+                .sum();
+        double docNormSq = documentVector.values().stream()
+                .mapToDouble(value -> value * value)
+                .sum();
 
         if (queryNormSq == 0.0 || docNormSq == 0.0) {
             return 0.0;
         }
 
         return dotProduct / (Math.sqrt(queryNormSq) * Math.sqrt(docNormSq));
+    }
+
+    private static Map<Integer, Double> vectorize(
+            List<String> tokens,
+            Map<String, Integer> vocabulary,
+            List<Double> idf
+    ) {
+        Map<Integer, Double> vector = new HashMap<>();
+        for (String token : tokens) {
+            Integer index = vocabulary.get(token);
+            if (index != null && index >= 0 && index < idf.size()) {
+                vector.merge(index, idf.get(index), Double::sum);
+            }
+        }
+        return vector;
+    }
+
+    private static List<String> tokenize(List<String> values) {
+        List<String> tokens = new ArrayList<>();
+        for (String value : values) {
+            if (value == null || value.isBlank()) {
+                continue;
+            }
+            Matcher matcher = WORD_PATTERN.matcher(value.toLowerCase(Locale.ROOT));
+            while (matcher.find()) {
+                tokens.add(matcher.group());
+            }
+        }
+        return tokens;
     }
 }
