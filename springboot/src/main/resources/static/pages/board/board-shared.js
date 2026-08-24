@@ -1590,7 +1590,7 @@
       element(
         "span",
         "author-activity-cue-label",
-        normalized === "full" ? "프로필 보기" : "프로필",
+        "프로필 보기",
       ),
     );
 
