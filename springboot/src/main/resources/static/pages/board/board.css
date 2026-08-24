@@ -994,15 +994,15 @@
   gap: 4px;
   min-height: 25px;
   padding: 3px 8px;
-  border: 1px solid rgba(31, 53, 76, 0.16);
+  border: 1px solid #dbe2e8;
   border-radius: 999px;
-  color: #56697d;
-  background: rgba(255, 255, 255, 0.92);
+  color: #516170;
+  background: #f8fafb;
   font-weight: 850;
   line-height: 1;
   letter-spacing: -0.01em;
   white-space: nowrap;
-  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.05);
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
   transition:
     color 150ms ease,
     background-color 150ms ease,
@@ -1028,7 +1028,7 @@
 }
 
 .author-activity-cue .author-activity-person {
-  color: var(--color-orange-dark);
+  color: #64778a;
   font-size: 13px;
   transition: color 150ms ease;
 }
@@ -1046,15 +1046,15 @@
 
 .author-nickname--interactive:hover .author-activity-cue,
 .author-nickname--interactive:focus-visible .author-activity-cue {
-  border-color: rgba(232, 118, 0, 0.55);
-  color: #9b4a00;
-  background: #fff7ea;
-  box-shadow: 0 4px 10px rgba(16, 24, 40, 0.08);
+  border-color: #c7d2dc;
+  color: #33485d;
+  background: #f3f6f8;
+  box-shadow: 0 3px 9px rgba(16, 24, 40, 0.07);
 }
 
 .author-nickname--interactive:hover .author-activity-person,
 .author-nickname--interactive:focus-visible .author-activity-person {
-  color: var(--color-orange);
+  color: #40566f;
 }
 
 .author-nickname--interactive:hover .author-activity-arrow,
@@ -1079,47 +1079,53 @@
   }
 }
 
-.author-activity-tooltip {
+.author-activity-tooltip,
+.role-description-tooltip {
   position: fixed;
   z-index: 1500;
   display: grid;
   width: max-content;
-  max-width: min(260px, calc(100vw - 24px));
+  max-width: min(270px, calc(100vw - 24px));
   gap: 6px;
-  padding: 8px 9px;
-  border-radius: 8px;
-  color: #fff;
-  background: #203247;
-  box-shadow: 0 8px 22px rgba(21, 38, 57, 0.2);
-  font-size: 0.68rem;
-  font-weight: 750;
-  line-height: 1.35;
+  padding: 9px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 9px;
+  color: #f8fafc;
+  background: #243447;
+  box-shadow: 0 8px 22px rgba(16, 24, 40, 0.18);
+  font-size: 0.70rem;
+  font-weight: 700;
+  line-height: 1.42;
+  letter-spacing: -0.005em;
   animation: author-activity-tooltip-in 140ms ease-out both;
 }
 
-.author-activity-tooltip-copy {
+.author-activity-tooltip-copy,
+.role-description-tooltip-copy {
   display: block;
 }
 
 .guidance-tooltip-skip {
   justify-self: start;
-  padding: 0;
+  padding: 1px 0 0;
   border: 0;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.48);
-  color: rgba(255, 255, 255, 0.82);
+  color: rgba(248, 250, 252, 0.72);
   background: transparent;
   cursor: pointer;
   font: inherit;
   font-size: 0.66rem;
-  font-weight: 700;
+  font-weight: 650;
   line-height: 1.35;
+  text-decoration: underline;
+  text-decoration-color: rgba(248, 250, 252, 0.34);
+  text-underline-offset: 3px;
 }
 
 .guidance-tooltip-skip:hover,
 .guidance-tooltip-skip:focus-visible {
   color: #fff;
-  border-bottom-color: #fff;
   outline: none;
+  text-decoration-color: rgba(255, 255, 255, 0.9);
 }
 
 @keyframes author-activity-tooltip-in {
@@ -1948,52 +1954,41 @@ button.author-menu-notification-link {
 }
 
 .post-role {
+  --post-role-accent: #7b8794;
   position: relative;
   display: inline-flex;
   align-items: center;
   gap: 5px;
   min-height: 22px;
   padding: 2px 7px;
-  border: 1px solid transparent;
+  border: 1px solid #dbe2e8;
   border-radius: 999px;
+  color: #516170;
+  background: #f8fafb;
   font-size: 0.64rem;
   font-weight: 800;
   line-height: 1.2;
   letter-spacing: -0.01em;
   cursor: help;
   outline: none;
+  transition: color 140ms ease, background-color 140ms ease, border-color 140ms ease, box-shadow 140ms ease;
 }
 
 .post-role::before {
   width: 5px;
   height: 5px;
   border-radius: 50%;
-  background: currentColor;
+  background: var(--post-role-accent);
   content: "";
-  opacity: 0.82;
 }
 
-.role-description-tooltip {
-  position: fixed;
-  z-index: 1500;
-  display: grid;
-  width: max-content;
-  max-width: min(260px, calc(100vw - 24px));
-  gap: 6px;
-  padding: 8px 9px;
-  border: 1px solid rgba(15, 23, 42, 0.08);
-  border-radius: 8px;
-  color: #fff;
-  background: #202833;
-  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.14);
-  font-size: 0.72rem;
-  font-weight: 650;
-  line-height: 1.45;
-  animation: author-activity-tooltip-in 140ms ease-out both;
-}
-
-.role-description-tooltip-copy {
-  display: block;
+.post-role:not(.is-guidance-skipped):hover,
+.post-role:not(.is-guidance-skipped):focus-visible,
+.post-role.is-description-open {
+  border-color: #c7d2dc;
+  color: #33485d;
+  background: #f3f6f8;
+  box-shadow: 0 3px 9px rgba(16, 24, 40, 0.06);
 }
 
 .post-role.is-guidance-skipped {
@@ -2001,25 +1996,19 @@ button.author-menu-notification-link {
 }
 
 .post-role:focus-visible {
-  box-shadow: 0 0 0 3px rgba(44, 62, 80, 0.10);
+  box-shadow: 0 0 0 3px rgba(255, 152, 0, 0.14);
 }
 
 .post-role--user {
-  color: #5f6975;
-  border-color: #dce2e8;
-  background: #f8fafb;
+  --post-role-accent: #7b8794;
 }
 
 .post-role--business {
-  color: #256a49;
-  border-color: #cfe2d7;
-  background: #f5faf7;
+  --post-role-accent: #3b7a5a;
 }
 
 .post-role--admin {
-  color: #82501d;
-  border-color: #ead7bb;
-  background: #fffaf2;
+  --post-role-accent: #a86a2a;
 }
 
 .best-post-list a {
@@ -4249,6 +4238,7 @@ body.board-scroll-top-visible .guidance-settings {
 }
 
 .guidance-settings-toggle {
+  position: relative;
   display: grid;
   width: 46px;
   height: 46px;
@@ -4273,9 +4263,45 @@ body.board-scroll-top-visible .guidance-settings {
 
 .guidance-settings-toggle:hover,
 .guidance-settings-toggle:focus-visible {
-  border-color: rgba(230, 143, 62, 0.34);
-  color: #7a4b1c;
+  border-color: #c7d2dc;
+  color: #33485d;
+  background: #f3f6f8;
+  box-shadow: 0 6px 18px rgba(16, 24, 40, 0.10);
   outline: none;
+}
+
+.guidance-settings-toggle::after {
+  position: absolute;
+  right: calc(100% + 8px);
+  top: 50%;
+  z-index: 1;
+  width: max-content;
+  max-width: 180px;
+  padding: 7px 9px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 9px;
+  color: #f8fafc;
+  background: #243447;
+  box-shadow: 0 8px 22px rgba(16, 24, 40, 0.18);
+  content: attr(aria-label);
+  font-size: 0.70rem;
+  font-weight: 700;
+  line-height: 1.42;
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(4px, -50%);
+  transition: opacity 120ms ease, transform 120ms ease;
+  white-space: nowrap;
+}
+
+.guidance-settings-toggle:hover::after,
+.guidance-settings-toggle:focus-visible::after {
+  opacity: 1;
+  transform: translate(0, -50%);
+}
+
+.guidance-settings-toggle[aria-expanded="true"]::after {
+  display: none;
 }
 
 .guidance-settings-panel {

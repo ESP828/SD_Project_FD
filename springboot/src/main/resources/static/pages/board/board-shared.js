@@ -418,7 +418,6 @@
     toggleIcon.setAttribute("aria-hidden", "true");
     toggle.append(toggleIcon);
     toggle.type = "button";
-    toggle.title = "안내 설정";
     toggle.setAttribute("aria-label", "안내 설정");
     toggle.setAttribute("aria-expanded", "false");
     toggle.setAttribute("aria-haspopup", "dialog");
