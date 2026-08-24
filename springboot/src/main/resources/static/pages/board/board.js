@@ -42,6 +42,7 @@
   const boardList = document.getElementById("board-list");
   const totalCount = document.getElementById("board-total-count");
   const totalSummary = document.getElementById("board-total-summary");
+  const boardListCriteria = document.getElementById("board-list-criteria");
   const popularRankRange = document.getElementById("popular-rank-range");
   const pagination = document.getElementById("board-pagination");
   const bestPostPanel = document.getElementById("best-post-panel");
@@ -355,9 +356,20 @@
     const isPopular = state.boardType === "POPULAR";
 
     if (totalSummary) {
-      totalSummary.textContent = isPopular
-        ? "개 · 최근 30일 · 추천순 · 20개씩 보기"
-        : "개의 이야기";
+      totalSummary.textContent = "개의 이야기";
+    }
+
+    if (boardListCriteria) {
+      if (isPopular) {
+        boardListCriteria.textContent = "기준 : 최근 30일, 추천순";
+        boardListCriteria.hidden = false;
+      } else if (state.boardType === "BEST") {
+        boardListCriteria.textContent = "기준 : 추천 3개 이상, 기간 제한 없음";
+        boardListCriteria.hidden = false;
+      } else {
+        boardListCriteria.textContent = "";
+        boardListCriteria.hidden = true;
+      }
     }
 
     if (!popularRankRange) return;
@@ -756,9 +768,19 @@
           ? "사업자 커뮤니티"
           : "일반 커뮤니티";
     if (totalSummary) {
-      totalSummary.textContent = isPopular
-        ? "개 · 최근 30일 · 추천순 · 20개씩 보기"
-        : "개의 이야기";
+      totalSummary.textContent = "개의 이야기";
+    }
+    if (boardListCriteria) {
+      if (isPopular) {
+        boardListCriteria.textContent = "기준 : 최근 30일, 추천순";
+        boardListCriteria.hidden = false;
+      } else if (isBest) {
+        boardListCriteria.textContent = "기준 : 추천 3개 이상, 기간 제한 없음";
+        boardListCriteria.hidden = false;
+      } else {
+        boardListCriteria.textContent = "";
+        boardListCriteria.hidden = true;
+      }
     }
     if (popularRankRange && !isPopular) {
       popularRankRange.hidden = true;
