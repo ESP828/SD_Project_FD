@@ -1,5 +1,7 @@
 package com.example.backend.restaurant.dto.response;
 
+import com.example.backend.auth.domain.entity.Account;
+import com.example.backend.auth.domain.type.AccountStatus;
 import com.example.backend.restaurant.domain.entity.Restaurant;
 
 import java.time.LocalDateTime;
@@ -28,6 +30,7 @@ public record RestaurantDetailResponse(
         long menuCount,
         boolean favoritedByMe,
         boolean isOwner,
+        Long ownerAccountId,
         String ownerNickname,
         String ownerProfileImageUrl,
         LocalDateTime createdAt
@@ -60,9 +63,24 @@ public record RestaurantDetailResponse(
                 menuCount,
                 favoritedByMe,
                 isOwner,
-                restaurant.getOwner().getNickname(),
-                restaurant.getOwner().getProfileImageUrl(),
+                ownerAccountId(restaurant.getOwner()),
+                displayOwnerNickname(restaurant.getOwner()),
+                restaurant.getOwner() != null ? restaurant.getOwner().getProfileImageUrl() : null,
                 restaurant.getCreatedAt()
         );
+    }
+
+    private static Long ownerAccountId(Account owner) {
+        if (owner == null || owner.getStatus() == AccountStatus.WITHDRAWN) {
+            return null;
+        }
+        return owner.getAccountId();
+    }
+
+    private static String displayOwnerNickname(Account owner) {
+        if (owner == null || owner.getStatus() == AccountStatus.WITHDRAWN) {
+            return "탈퇴한 회원";
+        }
+        return owner.getNickname();
     }
 }

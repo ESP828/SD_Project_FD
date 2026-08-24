@@ -3731,6 +3731,40 @@
     return wrapper.outerHTML;
   }
 
+  function bindStoreOwnerAuthor(store) {
+    const host = basicInfo.querySelector("[data-store-owner-author]");
+    if (!host) return;
+
+    const nickname = store?.ownerNickname || "사장님";
+    const authorAccountId = Number(store?.ownerAccountId);
+    const board = window.FooduckBoard;
+
+    if (
+      board?.authorIdentity
+      && Number.isSafeInteger(authorAccountId)
+      && authorAccountId > 0
+      && nickname !== "탈퇴한 회원"
+    ) {
+      host.replaceChildren(board.authorIdentity(
+        {
+          authorAccountId,
+          authorNickname: nickname,
+        },
+        {
+          showNickname: true,
+          showAuthorMenu: true,
+          showLoginIdentity: false,
+          showRole: false,
+          authorMenuContext: "COMMUNITY",
+          authorActivityCueMode: "full",
+        },
+      ));
+      return;
+    }
+
+    host.textContent = nickname;
+  }
+
   function renderOwnedDetail(store) {
     storeId = store.restaurantId;
     isOwner = Boolean(store.isOwner);
@@ -3790,11 +3824,12 @@
       <div class="store-owner-profile">
         <img class="store-owner-avatar" src="${escapeHtml(store.ownerProfileImageUrl || "/images/characters/waving.png")}" alt="">
         <div>
-          <strong>${escapeHtml(store.ownerNickname || "사장님")}</strong>
+          <strong data-store-owner-author></strong>
           <span>${escapeHtml(store.phone || "전화번호 미등록")}</span>
         </div>
       </div>
     `;
+    bindStoreOwnerAuthor(store);
     sourceNote.textContent = "가게 기본정보 출처: 사업자 직접 등록";
 
     renderTabs(["menu", "news", "review", "info"]);
