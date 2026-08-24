@@ -2253,8 +2253,8 @@
         } else {
           showNewsCommentToast(imageFile ? "답글과 사진이 등록되었습니다." : "답글이 등록되었습니다.");
         }
-        if (state.allLoaded) await loadAllNewsComments(postId);
-        else await loadNewsComments(postId, state.page);
+        if (state.allLoaded) await loadAllNewsComments(postId, { forceRefresh: true });
+        else await loadNewsComments(postId, state.page, { forceRefresh: true });
       } catch (error) {
         textarea.disabled = false;
         submit.disabled = false;
@@ -2466,8 +2466,8 @@
       await Api.delete(`/board/comments/${encodeURIComponent(commentId)}`);
       window.FooduckBoard?.invalidateBoardCache?.();
       const state = getNewsCommentState(postId);
-      if (state.allLoaded) await loadAllNewsComments(postId);
-      else await loadNewsComments(postId, state.page);
+      if (state.allLoaded) await loadAllNewsComments(postId, { forceRefresh: true });
+      else await loadNewsComments(postId, state.page, { forceRefresh: true });
     } catch (error) {
       const panel = button.closest("[data-news-comments-post-id]");
       const status = panel?.querySelector("[data-news-comment-status]");
@@ -2618,8 +2618,8 @@
         window.FooduckBoard?.invalidateBoardCache?.();
         state.imageRetry = null;
         showNewsCommentToast(`${retry.label || "댓글"} 사진이 등록되었습니다.`);
-        if (state.allLoaded) await loadAllNewsComments(postId);
-        else await loadNewsComments(postId, state.page);
+        if (state.allLoaded) await loadAllNewsComments(postId, { forceRefresh: true });
+        else await loadNewsComments(postId, state.page, { forceRefresh: true });
       } catch (error) {
         retryButton.disabled = false;
         dismissButton.disabled = false;
@@ -2815,11 +2815,11 @@
           showNewsCommentToast(imageFile ? "댓글과 사진이 등록되었습니다." : (payload.message || "댓글이 등록되었습니다."));
         }
         if (state.allLoaded) {
-          await loadAllNewsComments(postId);
+          await loadAllNewsComments(postId, { forceRefresh: true });
         } else {
           const rootCount = Math.max(0, Number(state.pageData?.totalElements) || 0);
           const targetPage = Math.floor(rootCount / NEWS_COMMENT_PAGE_SIZE);
-          await loadNewsComments(postId, targetPage);
+          await loadNewsComments(postId, targetPage, { forceRefresh: true });
         }
       } catch (error) {
         textarea.disabled = false;
@@ -2909,15 +2909,16 @@
     body.append(renderNewsCommentForm(postId, state));
   }
 
-  async function fetchNewsCommentPage(postId, page, size = NEWS_COMMENT_PAGE_SIZE) {
+  async function fetchNewsCommentPage(postId, page, size = NEWS_COMMENT_PAGE_SIZE, options = {}) {
     const normalizedPage = Math.max(0, Number(page) || 0);
     const normalizedSize = Math.max(1, Math.min(NEWS_COMMENT_ALL_PAGE_SIZE, Number(size) || NEWS_COMMENT_PAGE_SIZE));
+    const forceRefresh = options.forceRefresh === true;
     const path = `/board/posts/${encodeURIComponent(postId)}/comments?page=${normalizedPage}&size=${normalizedSize}`;
     const board = window.FooduckBoard;
-    const cached = board?.readBoardCache?.(path) || null;
+    const cached = forceRefresh ? null : (board?.readBoardCache?.(path) || null);
     if (cached?.fresh) return { data: cached.data || {}, cacheFallback: false };
     try {
-      const response = await Api.get(path);
+      const response = await Api.get(path, forceRefresh ? { cache: "no-store" } : {});
       const pageData = response.data || {};
       board?.writeBoardCache?.(path, pageData);
       return { data: pageData, cacheFallback: false };
@@ -2929,7 +2930,7 @@
     }
   }
 
-  async function loadNewsComments(postId, page = 0) {
+  async function loadNewsComments(postId, page = 0, options = {}) {
     const state = getNewsCommentState(postId);
     const generation = ++state.generation;
     const requestedPage = Math.max(0, Number(page) || 0);
@@ -2942,13 +2943,15 @@
     syncNewsCommentToggle(postId);
     renderNewsComments(postId);
     try {
-      const result = await fetchNewsCommentPage(postId, requestedPage, NEWS_COMMENT_PAGE_SIZE);
+      const result = await fetchNewsCommentPage(postId, requestedPage, NEWS_COMMENT_PAGE_SIZE, {
+        forceRefresh: options.forceRefresh === true,
+      });
       if (generation !== state.generation) return;
       const pageData = result.data || {};
       const totalPages = Math.max(0, Number(pageData.totalPages) || 0);
       if (totalPages > 0 && requestedPage >= totalPages) {
         state.loading = false;
-        await loadNewsComments(postId, totalPages - 1);
+        await loadNewsComments(postId, totalPages - 1, options);
         return;
       }
       state.page = Math.max(0, Number(pageData.page) || 0);
@@ -2976,7 +2979,7 @@
     }
   }
 
-  async function loadAllNewsComments(postId) {
+  async function loadAllNewsComments(postId, options = {}) {
     const state = getNewsCommentState(postId);
     const generation = ++state.generation;
     state.loading = true;
@@ -2987,7 +2990,9 @@
     renderNewsComments(postId);
 
     try {
-      const firstResult = await fetchNewsCommentPage(postId, 0, NEWS_COMMENT_ALL_PAGE_SIZE);
+      const firstResult = await fetchNewsCommentPage(postId, 0, NEWS_COMMENT_ALL_PAGE_SIZE, {
+        forceRefresh: options.forceRefresh === true,
+      });
       if (generation !== state.generation) return;
       const firstPage = firstResult.data || {};
       const totalPages = Math.max(0, Number(firstPage.totalPages) || 0);
@@ -2995,7 +3000,9 @@
       let usedCacheFallback = firstResult.cacheFallback;
 
       for (let page = 1; page < totalPages; page += 1) {
-        const result = await fetchNewsCommentPage(postId, page, NEWS_COMMENT_ALL_PAGE_SIZE);
+        const result = await fetchNewsCommentPage(postId, page, NEWS_COMMENT_ALL_PAGE_SIZE, {
+          forceRefresh: options.forceRefresh === true,
+        });
         if (generation !== state.generation) return;
         if (Array.isArray(result.data?.content)) combined.push(...result.data.content);
         usedCacheFallback = usedCacheFallback || result.cacheFallback;
