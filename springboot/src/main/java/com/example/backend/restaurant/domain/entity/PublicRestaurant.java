@@ -1,7 +1,10 @@
 package com.example.backend.restaurant.domain.entity;
 
+import com.example.backend.restaurant.domain.type.RestaurantStatus;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
@@ -76,6 +79,21 @@ public class PublicRestaurant {
 
     @Column(name = "data_ym", length = 6)
     private String dataYm;
+
+    // 소프트 삭제 상태. JPA 엔티티에 매핑이 안 돼 있어서 추천/랭킹 후보 조회(JPQL)가
+    // DELETED 매장까지 그대로 끌어오던 버그가 있었다 - 이제 이 필드로 걸러낼 수 있다.
+    @Enumerated(EnumType.STRING)
+    @Column(name = "status", nullable = false, length = 20)
+    private RestaurantStatus status = RestaurantStatus.ACTIVE;
+
+    @Column(name = "deleted_at")
+    private LocalDateTime deletedAt;
+
+    // 매장 대표 이미지 URL. 공공데이터엔 사진이 없어서, 추천/랭킹 화면에 노출될 때
+    // 카카오 이미지 검색으로 한 번 찾아서 캐싱해둔다. null = 아직 검색 안 해봄,
+    // 빈 문자열 = 검색은 해봤는데 결과가 없었음(이 경우 재검색하지 않는다).
+    @Column(name = "image_url", length = 500)
+    private String imageUrl;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -202,6 +220,26 @@ public class PublicRestaurant {
 
     public String getDataYm() {
         return dataYm;
+    }
+
+    public RestaurantStatus getStatus() {
+        return status;
+    }
+
+    public boolean isActive() {
+        return status == RestaurantStatus.ACTIVE;
+    }
+
+    public LocalDateTime getDeletedAt() {
+        return deletedAt;
+    }
+
+    public String getImageUrl() {
+        return imageUrl;
+    }
+
+    public void cacheImageUrl(String imageUrl) {
+        this.imageUrl = imageUrl == null ? "" : imageUrl;
     }
 
     public LocalDateTime getCreatedAt() {

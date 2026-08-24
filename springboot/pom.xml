@@ -123,6 +123,13 @@
 			<artifactId>h2</artifactId>
 			<scope>runtime</scope>
 		</dependency>
+
+		<!-- 네이버 지도 매장 공식 이미지 크롤링 (헤드리스 Edge 브라우저 구동) -->
+		<dependency>
+			<groupId>org.seleniumhq.selenium</groupId>
+			<artifactId>selenium-java</artifactId>
+			<version>4.27.0</version>
+		</dependency>
 	</dependencies>
 
 	<build>

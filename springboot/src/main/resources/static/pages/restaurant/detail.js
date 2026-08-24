@@ -1023,13 +1023,15 @@
 
   // AI(Naive Bayes) 리뷰 감성분석 요약 카드. 감성분석 서비스가 꺼져 있거나 아직 준비되지
   // 않아도(sentiment-api.base-url 미설정 등) 리뷰 화면 자체는 정상 동작해야 하므로,
-  // 실패하면 카드를 그냥 숨긴 채 조용히 넘어간다. 현재는 공공데이터 매장만 지원한다.
+  // 실패하면 카드를 그냥 숨긴 채 조용히 넘어간다. 공공데이터 매장/사업자 등록 매장 둘 다 지원한다.
   async function loadSentimentSummary() {
-    if (source !== "public") return;
     const card = document.getElementById("store-sentiment-card");
     if (!card) return;
     try {
-      const response = await Api.get(`/public/map/restaurants/${storeId}/sentiment-summary`, { auth: false });
+      const path = source === "public"
+        ? `/public/map/restaurants/${storeId}/sentiment-summary`
+        : `/public/restaurants/${storeId}/sentiment-summary`;
+      const response = await Api.get(path, { auth: false });
       const summary = response.data;
       if (!summary || summary.reviewCount === 0) return;
       const ratio = Math.round(summary.positiveRatio);
@@ -3836,7 +3838,6 @@
         </div>
       </div>
     `;
-    bindStoreOwnerAuthor(store);
     sourceNote.textContent = "가게 기본정보 출처: 사업자 직접 등록";
 
     renderTabs(["menu", "news", "review", "info"]);

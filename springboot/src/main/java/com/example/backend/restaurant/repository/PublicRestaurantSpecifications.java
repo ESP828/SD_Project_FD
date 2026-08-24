@@ -1,6 +1,7 @@
 package com.example.backend.restaurant.repository;
 
 import com.example.backend.restaurant.domain.entity.PublicRestaurant;
+import com.example.backend.restaurant.domain.type.RestaurantStatus;
 import jakarta.persistence.criteria.Predicate;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.util.StringUtils;
@@ -11,6 +12,11 @@ import java.util.List;
 public final class PublicRestaurantSpecifications {
 
     private PublicRestaurantSpecifications() {
+    }
+
+    /** 소프트 삭제된 매장은 검색 결과에서 항상 제외한다. */
+    public static Specification<PublicRestaurant> isActive() {
+        return (root, query, cb) -> cb.equal(root.get("status"), RestaurantStatus.ACTIVE);
     }
 
     /**

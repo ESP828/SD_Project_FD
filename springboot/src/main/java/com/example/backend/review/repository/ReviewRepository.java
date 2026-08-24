@@ -75,6 +75,16 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
     @Query("SELECT r FROM Review r WHERE r.restaurant.restaurantId = :restaurantId "
             + "AND r.status = 'ACTIVE' AND r.content IS NOT NULL AND TRIM(r.content) <> '' ORDER BY r.createdAt DESC")
     List<Review> findAllActiveForSentimentByRestaurantId(@Param("restaurantId") Long restaurantId);
+
+    // 맛집 랭킹 계산용. 후보 매장 여러 개의 리뷰 개수·평균 평점을 한 번에 집계한다
+    // (매장마다 따로 쿼리하면 랭킹 후보가 많을 때 느려진다).
+    @Query("SELECT new com.example.backend.review.repository.PublicRestaurantReviewAggregate("
+            + "r.publicRestaurant.publicRestaurantId, COUNT(r), AVG(r.rating)) "
+            + "FROM Review r WHERE r.publicRestaurant.publicRestaurantId IN :publicRestaurantIds AND r.status = 'ACTIVE' "
+            + "GROUP BY r.publicRestaurant.publicRestaurantId")
+    List<PublicRestaurantReviewAggregate> aggregateActiveByPublicRestaurantIds(
+            @Param("publicRestaurantIds") List<Long> publicRestaurantIds
+    );
     @Query("SELECT r FROM Review r WHERE r.reviewId = :reviewId "
             + "AND r.account.accountId = :accountId AND r.status = 'ACTIVE'")
     Optional<Review> findActiveOwnedReview(
