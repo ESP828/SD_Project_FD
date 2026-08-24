@@ -22,6 +22,7 @@
 
   const GUIDANCE_SKIP_MONTHS = 6;
   const AUTHOR_ACTIVITY_TOOLTIP_SKIP_KEY = "fooduck:author-profile-tooltip-skip-until:v1";
+  const FEEDBACK_FLASH_KEY = "fooduck:feedback:flash:v1";
   let authorMenu = null;
   let activeAuthorTrigger = null;
   let businessAccessPromise = null;
@@ -1345,7 +1346,7 @@
           window.FooduckNotifications?.refreshUnreadCount();
         } catch (_error) {
           if (!href) {
-            window.alert("알림을 읽음 처리하지 못했습니다.");
+            showGlobalToast("알림을 읽음 처리하지 못했습니다.", true);
           }
           // 읽음 처리 실패가 안전한 내부 화면 이동을 막지는 않는다.
         }
@@ -2041,15 +2042,157 @@
     return Number.isSafeInteger(value) && value > 0 ? value : null;
   }
 
+  const toastTimers = new WeakMap();
+
   function showToast(host, message, isError = false) {
     if (!host) return;
     host.textContent = message;
     host.classList.toggle("is-error", isError);
     host.hidden = false;
-    window.clearTimeout(showToast.timer);
-    showToast.timer = window.setTimeout(() => {
+    window.clearTimeout(toastTimers.get(host));
+    const timer = window.setTimeout(() => {
       host.hidden = true;
+      toastTimers.delete(host);
     }, 3200);
+    toastTimers.set(host, timer);
+  }
+
+  let globalFeedbackToast = null;
+
+  function ensureGlobalFeedbackToast() {
+    if (globalFeedbackToast?.isConnected) return globalFeedbackToast;
+
+    globalFeedbackToast = document.createElement("div");
+    globalFeedbackToast.className = "board-toast board-global-toast";
+    globalFeedbackToast.setAttribute("role", "status");
+    globalFeedbackToast.setAttribute("aria-live", "polite");
+    globalFeedbackToast.hidden = true;
+
+    // 모바일에서는 기존 형제 선택자가 toast와 상단 이동 버튼 간격을 조절한다.
+    // 따라서 상단 이동 버튼이 있으면 toast를 그 앞에 둔다.
+    const scrollTopButton = document.querySelector(".board-scroll-top");
+    if (scrollTopButton?.parentNode) {
+      scrollTopButton.parentNode.insertBefore(globalFeedbackToast, scrollTopButton);
+    } else {
+      document.body.append(globalFeedbackToast);
+    }
+    return globalFeedbackToast;
+  }
+
+  function showGlobalToast(message, isError = false) {
+    if (!message) return;
+    showToast(ensureGlobalFeedbackToast(), String(message), isError);
+  }
+
+  function setFeedbackFlash(message, isError = false) {
+    if (!message) return false;
+    try {
+      window.sessionStorage.setItem(
+        FEEDBACK_FLASH_KEY,
+        JSON.stringify({
+          message: String(message),
+          isError: Boolean(isError),
+          createdAt: Date.now(),
+        }),
+      );
+      return true;
+    } catch (_error) {
+      return false;
+    }
+  }
+
+  function consumeFeedbackFlash(host = null) {
+    let raw = null;
+    try {
+      raw = window.sessionStorage.getItem(FEEDBACK_FLASH_KEY);
+      window.sessionStorage.removeItem(FEEDBACK_FLASH_KEY);
+    } catch (_error) {
+      return false;
+    }
+    if (!raw) return false;
+
+    try {
+      const payload = JSON.parse(raw);
+      const createdAt = Number(payload?.createdAt);
+      if (!payload?.message || !Number.isFinite(createdAt) || Date.now() - createdAt > 30_000) {
+        return false;
+      }
+      if (host) showToast(host, payload.message, payload.isError === true);
+      else showGlobalToast(payload.message, payload.isError === true);
+      return true;
+    } catch (_error) {
+      return false;
+    }
+  }
+
+  function confirmAction({
+    title,
+    message,
+    confirmLabel = "확인",
+    danger = false,
+    iconName = danger ? "delete" : "edit",
+  } = {}) {
+    return new Promise((resolve) => {
+      const returnFocus = document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : null;
+      const dialog = document.createElement("dialog");
+      dialog.className = "board-dialog comment-confirm-dialog";
+
+      const shell = element("div", "dialog-shell comment-confirm-shell");
+      const heading = element("div", "comment-confirm-heading");
+      const iconWrap = element("span", "comment-confirm-icon");
+      const actionIcon = element("span", "material-symbols-rounded", iconName);
+      actionIcon.setAttribute("aria-hidden", "true");
+      iconWrap.append(actionIcon);
+
+      const copy = element("div", "comment-confirm-copy");
+      copy.append(
+        element("h2", "", title || "계속할까요?"),
+        element("p", "", message || "이 작업을 계속하시겠습니까?"),
+      );
+      heading.append(iconWrap, copy);
+
+      const actions = element("div", "comment-confirm-actions");
+      const cancelButton = element("button", "button button-sm button-secondary", "취소");
+      cancelButton.type = "button";
+      const confirmButton = element(
+        "button",
+        danger ? "button button-sm button-danger" : "button button-sm button-primary",
+        confirmLabel,
+      );
+      confirmButton.type = "button";
+      actions.append(cancelButton, confirmButton);
+      shell.append(heading, actions);
+      dialog.append(shell);
+      document.body.append(dialog);
+      window.FooduckIcons?.enhance(dialog);
+
+      let settled = false;
+      const finish = (result) => {
+        if (settled) return;
+        settled = true;
+        dialog.close();
+        dialog.remove();
+        if (!result && returnFocus?.isConnected) {
+          returnFocus.focus({ preventScroll: true });
+        }
+        resolve(result);
+      };
+
+      cancelButton.addEventListener("click", () => finish(false));
+      confirmButton.addEventListener("click", () => finish(true));
+      dialog.addEventListener("cancel", (event) => {
+        event.preventDefault();
+        finish(false);
+      });
+      dialog.addEventListener("click", (event) => {
+        if (event.target === dialog) finish(false);
+      });
+
+      dialog.showModal();
+      confirmButton.focus();
+    });
   }
 
   if (document.readyState === "loading") {
@@ -2063,6 +2206,8 @@
     authorIdentity,
     canUseBusinessBoard,
     categoryLabel,
+    confirmAction,
+    consumeFeedbackFlash,
     createAuthPopupController,
     detailPath,
     element,
@@ -2079,6 +2224,8 @@
     readPostId,
     requireLogin,
     roleLabel,
+    setFeedbackFlash,
+    showGlobalToast,
     showToast,
     updateCachedPostViewCount,
     writeBoardCache,

@@ -64,7 +64,6 @@
   let pendingBoardLoginAction = null;
   let boardLogoutInFlight = false;
   let cachedFallbackNoticeShown = false;
-  const BOARD_FLASH_KEY = "fooduck:board:flash:v1";
 
   if (!session || !board || !boardList || !searchForm) {
     return;
@@ -106,14 +105,7 @@
   document.body.append(boardToast);
 
   function consumeBoardFlashMessage() {
-    try {
-      const message = window.sessionStorage.getItem(BOARD_FLASH_KEY);
-      if (!message) return;
-      window.sessionStorage.removeItem(BOARD_FLASH_KEY);
-      showToast(boardToast, message);
-    } catch (_error) {
-      // 저장 공간을 사용할 수 없는 환경에서는 안내 없이 기존 흐름을 유지한다.
-    }
+    board.consumeFeedbackFlash?.(boardToast);
   }
 
   function showCachedFallbackNoticeOnce() {

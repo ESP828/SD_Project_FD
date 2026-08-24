@@ -25,7 +25,6 @@
   const MEDIA_POLL_MAX_FAILURES = 5;
   const COMMENT_IMAGE_MAX_BYTES = 5 * 1024 * 1024;
   const COMMENT_PAGE_SIZE = 5;
-  const BOARD_FLASH_KEY = "fooduck:board:flash:v1";
   const COMMENT_IMAGE_TYPES = new Set([
     "image/jpeg",
     "image/png",
@@ -304,66 +303,10 @@
     });
   }
 
-  function confirmBoardAction({
-    title,
-    message,
-    confirmLabel = "삭제",
-    danger = true,
-    iconName = danger ? "delete" : "edit",
-  }) {
-    return new Promise((resolve) => {
-      const dialog = document.createElement("dialog");
-      dialog.className = "board-dialog comment-confirm-dialog";
-
-      const shell = element("div", "dialog-shell comment-confirm-shell");
-      const heading = element("div", "comment-confirm-heading");
-      const iconWrap = element("span", "comment-confirm-icon");
-      const warningIcon = element("span", "material-symbols-rounded", iconName);
-      warningIcon.setAttribute("aria-hidden", "true");
-      iconWrap.append(warningIcon);
-      const copy = element("div", "comment-confirm-copy");
-      copy.append(
-        element("h2", "", title),
-        element("p", "", message),
-      );
-      heading.append(iconWrap, copy);
-
-      const actions = element("div", "comment-confirm-actions");
-      const cancel = element("button", "button button-sm button-secondary", "취소");
-      cancel.type = "button";
-      const confirm = element(
-        "button",
-        danger ? "button button-sm button-danger" : "button button-sm button-primary",
-        confirmLabel,
-      );
-      confirm.type = "button";
-      actions.append(cancel, confirm);
-      shell.append(heading, actions);
-      dialog.append(shell);
-      document.body.append(dialog);
-      window.FooduckIcons?.enhance(dialog);
-
-      let settled = false;
-      const finish = (result) => {
-        if (settled) return;
-        settled = true;
-        dialog.close();
-        dialog.remove();
-        resolve(result);
-      };
-
-      cancel.addEventListener("click", () => finish(false));
-      confirm.addEventListener("click", () => finish(true));
-      dialog.addEventListener("cancel", (event) => {
-        event.preventDefault();
-        finish(false);
-      });
-      dialog.addEventListener("click", (event) => {
-        if (event.target === dialog) finish(false);
-      });
-
-      dialog.showModal();
-      cancel.focus();
+  function confirmBoardAction(options = {}) {
+    return board.confirmAction({
+      danger: true,
+      ...options,
     });
   }
 
@@ -2161,17 +2104,10 @@
       const payload = await Api.delete(deletePath);
       invalidateBoardCache();
       if (newsPost) {
-        // 가게 소식은 게시판 밖 식당 화면으로 돌아가므로 기존 완료 안내를 유지한다.
-        window.alert(payload.message);
+        // 가게 소식은 식당 상세 화면으로 이동한 뒤 공통 flash toast로 완료를 알린다.
+        board.setFeedbackFlash?.(payload.message || "가게 소식이 삭제되었습니다.");
       } else {
-        try {
-          window.sessionStorage.setItem(
-            BOARD_FLASH_KEY,
-            payload.message || "게시글이 삭제되었습니다.",
-          );
-        } catch (_error) {
-          // 저장 공간을 사용할 수 없어도 삭제 완료 후 이동은 계속한다.
-        }
+        board.setFeedbackFlash?.(payload.message || "게시글이 삭제되었습니다.");
       }
       allowDetailNavigation = true;
       navigationStarted = true;

@@ -65,6 +65,7 @@
   let writeLogoutInFlight = false;
   let editorBaseline = null;
   let allowEditorNavigation = false;
+  let editorLeaveConfirmPromise = null;
   const removedMediaIds = new Set();
   let selectedRestaurant = null;
   let restaurantSearchTimer = null;
@@ -523,15 +524,28 @@
     );
   }
 
-  function confirmEditorLeave() {
-    return (
-      !hasUnsavedEditorChanges() ||
-      window.confirm("작성 중인 내용이 있습니다. 페이지를 나가시겠습니까?")
-    );
+  async function confirmEditorLeave() {
+    if (!hasUnsavedEditorChanges()) return true;
+    // native confirm과 달리 custom dialog는 비동기이므로 빠른 연속 클릭에서
+    // 여러 dialog/이동 요청이 겹치지 않도록 하나의 판단만 허용한다.
+    if (editorLeaveConfirmPromise) return false;
+
+    editorLeaveConfirmPromise = board.confirmAction({
+      title: "작성 중인 내용이 있습니다.",
+      message: "저장하지 않은 내용을 버리고 페이지를 나가시겠습니까?",
+      confirmLabel: "나가기",
+      danger: false,
+      iconName: "edit",
+    });
+    try {
+      return await editorLeaveConfirmPromise;
+    } finally {
+      editorLeaveConfirmPromise = null;
+    }
   }
 
   function initializeEditorNavigationGuard() {
-    document.addEventListener("click", (event) => {
+    document.addEventListener("click", async (event) => {
       if (allowEditorNavigation || event.defaultPrevented) return;
       if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
         return;
@@ -561,7 +575,7 @@
       if (!hasUnsavedEditorChanges()) return;
 
       event.preventDefault();
-      if (!confirmEditorLeave()) return;
+      if (!(await confirmEditorLeave())) return;
 
       // 내부 링크 이동은 직접 확인한 뒤 beforeunload에서 같은 경고가
       // 한 번 더 뜨지 않도록 잠시 허용한다. 실제 이동이 취소되면
@@ -584,7 +598,7 @@
       event.preventDefault();
       event.stopImmediatePropagation();
       if (writeLogoutInFlight) return;
-      if (!confirmEditorLeave()) return;
+      if (!(await confirmEditorLeave())) return;
 
       writeLogoutInFlight = true;
       button.disabled = true;

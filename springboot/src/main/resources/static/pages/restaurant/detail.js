@@ -3951,12 +3951,14 @@
         loading.hidden = true;
         content.hidden = false;
         renderOwnedDetail(response.data);
+        window.FooduckBoard?.consumeFeedbackFlash?.();
       } else {
         const response = await Api.get(`/public/map/restaurants/${id}`);
         await nicknameTask;
         loading.hidden = true;
         content.hidden = false;
         renderPublicDetail(response.data);
+        window.FooduckBoard?.consumeFeedbackFlash?.();
       }
     } catch (error) {
       showError(error.message || "가게 정보를 불러오지 못했습니다.");
