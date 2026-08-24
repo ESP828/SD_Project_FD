@@ -19,7 +19,9 @@ public record PublicRestaurantDetailResponse(
         Double lon,
         String dataYm,
         long favoriteCount,
-        boolean favoritedByMe
+        boolean favoritedByMe,
+        // 캐싱된 매장 대표 이미지. 없으면 null - 프론트에서는 로고+카테고리 색상으로 대체한다.
+        String imageUrl
 ) {
     public static PublicRestaurantDetailResponse from(PublicRestaurant restaurant, long favoriteCount, boolean favoritedByMe) {
         return new PublicRestaurantDetailResponse(
@@ -35,7 +37,8 @@ public record PublicRestaurantDetailResponse(
                 restaurant.getLongitude() == null ? null : restaurant.getLongitude().doubleValue(),
                 restaurant.getDataYm(),
                 favoriteCount,
-                favoritedByMe
+                favoritedByMe,
+                (restaurant.getImageUrl() == null || restaurant.getImageUrl().isBlank()) ? null : restaurant.getImageUrl()
         );
     }
 }

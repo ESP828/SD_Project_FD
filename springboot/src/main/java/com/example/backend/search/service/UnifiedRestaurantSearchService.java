@@ -106,7 +106,8 @@ public class UnifiedRestaurantSearchService {
                 restaurant.getRoadAddress(),
                 restaurant.getLotAddress(),
                 restaurant.getLatitude() == null ? null : restaurant.getLatitude().doubleValue(),
-                restaurant.getLongitude() == null ? null : restaurant.getLongitude().doubleValue()
+                restaurant.getLongitude() == null ? null : restaurant.getLongitude().doubleValue(),
+                (restaurant.getImageUrl() == null || restaurant.getImageUrl().isBlank()) ? null : restaurant.getImageUrl()
         );
     }
 }

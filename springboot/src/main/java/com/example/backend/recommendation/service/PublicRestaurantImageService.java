@@ -6,6 +6,7 @@ import com.example.backend.restaurant.repository.PublicRestaurantRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
@@ -35,7 +36,11 @@ public class PublicRestaurantImageService {
      * 검색을 호출해서 결과를 DB에 저장한 뒤 반환한다. 빈 문자열이면 "검색했는데 결과 없음"
      * 이라 프론트에는 null과 동일하게 취급하도록 넘긴다.
      */
-    @Transactional
+    // RecommendationService가 클래스 레벨에서 @Transactional(readOnly = true)라서, 기본
+    // 전파(REQUIRED)로 두면 이 메서드가 그 읽기전용 트랜잭션에 그대로 합류해버려 save()가
+    // 조용히 반영이 안 되는 문제가 있었다(캐싱이 매번 안 되고 API를 계속 다시 호출하던 원인).
+    // REQUIRES_NEW로 항상 별도의 쓰기 가능한 트랜잭션에서 실행되도록 강제한다.
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public String getOrFetchImageUrl(Long publicRestaurantId, String restaurantName) {
         if (!kakaoImageSearchClient.isConfigured()) {
             return null;
