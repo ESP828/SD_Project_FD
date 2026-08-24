@@ -1398,7 +1398,8 @@
     }
     if (showNickname && author?.authorNickname) {
       const nickname = element("span", "author-nickname", author.authorNickname);
-      if (showAuthorMenu && author.authorAccountId) {
+      const withdrawnAuthor = author.authorNickname === "탈퇴한 회원";
+      if (showAuthorMenu && author.authorAccountId && !withdrawnAuthor) {
         const trigger = element(
           "span",
           `author-activity-trigger author-activity-trigger--${authorActivityCueMode === "full" ? "full" : "compact"}`,

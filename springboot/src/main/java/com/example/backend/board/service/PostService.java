@@ -1,6 +1,7 @@
 package com.example.backend.board.service;
 
 import com.example.backend.auth.domain.entity.Account;
+import com.example.backend.auth.domain.type.AccountStatus;
 import com.example.backend.board.domain.entity.Post;
 import com.example.backend.board.domain.entity.PostLike;
 import com.example.backend.board.domain.entity.PostLikeId;
@@ -711,7 +712,7 @@ public class PostService {
             validateId(excludePostId, "제외 게시글");
         }
         Account author = boardUserService.findOptional(authorAccountId);
-        if (author == null) {
+        if (author == null || author.getStatus() == AccountStatus.WITHDRAWN) {
             throw new BoardException(
                     HttpStatus.NOT_FOUND,
                     "BOARD_AUTHOR_NOT_FOUND",
