@@ -226,11 +226,13 @@ public class PostController {
     }
 
     @GetMapping("/popular")
-    public ApiResponse<List<PostListItemResponse>> getPopularPosts(
+    public ApiResponse<PostPageResponse> getPopularPosts(
+            @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
             Authentication authentication
     ) {
-        return ApiResponse.success(postService.getPopularPosts(
+        return ApiResponse.success(postService.getPopularPostPage(
+                page,
                 size,
                 BoardAuthentication.accountId(authentication)
         ));

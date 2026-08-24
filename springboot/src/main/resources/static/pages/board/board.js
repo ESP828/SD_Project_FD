@@ -28,13 +28,14 @@
     ? "GENERAL"
     : requestedBoardType;
   let businessAccessAllowed = Boolean(session?.canManageBusiness);
+  const POPULAR_PAGE_SIZE = 20;
   const state = {
     boardType: initialBoardType,
     lastBoardType: initialBoardType === "BUSINESS" ? "BUSINESS" : "GENERAL",
     category: requestedCategory,
     keyword: requestedKeyword,
     sort: requestedSort,
-    page: requestedBoardType === "POPULAR" ? 0 : requestedPage,
+    page: requestedPage,
     size: 7,
   };
 
@@ -153,7 +154,7 @@
       if (state.sort !== "LATEST") params.set("sort", state.sort);
     }
 
-    if (state.boardType !== "POPULAR" && state.page > 0) {
+    if (state.page > 0) {
       params.set("page", String(state.page + 1));
     }
 
@@ -283,7 +284,7 @@
     const badges = element("div", "post-badge-row");
     if (state.boardType === "BEST" || state.boardType === "POPULAR") {
       const rank = state.boardType === "POPULAR"
-        ? index + 1
+        ? state.page * POPULAR_PAGE_SIZE + index + 1
         : state.page * state.size + index + 1;
       const rankLabel = state.boardType === "POPULAR" ? "인기" : "베스트";
       badges.append(element("span", "post-badge", `${rankLabel} ${rank}위`));
@@ -438,23 +439,10 @@
   }
 
   function normalizePostPage(data) {
-    if (state.boardType !== "POPULAR") {
-      return data || {};
-    }
-    const posts = Array.isArray(data) ? data : [];
-    return {
-      content: posts,
-      page: 0,
-      size: posts.length,
-      totalElements: posts.length,
-      totalPages: posts.length ? 1 : 0,
-      first: true,
-      last: true,
-    };
+    return data || {};
   }
 
   function correctOutOfRangePage(pageData) {
-    if (state.boardType === "POPULAR") return false;
     const totalPages = Math.max(0, Number(pageData?.totalPages) || 0);
     const correctedPage = totalPages > 0
       ? Math.min(state.page, totalPages - 1)
@@ -474,7 +462,8 @@
     const params = new URLSearchParams();
 
     if (isPopular) {
-      params.set("size", "20");
+      params.set("page", String(state.page));
+      params.set("size", String(POPULAR_PAGE_SIZE));
     } else {
       params.set("page", String(state.page));
       params.set("size", String(state.size));
@@ -505,7 +494,7 @@
 
     try {
       const payload = await Api.get(path, { cache: "no-store" });
-      const data = payload.data || (isPopular ? [] : {});
+      const data = payload.data || {};
       writeBoardCache(path, data);
       if (generation !== postRequestGeneration) return;
       const pageData = normalizePostPage(data);
@@ -885,9 +874,10 @@
       ? sortValue
       : "LATEST";
     state.keyword = String(params.get("keyword") || "").trim().slice(0, 100);
-    state.page = nextBoardType === "POPULAR"
-      ? 0
-      : Math.max(0, Math.min(9999, (Number.parseInt(params.get("page"), 10) || 1) - 1));
+    state.page = Math.max(
+      0,
+      Math.min(9999, (Number.parseInt(params.get("page"), 10) || 1) - 1),
+    );
     syncSearchControls();
     syncBoardNavigation("none");
   }
