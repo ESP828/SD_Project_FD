@@ -20,7 +20,7 @@
     ADMIN: "관리자",
   };
 
-  const GUIDANCE_SKIP_MS = 7 * 24 * 60 * 60 * 1000;
+  const GUIDANCE_SKIP_MONTHS = 6;
   const AUTHOR_ACTIVITY_TOOLTIP_SKIP_KEY = "fooduck:author-profile-tooltip-skip-until:v1";
   let authorMenu = null;
   let activeAuthorTrigger = null;
@@ -282,9 +282,23 @@
     return guidanceSkipUntil(key) > Date.now();
   }
 
-  function skipGuidanceForSevenDays(key) {
+  function guidanceSkipExpiryTimestamp() {
+    const until = new Date();
+    const originalDay = until.getDate();
+    until.setDate(1);
+    until.setMonth(until.getMonth() + GUIDANCE_SKIP_MONTHS);
+    const lastDayOfTargetMonth = new Date(
+      until.getFullYear(),
+      until.getMonth() + 1,
+      0,
+    ).getDate();
+    until.setDate(Math.min(originalDay, lastDayOfTargetMonth));
+    return until.getTime();
+  }
+
+  function skipGuidanceForSixMonths(key) {
     try {
-      window.localStorage.setItem(key, String(Date.now() + GUIDANCE_SKIP_MS));
+      window.localStorage.setItem(key, String(guidanceSkipExpiryTimestamp()));
     } catch (_error) {
       // localStorage를 사용할 수 없는 환경에서는 안내를 현재 화면에서만 닫는다.
     }
@@ -326,7 +340,7 @@
       const button = element(
         "button",
         "guidance-settings-action",
-        "작성자 프로필 안내 다시 보기",
+        "작성자 프로필 안내 다시 켜기",
       );
       button.type = "button";
       button.addEventListener("click", () => {
@@ -337,12 +351,18 @@
 
 
 
-    guidanceSettingsPanel.replaceChildren(
+    const header = element("div", "guidance-settings-panel__header");
+    header.append(
       element("strong", "guidance-settings-panel__title", "안내 설정"),
+      element("span", "guidance-settings-panel__status", "안내 숨김 중"),
+    );
+
+    guidanceSettingsPanel.replaceChildren(
+      header,
       element(
         "p",
         "guidance-settings-panel__copy",
-        "7일간 숨긴 작성자 프로필 안내를 바로 다시 표시할 수 있습니다.",
+        "작성자 프로필 안내를 숨기고 있습니다. 필요하면 언제든 바로 다시 켤 수 있습니다.",
       ),
       body,
     );
@@ -358,7 +378,7 @@
     toggleIcon.setAttribute("aria-hidden", "true");
     toggle.append(toggleIcon);
     toggle.type = "button";
-    toggle.title = "안내 설정";
+    toggle.dataset.tooltip = "안내 설정";
     toggle.setAttribute("aria-label", "안내 설정");
     toggle.setAttribute("aria-expanded", "false");
     toggle.setAttribute("aria-haspopup", "dialog");
@@ -412,12 +432,12 @@
   }
 
   function createGuidanceSkipButton(key, onSkip) {
-    const button = element("button", "guidance-tooltip-skip", "7일간 보지 않기");
+    const button = element("button", "guidance-tooltip-skip", "6개월간 안내 숨기기");
     button.type = "button";
     button.addEventListener("click", (event) => {
       event.preventDefault();
       event.stopPropagation();
-      skipGuidanceForSevenDays(key);
+      skipGuidanceForSixMonths(key);
       onSkip?.();
     });
     return button;
@@ -539,7 +559,17 @@
     const tooltip = element("div", "author-activity-tooltip");
     tooltip.setAttribute("role", "group");
     tooltip.setAttribute("aria-label", "작성자 프로필 안내");
+
+    const tooltipHeader = element("div", "author-activity-tooltip__header");
+    const tooltipIcon = icon("person");
+    tooltipIcon.classList.add("author-activity-tooltip__icon");
+    tooltipHeader.append(
+      tooltipIcon,
+      element("strong", "author-activity-tooltip__title", "작성자 프로필"),
+    );
+
     tooltip.append(
+      tooltipHeader,
       element("span", "author-activity-tooltip-copy", message),
       createGuidanceSkipButton(AUTHOR_ACTIVITY_TOOLTIP_SKIP_KEY, closeAuthorActivityTooltip),
     );
@@ -1558,7 +1588,7 @@
     trigger.setAttribute("aria-controls", "board-author-menu");
     trigger.setAttribute("aria-expanded", "false");
     trigger.setAttribute("aria-label", `${author.authorNickname || "작성자"} 프로필 보기`);
-    trigger.dataset.authorActivityTooltip = "프로필 보기 · 글 · 댓글 · 리뷰 확인";
+    trigger.dataset.authorActivityTooltip = "글 · 댓글 · 리뷰 등 공개 활동을 확인할 수 있습니다.";
     trigger.addEventListener("mouseenter", () => showAuthorActivityTooltip(trigger));
     trigger.addEventListener("mouseleave", scheduleAuthorActivityTooltipClose);
     trigger.addEventListener("focus", () => showAuthorActivityTooltip(trigger));

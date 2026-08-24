@@ -1173,41 +1173,65 @@
   z-index: 1500;
   display: grid;
   width: max-content;
-  max-width: min(260px, calc(100vw - 24px));
-  gap: 6px;
-  padding: 8px 9px;
-  border-radius: 8px;
-  color: #fff;
-  background: #203247;
-  box-shadow: 0 8px 22px rgba(21, 38, 57, 0.2);
-  font-size: 0.68rem;
-  font-weight: 750;
-  line-height: 1.35;
+  max-width: min(286px, calc(100vw - 24px));
+  gap: 8px;
+  padding: 10px 11px;
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  border-radius: 11px;
+  color: #f8fafc;
+  background: #243447;
+  box-shadow: 0 10px 28px rgba(16, 24, 40, 0.22);
+  font-size: 0.7rem;
+  line-height: 1.45;
   animation: author-activity-tooltip-in 140ms ease-out both;
+}
+
+.author-activity-tooltip__header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.author-activity-tooltip__icon {
+  width: 15px;
+  height: 15px;
+  flex: 0 0 auto;
+  color: #d7e3ee;
+}
+
+.author-activity-tooltip__title {
+  color: #fff;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: -0.01em;
 }
 
 .author-activity-tooltip-copy {
   display: block;
+  color: rgba(248, 250, 252, 0.84);
+  font-weight: 600;
 }
 
 .guidance-tooltip-skip {
   justify-self: start;
-  padding: 0;
-  border: 0;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.48);
+  padding: 5px 7px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 7px;
   color: rgba(255, 255, 255, 0.82);
-  background: transparent;
+  background: rgba(255, 255, 255, 0.07);
   cursor: pointer;
   font: inherit;
   font-size: 0.66rem;
-  font-weight: 700;
-  line-height: 1.35;
+  font-weight: 750;
+  line-height: 1.25;
+  transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease;
 }
 
 .guidance-tooltip-skip:hover,
 .guidance-tooltip-skip:focus-visible {
+  border-color: rgba(255, 255, 255, 0.24);
   color: #fff;
-  border-bottom-color: #fff;
+  background: rgba(255, 255, 255, 0.13);
   outline: none;
 }
 
@@ -4286,7 +4310,7 @@ body.is-image-viewer-open {
   }
 }
 
-/* 7일간 숨긴 작성자 프로필 안내를 비로그인 사용자도 즉시 복원할 수 있는 로컬 안내 설정 */
+/* 6개월간 숨긴 작성자 프로필 안내를 비로그인 사용자도 즉시 복원할 수 있는 로컬 안내 설정 */
 .guidance-settings {
   position: fixed;
   right: 24px;
@@ -4308,6 +4332,7 @@ body.board-scroll-top-visible .guidance-settings {
 }
 
 .guidance-settings-toggle {
+  position: relative;
   display: grid;
   width: 46px;
   height: 46px;
@@ -4330,6 +4355,37 @@ body.board-scroll-top-visible .guidance-settings {
   font-size: 22px;
 }
 
+.guidance-settings-toggle::after {
+  position: absolute;
+  right: calc(100% + 9px);
+  top: 50%;
+  width: max-content;
+  max-width: 140px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  color: #fff;
+  background: #243447;
+  box-shadow: 0 8px 22px rgba(16, 24, 40, 0.18);
+  content: attr(data-tooltip);
+  font-size: 0.68rem;
+  font-weight: 750;
+  line-height: 1.25;
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(4px, -50%);
+  transition: opacity 120ms ease, transform 120ms ease;
+}
+
+.guidance-settings-toggle:hover::after,
+.guidance-settings-toggle:focus-visible::after {
+  opacity: 1;
+  transform: translate(0, -50%);
+}
+
+.guidance-settings-toggle[aria-expanded="true"]::after {
+  opacity: 0;
+}
+
 .guidance-settings-toggle:hover,
 .guidance-settings-toggle:focus-visible {
   border-color: rgba(230, 143, 62, 0.34);
@@ -4346,6 +4402,13 @@ body.board-scroll-top-visible .guidance-settings {
   box-shadow: 0 14px 36px rgba(16, 24, 40, 0.14);
 }
 
+.guidance-settings-panel__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
 .guidance-settings-panel__title {
   display: block;
   color: var(--color-navy);
@@ -4353,11 +4416,22 @@ body.board-scroll-top-visible .guidance-settings {
   font-weight: 850;
 }
 
+.guidance-settings-panel__status {
+  flex: 0 0 auto;
+  padding: 3px 6px;
+  border-radius: 999px;
+  color: #526273;
+  background: #eef2f5;
+  font-size: 0.62rem;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
 .guidance-settings-panel__copy {
-  margin: 4px 0 10px;
+  margin: 7px 0 11px;
   color: var(--color-muted);
   font-size: 0.69rem;
-  line-height: 1.45;
+  line-height: 1.5;
 }
 
 .guidance-settings-panel__body {
@@ -4367,9 +4441,9 @@ body.board-scroll-top-visible .guidance-settings {
 
 .guidance-settings-action {
   width: 100%;
-  padding: 8px 9px;
+  padding: 9px 10px;
   border: 1px solid rgba(31, 53, 76, 0.10);
-  border-radius: 9px;
+  border-radius: 10px;
   color: #344454;
   background: #f8fafb;
   cursor: pointer;
