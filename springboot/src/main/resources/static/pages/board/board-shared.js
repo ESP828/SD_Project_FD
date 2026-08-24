@@ -398,12 +398,14 @@
     if (!hasSkippedGuidance || !authorGuidanceSurfaceAvailable) {
       closeGuidanceSettings();
       if (guidanceSettingsRoot) guidanceSettingsRoot.hidden = true;
+      document.body?.classList.remove("guidance-settings-visible");
       return;
     }
 
     const root = ensureGuidanceSettingsControl();
     if (!root) return;
     root.hidden = false;
+    document.body?.classList.add("guidance-settings-visible");
     if (guidanceSettingsPanel && !guidanceSettingsPanel.hidden) {
       renderGuidanceSettingsPanel();
     }
