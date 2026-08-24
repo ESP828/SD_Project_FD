@@ -457,7 +457,12 @@
       const hours = element("span", "news-restaurant-card__detail");
       const hoursIcon = element("span", "material-symbols-rounded", "schedule");
       hoursIcon.setAttribute("aria-hidden", "true");
-      hours.append(hoursIcon, document.createTextNode(data.openingHours));
+      // 한 줄짜리 칩이라 줄로 나누진 못해도, 표기는 "요일 : 시간" 형식으로 맞춘다.
+      const parsedHours = window.FooduckHours?.parse(data.openingHours);
+      const hoursText = parsedHours
+        ? parsedHours.map((entry) => `${entry.label} : ${entry.value}`).join(" · ")
+        : (window.FooduckHours?.normalize(data.openingHours) || data.openingHours);
+      hours.append(hoursIcon, document.createTextNode(hoursText));
       details.append(hours);
     }
     copy.append(details);
@@ -1771,6 +1776,11 @@
         || (post.bestOverride !== false && automaticallyBest)
       );
     if (canManage) {
+      // 올리기(베스트·공지)와 관리(수정·삭제)를 각각 한 묶음으로 둔다.
+      // 묶음 안에서는 줄을 나누지 않아 화면 폭이 변해도 짝이 흩어지지 않는다.
+      const promoteGroup = element("div", "detail-actions-group");
+      const manageGroup = element("div", "detail-actions-group");
+
       if (!newsPost && session.isAdmin && !isPinnedPost(post)) {
         const bestToggleButton = actionButton(
           currentlyBest ? "베스트에서 내리기" : "베스트로 올리기",
@@ -1778,7 +1788,7 @@
           (event) => updateBestOverride(currentlyBest ? "EXCLUDE" : "INCLUDE", event),
         );
         bestToggleButton.disabled = bestOverrideInFlight;
-        actions.append(bestToggleButton);
+        promoteGroup.append(bestToggleButton);
       }
 
       if (!newsPost && session.isAdmin && isPinnedPost(post)) {
@@ -1788,7 +1798,7 @@
           unpinNotice,
         );
         unpinButton.disabled = noticeUnpinInFlight;
-        actions.append(unpinButton);
+        promoteGroup.append(unpinButton);
       } else if (
         !newsPost
         && session.isAdmin
@@ -1801,8 +1811,9 @@
           pinNotice,
         );
         pinButton.disabled = noticePinInFlight;
-        actions.append(pinButton);
+        promoteGroup.append(pinButton);
       }
+      if (promoteGroup.childElementCount) actions.append(promoteGroup);
       const editLink = element("a", "button button-sm button-secondary", "수정");
       if (newsPost) {
         editLink.href = newsWritePath(post);
@@ -1814,10 +1825,11 @@
         editUrl.searchParams.set("returnTo", communityReturnPath(post));
         editLink.href = `${editUrl.pathname}${editUrl.search}`;
       }
-      actions.append(
+      manageGroup.append(
         editLink,
         actionButton("삭제", "button button-sm button-danger", deletePost),
       );
+      actions.append(manageGroup);
     }
     if (actions.childElementCount) detailContent.append(actions);
     renderRestaurantSide(newsPost ? null : post.restaurant);

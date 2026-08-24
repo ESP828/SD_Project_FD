@@ -3816,6 +3816,19 @@
 
     ownedBadge.hidden = false;
 
+    // 영업시간은 가게마다 저장 형식이 달라(구글 표기 등) 한 줄로 길게 이어지는 경우가 있다.
+    // 요일 단위로 끊어 "요일 : 영업시간" 한 줄씩 보여주고, 못 끊으면 원문을 그대로 쓴다.
+    const parsedHours = store.openingHours
+      ? window.FooduckHours?.parse(store.openingHours)
+      : null;
+    const openingHoursHtml = parsedHours
+      ? `<ul class="store-hours-list">${parsedHours.map((entry) => `
+          <li><span>${escapeHtml(entry.label)}</span><span>${escapeHtml(entry.value)}</span></li>`).join("")}</ul>`
+      : escapeHtml(
+        (store.openingHours && window.FooduckHours?.normalize(store.openingHours))
+        || store.openingHours
+        || "-",
+      );
     panels.info.innerHTML = `
       <div class="store-section-card">
         <h2>가게 정보</h2>
@@ -3823,7 +3836,7 @@
           <div><dt>카테고리</dt><dd>${escapeHtml(store.categoryName || "-")}</dd></div>
           <div><dt>주소</dt><dd>${escapeHtml(addressEl.textContent || "-")}</dd></div>
           <div><dt>전화번호</dt><dd>${escapeHtml(store.phone || "-")}</dd></div>
-          <div><dt>영업시간</dt><dd>${escapeHtml(store.openingHours || "-")}</dd></div>
+          <div><dt>영업시간</dt><dd>${openingHoursHtml}</dd></div>
           <div><dt>휴무일</dt><dd>${escapeHtml(store.closedDays || "-")}</dd></div>
         </dl>
       </div>

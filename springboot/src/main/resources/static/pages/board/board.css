@@ -646,11 +646,53 @@
 }
 
 .detail-actions {
+  /* 버튼 한 칸의 최소 폭. 이보다 좁아지면 다음 줄로 넘긴다. */
+  --detail-action-min: 124px;
+  --detail-action-gap: 8px;
+  /* .button-sm의 좌우 여백(17px)과 테두리(1px)를 합한 값.
+     버튼은 이 폭 밑으로는 줄어들지 못하므로, 남는 자리를 나누기 전에
+     이만큼을 기준 크기로 미리 잡아 두어야 묶음 안팎의 버튼 폭이 같아진다. */
+  --detail-action-frame: 36px;
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: var(--detail-action-gap);
   padding-bottom: 24px;
   border-bottom: 1px solid var(--color-line);
+}
+
+/* 한 줄에 놓인 버튼은 그 줄의 폭을 똑같이 나눠 가진다(100% ÷ 그 줄의 버튼 수). */
+.detail-actions > .button {
+  flex: 1 1 var(--detail-action-frame);
+  min-width: var(--detail-action-min);
+}
+
+/* 올리기(베스트·공지)와 관리(수정·삭제)를 각각 한 묶음으로 둔다.
+   묶음 안에서는 줄을 나누지 않으므로 화면 폭이 변해도 짝이 흩어지지 않는다.
+   묶음은 안에 든 버튼 수만큼 자리를 가져가므로, 묶음 안팎을 가리지 않고
+   같은 줄에 있는 버튼의 폭이 모두 같아진다. */
+.detail-actions-group {
+  display: flex;
+  flex: 1 1 var(--detail-action-frame);
+  flex-wrap: nowrap;
+  gap: var(--detail-action-gap);
+  min-width: var(--detail-action-min);
+}
+
+.detail-actions-group:has(> .button:nth-child(2)) {
+  flex-grow: 2;
+  flex-basis: calc(var(--detail-action-frame) * 2 + var(--detail-action-gap));
+  min-width: calc(var(--detail-action-min) * 2 + var(--detail-action-gap));
+}
+
+.detail-actions-group:has(> .button:nth-child(3)) {
+  flex-grow: 3;
+  flex-basis: calc(var(--detail-action-frame) * 3 + var(--detail-action-gap) * 2);
+  min-width: calc(var(--detail-action-min) * 3 + var(--detail-action-gap) * 2);
+}
+
+.detail-actions-group > .button {
+  flex: 1 1 var(--detail-action-frame);
+  min-width: 0;
 }
 
 .button-danger {
