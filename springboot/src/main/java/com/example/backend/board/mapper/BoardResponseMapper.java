@@ -173,6 +173,7 @@ public class BoardResponseMapper {
                 post.getBoardType(),
                 post.getCategory(),
                 post.isPinned(),
+                post.getBestOverride(),
                 post.getRestaurantId(),
                 post.getPublicRestaurantId(),
                 restaurant,

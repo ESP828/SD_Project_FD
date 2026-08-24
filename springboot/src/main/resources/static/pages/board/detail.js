@@ -43,6 +43,7 @@
   let postDeleteInFlight = false;
   let noticeUnpinInFlight = false;
   let noticePinInFlight = false;
+  let bestOverrideInFlight = false;
   let sessionNicknamePromise = null;
   let cachedFallbackNoticeShown = false;
   const commentDeleteInFlight = new Set();
@@ -1814,6 +1815,50 @@
       ? post.newsManageableByCurrentUser === true && Boolean(newsTarget)
       : post.ownedByCurrentUser || session.isAdmin;
     if (canManage) {
+      if (!newsPost && session.isAdmin && !isPinnedPost(post)) {
+        if (post.bestOverride === true) {
+          const bestExcludeButton = actionButton(
+            "베스트에서 내리기",
+            "button button-sm button-secondary",
+            (event) => updateBestOverride("EXCLUDE", event),
+          );
+          bestExcludeButton.disabled = bestOverrideInFlight;
+          actions.append(bestExcludeButton);
+        } else if (post.bestOverride === false) {
+          const bestIncludeButton = actionButton(
+            "베스트로 올리기",
+            "button button-sm button-secondary",
+            (event) => updateBestOverride("INCLUDE", event),
+          );
+          bestIncludeButton.disabled = bestOverrideInFlight;
+          actions.append(bestIncludeButton);
+        } else {
+          const bestIncludeButton = actionButton(
+            "베스트로 올리기",
+            "button button-sm button-secondary",
+            (event) => updateBestOverride("INCLUDE", event),
+          );
+          const bestExcludeButton = actionButton(
+            "베스트에서 내리기",
+            "button button-sm button-secondary",
+            (event) => updateBestOverride("EXCLUDE", event),
+          );
+          bestIncludeButton.disabled = bestOverrideInFlight;
+          bestExcludeButton.disabled = bestOverrideInFlight;
+          actions.append(bestIncludeButton, bestExcludeButton);
+        }
+
+        if (post.bestOverride !== null && post.bestOverride !== undefined) {
+          const bestAutoButton = actionButton(
+            "자동 선정으로 복원",
+            "button button-sm button-secondary",
+            (event) => updateBestOverride("AUTO", event),
+          );
+          bestAutoButton.disabled = bestOverrideInFlight;
+          actions.append(bestAutoButton);
+        }
+      }
+
       if (!newsPost && session.isAdmin && isPinnedPost(post)) {
         const unpinButton = actionButton(
           "공지에서 내리기",
@@ -1970,6 +2015,51 @@
     } finally {
       likeInFlight = false;
       if (activeLikeButton) activeLikeButton.disabled = false;
+    }
+  }
+
+  async function updateBestOverride(mode, event) {
+    const post = state.post;
+    if (
+      !post
+      || !session.isAdmin
+      || isPinnedPost(post)
+      || bestOverrideInFlight
+    ) {
+      return;
+    }
+
+    bestOverrideInFlight = true;
+    const button = event?.currentTarget instanceof HTMLButtonElement
+      ? event.currentTarget
+      : null;
+    if (button) button.disabled = true;
+
+    try {
+      const params = new URLSearchParams({ mode });
+      const payload = await Api.patch(
+        `/board/posts/${postId}/best-override?${params.toString()}`,
+        {},
+        { cache: "no-store" },
+      );
+      invalidateBoardCache({ global: true });
+      renderPost({
+        ...post,
+        ...(payload.data || {}),
+      });
+      showToast(
+        toast,
+        payload.message || "베스트 커뮤니티 설정을 변경했습니다.",
+      );
+    } catch (error) {
+      showToast(
+        toast,
+        error.message || "베스트 커뮤니티 설정을 변경하지 못했습니다.",
+        true,
+      );
+    } finally {
+      bestOverrideInFlight = false;
+      if (button?.isConnected) button.disabled = false;
     }
   }
 

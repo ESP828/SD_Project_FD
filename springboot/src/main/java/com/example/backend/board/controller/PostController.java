@@ -480,6 +480,22 @@ public class PostController {
         return update(postId, request, authentication);
     }
 
+    @PatchMapping("/{postId}/best-override")
+    public ApiResponse<PostDetailResponse> updateBestOverride(
+            @PathVariable Long postId,
+            @RequestParam String mode,
+            Authentication authentication
+    ) {
+        return ApiResponse.success(
+                "베스트 커뮤니티 설정을 변경했습니다.",
+                postService.updateBestOverride(
+                        postId,
+                        mode,
+                        BoardAuthentication.accountId(authentication)
+                )
+        );
+    }
+
     @PatchMapping("/{postId}/pin")
     public ApiResponse<PostDetailResponse> pinPost(
             @PathVariable Long postId,

@@ -81,6 +81,9 @@ public class Post {
     @Column(name = "is_pinned", nullable = false)
     private boolean pinned;
 
+    @Column(name = "best_override")
+    private Boolean bestOverride;
+
     @Column(name = "deleted_at")
     private LocalDateTime deletedAt;
 
@@ -205,6 +208,11 @@ public class Post {
         this.updatedAt = LocalDateTime.now();
     }
 
+    public void updateBestOverride(Boolean bestOverride) {
+        this.bestOverride = bestOverride;
+        this.updatedAt = LocalDateTime.now();
+    }
+
     private static void validateRestaurantReference(
             BoardType boardType,
             PostCategory category,
@@ -326,6 +334,10 @@ public class Post {
 
     public boolean isPinned() {
         return pinned;
+    }
+
+    public Boolean getBestOverride() {
+        return bestOverride;
     }
 
     public LocalDateTime getDeletedAt() {

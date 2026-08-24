@@ -17,6 +17,7 @@ public record PostDetailResponse(
         BoardType boardType,
         PostCategory category,
         boolean pinned,
+        Boolean bestOverride,
         Long restaurantId,
         Long publicRestaurantId,
         RestaurantSummaryResponse restaurant,

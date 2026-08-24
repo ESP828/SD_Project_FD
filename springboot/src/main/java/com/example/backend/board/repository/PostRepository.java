@@ -169,18 +169,28 @@ public interface PostRepository extends JpaRepository<Post, Long> {
             from Post p
             join fetch p.author
             where p.status = :status
-              and p.likeCount >= :minimumLikeCount
+              and (
+                    p.bestOverride = true
+                    or (p.bestOverride is null and p.likeCount >= :minimumLikeCount)
+              )
               and p.pinned = false
               and p.category <> :excludedCategory
               and p.category <> com.example.backend.board.domain.type.PostCategory.NEWS
               and (:readableBoardType is null or p.boardType = :readableBoardType)
-            order by p.likeCount desc, p.createdAt desc, p.postId desc
+            order by
+              case when p.bestOverride = true then 0 else 1 end,
+              p.likeCount desc,
+              p.createdAt desc,
+              p.postId desc
             """,
             countQuery = """
             select count(p)
             from Post p
             where p.status = :status
-              and p.likeCount >= :minimumLikeCount
+              and (
+                    p.bestOverride = true
+                    or (p.bestOverride is null and p.likeCount >= :minimumLikeCount)
+              )
               and p.pinned = false
               and p.category <> :excludedCategory
               and p.category <> com.example.backend.board.domain.type.PostCategory.NEWS

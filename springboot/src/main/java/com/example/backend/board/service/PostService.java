@@ -951,6 +951,44 @@ public class PostService {
     }
 
     @Transactional
+    public PostDetailResponse updateBestOverride(
+            Long postId,
+            String modeValue,
+            Long currentAccountId
+    ) {
+        Account currentAccount = boardUserService.require(currentAccountId);
+        if (!accessPolicy.isAdmin(currentAccount)) {
+            throw new BoardException(
+                    HttpStatus.FORBIDDEN,
+                    "BOARD_BEST_MANAGE_FORBIDDEN",
+                    "관리자만 베스트 커뮤니티 선정 상태를 변경할 수 있습니다."
+            );
+        }
+
+        Post post = getExistingPostForUpdate(postId);
+        if (post.isPinned()
+                || post.getCategory() == PostCategory.NOTICE
+                || post.getCategory() == PostCategory.NEWS) {
+            throw badRequest("공지 또는 가게 소식은 베스트 커뮤니티에 지정할 수 없습니다.");
+        }
+
+        String mode = modeValue == null
+                ? ""
+                : modeValue.strip().toUpperCase(Locale.ROOT);
+        Boolean bestOverride = switch (mode) {
+            case "INCLUDE" -> Boolean.TRUE;
+            case "EXCLUDE" -> Boolean.FALSE;
+            case "AUTO" -> null;
+            default -> throw badRequest(
+                    "베스트 설정은 INCLUDE, EXCLUDE, AUTO 중 하나여야 합니다."
+            );
+        };
+
+        post.updateBestOverride(bestOverride);
+        return responseMapper.toDetail(post, currentAccount);
+    }
+
+    @Transactional
     public void deletePost(Long postId, Long currentAccountId) {
         Account currentAccount = boardUserService.require(currentAccountId);
         Post post = getExistingPostForUpdate(postId);
