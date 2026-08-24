@@ -26,7 +26,14 @@
     ADMIN: "운영 및 관리 권한을 가진 회원입니다.",
   };
 
+  const GUIDANCE_SKIP_MS = 7 * 24 * 60 * 60 * 1000;
+  const AUTHOR_ACTIVITY_TOOLTIP_SKIP_KEY = "fooduck:author-profile-tooltip-skip-until:v1";
+  const ROLE_DESCRIPTION_SKIP_KEY = "fooduck:role-description-skip-until:v1";
+
   let activeRoleBadge = null;
+  let roleDescriptionTooltip = null;
+  let roleDescriptionTooltipTarget = null;
+  let roleDescriptionCloseTimer = null;
   let authorMenu = null;
   let activeAuthorTrigger = null;
   let businessAccessPromise = null;
@@ -36,6 +43,10 @@
   let authorActivityHintTimer = null;
   let authorActivityTooltip = null;
   let authorActivityTooltipTarget = null;
+  let authorActivityTooltipCloseTimer = null;
+  let guidanceSettingsRoot = null;
+  let guidanceSettingsToggle = null;
+  let guidanceSettingsPanel = null;
   const AUTHOR_ACTIVITY_HINT_KEY = "fooduck:author-profile-hint:v1";
 
 
@@ -194,6 +205,29 @@
     notifyBoardCacheInvalidated(Number(event.newValue) || Date.now());
   });
 
+  window.addEventListener("storage", (event) => {
+    if (
+      event.key !== AUTHOR_ACTIVITY_TOOLTIP_SKIP_KEY
+      && event.key !== ROLE_DESCRIPTION_SKIP_KEY
+    ) return;
+
+    if (event.key === ROLE_DESCRIPTION_SKIP_KEY) {
+      if (isGuidanceSkipped(ROLE_DESCRIPTION_SKIP_KEY)) {
+        disableRoleGuidanceForCurrentPage();
+      } else {
+        document.querySelectorAll(".post-role[data-role-description]").forEach((badge) => {
+          enableRoleGuidance(badge);
+        });
+      }
+    }
+
+    if (event.key === AUTHOR_ACTIVITY_TOOLTIP_SKIP_KEY) {
+      closeAuthorActivityTooltip();
+    }
+
+    syncGuidanceSettingsControl();
+  });
+
   function element(tag, className, text) {
     const node = document.createElement(tag);
     if (className) node.className = className;
@@ -259,6 +293,189 @@
     return categoryLabels[value] || value || "카테고리 없음";
   }
 
+  function guidanceSkipUntil(key) {
+    try {
+      const value = Number(window.localStorage.getItem(key));
+      if (!Number.isFinite(value) || value <= Date.now()) {
+        if (value) window.localStorage.removeItem(key);
+        return 0;
+      }
+      return value;
+    } catch (_error) {
+      return 0;
+    }
+  }
+
+  function isGuidanceSkipped(key) {
+    return guidanceSkipUntil(key) > Date.now();
+  }
+
+  function skipGuidanceForSevenDays(key) {
+    try {
+      window.localStorage.setItem(key, String(Date.now() + GUIDANCE_SKIP_MS));
+    } catch (_error) {
+      // localStorage를 사용할 수 없는 환경에서는 안내를 현재 화면에서만 닫는다.
+    }
+    syncGuidanceSettingsControl();
+  }
+
+  function restoreGuidance(key) {
+    try {
+      window.localStorage.removeItem(key);
+    } catch (_error) {
+      // 저장소 접근이 불가능해도 현재 화면 복원은 계속 시도한다.
+    }
+
+    if (key === ROLE_DESCRIPTION_SKIP_KEY) {
+      document.querySelectorAll(".post-role[data-role-description]").forEach((badge) => {
+        enableRoleGuidance(badge);
+      });
+    }
+
+    if (key === AUTHOR_ACTIVITY_TOOLTIP_SKIP_KEY) {
+      closeAuthorActivityTooltip();
+    }
+
+    syncGuidanceSettingsControl();
+  }
+
+  function guidanceState() {
+    return {
+      author: isGuidanceSkipped(AUTHOR_ACTIVITY_TOOLTIP_SKIP_KEY),
+      role: isGuidanceSkipped(ROLE_DESCRIPTION_SKIP_KEY),
+    };
+  }
+
+  function closeGuidanceSettings() {
+    if (!guidanceSettingsPanel || !guidanceSettingsToggle) return;
+    guidanceSettingsPanel.hidden = true;
+    guidanceSettingsToggle.setAttribute("aria-expanded", "false");
+  }
+
+  function renderGuidanceSettingsPanel() {
+    if (!guidanceSettingsPanel) return;
+    const state = guidanceState();
+    const body = element("div", "guidance-settings-panel__body");
+
+    if (state.author) {
+      const button = element(
+        "button",
+        "guidance-settings-action",
+        "작성자 프로필 안내 다시 보기",
+      );
+      button.type = "button";
+      button.addEventListener("click", () => {
+        restoreGuidance(AUTHOR_ACTIVITY_TOOLTIP_SKIP_KEY);
+      });
+      body.append(button);
+    }
+
+    if (state.role) {
+      const button = element(
+        "button",
+        "guidance-settings-action",
+        "역할 안내 다시 보기",
+      );
+      button.type = "button";
+      button.addEventListener("click", () => {
+        restoreGuidance(ROLE_DESCRIPTION_SKIP_KEY);
+      });
+      body.append(button);
+    }
+
+    if (state.author && state.role) {
+      const allButton = element(
+        "button",
+        "guidance-settings-action guidance-settings-action--all",
+        "모든 안내 다시 보기",
+      );
+      allButton.type = "button";
+      allButton.addEventListener("click", () => {
+        restoreGuidance(AUTHOR_ACTIVITY_TOOLTIP_SKIP_KEY);
+        restoreGuidance(ROLE_DESCRIPTION_SKIP_KEY);
+      });
+      body.append(allButton);
+    }
+
+    guidanceSettingsPanel.replaceChildren(
+      element("strong", "guidance-settings-panel__title", "안내 설정"),
+      element(
+        "p",
+        "guidance-settings-panel__copy",
+        "7일간 숨긴 안내를 바로 다시 표시할 수 있습니다.",
+      ),
+      body,
+    );
+  }
+
+  function ensureGuidanceSettingsControl() {
+    if (guidanceSettingsRoot?.isConnected) return guidanceSettingsRoot;
+    if (!document.body) return null;
+
+    const root = element("div", "guidance-settings");
+    const toggle = element("button", "guidance-settings-toggle", "안내 설정");
+    toggle.type = "button";
+    toggle.setAttribute("aria-expanded", "false");
+    toggle.setAttribute("aria-haspopup", "dialog");
+
+    const panel = element("section", "guidance-settings-panel");
+    panel.hidden = true;
+    panel.setAttribute("role", "dialog");
+    panel.setAttribute("aria-label", "안내 설정");
+
+    toggle.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const willOpen = panel.hidden;
+      if (willOpen) {
+        renderGuidanceSettingsPanel();
+        panel.hidden = false;
+      } else {
+        panel.hidden = true;
+      }
+      toggle.setAttribute("aria-expanded", String(willOpen));
+    });
+
+    panel.addEventListener("click", (event) => event.stopPropagation());
+    root.append(panel, toggle);
+    document.body.append(root);
+
+    guidanceSettingsRoot = root;
+    guidanceSettingsToggle = toggle;
+    guidanceSettingsPanel = panel;
+    return root;
+  }
+
+  function syncGuidanceSettingsControl() {
+    const state = guidanceState();
+    const hasSkippedGuidance = state.author || state.role;
+
+    if (!hasSkippedGuidance) {
+      closeGuidanceSettings();
+      if (guidanceSettingsRoot) guidanceSettingsRoot.hidden = true;
+      return;
+    }
+
+    const root = ensureGuidanceSettingsControl();
+    if (!root) return;
+    root.hidden = false;
+    if (guidanceSettingsPanel && !guidanceSettingsPanel.hidden) {
+      renderGuidanceSettingsPanel();
+    }
+  }
+
+  function createGuidanceSkipButton(key, onSkip) {
+    const button = element("button", "guidance-tooltip-skip", "7일간 보지 않기");
+    button.type = "button";
+    button.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      skipGuidanceForSevenDays(key);
+      onSkip?.();
+    });
+    return button;
+  }
+
   function roleLabel(value) {
     return roleLabels[value] || roleLabels.USER;
   }
@@ -268,39 +485,108 @@
     return `post-role post-role--${normalized}`;
   }
 
+  function clearRoleDescriptionCloseTimer() {
+    if (roleDescriptionCloseTimer) {
+      window.clearTimeout(roleDescriptionCloseTimer);
+      roleDescriptionCloseTimer = null;
+    }
+  }
+
   function closeRoleDescription() {
+    clearRoleDescriptionCloseTimer();
+    if (roleDescriptionTooltip) {
+      roleDescriptionTooltip.remove();
+      roleDescriptionTooltip = null;
+    }
+    roleDescriptionTooltipTarget = null;
     if (!activeRoleBadge) return;
     activeRoleBadge.classList.remove("is-description-open");
     activeRoleBadge.setAttribute("aria-expanded", "false");
     activeRoleBadge = null;
   }
 
-  function roleBadge(value) {
-    const normalizedRole = roleLabels[value] ? value : "USER";
-    const label = roleLabel(normalizedRole);
-    const description = roleDescriptions[normalizedRole] || roleDescriptions.USER;
-    const badge = element("span", roleClass(normalizedRole), label);
+  function scheduleRoleDescriptionClose() {
+    clearRoleDescriptionCloseTimer();
+    roleDescriptionCloseTimer = window.setTimeout(closeRoleDescription, 140);
+  }
+
+  function disableRoleGuidanceForCurrentPage() {
+    closeRoleDescription();
+    document.querySelectorAll(".post-role[data-role-description]").forEach((badge) => {
+      badge.classList.add("is-guidance-skipped");
+      badge.tabIndex = -1;
+      badge.removeAttribute("role");
+      badge.removeAttribute("aria-expanded");
+      badge.removeAttribute("aria-label");
+    });
+    syncGuidanceSettingsControl();
+  }
+
+  function showRoleDescription(badge) {
+    if (!badge?.isConnected || isGuidanceSkipped(ROLE_DESCRIPTION_SKIP_KEY)) return;
+    const description = badge.dataset.roleDescription;
+    if (!description) return;
+
+    clearRoleDescriptionCloseTimer();
+    if (roleDescriptionTooltipTarget === badge && roleDescriptionTooltip?.isConnected) return;
+    closeRoleDescription();
+
+    const tooltip = element("div", "role-description-tooltip");
+    tooltip.setAttribute("role", "group");
+    tooltip.setAttribute("aria-label", "역할 안내");
+    tooltip.append(
+      element("span", "role-description-tooltip-copy", description),
+      createGuidanceSkipButton(ROLE_DESCRIPTION_SKIP_KEY, disableRoleGuidanceForCurrentPage),
+    );
+    tooltip.addEventListener("mouseenter", clearRoleDescriptionCloseTimer);
+    tooltip.addEventListener("mouseleave", scheduleRoleDescriptionClose);
+    document.body.append(tooltip);
+
+    roleDescriptionTooltip = tooltip;
+    roleDescriptionTooltipTarget = badge;
+    activeRoleBadge = badge;
+    badge.classList.add("is-description-open");
+    badge.setAttribute("aria-expanded", "true");
+    positionFloatingPanel(tooltip, badge, 7);
+  }
+
+  function enableRoleGuidance(badge) {
+    if (!badge) return;
+    const description = badge.dataset.roleDescription;
+    const label = badge.dataset.roleLabel || badge.textContent?.trim() || "역할";
+
+    badge.classList.remove("is-guidance-skipped");
     badge.tabIndex = 0;
     badge.setAttribute("role", "button");
     badge.setAttribute("aria-expanded", "false");
     badge.setAttribute("aria-label", `${label} 역할 설명: ${description}`);
-    badge.dataset.roleDescription = description;
 
-    const toggle = (event) => {
+    if (badge.dataset.roleGuidanceBound === "true") return;
+    badge.dataset.roleGuidanceBound = "true";
+
+    badge.addEventListener("mouseenter", () => showRoleDescription(badge));
+    badge.addEventListener("mouseleave", scheduleRoleDescriptionClose);
+    badge.addEventListener("focus", () => showRoleDescription(badge));
+    badge.addEventListener("blur", scheduleRoleDescriptionClose);
+    badge.addEventListener("click", (event) => {
+      if (isGuidanceSkipped(ROLE_DESCRIPTION_SKIP_KEY)) return;
       event.preventDefault();
       event.stopPropagation();
-      const opening = activeRoleBadge !== badge || !badge.classList.contains("is-description-open");
-      closeRoleDescription();
-      if (!opening) return;
-      badge.classList.add("is-description-open");
-      badge.setAttribute("aria-expanded", "true");
-      activeRoleBadge = badge;
-    };
-
-    badge.addEventListener("click", toggle);
+      if (activeRoleBadge === badge && roleDescriptionTooltip?.isConnected) {
+        closeRoleDescription();
+      } else {
+        showRoleDescription(badge);
+      }
+    });
     badge.addEventListener("keydown", (event) => {
       if (event.key === "Enter" || event.key === " ") {
-        toggle(event);
+        event.preventDefault();
+        event.stopPropagation();
+        if (activeRoleBadge === badge && roleDescriptionTooltip?.isConnected) {
+          closeRoleDescription();
+        } else {
+          showRoleDescription(badge);
+        }
         return;
       }
       if (event.key === "Escape") {
@@ -308,15 +594,36 @@
         closeRoleDescription();
       }
     });
-    badge.addEventListener("blur", () => {
-      if (activeRoleBadge === badge) closeRoleDescription();
-    });
+  }
+
+  function roleBadge(value) {
+    const normalizedRole = roleLabels[value] ? value : "USER";
+    const label = roleLabel(normalizedRole);
+    const description = roleDescriptions[normalizedRole] || roleDescriptions.USER;
+    const badge = element("span", roleClass(normalizedRole), label);
+    badge.dataset.roleDescription = description;
+    badge.dataset.roleLabel = label;
+
+    if (isGuidanceSkipped(ROLE_DESCRIPTION_SKIP_KEY)) {
+      badge.classList.add("is-guidance-skipped");
+      return badge;
+    }
+
+    enableRoleGuidance(badge);
     return badge;
   }
 
   document.addEventListener("click", (event) => {
-    if (!activeRoleBadge || activeRoleBadge.contains(event.target)) return;
+    if (guidanceSettingsRoot?.contains(event.target)) return;
+    closeGuidanceSettings();
+    if (roleDescriptionTooltip?.contains(event.target)) return;
+    if (activeRoleBadge?.contains(event.target)) return;
     closeRoleDescription();
+  });
+
+  document.addEventListener("keydown", (event) => {
+    if (event.key !== "Escape") return;
+    closeGuidanceSettings();
   });
 
   function hasSeenAuthorActivityHint() {
@@ -374,7 +681,15 @@
     positionFloatingPanel(authorActivityHint, trigger, 10);
   }
 
+  function clearAuthorActivityTooltipCloseTimer() {
+    if (authorActivityTooltipCloseTimer) {
+      window.clearTimeout(authorActivityTooltipCloseTimer);
+      authorActivityTooltipCloseTimer = null;
+    }
+  }
+
   function closeAuthorActivityTooltip() {
+    clearAuthorActivityTooltipCloseTimer();
     if (authorActivityTooltip) {
       authorActivityTooltip.remove();
       authorActivityTooltip = null;
@@ -382,13 +697,33 @@
     authorActivityTooltipTarget = null;
   }
 
+  function scheduleAuthorActivityTooltipClose() {
+    clearAuthorActivityTooltipCloseTimer();
+    authorActivityTooltipCloseTimer = window.setTimeout(closeAuthorActivityTooltip, 140);
+  }
+
   function showAuthorActivityTooltip(trigger) {
-    if (!trigger?.isConnected || authorActivityHint) return;
+    if (
+      !trigger?.isConnected
+      || authorActivityHint
+      || isGuidanceSkipped(AUTHOR_ACTIVITY_TOOLTIP_SKIP_KEY)
+    ) return;
     const message = trigger.dataset.authorActivityTooltip;
     if (!message) return;
+
+    clearAuthorActivityTooltipCloseTimer();
+    if (authorActivityTooltipTarget === trigger && authorActivityTooltip?.isConnected) return;
     closeAuthorActivityTooltip();
-    const tooltip = element("div", "author-activity-tooltip", message);
-    tooltip.setAttribute("role", "tooltip");
+
+    const tooltip = element("div", "author-activity-tooltip");
+    tooltip.setAttribute("role", "group");
+    tooltip.setAttribute("aria-label", "작성자 프로필 안내");
+    tooltip.append(
+      element("span", "author-activity-tooltip-copy", message),
+      createGuidanceSkipButton(AUTHOR_ACTIVITY_TOOLTIP_SKIP_KEY, closeAuthorActivityTooltip),
+    );
+    tooltip.addEventListener("mouseenter", clearAuthorActivityTooltipCloseTimer);
+    tooltip.addEventListener("mouseleave", scheduleAuthorActivityTooltipClose);
     document.body.append(tooltip);
     authorActivityTooltip = tooltip;
     authorActivityTooltipTarget = trigger;
@@ -397,7 +732,12 @@
 
   function maybeShowAuthorActivityHint(trigger) {
     window.setTimeout(() => {
-      if (hasSeenAuthorActivityHint() || authorActivityHint || !trigger?.isConnected) return;
+      if (
+        hasSeenAuthorActivityHint()
+        || authorActivityHint
+        || !trigger?.isConnected
+        || isGuidanceSkipped(AUTHOR_ACTIVITY_TOOLTIP_SKIP_KEY)
+      ) return;
       const rect = trigger.getBoundingClientRect();
       const visible = rect.width > 0
         && rect.height > 0
@@ -1399,9 +1739,9 @@
     trigger.setAttribute("aria-label", `${author.authorNickname || "작성자"} 프로필 보기`);
     trigger.dataset.authorActivityTooltip = "프로필 보기 · 글 · 댓글 · 리뷰 확인";
     trigger.addEventListener("mouseenter", () => showAuthorActivityTooltip(trigger));
-    trigger.addEventListener("mouseleave", closeAuthorActivityTooltip);
+    trigger.addEventListener("mouseleave", scheduleAuthorActivityTooltipClose);
     trigger.addEventListener("focus", () => showAuthorActivityTooltip(trigger));
-    trigger.addEventListener("blur", closeAuthorActivityTooltip);
+    trigger.addEventListener("blur", scheduleAuthorActivityTooltipClose);
     trigger.addEventListener("click", (event) => {
       closeAuthorActivityTooltip();
       openAuthorMenu(author, trigger, event, context);
@@ -1454,9 +1794,9 @@
     if (showLoginIdentity && !author?.authorLoginId) {
       wrapper.append(element("strong", "author-login-id", "소셜 계정"));
     }
+    const withdrawnAuthor = author?.authorNickname === "탈퇴한 회원";
     if (showNickname && author?.authorNickname) {
       const nickname = element("span", "author-nickname", author.authorNickname);
-      const withdrawnAuthor = author.authorNickname === "탈퇴한 회원";
       if (showAuthorMenu && author.authorAccountId && !withdrawnAuthor) {
         const trigger = element(
           "span",
@@ -1474,7 +1814,7 @@
         wrapper.append(nickname);
       }
     }
-    if (showRole) {
+    if (showRole && !withdrawnAuthor) {
       wrapper.append(roleBadge(author?.authorRole));
     }
     return wrapper;
@@ -1848,6 +2188,12 @@
     }, 3200);
   }
 
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", syncGuidanceSettingsControl, { once: true });
+  } else {
+    syncGuidanceSettingsControl();
+  }
+
   window.FooduckBoard = {
     cacheInvalidatedEvent: BOARD_CACHE_INVALIDATED_EVENT,
     authorIdentity,
@@ -1857,6 +2203,11 @@
     detailPath,
     element,
     formatDate,
+    guidanceSettings: {
+      restoreAuthorGuidance: () => restoreGuidance(AUTHOR_ACTIVITY_TOOLTIP_SKIP_KEY),
+      restoreRoleGuidance: () => restoreGuidance(ROLE_DESCRIPTION_SKIP_KEY),
+      sync: syncGuidanceSettingsControl,
+    },
     icon,
     invalidateBoardCache,
     listPath,
