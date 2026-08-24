@@ -1814,11 +1814,15 @@
     const canManage = newsPost
       ? post.newsManageableByCurrentUser === true && Boolean(newsTarget)
       : post.ownedByCurrentUser || session.isAdmin;
+    const automaticallyBest = Number(post.likeCount || 0) >= 3;
+    const currentlyBest = !newsPost
+      && !isPinnedPost(post)
+      && (
+        post.bestOverride === true
+        || (post.bestOverride !== false && automaticallyBest)
+      );
     if (canManage) {
       if (!newsPost && session.isAdmin && !isPinnedPost(post)) {
-        const automaticallyBest = Number(post.likeCount || 0) >= 3;
-        const currentlyBest = post.bestOverride === true
-          || (post.bestOverride !== false && automaticallyBest);
         const bestToggleButton = actionButton(
           currentlyBest ? "베스트에서 내리기" : "베스트로 올리기",
           "button button-sm button-secondary",
@@ -1836,7 +1840,12 @@
         );
         unpinButton.disabled = noticeUnpinInFlight;
         actions.append(unpinButton);
-      } else if (!newsPost && session.isAdmin && !isPinnedPost(post)) {
+      } else if (
+        !newsPost
+        && session.isAdmin
+        && !isPinnedPost(post)
+        && !currentlyBest
+      ) {
         const pinButton = actionButton(
           "공지로 올리기",
           "button button-sm button-secondary",
