@@ -1922,28 +1922,82 @@ button.author-menu-notification-link {
 }
 
 .post-role {
+  position: relative;
   display: inline-flex;
   align-items: center;
+  gap: 5px;
   min-height: 22px;
-  padding: 3px 7px;
+  padding: 2px 7px;
+  border: 1px solid transparent;
   border-radius: 999px;
   font-size: 0.64rem;
-  font-weight: 900;
+  font-weight: 800;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+  cursor: help;
+  outline: none;
+}
+
+.post-role::before {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+  content: "";
+  opacity: 0.82;
+}
+
+.post-role::after {
+  position: absolute;
+  z-index: 80;
+  top: calc(100% + 7px);
+  left: 0;
+  width: max-content;
+  max-width: min(240px, 72vw);
+  padding: 7px 9px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 8px;
+  color: #fff;
+  background: #202833;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.14);
+  content: attr(data-role-description);
+  font-size: 0.72rem;
+  font-weight: 650;
+  line-height: 1.45;
+  white-space: normal;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-2px);
+  transition: opacity 120ms ease, transform 120ms ease;
+}
+
+.post-role:hover::after,
+.post-role:focus-visible::after,
+.post-role.is-description-open::after {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.post-role:focus-visible {
+  box-shadow: 0 0 0 3px rgba(44, 62, 80, 0.10);
 }
 
 .post-role--user {
-  color: #536273;
-  background: #edf1f5;
+  color: #5f6975;
+  border-color: #dce2e8;
+  background: #f8fafb;
 }
 
 .post-role--business {
-  color: #08733a;
-  background: var(--color-green-soft);
+  color: #256a49;
+  border-color: #cfe2d7;
+  background: #f5faf7;
 }
 
 .post-role--admin {
-  color: #8a4d00;
-  background: var(--color-orange-soft);
+  color: #82501d;
+  border-color: #ead7bb;
+  background: #fffaf2;
 }
 
 .best-post-list a {

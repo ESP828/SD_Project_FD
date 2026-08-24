@@ -20,6 +20,13 @@
     ADMIN: "관리자",
   };
 
+  const roleDescriptions = {
+    USER: "FOODUCK의 일반 이용 회원입니다.",
+    BUSINESS: "사업자 권한이 확인된 회원입니다.",
+    ADMIN: "FOODUCK 운영 및 관리 권한을 가진 회원입니다.",
+  };
+
+  let activeRoleBadge = null;
   let authorMenu = null;
   let activeAuthorTrigger = null;
   let businessAccessPromise = null;
@@ -260,6 +267,57 @@
     const normalized = roleLabels[value] ? value.toLowerCase() : "user";
     return `post-role post-role--${normalized}`;
   }
+
+  function closeRoleDescription() {
+    if (!activeRoleBadge) return;
+    activeRoleBadge.classList.remove("is-description-open");
+    activeRoleBadge.setAttribute("aria-expanded", "false");
+    activeRoleBadge = null;
+  }
+
+  function roleBadge(value) {
+    const normalizedRole = roleLabels[value] ? value : "USER";
+    const label = roleLabel(normalizedRole);
+    const description = roleDescriptions[normalizedRole] || roleDescriptions.USER;
+    const badge = element("span", roleClass(normalizedRole), label);
+    badge.tabIndex = 0;
+    badge.setAttribute("role", "button");
+    badge.setAttribute("aria-expanded", "false");
+    badge.setAttribute("aria-label", `${label} 역할 설명: ${description}`);
+    badge.dataset.roleDescription = description;
+
+    const toggle = (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const opening = activeRoleBadge !== badge || !badge.classList.contains("is-description-open");
+      closeRoleDescription();
+      if (!opening) return;
+      badge.classList.add("is-description-open");
+      badge.setAttribute("aria-expanded", "true");
+      activeRoleBadge = badge;
+    };
+
+    badge.addEventListener("click", toggle);
+    badge.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" || event.key === " ") {
+        toggle(event);
+        return;
+      }
+      if (event.key === "Escape") {
+        event.preventDefault();
+        closeRoleDescription();
+      }
+    });
+    badge.addEventListener("blur", () => {
+      if (activeRoleBadge === badge) closeRoleDescription();
+    });
+    return badge;
+  }
+
+  document.addEventListener("click", (event) => {
+    if (!activeRoleBadge || activeRoleBadge.contains(event.target)) return;
+    closeRoleDescription();
+  });
 
   function hasSeenAuthorActivityHint() {
     if (authorActivityHintShownInSession) return true;
@@ -1417,9 +1475,7 @@
       }
     }
     if (showRole) {
-      wrapper.append(
-        element("span", roleClass(author?.authorRole), roleLabel(author?.authorRole)),
-      );
+      wrapper.append(roleBadge(author?.authorRole));
     }
     return wrapper;
   }
