@@ -504,6 +504,13 @@
   gap: 18px;
 }
 
+/* 사이드 패널은 3개인데 좁은 화면에서 2열로 떨어진다. 그대로 두면 마지막 하나가
+   한 칸만 차지하고 그 옆이 빈 칸으로 남아 오른쪽에 큰 공백이 생긴다.
+   열 수가 홀수로 안 맞는 마지막 패널은 남은 폭을 다 쓰게 한다. */
+.mypage-side-stack > :last-child:nth-child(odd) {
+  grid-column: 1 / -1;
+}
+
 .mypage-action-list {
   display: grid;
   padding: 10px 20px 20px;

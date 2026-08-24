@@ -843,8 +843,11 @@
     font-size: clamp(2.45rem, 11vw, 3.6rem);
   }
 
+  /* 두 버튼이 세로로 쌓이지 않고 한 줄에 나란히 놓이도록 폭을 절반씩 나눠 갖는다. */
   .hero-actions .button {
-    width: 100%;
+    flex: 1 1 0;
+    min-width: 0;
+    white-space: nowrap;
   }
 
   .hero-visual--duck {
@@ -858,5 +861,50 @@
 
   .home-section {
     padding-block: 72px;
+  }
+
+  /* 모바일에서는 히어로 CTA가 좌측으로 쏠리지 않도록 카피 폭을 그대로 채운다. */
+  .hero-actions {
+    width: 100%;
+    align-self: stretch;
+  }
+
+  /* 한 열로 떨어지는 서비스 카드는 높이·여백·캐릭터를 줄여 화면을 덜 차지하게 한다. */
+  .service-card--compact {
+    min-height: 196px;
+    padding: 20px;
+  }
+
+  .service-card--compact .chip {
+    margin-bottom: 14px;
+  }
+
+  .service-card--compact h3 {
+    font-size: 1.2rem;
+  }
+
+  .service-card--compact img {
+    right: 4px;
+    bottom: 2px;
+    width: 112px;
+  }
+
+  .service-card--orange.service-card--compact img {
+    width: 124px;
+  }
+}
+
+/* 320~380px 소형 단말에서는 카드 제목과 캐릭터가 붙지 않도록 한 단계 더 줄인다. */
+@media (max-width: 380px) {
+  .service-card--compact h3 {
+    font-size: 1.08rem;
+  }
+
+  .service-card--compact img {
+    width: 96px;
+  }
+
+  .service-card--orange.service-card--compact img {
+    width: 106px;
   }
 }

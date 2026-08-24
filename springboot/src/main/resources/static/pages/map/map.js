@@ -358,6 +358,35 @@
         `).join("")
       : '<div class="place-detail-empty">아직 작성된 리뷰가 없습니다.</div>';
 
+    // 영업시간은 가게마다 저장 형식이 달라 한 줄로 길게 이어지는 경우가 있다.
+    // 요일 단위로 끊어 "요일 : 영업시간" 한 줄씩 보여주고, 못 끊으면 원문을 그대로 쓴다.
+    const hoursRows = [];
+    if (isOwned && detail?.openingHours) {
+      const parsed = window.FooduckHours?.parse(detail.openingHours);
+      if (parsed) {
+        parsed.forEach((entry) => hoursRows.push([entry.label, entry.value]));
+      } else {
+        const fallback = window.FooduckHours?.normalize(detail.openingHours) || detail.openingHours;
+        hoursRows.push(["영업시간", fallback]);
+      }
+    }
+    if (isOwned && detail?.closedDays) {
+      hoursRows.push(["휴무", detail.closedDays]);
+    }
+
+    const hoursHtml = hoursRows.length
+      ? `<div class="place-detail-section">
+           <h3>영업시간</h3>
+           <ul class="place-detail-hours">
+             ${hoursRows.map(([label, value]) => `
+               <li class="place-detail-hours-item">
+                 <span>${escapeHtml(label)}</span>
+                 <span>${escapeHtml(value)}</span>
+               </li>`).join("")}
+           </ul>
+         </div>`
+      : "";
+
     detailBody.innerHTML = `
       <div class="place-detail-header">
         <div>
@@ -374,7 +403,7 @@
         <strong>${ratingAvg != null ? `★ ${ratingAvg.toFixed(1)}` : (reviewCount ? `리뷰 ${reviewCount}건` : "리뷰 없음")}</strong>
         <span>${ratingAvg != null ? `리뷰 ${reviewCount}건` : ""}${isOwned && detail?.phone ? `${ratingAvg != null ? " · " : ""}${detail.phone}` : ""}</span>
       </div>
-      ${isOwned && detail?.openingHours ? `<div class="place-detail-empty" style="margin-bottom:20px;">${escapeHtml(detail.openingHours)}${detail?.closedDays ? ` · 휴무 ${escapeHtml(detail.closedDays)}` : ""}</div>` : ""}
+      ${hoursHtml}
       <div class="place-detail-section">
         <h3>메뉴</h3>
         ${menuHtml}
@@ -1255,6 +1284,38 @@
     stopPanelResizeTracking();
     holdMapView();
   });
+
+  /**
+   * 창 너비가 바뀌면 지도 컨테이너만 새 크기가 되고 카카오맵이 그려둔 타일은 옛 크기로 남아,
+   * 넓어진 쪽에 컨테이너 배경색(회색)이 그대로 드러난다. 크기가 바뀌면 다시 그려준다.
+   * 패널 여닫기 중에는 trackPanelResize가 매 프레임 붙잡고 있으므로 끼어들지 않는다.
+   */
+  let mapRelayoutTimer = 0;
+  let lastMapWidth = 0;
+  let lastMapHeight = 0;
+
+  function scheduleMapRelayout() {
+    if (!kakaoMap || mapRelayoutTimer) return;
+    mapRelayoutTimer = setTimeout(() => {
+      mapRelayoutTimer = 0;
+      if (!kakaoMap || panelResizeUntil > performance.now()) return;
+      const { width, height } = mapElement.getBoundingClientRect();
+      if (!width || !height) return;
+      if (width === lastMapWidth && height === lastMapHeight) return;
+      lastMapWidth = width;
+      lastMapHeight = height;
+      const center = kakaoMap.getCenter();
+      kakaoMap.relayout();
+      kakaoMap.setCenter(center);
+      captureMapAnchor();
+      markMapHeld();
+    }, 120);
+  }
+
+  window.addEventListener("resize", scheduleMapRelayout);
+  if (typeof ResizeObserver === "function") {
+    new ResizeObserver(scheduleMapRelayout).observe(mapElement);
+  }
 
   if (localStorage.getItem("mapSidebarCollapsed") === "1") {
     // 페이지를 열면서 저장된 상태를 되살리는 것뿐이라, 접히는 애니메이션을 보여줄 이유가 없다.
