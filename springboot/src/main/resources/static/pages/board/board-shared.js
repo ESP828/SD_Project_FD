@@ -432,7 +432,7 @@
   }
 
   function createGuidanceSkipButton(key, onSkip) {
-    const button = element("button", "guidance-tooltip-skip", "6개월간 안내 숨기기");
+    const button = element("button", "guidance-tooltip-skip", "6개월 숨기기");
     button.type = "button";
     button.addEventListener("click", (event) => {
       event.preventDefault();
@@ -560,17 +560,16 @@
     tooltip.setAttribute("role", "group");
     tooltip.setAttribute("aria-label", "작성자 프로필 안내");
 
-    const tooltipHeader = element("div", "author-activity-tooltip__header");
+    const tooltipSummary = element("div", "author-activity-tooltip__summary");
     const tooltipIcon = icon("person");
     tooltipIcon.classList.add("author-activity-tooltip__icon");
-    tooltipHeader.append(
+    tooltipSummary.append(
       tooltipIcon,
-      element("strong", "author-activity-tooltip__title", "작성자 프로필"),
+      element("span", "author-activity-tooltip-copy", message),
     );
 
     tooltip.append(
-      tooltipHeader,
-      element("span", "author-activity-tooltip-copy", message),
+      tooltipSummary,
       createGuidanceSkipButton(AUTHOR_ACTIVITY_TOOLTIP_SKIP_KEY, closeAuthorActivityTooltip),
     );
     tooltip.addEventListener("mouseenter", clearAuthorActivityTooltipCloseTimer);
@@ -1588,7 +1587,7 @@
     trigger.setAttribute("aria-controls", "board-author-menu");
     trigger.setAttribute("aria-expanded", "false");
     trigger.setAttribute("aria-label", `${author.authorNickname || "작성자"} 프로필 보기`);
-    trigger.dataset.authorActivityTooltip = "글 · 댓글 · 리뷰 등 공개 활동을 확인할 수 있습니다.";
+    trigger.dataset.authorActivityTooltip = "글 · 댓글 · 리뷰 활동 등을 확인할 수 있어요.";
     trigger.addEventListener("mouseenter", () => showAuthorActivityTooltip(trigger));
     trigger.addEventListener("mouseleave", scheduleAuthorActivityTooltipClose);
     trigger.addEventListener("focus", () => showAuthorActivityTooltip(trigger));
