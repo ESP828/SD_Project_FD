@@ -2128,7 +2128,6 @@
     emojiButton.setAttribute("aria-controls", emojiPanelId);
     emojiButton.setAttribute("aria-expanded", "false");
     tools.append(fileInput, imageButton, emojiButton, newsCommentElement("span", "", "사진 1장 · 최대 5MB"));
-    setupNewsEmojiPicker(textarea, emojiButton, emojiPanel);
 
     const preview = newsCommentElement("div", "comment-image-preview");
     preview.hidden = true;
@@ -2267,6 +2266,7 @@
     });
 
     form.append(target, textarea, inputMeta, tools, emojiPanel, preview, row);
+    setupNewsEmojiPicker(textarea, emojiButton, emojiPanel);
     mountTarget.append(form);
     textarea.focus();
     textarea.setSelectionRange(textarea.value.length, textarea.value.length);
@@ -2358,7 +2358,6 @@
     emojiButton.setAttribute("aria-controls", emojiPanelId);
     emojiButton.setAttribute("aria-expanded", "false");
     emojiTools.append(emojiButton);
-    setupNewsEmojiPicker(textarea, emojiButton, emojiPanel);
 
     const actions = newsCommentElement("div", "comment-edit-actions");
     const cancel = newsCommentElement("button", "button button-sm button-secondary", "취소");
@@ -2367,6 +2366,7 @@
     save.type = "submit";
     actions.append(cancel, save);
     form.append(textarea, inputMeta, emojiTools, emojiPanel, actions);
+    setupNewsEmojiPicker(textarea, emojiButton, emojiPanel);
 
     const sync = () => {
       const content = textarea.value.trim();
@@ -2683,7 +2683,6 @@
     emojiButton.setAttribute("aria-controls", emojiPanelId);
     emojiButton.setAttribute("aria-expanded", "false");
     tools.append(fileInput, imageButton, emojiButton, newsCommentElement("span", "", "사진 1장 · 최대 5MB"));
-    setupNewsEmojiPicker(textarea, emojiButton, emojiPanel);
 
     const preview = newsCommentElement("div", "comment-image-preview");
     preview.hidden = true;
@@ -2834,6 +2833,7 @@
     });
 
     form.append(heading, label, textarea, inputMeta, tools, emojiPanel, preview, submitRow);
+    setupNewsEmojiPicker(textarea, emojiButton, emojiPanel);
     return form;
   }
 
