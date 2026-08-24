@@ -401,7 +401,7 @@
         }
       }
       if (dateTarget) {
-        dateTarget.textContent = formatDate(review.createdAt);
+        dateTarget.textContent = `${formatDate(review.createdAt)}${review.edited === true ? " · 수정됨" : ""}`;
         if (review.createdAt) {
           dateTarget.dateTime = String(review.createdAt);
         }
