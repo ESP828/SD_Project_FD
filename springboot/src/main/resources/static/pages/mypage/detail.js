@@ -94,6 +94,16 @@
     return node;
   }
 
+  function emojiTextElement(tag, className, text) {
+    const node = element(tag, className, "");
+    if (window.FooduckEmojis) {
+      window.FooduckEmojis.renderText(node, text);
+    } else {
+      node.textContent = String(text ?? "");
+    }
+    return node;
+  }
+
   function detailPath(tab) {
     return `/mypage/detail?tab=${encodeURIComponent(tab)}`;
   }
@@ -237,7 +247,7 @@
     card.append(createCardTop(item.restaurantName || "음식점", "내 리뷰", href));
     card.append(
       element("p", "mypage-detail-stars", "★".repeat(Math.max(0, Math.min(5, item.rating || 0)))),
-      element("p", "", item.content || "작성한 리뷰 내용이 없습니다."),
+      emojiTextElement("p", "", item.content || "작성한 리뷰 내용이 없습니다."),
       footer,
     );
     return card;
@@ -342,7 +352,7 @@
     const href = boardDetailPath(item.postId);
     card.append(
       createCardTop(item.postTitle || "원본 게시글", "내 댓글", href),
-      element("p", "", item.content || "댓글 내용이 없습니다."),
+      emojiTextElement("p", "", item.content || "댓글 내용이 없습니다."),
       createFooter(item.createdAt, href, "원본 글 보기 →"),
     );
     return card;

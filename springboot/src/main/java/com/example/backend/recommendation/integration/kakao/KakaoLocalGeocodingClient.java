@@ -12,10 +12,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * 검색어 속 지명(예: "신논현", "성수")을 카카오 로컬 API로 좌표화한다.
- * 1) 주소검색으로 먼저 시도하고, 2) 실패하면 키워드검색을 지하철역/행정동 카테고리로만
+ * 1) 주소검색으로 먼저 시도하고, 2) 실패하면 키워드검색을 지하철역/행정동/명소 카테고리로만
  * 한정해 시도한다. "라멘집" 같은 일반 명사가 엉뚱한 상호로 지오코딩되는 것을 막기 위함이다.
  * 실패 시 빈 Optional을 반환하며, 호출부(RecommendationService)는 GPS 좌표로 폴백한다.
  */
@@ -25,11 +26,16 @@ public class KakaoLocalGeocodingClient {
     private static final String ADDRESS_SEARCH_URL = "https://dapi.kakao.com/v2/local/search/address.json";
     private static final String KEYWORD_SEARCH_URL = "https://dapi.kakao.com/v2/local/search/keyword.json";
 
-    // SW8: 지하철역, AD5: 행정동 -> 실제 지명으로 신뢰할 수 있는 카테고리만 채택
-    private static final Set<String> TRUSTED_KEYWORD_CATEGORY_CODES = Set.of("SW8", "AD5");
+    // SW8: subway, AD5: administrative area, AT4: landmark/tourist attraction.
+    // Restaurant categories remain excluded so a menu keyword cannot become a location.
+    private static final Set<String> TRUSTED_KEYWORD_CATEGORY_CODES = Set.of("SW8", "AD5", "AT4");
+    private static final Map<String, String> AMBIGUOUS_LOCATION_QUERIES = Map.of(
+            "북촌", "서울 북촌한옥마을"
+    );
 
     private final RestClient restClient;
     private final String restApiKey;
+    private final Map<String, Optional<GeocodedPoint>> cache = new ConcurrentHashMap<>();
 
     public KakaoLocalGeocodingClient(
             RestClient.Builder restClientBuilder,
@@ -49,7 +55,25 @@ public class KakaoLocalGeocodingClient {
         if (!isConfigured() || !StringUtils.hasText(locationText)) {
             return Optional.empty();
         }
-        return searchAddress(locationText).or(() -> searchKeywordTrusted(locationText));
+        String normalized = locationText.trim();
+        if (cache.size() >= 512) {
+            cache.clear();
+        }
+        return cache.computeIfAbsent(normalized, this::searchLocation);
+    }
+
+    private Optional<GeocodedPoint> searchLocation(String query) {
+        String qualifiedQuery = qualifySearchQuery(query);
+        Optional<GeocodedPoint> qualifiedResult = searchAddress(qualifiedQuery)
+                .or(() -> searchKeywordTrusted(qualifiedQuery));
+        if (qualifiedResult.isPresent() || qualifiedQuery.equals(query)) {
+            return qualifiedResult;
+        }
+        return searchAddress(query).or(() -> searchKeywordTrusted(query));
+    }
+
+    static String qualifySearchQuery(String query) {
+        return AMBIGUOUS_LOCATION_QUERIES.getOrDefault(query, query);
     }
 
     private Optional<GeocodedPoint> searchAddress(String query) {

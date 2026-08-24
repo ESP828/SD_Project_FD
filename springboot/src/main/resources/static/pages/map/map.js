@@ -237,6 +237,39 @@
     return "state_default.svg";
   }
 
+  // 검색 결과 목록의 매장 썸네일용 카테고리 배경색(너무 진하지 않은 파스텔톤).
+  window.FooduckCategoryTint = window.FooduckCategoryTint || {
+    resolve(categoryText) {
+      const category = categoryText || "";
+      if (/한식|국밥|고기/.test(category)) return "#f7e3e3";
+      if (/일식|초밥|스시/.test(category)) return "#fbe6d3";
+      if (/중식|중국/.test(category)) return "#faf0d0";
+      if (/양식|이탈리안|프렌치|스테이크/.test(category)) return "#e2eaf8";
+      if (/아시안|베트남|태국/.test(category)) return "#e2f2e4";
+      if (/카페|커피|디저트|제과|베이커리/.test(category)) return "#efe4d8";
+      if (/패스트푸드|햄버거|피자|버거/.test(category)) return "#faf1cd";
+      if (/분식/.test(category)) return "#f7e3ee";
+      if (/술집|호프|주점|바/.test(category)) return "#ede0e2";
+      if (/구내식당|뷔페/.test(category)) return "#e8ebee";
+      return "#f0f0f0";
+    },
+    /** 매장 썸네일 <img> 태그. 실사진이 있으면 그걸, 없으면 로고+카테고리 배경색으로 대체한다. */
+    buildThumbnailTag(imageUrl, categoryText, sizePx, borderRadiusPx, extraClass) {
+      const bg = this.resolve(categoryText);
+      const classAttr = extraClass ? ` class="${extraClass}"` : "";
+      const baseStyle = `width: ${sizePx}px; height: ${sizePx}px; flex-shrink: 0; border-radius: ${borderRadiusPx}px; box-sizing: border-box;`;
+      if (imageUrl) {
+        const padding = Math.round(sizePx * 0.12);
+        const onerror = `this.onerror=null; this.src='/images/logos/symbol-96.png'; this.style.objectFit='contain'; this.style.padding='${padding}px'; this.style.background='${bg}';`;
+        return `<img${classAttr} src="${imageUrl}" alt="" aria-hidden="true" onerror="${onerror}"
+                     style="${baseStyle} object-fit: cover; background: ${bg};">`;
+      }
+      const padding = Math.round(sizePx * 0.12);
+      return `<img${classAttr} src="/images/logos/symbol-96.png" alt="" aria-hidden="true"
+                   style="${baseStyle} object-fit: contain; padding: ${padding}px; background: ${bg};">`;
+    },
+  };
+
   function validCoordinate(latitude, longitude) {
     return Number.isFinite(latitude) && Number.isFinite(longitude)
       && latitude >= -90 && latitude <= 90
@@ -326,7 +359,13 @@
     if (!value) return "-";
     const date = new Date(value);
     if (Number.isNaN(date.getTime())) return "-";
-    return new Intl.DateTimeFormat("ko-KR", { year: "numeric", month: "2-digit", day: "2-digit" }).format(date);
+    return new Intl.DateTimeFormat("ko-KR", {
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+    }).format(date);
   }
 
   // 요청 중에 button.disabled를 쓰면 커서가 "클릭 금지"로 바뀌어 눌리지 않는 것처럼 보인다.
@@ -357,6 +396,54 @@
     }
   }
 
+  async function bindDetailReviewAuthorMenus(reviews) {
+    const board = window.FooduckBoard;
+    if (!board?.authorIdentity || !Array.isArray(reviews) || reviews.length === 0) return;
+
+    const reviewById = new Map();
+    const query = new URLSearchParams();
+    reviews.slice(0, 3).forEach((review) => {
+      const reviewId = Number(review?.reviewId);
+      if (!Number.isSafeInteger(reviewId) || reviewId <= 0) return;
+      reviewById.set(reviewId, review);
+      query.append("reviewIds", String(reviewId));
+    });
+    if (reviewById.size === 0) return;
+
+    let links;
+    try {
+      const payload = await Api.get(
+        `/board/posts/authors/reviews?${query.toString()}`,
+        { auth: false },
+      );
+      links = Array.isArray(payload?.data) ? payload.data : [];
+    } catch (_error) {
+      return;
+    }
+
+    const accountIdByReviewId = new Map(
+      links.map((link) => [Number(link.reviewId), Number(link.authorAccountId)]),
+    );
+
+    detailBody.querySelectorAll("[data-map-review-author-id]").forEach((host) => {
+      const reviewId = Number(host.dataset.mapReviewAuthorId);
+      const review = reviewById.get(reviewId);
+      const authorAccountId = accountIdByReviewId.get(reviewId);
+      if (!review?.authorNickname || !Number.isSafeInteger(authorAccountId) || authorAccountId <= 0) return;
+
+      host.replaceChildren(board.authorIdentity(
+        { ...review, authorAccountId },
+        {
+          showAuthorMenu: true,
+          showLoginIdentity: false,
+          showRole: false,
+          authorMenuContext: "REVIEW",
+          authorActivityCueMode: "compact",
+        },
+      ));
+    });
+  }
+
   function renderDetailPanel(place, detail, menuItems, reviewPage) {
     const isOwned = isOwnedPlace(place);
     const category = place.category_name || "기타";
@@ -382,13 +469,45 @@
       ? reviews.slice(0, 3).map((review) => `
           <div class="place-detail-review-item">
             <div class="place-detail-review-head">
-              <span>${escapeHtml(review.authorNickname || "익명")}</span>
+              <span class="place-detail-review-author" data-map-review-author-id="${Number(review.reviewId) || 0}">${escapeHtml(review.authorNickname || "익명")}</span>
               <span>★ ${review.rating}.0</span>
             </div>
-            <p>${review.content ? escapeHtml(review.content) : "내용 없음"} · ${formatDate(review.createdAt)}</p>
+            <div class="place-detail-review-body">
+              <p class="place-detail-review-copy"></p>
+              <time class="place-detail-review-date"></time>
+            </div>
           </div>
         `).join("")
       : '<div class="place-detail-empty">아직 작성된 리뷰가 없습니다.</div>';
+
+    // 영업시간은 가게마다 저장 형식이 달라 한 줄로 길게 이어지는 경우가 있다.
+    // 요일 단위로 끊어 "요일 : 영업시간" 한 줄씩 보여주고, 못 끊으면 원문을 그대로 쓴다.
+    const hoursRows = [];
+    if (isOwned && detail?.openingHours) {
+      const parsed = window.FooduckHours?.parse(detail.openingHours);
+      if (parsed) {
+        parsed.forEach((entry) => hoursRows.push([entry.label, entry.value]));
+      } else {
+        const fallback = window.FooduckHours?.normalize(detail.openingHours) || detail.openingHours;
+        hoursRows.push(["영업시간", fallback]);
+      }
+    }
+    if (isOwned && detail?.closedDays) {
+      hoursRows.push(["휴무", detail.closedDays]);
+    }
+
+    const hoursHtml = hoursRows.length
+      ? `<div class="place-detail-section">
+           <h3>영업시간</h3>
+           <ul class="place-detail-hours">
+             ${hoursRows.map(([label, value]) => `
+               <li class="place-detail-hours-item">
+                 <span>${escapeHtml(label)}</span>
+                 <span>${escapeHtml(value)}</span>
+               </li>`).join("")}
+           </ul>
+         </div>`
+      : "";
 
     detailBody.innerHTML = `
       <div class="place-detail-header">
@@ -406,7 +525,7 @@
         <strong>${ratingAvg != null ? `★ ${ratingAvg.toFixed(1)}` : (reviewCount ? `리뷰 ${reviewCount}건` : "리뷰 없음")}</strong>
         <span>${ratingAvg != null ? `리뷰 ${reviewCount}건` : ""}${isOwned && detail?.phone ? `${ratingAvg != null ? " · " : ""}${detail.phone}` : ""}</span>
       </div>
-      ${isOwned && detail?.openingHours ? `<div class="place-detail-empty" style="margin-bottom:20px;">${escapeHtml(detail.openingHours)}${detail?.closedDays ? ` · 휴무 ${escapeHtml(detail.closedDays)}` : ""}</div>` : ""}
+      ${hoursHtml}
       <div class="place-detail-section">
         <h3>메뉴</h3>
         ${menuHtml}
@@ -418,6 +537,29 @@
       <a class="button button-primary place-detail-link"
          href="${detailHref(place)}">상세 페이지에서 더 보기</a>
     `;
+
+    const reviewCopies = detailBody.querySelectorAll(".place-detail-review-copy");
+    const reviewDates = detailBody.querySelectorAll(".place-detail-review-date");
+    reviews.slice(0, 3).forEach((review, index) => {
+      const copyTarget = reviewCopies[index];
+      const dateTarget = reviewDates[index];
+      if (copyTarget) {
+        const reviewText = review.content || "내용 없음";
+        if (window.FooduckEmojis) {
+          window.FooduckEmojis.renderText(copyTarget, reviewText);
+        } else {
+          copyTarget.textContent = reviewText;
+        }
+      }
+      if (dateTarget) {
+        dateTarget.textContent = `${formatDate(review.createdAt)}${review.edited === true ? " · 수정됨" : ""}`;
+        if (review.createdAt) {
+          dateTarget.dateTime = String(review.createdAt);
+        }
+      }
+    });
+
+    void bindDetailReviewAuthorMenus(reviews);
 
     const favoriteButton = document.getElementById("place-detail-favorite-btn");
     favoriteButton.addEventListener("click", () => toggleDetailPanelFavorite(favoriteButton, place));
@@ -540,10 +682,12 @@
     article.className = "place-result";
     article.dataset.restaurantId = String(place.restaurantId);
     if (!place.coordinateAvailable) article.classList.add("has-no-coordinate");
-    const markerImage = document.createElement("img");
-    markerImage.className = "place-result-marker";
-    markerImage.src = `${markerAssetRoot}/${resolveCategoryMarker(place)}`;
-    markerImage.alt = "";
+    // 실사진이 캐싱돼 있으면 그걸, 없으면 로고+카테고리 배경색으로 대체한다.
+    const markerWrap = document.createElement("div");
+    markerWrap.innerHTML = window.FooduckCategoryTint.buildThumbnailTag(
+      place.image_url, place.category_name, 46, 12, "place-result-marker"
+    );
+    const markerImage = markerWrap.firstElementChild;
     const body = document.createElement("div");
     body.className = "place-result-body";
     // 왼쪽 열은 가게 정보와 상세보기, 오른쪽 열은 순번과 보물지도 추가·삭제 버튼이다.
@@ -700,6 +844,7 @@
       category_group_name: "",
       road_address_name: item.roadAddress || "",
       address_name: item.lotAddress || "",
+      image_url: item.imageUrl || "",
       y: latitude,
       x: longitude,
       coordinateAvailable: validCoordinate(latitude, longitude),
@@ -1315,6 +1460,38 @@
     stopPanelResizeTracking();
     holdMapView();
   });
+
+  /**
+   * 창 너비가 바뀌면 지도 컨테이너만 새 크기가 되고 카카오맵이 그려둔 타일은 옛 크기로 남아,
+   * 넓어진 쪽에 컨테이너 배경색(회색)이 그대로 드러난다. 크기가 바뀌면 다시 그려준다.
+   * 패널 여닫기 중에는 trackPanelResize가 매 프레임 붙잡고 있으므로 끼어들지 않는다.
+   */
+  let mapRelayoutTimer = 0;
+  let lastMapWidth = 0;
+  let lastMapHeight = 0;
+
+  function scheduleMapRelayout() {
+    if (!kakaoMap || mapRelayoutTimer) return;
+    mapRelayoutTimer = setTimeout(() => {
+      mapRelayoutTimer = 0;
+      if (!kakaoMap || panelResizeUntil > performance.now()) return;
+      const { width, height } = mapElement.getBoundingClientRect();
+      if (!width || !height) return;
+      if (width === lastMapWidth && height === lastMapHeight) return;
+      lastMapWidth = width;
+      lastMapHeight = height;
+      const center = kakaoMap.getCenter();
+      kakaoMap.relayout();
+      kakaoMap.setCenter(center);
+      captureMapAnchor();
+      markMapHeld();
+    }, 120);
+  }
+
+  window.addEventListener("resize", scheduleMapRelayout);
+  if (typeof ResizeObserver === "function") {
+    new ResizeObserver(scheduleMapRelayout).observe(mapElement);
+  }
 
   if (localStorage.getItem("mapSidebarCollapsed") === "1") {
     // 페이지를 열면서 저장된 상태를 되살리는 것뿐이라, 접히는 애니메이션을 보여줄 이유가 없다.

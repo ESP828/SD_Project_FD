@@ -32,7 +32,7 @@ class RecommendationScoreCalculatorTest {
         List<String> queryTokens = List.of("파스타", "이탈리안", "양식");
 
         // 맛집 1: 파스타/이탈리안 관련 맛집
-        String pastaRestaurantDoc = "강남파스타 음식 서양식 이탈리안 서울특별시 강남구 역삼동 123";
+        String pastaRestaurantDoc = "강남파스타 음식 양식 서양식 이탈리안 서울특별시 강남구 역삼동 123";
 
         // 맛집 2: 일식/초밥 관련 맛집
         String sushiRestaurantDoc = "스시마스투 음식 일식 초밥 서울특별시 강남구 역삼동 456";

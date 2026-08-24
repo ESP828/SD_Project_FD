@@ -9,6 +9,7 @@
   const params = new URLSearchParams(window.location.search);
   const source = params.get("source") === "public" ? "public" : "owned";
   const id = params.get("id");
+  const returnTo = safeSearchReturnPath(params.get("returnTo"));
   const requestedTab = params.get("tab");
   const requestedNewsPageValue = Number.parseInt(params.get("newsPage"), 10);
   const requestedNewsPage = Number.isInteger(requestedNewsPageValue) && requestedNewsPageValue >= 0
@@ -20,13 +21,34 @@
     return;
   }
 
+  function safeSearchReturnPath(value) {
+    if (!value) return null;
+    try {
+      const target = new URL(value, window.location.origin);
+      const isSearchPath = target.pathname === "/search"
+        || target.pathname === "/pages/search/index.html";
+      if (target.origin !== window.location.origin || !isSearchPath) return null;
+      return `${target.pathname}${target.search}${target.hash}`;
+    } catch (_error) {
+      return null;
+    }
+  }
+
+  function cameFromSearchPage() {
+    return safeSearchReturnPath(document.referrer) !== null;
+  }
+
   const backButton = document.getElementById("store-back-button");
   if (backButton) {
     backButton.addEventListener("click", () => {
-      if (window.history.length > 1) {
+      if (window.history.length > 1 && cameFromSearchPage()) {
+        window.history.back();
+      } else if (returnTo) {
+        window.location.assign(returnTo);
+      } else if (window.history.length > 1) {
         window.history.back();
       } else {
-        window.location.href = "/pages/search/index.html";
+        window.location.href = "/search";
       }
     });
   }
@@ -1023,13 +1045,15 @@
 
   // AI(Naive Bayes) 리뷰 감성분석 요약 카드. 감성분석 서비스가 꺼져 있거나 아직 준비되지
   // 않아도(sentiment-api.base-url 미설정 등) 리뷰 화면 자체는 정상 동작해야 하므로,
-  // 실패하면 카드를 그냥 숨긴 채 조용히 넘어간다. 현재는 공공데이터 매장만 지원한다.
+  // 실패하면 카드를 그냥 숨긴 채 조용히 넘어간다. 공공데이터 매장/사업자 등록 매장 둘 다 지원한다.
   async function loadSentimentSummary() {
-    if (source !== "public") return;
     const card = document.getElementById("store-sentiment-card");
     if (!card) return;
     try {
-      const response = await Api.get(`/public/map/restaurants/${storeId}/sentiment-summary`, { auth: false });
+      const path = source === "public"
+        ? `/public/map/restaurants/${storeId}/sentiment-summary`
+        : `/public/restaurants/${storeId}/sentiment-summary`;
+      const response = await Api.get(path, { auth: false });
       const summary = response.data;
       if (!summary || summary.reviewCount === 0) return;
       const ratio = Math.round(summary.positiveRatio);
@@ -2128,7 +2152,6 @@
     emojiButton.setAttribute("aria-controls", emojiPanelId);
     emojiButton.setAttribute("aria-expanded", "false");
     tools.append(fileInput, imageButton, emojiButton, newsCommentElement("span", "", "사진 1장 · 최대 5MB"));
-    setupNewsEmojiPicker(textarea, emojiButton, emojiPanel);
 
     const preview = newsCommentElement("div", "comment-image-preview");
     preview.hidden = true;
@@ -2254,8 +2277,8 @@
         } else {
           showNewsCommentToast(imageFile ? "답글과 사진이 등록되었습니다." : "답글이 등록되었습니다.");
         }
-        if (state.allLoaded) await loadAllNewsComments(postId);
-        else await loadNewsComments(postId, state.page);
+        if (state.allLoaded) await loadAllNewsComments(postId, { forceRefresh: true });
+        else await loadNewsComments(postId, state.page, { forceRefresh: true });
       } catch (error) {
         textarea.disabled = false;
         submit.disabled = false;
@@ -2267,6 +2290,7 @@
     });
 
     form.append(target, textarea, inputMeta, tools, emojiPanel, preview, row);
+    setupNewsEmojiPicker(textarea, emojiButton, emojiPanel);
     mountTarget.append(form);
     textarea.focus();
     textarea.setSelectionRange(textarea.value.length, textarea.value.length);
@@ -2358,7 +2382,6 @@
     emojiButton.setAttribute("aria-controls", emojiPanelId);
     emojiButton.setAttribute("aria-expanded", "false");
     emojiTools.append(emojiButton);
-    setupNewsEmojiPicker(textarea, emojiButton, emojiPanel);
 
     const actions = newsCommentElement("div", "comment-edit-actions");
     const cancel = newsCommentElement("button", "button button-sm button-secondary", "취소");
@@ -2367,6 +2390,7 @@
     save.type = "submit";
     actions.append(cancel, save);
     form.append(textarea, inputMeta, emojiTools, emojiPanel, actions);
+    setupNewsEmojiPicker(textarea, emojiButton, emojiPanel);
 
     const sync = () => {
       const content = textarea.value.trim();
@@ -2466,8 +2490,8 @@
       await Api.delete(`/board/comments/${encodeURIComponent(commentId)}`);
       window.FooduckBoard?.invalidateBoardCache?.();
       const state = getNewsCommentState(postId);
-      if (state.allLoaded) await loadAllNewsComments(postId);
-      else await loadNewsComments(postId, state.page);
+      if (state.allLoaded) await loadAllNewsComments(postId, { forceRefresh: true });
+      else await loadNewsComments(postId, state.page, { forceRefresh: true });
     } catch (error) {
       const panel = button.closest("[data-news-comments-post-id]");
       const status = panel?.querySelector("[data-news-comment-status]");
@@ -2618,8 +2642,8 @@
         window.FooduckBoard?.invalidateBoardCache?.();
         state.imageRetry = null;
         showNewsCommentToast(`${retry.label || "댓글"} 사진이 등록되었습니다.`);
-        if (state.allLoaded) await loadAllNewsComments(postId);
-        else await loadNewsComments(postId, state.page);
+        if (state.allLoaded) await loadAllNewsComments(postId, { forceRefresh: true });
+        else await loadNewsComments(postId, state.page, { forceRefresh: true });
       } catch (error) {
         retryButton.disabled = false;
         dismissButton.disabled = false;
@@ -2683,7 +2707,6 @@
     emojiButton.setAttribute("aria-controls", emojiPanelId);
     emojiButton.setAttribute("aria-expanded", "false");
     tools.append(fileInput, imageButton, emojiButton, newsCommentElement("span", "", "사진 1장 · 최대 5MB"));
-    setupNewsEmojiPicker(textarea, emojiButton, emojiPanel);
 
     const preview = newsCommentElement("div", "comment-image-preview");
     preview.hidden = true;
@@ -2816,11 +2839,11 @@
           showNewsCommentToast(imageFile ? "댓글과 사진이 등록되었습니다." : (payload.message || "댓글이 등록되었습니다."));
         }
         if (state.allLoaded) {
-          await loadAllNewsComments(postId);
+          await loadAllNewsComments(postId, { forceRefresh: true });
         } else {
           const rootCount = Math.max(0, Number(state.pageData?.totalElements) || 0);
           const targetPage = Math.floor(rootCount / NEWS_COMMENT_PAGE_SIZE);
-          await loadNewsComments(postId, targetPage);
+          await loadNewsComments(postId, targetPage, { forceRefresh: true });
         }
       } catch (error) {
         textarea.disabled = false;
@@ -2834,6 +2857,7 @@
     });
 
     form.append(heading, label, textarea, inputMeta, tools, emojiPanel, preview, submitRow);
+    setupNewsEmojiPicker(textarea, emojiButton, emojiPanel);
     return form;
   }
 
@@ -2909,15 +2933,16 @@
     body.append(renderNewsCommentForm(postId, state));
   }
 
-  async function fetchNewsCommentPage(postId, page, size = NEWS_COMMENT_PAGE_SIZE) {
+  async function fetchNewsCommentPage(postId, page, size = NEWS_COMMENT_PAGE_SIZE, options = {}) {
     const normalizedPage = Math.max(0, Number(page) || 0);
     const normalizedSize = Math.max(1, Math.min(NEWS_COMMENT_ALL_PAGE_SIZE, Number(size) || NEWS_COMMENT_PAGE_SIZE));
+    const forceRefresh = options.forceRefresh === true;
     const path = `/board/posts/${encodeURIComponent(postId)}/comments?page=${normalizedPage}&size=${normalizedSize}`;
     const board = window.FooduckBoard;
-    const cached = board?.readBoardCache?.(path) || null;
+    const cached = forceRefresh ? null : (board?.readBoardCache?.(path) || null);
     if (cached?.fresh) return { data: cached.data || {}, cacheFallback: false };
     try {
-      const response = await Api.get(path);
+      const response = await Api.get(path, forceRefresh ? { cache: "no-store" } : {});
       const pageData = response.data || {};
       board?.writeBoardCache?.(path, pageData);
       return { data: pageData, cacheFallback: false };
@@ -2929,7 +2954,7 @@
     }
   }
 
-  async function loadNewsComments(postId, page = 0) {
+  async function loadNewsComments(postId, page = 0, options = {}) {
     const state = getNewsCommentState(postId);
     const generation = ++state.generation;
     const requestedPage = Math.max(0, Number(page) || 0);
@@ -2942,13 +2967,15 @@
     syncNewsCommentToggle(postId);
     renderNewsComments(postId);
     try {
-      const result = await fetchNewsCommentPage(postId, requestedPage, NEWS_COMMENT_PAGE_SIZE);
+      const result = await fetchNewsCommentPage(postId, requestedPage, NEWS_COMMENT_PAGE_SIZE, {
+        forceRefresh: options.forceRefresh === true,
+      });
       if (generation !== state.generation) return;
       const pageData = result.data || {};
       const totalPages = Math.max(0, Number(pageData.totalPages) || 0);
       if (totalPages > 0 && requestedPage >= totalPages) {
         state.loading = false;
-        await loadNewsComments(postId, totalPages - 1);
+        await loadNewsComments(postId, totalPages - 1, options);
         return;
       }
       state.page = Math.max(0, Number(pageData.page) || 0);
@@ -2976,7 +3003,7 @@
     }
   }
 
-  async function loadAllNewsComments(postId) {
+  async function loadAllNewsComments(postId, options = {}) {
     const state = getNewsCommentState(postId);
     const generation = ++state.generation;
     state.loading = true;
@@ -2987,7 +3014,9 @@
     renderNewsComments(postId);
 
     try {
-      const firstResult = await fetchNewsCommentPage(postId, 0, NEWS_COMMENT_ALL_PAGE_SIZE);
+      const firstResult = await fetchNewsCommentPage(postId, 0, NEWS_COMMENT_ALL_PAGE_SIZE, {
+        forceRefresh: options.forceRefresh === true,
+      });
       if (generation !== state.generation) return;
       const firstPage = firstResult.data || {};
       const totalPages = Math.max(0, Number(firstPage.totalPages) || 0);
@@ -2995,7 +3024,9 @@
       let usedCacheFallback = firstResult.cacheFallback;
 
       for (let page = 1; page < totalPages; page += 1) {
-        const result = await fetchNewsCommentPage(postId, page, NEWS_COMMENT_ALL_PAGE_SIZE);
+        const result = await fetchNewsCommentPage(postId, page, NEWS_COMMENT_ALL_PAGE_SIZE, {
+          forceRefresh: options.forceRefresh === true,
+        });
         if (generation !== state.generation) return;
         if (Array.isArray(result.data?.content)) combined.push(...result.data.content);
         usedCacheFallback = usedCacheFallback || result.cacheFallback;
@@ -3731,6 +3762,40 @@
     return wrapper.outerHTML;
   }
 
+  function bindStoreOwnerAuthor(store) {
+    const host = basicInfo.querySelector("[data-store-owner-author]");
+    if (!host) return;
+
+    const nickname = store?.ownerNickname || "사장님";
+    const authorAccountId = Number(store?.ownerAccountId);
+    const board = window.FooduckBoard;
+
+    if (
+      board?.authorIdentity
+      && Number.isSafeInteger(authorAccountId)
+      && authorAccountId > 0
+      && nickname !== "탈퇴한 회원"
+    ) {
+      host.replaceChildren(board.authorIdentity(
+        {
+          authorAccountId,
+          authorNickname: nickname,
+        },
+        {
+          showNickname: true,
+          showAuthorMenu: true,
+          showLoginIdentity: false,
+          showRole: false,
+          authorMenuContext: "COMMUNITY",
+          authorActivityCueMode: "full",
+        },
+      ));
+      return;
+    }
+
+    host.textContent = nickname;
+  }
+
   function renderOwnedDetail(store) {
     storeId = store.restaurantId;
     isOwner = Boolean(store.isOwner);
@@ -3773,6 +3838,19 @@
 
     ownedBadge.hidden = false;
 
+    // 영업시간은 가게마다 저장 형식이 달라(구글 표기 등) 한 줄로 길게 이어지는 경우가 있다.
+    // 요일 단위로 끊어 "요일 : 영업시간" 한 줄씩 보여주고, 못 끊으면 원문을 그대로 쓴다.
+    const parsedHours = store.openingHours
+      ? window.FooduckHours?.parse(store.openingHours)
+      : null;
+    const openingHoursHtml = parsedHours
+      ? `<ul class="store-hours-list">${parsedHours.map((entry) => `
+          <li><span>${escapeHtml(entry.label)}</span><span>${escapeHtml(entry.value)}</span></li>`).join("")}</ul>`
+      : escapeHtml(
+        (store.openingHours && window.FooduckHours?.normalize(store.openingHours))
+        || store.openingHours
+        || "-",
+      );
     panels.info.innerHTML = `
       <div class="store-section-card">
         <h2>가게 정보</h2>
@@ -3780,7 +3858,7 @@
           <div><dt>카테고리</dt><dd>${escapeHtml(store.categoryName || "-")}</dd></div>
           <div><dt>주소</dt><dd>${escapeHtml(addressEl.textContent || "-")}</dd></div>
           <div><dt>전화번호</dt><dd>${escapeHtml(store.phone || "-")}</dd></div>
-          <div><dt>영업시간</dt><dd>${escapeHtml(store.openingHours || "-")}</dd></div>
+          <div><dt>영업시간</dt><dd>${openingHoursHtml}</dd></div>
           <div><dt>휴무일</dt><dd>${escapeHtml(store.closedDays || "-")}</dd></div>
         </dl>
       </div>
@@ -3790,12 +3868,13 @@
       <div class="store-owner-profile">
         <img class="store-owner-avatar" src="${escapeHtml(store.ownerProfileImageUrl || "/images/characters/waving.png")}" alt="">
         <div>
-          <strong>${escapeHtml(store.ownerNickname || "사장님")}</strong>
+          <strong data-store-owner-author></strong>
           <span>${escapeHtml(store.phone || "전화번호 미등록")}</span>
         </div>
       </div>
     `;
-    sourceNote.textContent = "가게 기본정보 출처: 사업자 직접 등록";
+    bindStoreOwnerAuthor(store);
+
 
     renderTabs(["menu", "news", "review", "info"]);
     activateTab(tabOrder.includes(requestedTab) ? requestedTab : "menu");
@@ -3916,12 +3995,14 @@
         loading.hidden = true;
         content.hidden = false;
         renderOwnedDetail(response.data);
+        window.FooduckBoard?.consumeFeedbackFlash?.();
       } else {
         const response = await Api.get(`/public/map/restaurants/${id}`);
         await nicknameTask;
         loading.hidden = true;
         content.hidden = false;
         renderPublicDetail(response.data);
+        window.FooduckBoard?.consumeFeedbackFlash?.();
       }
     } catch (error) {
       showError(error.message || "가게 정보를 불러오지 못했습니다.");

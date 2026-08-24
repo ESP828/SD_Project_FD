@@ -429,6 +429,11 @@
   margin-bottom: 14px;
 }
 
+.preset-view-select-label,
+.preset-view-select {
+  display: none;
+}
+
 .preset-view-tab {
   min-height: 44px;
   padding: 0 18px;
@@ -1776,7 +1781,7 @@
   }
 }
 
-@media (max-width: 520px) {
+@media (max-width: 760px) {
   .preset-hero img {
     width: 170px;
   }
@@ -1786,12 +1791,33 @@
   }
 
   .preset-view-tabs {
-    display: grid;
-    grid-template-columns: 1fr;
+    display: none;
   }
 
-  .preset-view-tab {
+  .preset-view-select-label,
+  .preset-view-select {
+    display: block;
+  }
+
+  .preset-view-select-label {
+    margin-bottom: 6px;
+    color: var(--color-muted);
+    font-size: 0.8rem;
+    font-weight: 800;
+  }
+
+  .preset-view-select {
     width: 100%;
+    min-height: 44px;
+    margin-bottom: 14px;
+    padding: 0 36px 0 14px;
+    border: 1px solid var(--color-line);
+    border-radius: 13px;
+    outline: 0;
+    color: var(--color-navy);
+    background: #fff;
+    font-size: 0.86rem;
+    font-weight: 850;
   }
 
   .preset-card-actions .button {

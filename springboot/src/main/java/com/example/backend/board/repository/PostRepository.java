@@ -169,7 +169,40 @@ public interface PostRepository extends JpaRepository<Post, Long> {
             from Post p
             join fetch p.author
             where p.status = :status
-              and p.likeCount >= :minimumLikeCount
+              and p.createdAt >= :since
+              and p.pinned = false
+              and p.category <> :excludedCategory
+              and p.category <> com.example.backend.board.domain.type.PostCategory.NEWS
+              and (:boardType is null or p.boardType = :boardType)
+            order by p.likeCount desc, p.createdAt desc, p.postId desc
+            """,
+            countQuery = """
+            select count(p)
+            from Post p
+            where p.status = :status
+              and p.createdAt >= :since
+              and p.pinned = false
+              and p.category <> :excludedCategory
+              and p.category <> com.example.backend.board.domain.type.PostCategory.NEWS
+              and (:boardType is null or p.boardType = :boardType)
+            """)
+    Page<Post> findPopularPostPage(
+            @Param("boardType") BoardType boardType,
+            @Param("excludedCategory") PostCategory excludedCategory,
+            @Param("since") LocalDateTime since,
+            @Param("status") PostStatus status,
+            Pageable pageable
+    );
+
+    @Query(value = """
+            select p
+            from Post p
+            join fetch p.author
+            where p.status = :status
+              and (
+                    p.bestOverride = true
+                    or (p.bestOverride is null and p.likeCount >= :minimumLikeCount)
+              )
               and p.pinned = false
               and p.category <> :excludedCategory
               and p.category <> com.example.backend.board.domain.type.PostCategory.NEWS
@@ -180,7 +213,10 @@ public interface PostRepository extends JpaRepository<Post, Long> {
             select count(p)
             from Post p
             where p.status = :status
-              and p.likeCount >= :minimumLikeCount
+              and (
+                    p.bestOverride = true
+                    or (p.bestOverride is null and p.likeCount >= :minimumLikeCount)
+              )
               and p.pinned = false
               and p.category <> :excludedCategory
               and p.category <> com.example.backend.board.domain.type.PostCategory.NEWS

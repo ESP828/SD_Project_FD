@@ -1428,6 +1428,124 @@
   });
   iconObserver.observe(document.body, { childList: true, subtree: true });
 
+  /* ── 영업시간 텍스트 정규화 ────────────────────────────────────────────
+     가게마다 저장된 형식이 제각각이다. 구글 지도에서 붙여넣은 영문 표기
+     ("Monday\t7 AM–10 PM Tuesday\t..."), "매일 09:00~21:00", 줄바꿈으로 나눈
+     한글 표기가 모두 섞여 있고, 특히 영문 표기는 한 줄로 이어져 있어 그대로
+     내보내면 줄바꿈 없이 길게 늘어진다.
+     요일 단위로 끊어 "요일 : 영업시간" 한 줄씩 보여줄 수 있게 바꾼다.
+     요일을 하나도 찾지 못하면 null을 돌려주고, 호출한 쪽이 원문을 그대로 쓴다. */
+
+  const HOURS_DAY_TOKENS = [
+    { label: "월요일", aliases: ["monday", "mon", "월요일", "월"] },
+    { label: "화요일", aliases: ["tuesday", "tues", "tue", "화요일", "화"] },
+    { label: "수요일", aliases: ["wednesday", "wed", "수요일", "수"] },
+    { label: "목요일", aliases: ["thursday", "thurs", "thur", "thu", "목요일", "목"] },
+    { label: "금요일", aliases: ["friday", "fri", "금요일", "금"] },
+    { label: "토요일", aliases: ["saturday", "sat", "토요일", "토"] },
+    { label: "일요일", aliases: ["sunday", "sun", "일요일", "일"] },
+    { label: "매일", aliases: ["everyday", "every day", "daily", "매일", "연중무휴"] },
+    { label: "평일", aliases: ["weekday", "weekdays", "평일"] },
+    { label: "주말", aliases: ["weekend", "weekends", "주말"] },
+    { label: "공휴일", aliases: ["holiday", "holidays", "공휴일"] },
+  ];
+
+  const HOURS_ALIAS_TO_LABEL = new Map();
+  HOURS_DAY_TOKENS.forEach(({ label, aliases }) => {
+    aliases.forEach((alias) => HOURS_ALIAS_TO_LABEL.set(alias.toLowerCase(), label));
+  });
+
+  // 긴 별칭부터 매칭해야 "tues"가 "tue"로 잘리지 않는다.
+  const HOURS_ALIAS_PATTERN = [...HOURS_ALIAS_TO_LABEL.keys()]
+    .sort((a, b) => b.length - a.length)
+    .map((alias) => alias.replace(/ /g, "\\s+"))
+    .join("|");
+
+  // 앞뒤가 구분자여야 "매일"의 "일", "1월"의 "월" 같은 걸 요일로 잘못 읽지 않는다.
+  const HOURS_DAY_REGEX = new RegExp(
+    "(?:^|[\\s,;:·/|()\\[\\]~\\-–—])("
+    + HOURS_ALIAS_PATTERN
+    + ")(?=[\\s,;:~\\-–—()\\[\\]]|$)",
+    "gi",
+  );
+
+  const HOURS_RANGE_ONLY = /^[~\-–—]$/;
+
+  function hoursTo24(_match, rawHour, rawMinute, meridiem) {
+    let hour = Number(rawHour);
+    if (!Number.isFinite(hour) || hour > 12) return _match;
+    const upper = meridiem.toUpperCase();
+    if (upper === "AM" && hour === 12) hour = 0;
+    if (upper === "PM" && hour !== 12) hour += 12;
+    return `${String(hour).padStart(2, "0")}:${rawMinute || "00"}`;
+  }
+
+  /** "7 AM–10 PM" → "07:00 ~ 22:00" 처럼 표기를 한 가지로 맞춘다. */
+  function normalizeHourText(value) {
+    return String(value || "")
+      .replace(/\s+/g, " ")
+      .replace(/\b(\d{1,2})(?::(\d{2}))?\s*(AM|PM)\b/gi, hoursTo24)
+      // 시각 사이의 구분자만 물결표로 바꾼다(전화번호 같은 건 건드리지 않는다).
+      .replace(/(\d)\s*[~\-–—]\s*(\d)/g, "$1 ~ $2")
+      .replace(/\bclosed\b/gi, "휴무")
+      .replace(/\bopen 24 hours\b/gi, "24시간 영업")
+      .replace(/\b24 hours\b/gi, "24시간 영업")
+      .replace(/^[\s:·|]+/, "")
+      .replace(/[\s,;·|/]+$/, "")
+      .trim();
+  }
+
+  /**
+   * @returns {{label: string, value: string}[] | null}
+   */
+  function parseOpeningHours(rawText) {
+    const text = String(rawText || "").replace(/\r\n?/g, "\n").trim();
+    if (!text) return null;
+
+    const matches = [...text.matchAll(HOURS_DAY_REGEX)];
+    if (!matches.length) return null;
+
+    const entries = [];
+    matches.forEach((match, index) => {
+      const token = match[1];
+      const label = HOURS_ALIAS_TO_LABEL.get(token.toLowerCase().replace(/\s+/g, " "));
+      if (!label) return;
+
+      const valueStart = match.index + match[0].length;
+      const valueEnd = index + 1 < matches.length ? matches[index + 1].index : text.length;
+      const value = normalizeHourText(text.slice(valueStart, valueEnd));
+
+      // 앞 요일과 이 요일 사이에 범위 기호만 있으면("월~금", "Mon-Fri") 한 줄로 합친다.
+      // 기호가 매칭에 먹혔는지(separator) 앞 항목에 남았는지(value) 둘 다 본다.
+      const separator = match[0].slice(0, match[0].length - token.length).trim();
+      const previous = entries[entries.length - 1];
+      const linksToPrevious = Boolean(previous)
+        && (!previous.value || HOURS_RANGE_ONLY.test(previous.value))
+        && (HOURS_RANGE_ONLY.test(separator) || HOURS_RANGE_ONLY.test(previous.value));
+      if (linksToPrevious) {
+        previous.label = `${previous.label} ~ ${label}`;
+        previous.value = value;
+        return;
+      }
+      entries.push({ label, value });
+    });
+
+    const usable = entries.filter((entry) => entry.value);
+    return usable.length ? usable : null;
+  }
+
+  /** @returns {string[] | null} ["월요일 : 07:00 ~ 22:00", ...] */
+  function openingHoursLines(rawText) {
+    const entries = parseOpeningHours(rawText);
+    return entries ? entries.map((entry) => `${entry.label} : ${entry.value}`) : null;
+  }
+
+  window.FooduckHours = {
+    parse: parseOpeningHours,
+    lines: openingHoursLines,
+    normalize: normalizeHourText,
+  };
+
   window.FooduckIcons = { set: setIcon, enhance: enhanceIcons };
   window.FooduckEmojis = {
     items: FOODUCK_CUSTOM_EMOJIS,
@@ -1503,5 +1621,35 @@
     updateVisibility();
   }
 
+  // 모바일에서 페이지 전체를 화면 폭에 맞춰 확대·축소한다.
+  // 기준 폭에서 그린 화면을 그대로 키우고 줄이므로 요소 사이의 비율이 유지된다.
+  // 실제 확대는 common.css의 body { zoom: var(--page-scale) }가 맡는다.
+  const PAGE_SCALE_BASE_WIDTH = 390;
+  const PAGE_SCALE_BREAKPOINT = 640;
+  const PAGE_SCALE_MIN = 0.85;
+  const PAGE_SCALE_MAX = 1.25;
+
+  function applyPageScale() {
+    const width = window.innerWidth || document.documentElement.clientWidth || 0;
+    if (!width || width > PAGE_SCALE_BREAKPOINT) {
+      document.documentElement.style.removeProperty("--page-scale");
+      return;
+    }
+    const scale = Math.min(
+      PAGE_SCALE_MAX,
+      Math.max(PAGE_SCALE_MIN, width / PAGE_SCALE_BASE_WIDTH),
+    );
+    document.documentElement.style.setProperty("--page-scale", scale.toFixed(4));
+  }
+
+  function initializePageScale() {
+    applyPageScale();
+    // 배율 계산은 innerWidth 하나만 읽고 변수 하나만 쓰므로 바로 처리한다.
+    // (requestAnimationFrame으로 미루면 화면이 가려진 탭에서 갱신이 밀린다.)
+    window.addEventListener("resize", applyPageScale, { passive: true });
+    window.addEventListener("orientationchange", applyPageScale, { passive: true });
+  }
+
+  initializePageScale();
   initializeScrollTopButton();
 })();

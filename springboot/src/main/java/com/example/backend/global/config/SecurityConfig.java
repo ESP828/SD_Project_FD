@@ -62,6 +62,7 @@ public class SecurityConfig {
                                 "/mypage/**", "/presset/**", "/recommendation", "/restaurant/**", "/search"
                         ).permitAll()
                         .requestMatchers("/api/auth/**", "/api/public/**", "/api/hello").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/recommendations/query").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/presets", "/api/presets/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/board/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/business/applications").authenticated()

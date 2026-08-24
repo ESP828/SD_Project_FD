@@ -226,11 +226,13 @@ public class PostController {
     }
 
     @GetMapping("/popular")
-    public ApiResponse<List<PostListItemResponse>> getPopularPosts(
+    public ApiResponse<PostPageResponse> getPopularPosts(
+            @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
             Authentication authentication
     ) {
-        return ApiResponse.success(postService.getPopularPosts(
+        return ApiResponse.success(postService.getPopularPostPage(
+                page,
                 size,
                 BoardAuthentication.accountId(authentication)
         ));
@@ -478,6 +480,22 @@ public class PostController {
             Authentication authentication
     ) {
         return update(postId, request, authentication);
+    }
+
+    @PatchMapping("/{postId}/best-override")
+    public ApiResponse<PostDetailResponse> updateBestOverride(
+            @PathVariable Long postId,
+            @RequestParam String mode,
+            Authentication authentication
+    ) {
+        return ApiResponse.success(
+                "베스트 커뮤니티 설정을 변경했습니다.",
+                postService.updateBestOverride(
+                        postId,
+                        mode,
+                        BoardAuthentication.accountId(authentication)
+                )
+        );
     }
 
     @PatchMapping("/{postId}/pin")

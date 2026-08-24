@@ -28,25 +28,31 @@
     ? "GENERAL"
     : requestedBoardType;
   let businessAccessAllowed = Boolean(session?.canManageBusiness);
+  const POPULAR_PAGE_SIZE = 20;
   const state = {
     boardType: initialBoardType,
     lastBoardType: initialBoardType === "BUSINESS" ? "BUSINESS" : "GENERAL",
     category: requestedCategory,
     keyword: requestedKeyword,
     sort: requestedSort,
-    page: requestedBoardType === "POPULAR" ? 0 : requestedPage,
+    page: requestedPage,
     size: 7,
   };
 
   const boardList = document.getElementById("board-list");
   const totalCount = document.getElementById("board-total-count");
+  const totalSummary = document.getElementById("board-total-summary");
+  const boardListCriteria = document.getElementById("board-list-criteria");
+  const popularRankRange = document.getElementById("popular-rank-range");
   const pagination = document.getElementById("board-pagination");
   const bestPostPanel = document.getElementById("best-post-panel");
   const bestPostList = document.getElementById("best-post-list");
   const unansweredPostList = document.getElementById("unanswered-post-list");
   const boardHeading = document.getElementById("board-heading");
   const boardTabPanel = document.getElementById("board-tabpanel");
+  const boardTypeSelect = document.getElementById("board-type-select");
   const businessTab = document.getElementById("business-board-tab");
+  const businessButton = document.getElementById("business-board-button");
   const searchForm = document.getElementById("board-search-form");
   const categorySelect = document.getElementById("board-category");
   const keywordInput = document.getElementById("board-keyword");
@@ -60,7 +66,6 @@
   let pendingBoardLoginAction = null;
   let boardLogoutInFlight = false;
   let cachedFallbackNoticeShown = false;
-  const BOARD_FLASH_KEY = "fooduck:board:flash:v1";
 
   if (!session || !board || !boardList || !searchForm) {
     return;
@@ -102,14 +107,7 @@
   document.body.append(boardToast);
 
   function consumeBoardFlashMessage() {
-    try {
-      const message = window.sessionStorage.getItem(BOARD_FLASH_KEY);
-      if (!message) return;
-      window.sessionStorage.removeItem(BOARD_FLASH_KEY);
-      showToast(boardToast, message);
-    } catch (_error) {
-      // 저장 공간을 사용할 수 없는 환경에서는 안내 없이 기존 흐름을 유지한다.
-    }
+    board.consumeFeedbackFlash?.(boardToast);
   }
 
   function showCachedFallbackNoticeOnce() {
@@ -153,7 +151,7 @@
       if (state.sort !== "LATEST") params.set("sort", state.sort);
     }
 
-    if (state.boardType !== "POPULAR" && state.page > 0) {
+    if (state.page > 0) {
       params.set("page", String(state.page + 1));
     }
 
@@ -283,16 +281,31 @@
     const badges = element("div", "post-badge-row");
     if (state.boardType === "BEST" || state.boardType === "POPULAR") {
       const rank = state.boardType === "POPULAR"
-        ? index + 1
+        ? state.page * POPULAR_PAGE_SIZE + index + 1
         : state.page * state.size + index + 1;
-      const rankLabel = state.boardType === "POPULAR" ? "인기" : "베스트";
-      badges.append(element("span", "post-badge", `${rankLabel} ${rank}위`));
+      const rankBadge = element(
+        "span",
+        "post-badge",
+        state.boardType === "POPULAR" ? `#${rank}` : `베스트 ${rank}위`,
+      );
+      if (state.boardType === "POPULAR") {
+        rankBadge.setAttribute("aria-label", `인기 ${rank}위`);
+        rankBadge.title = `인기 ${rank}위`;
+      }
+      badges.append(rankBadge);
     }
     if (isNotice) {
       badges.append(element("span", "post-badge post-badge--notice", "공지 · 상단 고정"));
     }
     if (post.category !== "NOTICE") {
-      badges.append(element("span", "post-badge", categoryLabel(post.category)));
+      const categoryClass = String(post.category || "GENERAL").toLowerCase();
+      badges.append(
+        element(
+          "span",
+          `post-badge post-badge--category post-badge--category-${categoryClass}`,
+          categoryLabel(post.category),
+        ),
+      );
     }
     if (["BEST", "POPULAR"].includes(state.boardType) || post.boardType === "BUSINESS") {
       badges.append(
@@ -340,10 +353,49 @@
     return article;
   }
 
+  function syncListRankingMeta(pageData, posts = []) {
+    const isPopular = state.boardType === "POPULAR";
+
+    if (totalSummary) {
+      totalSummary.textContent = "개의 이야기";
+    }
+
+    if (boardListCriteria) {
+      if (isPopular) {
+        boardListCriteria.textContent = "기준 : 최근 30일, 추천순";
+        boardListCriteria.hidden = false;
+      } else if (state.boardType === "BEST") {
+        boardListCriteria.textContent = "기준 : 추천 3개 이상";
+        boardListCriteria.hidden = false;
+      } else {
+        boardListCriteria.textContent = "";
+        boardListCriteria.hidden = true;
+      }
+    }
+
+    if (!popularRankRange) return;
+
+    if (!isPopular || !posts.length) {
+      popularRankRange.hidden = true;
+      popularRankRange.textContent = "";
+      return;
+    }
+
+    const pageNumber = Math.max(0, Number(pageData?.page) || state.page || 0);
+    const pageSize = Math.max(1, Number(pageData?.size) || POPULAR_PAGE_SIZE);
+    const startRank = pageNumber * pageSize + 1;
+    const endRank = startRank + posts.length - 1;
+
+    popularRankRange.textContent = `${startRank}–${endRank}위`;
+    popularRankRange.hidden = false;
+  }
+
   function renderPosts(pageData) {
-    totalCount.textContent = String(pageData.totalElements || 0);
+    const totalElements = Math.max(0, Number(pageData.totalElements) || 0);
+    totalCount.textContent = String(totalElements);
     boardList.replaceChildren();
     const posts = pageData.content || [];
+    syncListRankingMeta(pageData, posts);
     if (!posts.length) {
       const empty = element("div", "board-empty");
       const image = new Image();
@@ -438,23 +490,10 @@
   }
 
   function normalizePostPage(data) {
-    if (state.boardType !== "POPULAR") {
-      return data || {};
-    }
-    const posts = Array.isArray(data) ? data : [];
-    return {
-      content: posts,
-      page: 0,
-      size: posts.length,
-      totalElements: posts.length,
-      totalPages: posts.length ? 1 : 0,
-      first: true,
-      last: true,
-    };
+    return data || {};
   }
 
   function correctOutOfRangePage(pageData) {
-    if (state.boardType === "POPULAR") return false;
     const totalPages = Math.max(0, Number(pageData?.totalPages) || 0);
     const correctedPage = totalPages > 0
       ? Math.min(state.page, totalPages - 1)
@@ -474,7 +513,8 @@
     const params = new URLSearchParams();
 
     if (isPopular) {
-      params.set("size", "20");
+      params.set("page", String(state.page));
+      params.set("size", String(POPULAR_PAGE_SIZE));
     } else {
       params.set("page", String(state.page));
       params.set("size", String(state.size));
@@ -505,7 +545,7 @@
 
     try {
       const payload = await Api.get(path, { cache: "no-store" });
-      const data = payload.data || (isPopular ? [] : {});
+      const data = payload.data || {};
       writeBoardCache(path, data);
       if (generation !== postRequestGeneration) return;
       const pageData = normalizePostPage(data);
@@ -710,16 +750,15 @@
     const isBest = state.boardType === "BEST";
     const isPopular = state.boardType === "POPULAR";
     const isRankedView = isBest || isPopular;
-    let activeTabId = "board-tab-general";
-    document.querySelectorAll("[data-board-type]").forEach((tab) => {
+    if (boardTypeSelect) boardTypeSelect.value = state.boardType;
+    document.querySelectorAll(".board-tab-buttons [data-board-type]").forEach((tab) => {
       const active = tab.dataset.boardType === state.boardType;
       tab.classList.toggle("is-active", active);
       tab.setAttribute("aria-selected", String(active));
       tab.tabIndex = active ? 0 : -1;
-      if (active && tab.id) activeTabId = tab.id;
     });
     if (boardTabPanel) {
-      boardTabPanel.setAttribute("aria-labelledby", activeTabId);
+      boardTabPanel.setAttribute("aria-labelledby", "board-type-select");
     }
     boardHeading.textContent = isBest
       ? "베스트 커뮤니티"
@@ -728,6 +767,25 @@
         : state.boardType === "BUSINESS"
           ? "사업자 커뮤니티"
           : "일반 커뮤니티";
+    if (totalSummary) {
+      totalSummary.textContent = "개의 이야기";
+    }
+    if (boardListCriteria) {
+      if (isPopular) {
+        boardListCriteria.textContent = "기준 : 최근 30일, 추천순";
+        boardListCriteria.hidden = false;
+      } else if (isBest) {
+        boardListCriteria.textContent = "기준 : 추천 3개 이상";
+        boardListCriteria.hidden = false;
+      } else {
+        boardListCriteria.textContent = "";
+        boardListCriteria.hidden = true;
+      }
+    }
+    if (popularRankRange && !isPopular) {
+      popularRankRange.hidden = true;
+      popularRankRange.textContent = "";
+    }
     searchForm.hidden = isRankedView;
     writeLinks.forEach((link) => {
       link.hidden = isRankedView;
@@ -749,7 +807,11 @@
     loadBoardContent();
   }
 
-  const boardTabs = Array.from(document.querySelectorAll("[data-board-type]"));
+  boardTypeSelect?.addEventListener("change", () => {
+    switchBoard(boardTypeSelect.value);
+  });
+
+  const boardTabs = Array.from(document.querySelectorAll(".board-tab-buttons [data-board-type]"));
   boardTabs.forEach((tab) => {
     tab.addEventListener("click", () => switchBoard(tab.dataset.boardType));
     tab.addEventListener("keydown", (event) => {
@@ -757,20 +819,13 @@
       const visibleTabs = boardTabs.filter((candidate) => !candidate.hidden);
       const currentIndex = visibleTabs.indexOf(tab);
       if (currentIndex < 0 || !visibleTabs.length) return;
-
       event.preventDefault();
       let nextIndex = currentIndex;
       if (event.key === "Home") nextIndex = 0;
       if (event.key === "End") nextIndex = visibleTabs.length - 1;
-      if (event.key === "ArrowLeft") {
-        nextIndex = (currentIndex - 1 + visibleTabs.length) % visibleTabs.length;
-      }
-      if (event.key === "ArrowRight") {
-        nextIndex = (currentIndex + 1) % visibleTabs.length;
-      }
-
-      const nextTab = visibleTabs[nextIndex];
-      nextTab.focus({ preventScroll: true });
+      if (event.key === "ArrowLeft") nextIndex = (currentIndex - 1 + visibleTabs.length) % visibleTabs.length;
+      if (event.key === "ArrowRight") nextIndex = (currentIndex + 1) % visibleTabs.length;
+      visibleTabs[nextIndex].focus({ preventScroll: true });
     });
   });
 
@@ -824,7 +879,9 @@
 
     let ticking = false;
     const updateVisibility = () => {
-      button.hidden = window.scrollY <= 450;
+      const visible = window.scrollY > 450;
+      button.hidden = !visible;
+      document.body.classList.toggle("board-scroll-top-visible", visible);
       ticking = false;
     };
 
@@ -848,6 +905,7 @@
     const businessAccessPromise = board.canUseBusinessBoard().then((allowed) => {
       businessAccessAllowed = allowed;
       if (businessTab) businessTab.hidden = !businessAccessAllowed;
+      if (businessButton) businessButton.hidden = !businessAccessAllowed;
       return allowed;
     });
 
@@ -885,9 +943,10 @@
       ? sortValue
       : "LATEST";
     state.keyword = String(params.get("keyword") || "").trim().slice(0, 100);
-    state.page = nextBoardType === "POPULAR"
-      ? 0
-      : Math.max(0, Math.min(9999, (Number.parseInt(params.get("page"), 10) || 1) - 1));
+    state.page = Math.max(
+      0,
+      Math.min(9999, (Number.parseInt(params.get("page"), 10) || 1) - 1),
+    );
     syncSearchControls();
     syncBoardNavigation("none");
   }

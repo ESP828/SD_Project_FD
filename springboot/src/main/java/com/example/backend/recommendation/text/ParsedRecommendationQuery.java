@@ -14,6 +14,15 @@ public record ParsedRecommendationQuery(
         List<String> purposeTokens,
         List<String> atmosphereTokens,
         List<String> priceTokens,
-        boolean nearby
+        boolean nearby,
+        String category,
+        String categoryMedium,
+        String categorySmallKeyword,
+        Integer maxPrice,
+        Double minRating,
+        String semanticText,
+        List<String> excludedCategoryMediumNames,
+        Integer radiusMeters,
+        List<String> unsupportedConstraints
 ) {
 }

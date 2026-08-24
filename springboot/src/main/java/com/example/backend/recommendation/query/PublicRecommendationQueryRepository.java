@@ -17,7 +17,8 @@ public interface PublicRecommendationQueryRepository extends JpaRepository<Publi
     //    잘라내게 되어 실제로 반경 안에 있는 매장이 후보에서 통째로 누락될 수 있다.)
     @Query("""
         SELECT p FROM PublicRestaurant p
-        WHERE (:minLat IS NULL OR p.latitude >= :minLat)
+        WHERE p.status = com.example.backend.restaurant.domain.type.RestaurantStatus.ACTIVE
+          AND (:minLat IS NULL OR p.latitude >= :minLat)
           AND (:maxLat IS NULL OR p.latitude <= :maxLat)
           AND (:minLng IS NULL OR p.longitude >= :minLng)
           AND (:maxLng IS NULL OR p.longitude <= :maxLng)
@@ -37,6 +38,33 @@ public interface PublicRecommendationQueryRepository extends JpaRepository<Publi
             Pageable pageable
     );
 
+    @Query("""
+        SELECT p FROM PublicRestaurant p
+        WHERE (:minLat IS NULL OR p.latitude >= :minLat)
+          AND (:maxLat IS NULL OR p.latitude <= :maxLat)
+          AND (:minLng IS NULL OR p.longitude >= :minLng)
+          AND (:maxLng IS NULL OR p.longitude <= :maxLng)
+          AND (:categoryMedium IS NULL OR p.categoryMediumName = :categoryMedium)
+          AND (:categorySmallKeyword IS NULL
+               OR p.categorySmallName LIKE CONCAT('%', :categorySmallKeyword, '%'))
+        ORDER BY
+          CASE WHEN :centerLat IS NULL OR :centerLng IS NULL THEN 0
+               ELSE (p.latitude - :centerLat) * (p.latitude - :centerLat)
+                  + (p.longitude - :centerLng) * (p.longitude - :centerLng)
+          END ASC
+    """)
+    List<PublicRestaurant> findCandidatesInBoundsWithCategory(
+            @Param("minLat") Double minLat,
+            @Param("maxLat") Double maxLat,
+            @Param("minLng") Double minLng,
+            @Param("maxLng") Double maxLng,
+            @Param("centerLat") Double centerLat,
+            @Param("centerLng") Double centerLng,
+            @Param("categoryMedium") String categoryMedium,
+            @Param("categorySmallKeyword") String categorySmallKeyword,
+            Pageable pageable
+    );
+
     /**
      * 2. 특정 사용자(accountId)가 찜한 공공 음식점 목록 조회
      * FavoriteId 자바 필드명(restaurantId)을 바라보도록 작성
@@ -45,6 +73,7 @@ public interface PublicRecommendationQueryRepository extends JpaRepository<Publi
         SELECT p FROM PublicRestaurant p
         JOIN Favorite f ON p.publicRestaurantId = f.id.restaurantId
         WHERE f.id.accountId = :accountId
+          AND p.status = com.example.backend.restaurant.domain.type.RestaurantStatus.ACTIVE
     """)
     List<PublicRestaurant> findFavoritesByAccountId(@Param("accountId") Long accountId);
 

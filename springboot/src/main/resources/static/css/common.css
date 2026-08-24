@@ -254,6 +254,11 @@ h4 {
   border-color: #cbd6e3;
 }
 
+.header-actions .icon-button,
+.header-actions .icon-button:hover {
+  border-color: transparent;
+}
+
 .nav-toggle {
   display: none;
 }
@@ -1262,6 +1267,17 @@ h4 {
     flex-wrap: wrap;
     gap: 10px 18px;
     overflow-x: visible;
+  }
+}
+
+/* 모바일에서는 기준 폭(390px)으로 그린 화면을 통째로 확대·축소한다.
+   여백·글자·이미지가 대부분 px로 잡혀 있어 개별 규칙으로는 같이 커지지 않으므로,
+   페이지 전체 배율을 화면 폭에 맞춰 조절한다. 배율은 common.js가 --page-scale로 넣는다. */
+@media (max-width: 640px) {
+  body {
+    zoom: var(--page-scale, 1);
+    /* vh는 배율의 영향을 받지 않아 화면보다 길어지므로 배율만큼 되돌린다. */
+    min-height: calc(100vh / var(--page-scale, 1));
   }
 }
 

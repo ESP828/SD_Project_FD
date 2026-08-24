@@ -9,6 +9,7 @@
   const sortSelect = document.querySelector("#preset-sort-select");
   const searchReset = document.querySelector("#preset-search-reset");
   const viewTabs = Array.from(document.querySelectorAll("[data-preset-sort]"));
+  const viewSelect = document.querySelector("#preset-view-select");
   const registerLinks = Array.from(document.querySelectorAll("[data-preset-register-link]"));
   const toast = document.querySelector("#preset-toast");
   const registerPath = "/presset/register";
@@ -81,6 +82,7 @@
       tab.tabIndex = active ? 0 : -1;
       if (active) activeLabel = tab.textContent.trim();
     });
+    if (viewSelect) viewSelect.value = state.sort;
     // 목록 패널 제목은 선택한 보기 탭의 이름을 그대로 사용한다.
     if (heading && activeLabel) heading.textContent = activeLabel;
   }
@@ -431,6 +433,8 @@
       viewTabs[nextIndex]?.focus({ preventScroll: true });
     });
   });
+
+  viewSelect?.addEventListener("change", () => selectView(viewSelect.value));
 
   window.addEventListener("popstate", () => {
     restoreStateFromLocation();

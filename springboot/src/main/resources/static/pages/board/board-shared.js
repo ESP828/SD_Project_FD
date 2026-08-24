@@ -20,6 +20,9 @@
     ADMIN: "관리자",
   };
 
+  const GUIDANCE_SKIP_MONTHS = 6;
+  const AUTHOR_ACTIVITY_TOOLTIP_SKIP_KEY = "fooduck:author-profile-tooltip-skip-until:v1";
+  const FEEDBACK_FLASH_KEY = "fooduck:feedback:flash:v1";
   let authorMenu = null;
   let activeAuthorTrigger = null;
   let businessAccessPromise = null;
@@ -29,6 +32,11 @@
   let authorActivityHintTimer = null;
   let authorActivityTooltip = null;
   let authorActivityTooltipTarget = null;
+  let authorActivityTooltipCloseTimer = null;
+  let guidanceSettingsRoot = null;
+  let guidanceSettingsToggle = null;
+  let guidanceSettingsPanel = null;
+  let authorGuidanceSurfaceAvailable = false;
   const AUTHOR_ACTIVITY_HINT_KEY = "fooduck:author-profile-hint:v1";
 
 
@@ -187,6 +195,15 @@
     notifyBoardCacheInvalidated(Number(event.newValue) || Date.now());
   });
 
+  window.addEventListener("storage", (event) => {
+    if (event.key !== AUTHOR_ACTIVITY_TOOLTIP_SKIP_KEY) return;
+    closeAuthorActivityTooltip();
+    syncGuidanceSettingsControl();
+  });
+
+  window.addEventListener("resize", closeAuthorActivityTooltip);
+  window.addEventListener("scroll", closeAuthorActivityTooltip, true);
+
   function element(tag, className, text) {
     const node = document.createElement(tag);
     if (className) node.className = className;
@@ -252,6 +269,184 @@
     return categoryLabels[value] || value || "카테고리 없음";
   }
 
+  function guidanceSkipUntil(key) {
+    try {
+      const value = Number(window.localStorage.getItem(key));
+      if (!Number.isFinite(value) || value <= Date.now()) {
+        if (value) window.localStorage.removeItem(key);
+        return 0;
+      }
+      return value;
+    } catch (_error) {
+      return 0;
+    }
+  }
+
+  function isGuidanceSkipped(key) {
+    return guidanceSkipUntil(key) > Date.now();
+  }
+
+  function guidanceSkipExpiryTimestamp() {
+    const until = new Date();
+    const originalDay = until.getDate();
+    until.setDate(1);
+    until.setMonth(until.getMonth() + GUIDANCE_SKIP_MONTHS);
+    const lastDayOfTargetMonth = new Date(
+      until.getFullYear(),
+      until.getMonth() + 1,
+      0,
+    ).getDate();
+    until.setDate(Math.min(originalDay, lastDayOfTargetMonth));
+    return until.getTime();
+  }
+
+  function skipGuidanceForSixMonths(key) {
+    try {
+      window.localStorage.setItem(key, String(guidanceSkipExpiryTimestamp()));
+    } catch (_error) {
+      // localStorage를 사용할 수 없는 환경에서는 안내를 현재 화면에서만 닫는다.
+    }
+    syncGuidanceSettingsControl();
+  }
+
+  function restoreGuidance(key) {
+    try {
+      window.localStorage.removeItem(key);
+    } catch (_error) {
+      // 저장소 접근이 불가능해도 현재 화면 복원은 계속 시도한다.
+    }
+
+    if (key === AUTHOR_ACTIVITY_TOOLTIP_SKIP_KEY) {
+      closeAuthorActivityTooltip();
+    }
+
+    syncGuidanceSettingsControl();
+  }
+
+  function guidanceState() {
+    return {
+      author: isGuidanceSkipped(AUTHOR_ACTIVITY_TOOLTIP_SKIP_KEY),
+    };
+  }
+
+  function closeGuidanceSettings() {
+    if (!guidanceSettingsPanel || !guidanceSettingsToggle) return;
+    guidanceSettingsPanel.hidden = true;
+    guidanceSettingsToggle.setAttribute("aria-expanded", "false");
+  }
+
+  function renderGuidanceSettingsPanel() {
+    if (!guidanceSettingsPanel) return;
+    const state = guidanceState();
+    const body = element("div", "guidance-settings-panel__body");
+
+    if (state.author) {
+      const button = element(
+        "button",
+        "guidance-settings-action",
+        "작성자 프로필 안내 다시 켜기",
+      );
+      button.type = "button";
+      button.addEventListener("click", () => {
+        restoreGuidance(AUTHOR_ACTIVITY_TOOLTIP_SKIP_KEY);
+      });
+      body.append(button);
+    }
+
+
+
+    const header = element("div", "guidance-settings-panel__header");
+    header.append(
+      element("strong", "guidance-settings-panel__title", "안내 설정"),
+      element("span", "guidance-settings-panel__status", "안내 숨김 중"),
+    );
+
+    guidanceSettingsPanel.replaceChildren(
+      header,
+      element(
+        "p",
+        "guidance-settings-panel__copy",
+        "작성자 프로필 안내를 숨기고 있습니다. 필요하면 언제든 바로 다시 켤 수 있습니다.",
+      ),
+      body,
+    );
+  }
+
+  function ensureGuidanceSettingsControl() {
+    if (guidanceSettingsRoot?.isConnected) return guidanceSettingsRoot;
+    if (!document.body) return null;
+
+    const root = element("div", "guidance-settings");
+    const toggle = element("button", "guidance-settings-toggle");
+    const toggleIcon = element("span", "material-symbols-rounded", "tune");
+    toggleIcon.setAttribute("aria-hidden", "true");
+    toggle.append(toggleIcon);
+    toggle.type = "button";
+    toggle.dataset.tooltip = "안내 설정";
+    toggle.setAttribute("aria-label", "안내 설정");
+    toggle.setAttribute("aria-expanded", "false");
+    toggle.setAttribute("aria-haspopup", "dialog");
+
+    const panel = element("section", "guidance-settings-panel");
+    panel.hidden = true;
+    panel.setAttribute("role", "dialog");
+    panel.setAttribute("aria-label", "안내 설정");
+
+    toggle.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const willOpen = panel.hidden;
+      if (willOpen) {
+        renderGuidanceSettingsPanel();
+        panel.hidden = false;
+      } else {
+        panel.hidden = true;
+      }
+      toggle.setAttribute("aria-expanded", String(willOpen));
+    });
+
+    panel.addEventListener("click", (event) => event.stopPropagation());
+    root.append(panel, toggle);
+    document.body.append(root);
+
+    guidanceSettingsRoot = root;
+    guidanceSettingsToggle = toggle;
+    guidanceSettingsPanel = panel;
+    return root;
+  }
+
+  function syncGuidanceSettingsControl() {
+    const state = guidanceState();
+    const hasSkippedGuidance = state.author;
+
+    if (!hasSkippedGuidance || !authorGuidanceSurfaceAvailable) {
+      closeGuidanceSettings();
+      if (guidanceSettingsRoot) guidanceSettingsRoot.hidden = true;
+      document.body?.classList.remove("guidance-settings-visible");
+      return;
+    }
+
+    const root = ensureGuidanceSettingsControl();
+    if (!root) return;
+    root.hidden = false;
+    document.body?.classList.add("guidance-settings-visible");
+    if (guidanceSettingsPanel && !guidanceSettingsPanel.hidden) {
+      renderGuidanceSettingsPanel();
+    }
+  }
+
+  function createGuidanceSkipButton(key, onSkip) {
+    const button = element("button", "guidance-tooltip-skip", "6개월간 안 보기");
+    button.type = "button";
+    button.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      skipGuidanceForSixMonths(key);
+      onSkip?.();
+    });
+    return button;
+  }
+
   function roleLabel(value) {
     return roleLabels[value] || roleLabels.USER;
   }
@@ -260,6 +455,21 @@
     const normalized = roleLabels[value] ? value.toLowerCase() : "user";
     return `post-role post-role--${normalized}`;
   }
+
+  function roleBadge(value) {
+    const normalizedRole = roleLabels[value] ? value : "USER";
+    return element("span", roleClass(normalizedRole), roleLabel(normalizedRole));
+  }
+
+  document.addEventListener("click", (event) => {
+    if (guidanceSettingsRoot?.contains(event.target)) return;
+    closeGuidanceSettings();
+  });
+
+  document.addEventListener("keydown", (event) => {
+    if (event.key !== "Escape") return;
+    closeGuidanceSettings();
+  });
 
   function hasSeenAuthorActivityHint() {
     if (authorActivityHintShownInSession) return true;
@@ -306,9 +516,16 @@
       Math.max(viewportPadding, rect.left + rect.width / 2 - panelRect.width / 2),
       window.innerWidth - panelRect.width - viewportPadding,
     );
+    const triggerCenter = rect.left + rect.width / 2;
+    const arrowPadding = 12;
+    const arrowLeft = Math.min(
+      Math.max(triggerCenter - left, arrowPadding),
+      Math.max(arrowPadding, panelRect.width - arrowPadding),
+    );
     panel.dataset.placement = canPlaceBelow ? "below" : "above";
     panel.style.top = `${top}px`;
     panel.style.left = `${left}px`;
+    panel.style.setProperty("--floating-arrow-left", `${arrowLeft}px`);
     return canPlaceBelow ? "below" : "above";
   }
 
@@ -316,7 +533,15 @@
     positionFloatingPanel(authorActivityHint, trigger, 10);
   }
 
+  function clearAuthorActivityTooltipCloseTimer() {
+    if (authorActivityTooltipCloseTimer) {
+      window.clearTimeout(authorActivityTooltipCloseTimer);
+      authorActivityTooltipCloseTimer = null;
+    }
+  }
+
   function closeAuthorActivityTooltip() {
+    clearAuthorActivityTooltipCloseTimer();
     if (authorActivityTooltip) {
       authorActivityTooltip.remove();
       authorActivityTooltip = null;
@@ -324,13 +549,44 @@
     authorActivityTooltipTarget = null;
   }
 
+  function scheduleAuthorActivityTooltipClose() {
+    clearAuthorActivityTooltipCloseTimer();
+    authorActivityTooltipCloseTimer = window.setTimeout(closeAuthorActivityTooltip, 140);
+  }
+
   function showAuthorActivityTooltip(trigger) {
-    if (!trigger?.isConnected || authorActivityHint) return;
+    if (
+      !trigger?.isConnected
+      || authorActivityHint
+      || isGuidanceSkipped(AUTHOR_ACTIVITY_TOOLTIP_SKIP_KEY)
+    ) return;
     const message = trigger.dataset.authorActivityTooltip;
     if (!message) return;
+
+    clearAuthorActivityTooltipCloseTimer();
+    if (authorActivityTooltipTarget === trigger && authorActivityTooltip?.isConnected) return;
     closeAuthorActivityTooltip();
-    const tooltip = element("div", "author-activity-tooltip", message);
-    tooltip.setAttribute("role", "tooltip");
+
+    const tooltip = element("div", "author-activity-tooltip");
+    tooltip.setAttribute("role", "group");
+    tooltip.setAttribute("aria-label", "작성자 프로필 안내");
+
+    const tooltipSummary = element("div", "author-activity-tooltip__summary");
+    const tooltipIcon = icon("person");
+    tooltipIcon.classList.add("author-activity-tooltip__icon");
+    tooltipSummary.append(
+      tooltipIcon,
+      element("span", "author-activity-tooltip-copy", message),
+    );
+
+    tooltip.append(
+      tooltipSummary,
+      createGuidanceSkipButton(AUTHOR_ACTIVITY_TOOLTIP_SKIP_KEY, closeAuthorActivityTooltip),
+    );
+    tooltip.addEventListener("mouseenter", clearAuthorActivityTooltipCloseTimer);
+    tooltip.addEventListener("mouseleave", scheduleAuthorActivityTooltipClose);
+    tooltip.addEventListener("focusin", clearAuthorActivityTooltipCloseTimer);
+    tooltip.addEventListener("focusout", scheduleAuthorActivityTooltipClose);
     document.body.append(tooltip);
     authorActivityTooltip = tooltip;
     authorActivityTooltipTarget = trigger;
@@ -339,7 +595,12 @@
 
   function maybeShowAuthorActivityHint(trigger) {
     window.setTimeout(() => {
-      if (hasSeenAuthorActivityHint() || authorActivityHint || !trigger?.isConnected) return;
+      if (
+        hasSeenAuthorActivityHint()
+        || authorActivityHint
+        || !trigger?.isConnected
+        || isGuidanceSkipped(AUTHOR_ACTIVITY_TOOLTIP_SKIP_KEY)
+      ) return;
       const rect = trigger.getBoundingClientRect();
       const visible = rect.width > 0
         && rect.height > 0
@@ -1085,7 +1346,7 @@
           window.FooduckNotifications?.refreshUnreadCount();
         } catch (_error) {
           if (!href) {
-            window.alert("알림을 읽음 처리하지 못했습니다.");
+            showGlobalToast("알림을 읽음 처리하지 못했습니다.", true);
           }
           // 읽음 처리 실패가 안전한 내부 화면 이동을 막지는 않는다.
         }
@@ -1339,11 +1600,11 @@
     trigger.setAttribute("aria-controls", "board-author-menu");
     trigger.setAttribute("aria-expanded", "false");
     trigger.setAttribute("aria-label", `${author.authorNickname || "작성자"} 프로필 보기`);
-    trigger.dataset.authorActivityTooltip = "프로필 보기 · 글 · 댓글 · 리뷰 확인";
+    trigger.dataset.authorActivityTooltip = "글 · 댓글 · 리뷰 활동 등을 확인할 수 있어요.";
     trigger.addEventListener("mouseenter", () => showAuthorActivityTooltip(trigger));
-    trigger.addEventListener("mouseleave", closeAuthorActivityTooltip);
+    trigger.addEventListener("mouseleave", scheduleAuthorActivityTooltipClose);
     trigger.addEventListener("focus", () => showAuthorActivityTooltip(trigger));
-    trigger.addEventListener("blur", closeAuthorActivityTooltip);
+    trigger.addEventListener("blur", scheduleAuthorActivityTooltipClose);
     trigger.addEventListener("click", (event) => {
       closeAuthorActivityTooltip();
       openAuthorMenu(author, trigger, event, context);
@@ -1371,7 +1632,7 @@
       element(
         "span",
         "author-activity-cue-label",
-        normalized === "full" ? "프로필 보기" : "프로필",
+        "프로필 보기",
       ),
     );
 
@@ -1396,9 +1657,10 @@
     if (showLoginIdentity && !author?.authorLoginId) {
       wrapper.append(element("strong", "author-login-id", "소셜 계정"));
     }
+    const withdrawnAuthor = author?.authorNickname === "탈퇴한 회원";
     if (showNickname && author?.authorNickname) {
       const nickname = element("span", "author-nickname", author.authorNickname);
-      if (showAuthorMenu && author.authorAccountId) {
+      if (showAuthorMenu && author.authorAccountId && !withdrawnAuthor) {
         const trigger = element(
           "span",
           `author-activity-trigger author-activity-trigger--${authorActivityCueMode === "full" ? "full" : "compact"}`,
@@ -1411,14 +1673,14 @@
             : "COMMUNITY";
         enableAuthorMenu(trigger, author, normalizedContext);
         wrapper.append(trigger);
+        authorGuidanceSurfaceAvailable = true;
+        syncGuidanceSettingsControl();
       } else {
         wrapper.append(nickname);
       }
     }
-    if (showRole) {
-      wrapper.append(
-        element("span", roleClass(author?.authorRole), roleLabel(author?.authorRole)),
-      );
+    if (showRole && !withdrawnAuthor) {
+      wrapper.append(roleBadge(author?.authorRole));
     }
     return wrapper;
   }
@@ -1780,15 +2042,163 @@
     return Number.isSafeInteger(value) && value > 0 ? value : null;
   }
 
+  const toastTimers = new WeakMap();
+
   function showToast(host, message, isError = false) {
     if (!host) return;
     host.textContent = message;
     host.classList.toggle("is-error", isError);
     host.hidden = false;
-    window.clearTimeout(showToast.timer);
-    showToast.timer = window.setTimeout(() => {
+    window.clearTimeout(toastTimers.get(host));
+    const timer = window.setTimeout(() => {
       host.hidden = true;
+      toastTimers.delete(host);
     }, 3200);
+    toastTimers.set(host, timer);
+  }
+
+  let globalFeedbackToast = null;
+
+  function ensureGlobalFeedbackToast() {
+    if (globalFeedbackToast?.isConnected) return globalFeedbackToast;
+
+    globalFeedbackToast = document.createElement("div");
+    globalFeedbackToast.className = "board-toast board-global-toast";
+    globalFeedbackToast.setAttribute("role", "status");
+    globalFeedbackToast.setAttribute("aria-live", "polite");
+    globalFeedbackToast.hidden = true;
+
+    // 모바일에서는 기존 형제 선택자가 toast와 상단 이동 버튼 간격을 조절한다.
+    // 따라서 상단 이동 버튼이 있으면 toast를 그 앞에 둔다.
+    const scrollTopButton = document.querySelector(".board-scroll-top");
+    if (scrollTopButton?.parentNode) {
+      scrollTopButton.parentNode.insertBefore(globalFeedbackToast, scrollTopButton);
+    } else {
+      document.body.append(globalFeedbackToast);
+    }
+    return globalFeedbackToast;
+  }
+
+  function showGlobalToast(message, isError = false) {
+    if (!message) return;
+    showToast(ensureGlobalFeedbackToast(), String(message), isError);
+  }
+
+  function setFeedbackFlash(message, isError = false) {
+    if (!message) return false;
+    try {
+      window.sessionStorage.setItem(
+        FEEDBACK_FLASH_KEY,
+        JSON.stringify({
+          message: String(message),
+          isError: Boolean(isError),
+          createdAt: Date.now(),
+        }),
+      );
+      return true;
+    } catch (_error) {
+      return false;
+    }
+  }
+
+  function consumeFeedbackFlash(host = null) {
+    let raw = null;
+    try {
+      raw = window.sessionStorage.getItem(FEEDBACK_FLASH_KEY);
+      window.sessionStorage.removeItem(FEEDBACK_FLASH_KEY);
+    } catch (_error) {
+      return false;
+    }
+    if (!raw) return false;
+
+    try {
+      const payload = JSON.parse(raw);
+      const createdAt = Number(payload?.createdAt);
+      if (!payload?.message || !Number.isFinite(createdAt) || Date.now() - createdAt > 30_000) {
+        return false;
+      }
+      if (host) showToast(host, payload.message, payload.isError === true);
+      else showGlobalToast(payload.message, payload.isError === true);
+      return true;
+    } catch (_error) {
+      return false;
+    }
+  }
+
+  function confirmAction({
+    title,
+    message,
+    confirmLabel = "확인",
+    danger = false,
+    iconName = danger ? "delete" : "edit",
+  } = {}) {
+    return new Promise((resolve) => {
+      const returnFocus = document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : null;
+      const dialog = document.createElement("dialog");
+      dialog.className = "board-dialog comment-confirm-dialog";
+
+      const shell = element("div", "dialog-shell comment-confirm-shell");
+      const heading = element("div", "comment-confirm-heading");
+      const iconWrap = element("span", "comment-confirm-icon");
+      const actionIcon = element("span", "material-symbols-rounded", iconName);
+      actionIcon.setAttribute("aria-hidden", "true");
+      iconWrap.append(actionIcon);
+
+      const copy = element("div", "comment-confirm-copy");
+      copy.append(
+        element("h2", "", title || "계속할까요?"),
+        element("p", "", message || "이 작업을 계속하시겠습니까?"),
+      );
+      heading.append(iconWrap, copy);
+
+      const actions = element("div", "comment-confirm-actions");
+      const cancelButton = element("button", "button button-sm button-secondary", "취소");
+      cancelButton.type = "button";
+      const confirmButton = element(
+        "button",
+        danger ? "button button-sm button-danger" : "button button-sm button-primary",
+        confirmLabel,
+      );
+      confirmButton.type = "button";
+      actions.append(cancelButton, confirmButton);
+      shell.append(heading, actions);
+      dialog.append(shell);
+      document.body.append(dialog);
+      window.FooduckIcons?.enhance(dialog);
+
+      let settled = false;
+      const finish = (result) => {
+        if (settled) return;
+        settled = true;
+        dialog.close();
+        dialog.remove();
+        if (!result && returnFocus?.isConnected) {
+          returnFocus.focus({ preventScroll: true });
+        }
+        resolve(result);
+      };
+
+      cancelButton.addEventListener("click", () => finish(false));
+      confirmButton.addEventListener("click", () => finish(true));
+      dialog.addEventListener("cancel", (event) => {
+        event.preventDefault();
+        finish(false);
+      });
+      dialog.addEventListener("click", (event) => {
+        if (event.target === dialog) finish(false);
+      });
+
+      dialog.showModal();
+      confirmButton.focus();
+    });
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", syncGuidanceSettingsControl, { once: true });
+  } else {
+    syncGuidanceSettingsControl();
   }
 
   window.FooduckBoard = {
@@ -1796,10 +2206,16 @@
     authorIdentity,
     canUseBusinessBoard,
     categoryLabel,
+    confirmAction,
+    consumeFeedbackFlash,
     createAuthPopupController,
     detailPath,
     element,
     formatDate,
+    guidanceSettings: {
+      restoreAuthorGuidance: () => restoreGuidance(AUTHOR_ACTIVITY_TOOLTIP_SKIP_KEY),
+      sync: syncGuidanceSettingsControl,
+    },
     icon,
     invalidateBoardCache,
     listPath,
@@ -1808,6 +2224,8 @@
     readPostId,
     requireLogin,
     roleLabel,
+    setFeedbackFlash,
+    showGlobalToast,
     showToast,
     updateCachedPostViewCount,
     writeBoardCache,

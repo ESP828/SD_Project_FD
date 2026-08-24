@@ -1,6 +1,7 @@
 package com.example.backend.board.service;
 
 import com.example.backend.auth.domain.entity.Account;
+import com.example.backend.auth.domain.type.AccountStatus;
 import com.example.backend.board.domain.entity.Post;
 import com.example.backend.board.domain.entity.PostLike;
 import com.example.backend.board.domain.entity.PostLikeId;
@@ -556,29 +557,41 @@ public class PostService {
     }
 
     @Transactional(readOnly = true)
-    public List<PostListItemResponse> getPopularPosts(
+    public PostPageResponse getPopularPostPage(
+            int page,
             int size,
             Long currentAccountId
     ) {
+        validatePage(page, size);
         if (size < MIN_POPULAR_SIZE || size > MAX_POPULAR_SIZE) {
             throw badRequest(
-                    "인기 이야기 개수는 " + MIN_POPULAR_SIZE + "~"
+                    "인기 이야기 페이지 크기는 " + MIN_POPULAR_SIZE + "~"
                             + MAX_POPULAR_SIZE + " 사이여야 합니다."
             );
         }
+
         Account currentAccount = boardUserService.findOptional(currentAccountId);
         BoardType readableBoardType = accessPolicy.isApprovedBusiness(currentAccount)
                 ? null
                 : BoardType.GENERAL;
         int safeWindowDays = Math.max(1, Math.min(bestWindowDays, 365));
-        List<Post> posts = postRepository.findBestPosts(
+        Page<Post> result = postRepository.findPopularPostPage(
                 readableBoardType,
                 PostCategory.NOTICE,
                 LocalDateTime.now().minusDays(safeWindowDays),
                 PostStatus.ACTIVE,
-                PageRequest.of(0, size)
+                PageRequest.of(page, size)
         );
-        return responseMapper.toListItems(posts, currentAccount);
+
+        return new PostPageResponse(
+                responseMapper.toListItems(result.getContent(), currentAccount),
+                result.getNumber(),
+                result.getSize(),
+                result.getTotalElements(),
+                result.getTotalPages(),
+                result.isFirst(),
+                result.isLast()
+        );
     }
 
     @Transactional(readOnly = true)
@@ -711,7 +724,7 @@ public class PostService {
             validateId(excludePostId, "제외 게시글");
         }
         Account author = boardUserService.findOptional(authorAccountId);
-        if (author == null) {
+        if (author == null || author.getStatus() == AccountStatus.WITHDRAWN) {
             throw new BoardException(
                     HttpStatus.NOT_FOUND,
                     "BOARD_AUTHOR_NOT_FOUND",
@@ -947,6 +960,44 @@ public class PostService {
         }
 
         post.updatePinnedState(category, pinned);
+        return responseMapper.toDetail(post, currentAccount);
+    }
+
+    @Transactional
+    public PostDetailResponse updateBestOverride(
+            Long postId,
+            String modeValue,
+            Long currentAccountId
+    ) {
+        Account currentAccount = boardUserService.require(currentAccountId);
+        if (!accessPolicy.isAdmin(currentAccount)) {
+            throw new BoardException(
+                    HttpStatus.FORBIDDEN,
+                    "BOARD_BEST_MANAGE_FORBIDDEN",
+                    "관리자만 베스트 커뮤니티 선정 상태를 변경할 수 있습니다."
+            );
+        }
+
+        Post post = getExistingPostForUpdate(postId);
+        if (post.isPinned()
+                || post.getCategory() == PostCategory.NOTICE
+                || post.getCategory() == PostCategory.NEWS) {
+            throw badRequest("공지 또는 가게 소식은 베스트 커뮤니티에 지정할 수 없습니다.");
+        }
+
+        String mode = modeValue == null
+                ? ""
+                : modeValue.strip().toUpperCase(Locale.ROOT);
+        boolean automaticallyBest = post.getLikeCount() >= BEST_COMMUNITY_MINIMUM_LIKE_COUNT;
+        Boolean bestOverride = switch (mode) {
+            case "INCLUDE" -> automaticallyBest ? null : Boolean.TRUE;
+            case "EXCLUDE" -> automaticallyBest ? Boolean.FALSE : null;
+            default -> throw badRequest(
+                    "베스트 설정은 INCLUDE 또는 EXCLUDE 중 하나여야 합니다."
+            );
+        };
+
+        post.updateBestOverride(bestOverride);
         return responseMapper.toDetail(post, currentAccount);
     }
 

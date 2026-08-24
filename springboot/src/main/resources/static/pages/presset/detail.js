@@ -220,7 +220,12 @@
       facts.append(element("span", "preset-restaurant-rating", `★ ${averageRating.toFixed(1)} (${reviewCount.toLocaleString("ko-KR")})`));
     }
     if (typeof restaurant.openingHours === "string" && restaurant.openingHours.trim()) {
-      facts.append(element("span", "", `영업시간 ${restaurant.openingHours.trim()}`));
+      // 한 줄짜리 칩이라 줄로 나누진 못해도, 표기는 "요일 : 시간" 형식으로 맞춘다.
+      const parsedHours = window.FooduckHours?.parse(restaurant.openingHours);
+      const hoursText = parsedHours
+        ? parsedHours.map((entry) => `${entry.label} : ${entry.value}`).join(" · ")
+        : (window.FooduckHours?.normalize(restaurant.openingHours) || restaurant.openingHours.trim());
+      facts.append(element("span", "", `영업시간 ${hoursText}`));
     }
     if (facts.childElementCount) body.append(facts);
 

@@ -158,6 +158,21 @@ public class RecommendationQueryRepository {
         );
     }
 
+    public List<Long> findPublicFavoriteIdsByAccountId(Long accountId) {
+        var parameters = new MapSqlParameterSource("accountId", accountId);
+        return jdbcTemplate.queryForList(
+                """
+                select public_restaurant_id
+                  from favorite
+                 where account_id = :accountId
+                   and public_restaurant_id is not null
+                 order by created_at desc
+                """,
+                parameters,
+                Long.class
+        );
+    }
+
     /**
      * 후보 매장 200건 조회
      */

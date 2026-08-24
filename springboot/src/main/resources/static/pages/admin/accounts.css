@@ -272,6 +272,17 @@
     align-items: stretch;
   }
 
+  .accounts-role-filter {
+    display: grid;
+    width: 100%;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .accounts-role-btn {
+    width: 100%;
+    padding-inline: 8px;
+  }
+
   .accounts-toolbar-right {
     flex-direction: column;
     align-items: stretch;

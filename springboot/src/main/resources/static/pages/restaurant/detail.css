@@ -955,6 +955,39 @@ body > [data-site-header] > .site-header {
   font-weight: 700;
 }
 
+/* 영업시간: "요일 / 시간" 두 칸을 좌우로 벌린 목록. */
+.store-hours-list {
+  display: grid;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.store-hours-list li {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 0;
+  border-top: 1px solid var(--color-line);
+}
+
+.store-hours-list li:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.store-hours-list span:first-child {
+  flex: 0 0 auto;
+  color: var(--color-muted);
+  font-weight: 750;
+}
+
+.store-hours-list span:last-child {
+  text-align: right;
+}
+
 .store-owner-profile {
   display: flex;
   align-items: center;
@@ -980,6 +1013,12 @@ body > [data-site-header] > .site-header {
 .store-owner-profile span {
   color: var(--color-muted);
   font-size: 0.8rem;
+}
+
+.store-owner-profile [data-store-owner-author] .author-nickname {
+  color: var(--color-navy);
+  font-size: 0.92rem;
+  font-weight: 800;
 }
 
 .store-source-note {
@@ -1406,17 +1445,23 @@ body > [data-site-header] > .site-header {
   resize: none;
   overflow-y: hidden;
   padding: 12px;
-  border: 0;
+  border: 1px solid var(--color-line);
   border-radius: 12px;
   outline: 0;
-  background: transparent;
+  background: #fff;
   box-shadow: none;
+  transition: border-color 150ms ease, box-shadow 150ms ease, background-color 150ms ease;
+}
+
+.store-news-comment-form textarea:hover {
+  border-color: rgba(255, 152, 0, 0.36);
 }
 
 .store-news-comment-form textarea:focus {
-  border-color: transparent;
+  border-color: var(--color-orange);
   outline: 0;
-  box-shadow: none;
+  background: #fff;
+  box-shadow: 0 0 0 3px rgba(255, 152, 0, 0.12);
 }
 
 .store-news-comments-panel .comment-pagination {

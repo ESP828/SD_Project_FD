@@ -7,7 +7,7 @@
   <title>보물지도 · 푸드덕</title>
   <link rel="icon" href="/images/favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/css/common.css">
-  <link rel="stylesheet" href="/pages/presset/presset.css">
+  <link rel="stylesheet" href="/pages/presset/presset.css?v=20260824-preset-dropdown">
   <link rel="stylesheet" href="/css/category-hero.css">
 </head>
 <body>
@@ -17,7 +17,6 @@
     <section class="preset-hero category-hero category-hero--full">
       <div class="container preset-hero-grid category-hero__inner">
         <div class="category-hero__copy">
-          <p class="eyebrow">treasuremap collections</p>
           <h1>나의 취향을<br>선택해놓은 맛집</h1>
           <div class="preset-hero-actions">
             <a
@@ -40,7 +39,7 @@
     <section id="preset-collection" class="container preset-collection">
       <div class="preset-section-heading">
         <div>
-          <p class="eyebrow">CURATED FOR YOU</p>
+
           <h2>취향별 보물지도를 둘러보세요</h2>
         </div>
       </div>
@@ -74,6 +73,12 @@
           data-preset-sort="favorite"
         >베스트 보물지도</button>
       </div>
+      <label class="preset-view-select-label" for="preset-view-select">보물지도 보기 방식</label>
+      <select id="preset-view-select" class="preset-view-select" aria-controls="preset-list">
+        <option value="latest">전체 보물지도</option>
+        <option value="popular">인기 보물지도</option>
+        <option value="favorite">베스트 보물지도</option>
+      </select>
 
       <div id="preset-search-panel" class="preset-discovery-panel surface-card">
         <div class="preset-discovery-main">

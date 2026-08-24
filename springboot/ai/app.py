@@ -1,28 +1,51 @@
-# ai/app.py
-from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel
-from typing import Optional, List
+import asyncio
+from contextlib import asynccontextmanager
+from typing import List, Optional
+
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
+from pydantic import BaseModel, Field
+
 import recommend
 import sentiment
 
-app = FastAPI()
 
-class QueryRecommendationRequest(BaseModel):
-    query: str
-    latitude: float
-    longitude: float
-    radius_meters: int = 2000
-    user_id: Optional[int] = None
-    age: Optional[int] = None
-    gender: Optional[str] = None
-    limit: int = 120
+_initialization_future = None
+MAX_CANDIDATE_RESTAURANTS = 10_000
 
 
-# ---- 감성분석 (Naive Bayes) ----
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    global _initialization_future
+    loop = asyncio.get_running_loop()
+    _initialization_future = loop.run_in_executor(None, recommend.initialize)
+    yield
+
+
+app = FastAPI(lifespan=lifespan)
+
+
+class EmbeddingSearchRequest(BaseModel):
+    query: str = Field(min_length=1, max_length=500)
+    restaurantIds: List[int] = Field(
+        default_factory=list,
+        max_length=MAX_CANDIDATE_RESTAURANTS,
+    )
+    topK: int = Field(default=300, ge=1, le=MAX_CANDIDATE_RESTAURANTS)
+
+
+class FavoriteScoreRequest(BaseModel):
+    favoriteRestaurantIds: List[int] = Field(min_length=1, max_length=500)
+    candidateRestaurantIds: List[int] = Field(
+        min_length=1,
+        max_length=MAX_CANDIDATE_RESTAURANTS,
+    )
+
 
 class ReviewRequest(BaseModel):
     review: str
     rating: Optional[int] = None
+
 
 class PredictionResponse(BaseModel):
     review: str
@@ -30,14 +53,17 @@ class PredictionResponse(BaseModel):
     positive_probability: float
     negative_probability: float
 
+
 class ReviewItem(BaseModel):
     content: str
     rating: Optional[int] = None
+
 
 class RestaurantReviewsRequest(BaseModel):
     restaurantId: int
     restaurantName: str
     reviews: List[ReviewItem]
+
 
 class RestaurantSentimentSummary(BaseModel):
     restaurantId: int
@@ -48,56 +74,50 @@ class RestaurantSentimentSummary(BaseModel):
     positiveRatio: float
 
 
+@app.exception_handler(recommend.KureServiceError)
+async def handle_kure_service_error(_request: Request, error: recommend.KureServiceError):
+    return JSONResponse(
+        status_code=error.status_code,
+        content={"code": error.code, "message": error.message},
+    )
+
+
+@app.get("/embedding/health")
+def embedding_health():
+    return recommend.health()
+
+
+@app.post("/embedding/search")
+def embedding_search(request: EmbeddingSearchRequest):
+    return recommend.search(request.query, request.restaurantIds, request.topK)
+
+
+@app.post("/embedding/favorites")
+def embedding_favorites(request: FavoriteScoreRequest):
+    return recommend.score_favorites(
+        request.favoriteRestaurantIds,
+        request.candidateRestaurantIds,
+    )
+
+
 @app.post("/predict/sentiment", response_model=PredictionResponse)
 def predict_sentiment(request: ReviewRequest):
     if not sentiment.is_ready():
-        raise HTTPException(status_code=503, detail="감성분석 모델이 아직 준비되지 않았습니다.")
+        return JSONResponse(
+            status_code=503,
+            content={"code": "SENTIMENT_MODEL_NOT_READY", "message": "Sentiment model is not ready."},
+        )
     return PredictionResponse(**sentiment.predict_one(request.review, request.rating))
 
 
 @app.post("/predict/sentiment/restaurant-summary", response_model=RestaurantSentimentSummary)
 def predict_sentiment_restaurant_summary(request: RestaurantReviewsRequest):
     if not sentiment.is_ready():
-        raise HTTPException(status_code=503, detail="감성분석 모델이 아직 준비되지 않았습니다.")
+        return JSONResponse(
+            status_code=503,
+            content={"code": "SENTIMENT_MODEL_NOT_READY", "message": "Sentiment model is not ready."},
+        )
     reviews = [{"content": item.content, "rating": item.rating} for item in request.reviews]
     return RestaurantSentimentSummary(
         **sentiment.summarize_restaurant(request.restaurantId, request.restaurantName, reviews)
     )
-
-@app.post("/recommendations/query")
-def recommend_by_query(req: QueryRecommendationRequest):
-    # 1. 딥러닝 임베딩 기반 의미 검색 실행
-    matched_restaurants = recommend.search_by_sentence_embedding(req.query, top_n=req.limit)
-
-    final_results = []
-    for place in matched_restaurants:
-        # 거리 계산 (간이 거리 또는 DB 거리)
-        dist = place.get("distance_meters", 500)
-
-        # 2. 임베딩 유사도 점수와 개인화 스코어링 합성
-        score, reasons = recommend.calculate_personal_score(
-            restaurant=place,
-            user_age=req.age,
-            user_gender=req.gender,
-            distance_meters=dist,
-            max_radius=req.radius_meters,
-            query_similarity=place.get("query_similarity", 0.85) # 👈 임베딩 점수 반영
-        )
-
-        final_results.append({
-            "sourceId": str(place.get("public_restaurant_id") or place.get("id")),
-            "restaurantName": place.get("name"),
-            "categoryName": place.get("category_medium_name") or place.get("category_large_name", "음식점"),
-            "address": place.get("road_address", ""),
-            "distanceMeters": dist,
-            "score": score,
-            "reasons": reasons
-        })
-
-    # 최종 점수순 정렬
-    final_results.sort(key=lambda x: x["score"], reverse=True)
-
-    return {
-        "originalQuery": req.query,
-        "items": final_results
-    }
