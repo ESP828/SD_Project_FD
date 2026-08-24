@@ -1188,7 +1188,7 @@
 
 .author-activity-tooltip::before {
   position: absolute;
-  left: 50%;
+  left: var(--floating-arrow-left, 50%);
   width: 7px;
   height: 7px;
   background: #1f3144;
@@ -1285,7 +1285,7 @@
 
 .author-activity-onboarding::before {
   position: absolute;
-  left: 50%;
+  left: var(--floating-arrow-left, 50%);
   width: 10px;
   height: 10px;
   border: solid rgba(255, 152, 0, 0.3);
@@ -1366,6 +1366,15 @@
 
   .author-activity-cue--full {
     padding-inline: 7px;
+  }
+}
+
+/* 터치 환경에서는 접힌 사람 아이콘 cue 자체의 터치 영역을 최소 32px로 확보한다. */
+@media (hover: none), (pointer: coarse) {
+  .author-activity-cue--compact,
+  .author-activity-cue--full {
+    min-width: 32px;
+    min-height: 32px;
   }
 }
 

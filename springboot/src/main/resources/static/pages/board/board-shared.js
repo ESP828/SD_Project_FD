@@ -200,6 +200,9 @@
     syncGuidanceSettingsControl();
   });
 
+  window.addEventListener("resize", closeAuthorActivityTooltip);
+  window.addEventListener("scroll", closeAuthorActivityTooltip, true);
+
   function element(tag, className, text) {
     const node = document.createElement(tag);
     if (className) node.className = className;
@@ -432,7 +435,7 @@
   }
 
   function createGuidanceSkipButton(key, onSkip) {
-    const button = element("button", "guidance-tooltip-skip", "6개월 숨기기");
+    const button = element("button", "guidance-tooltip-skip", "6개월간 안 보기");
     button.type = "button";
     button.addEventListener("click", (event) => {
       event.preventDefault();
@@ -512,9 +515,16 @@
       Math.max(viewportPadding, rect.left + rect.width / 2 - panelRect.width / 2),
       window.innerWidth - panelRect.width - viewportPadding,
     );
+    const triggerCenter = rect.left + rect.width / 2;
+    const arrowPadding = 12;
+    const arrowLeft = Math.min(
+      Math.max(triggerCenter - left, arrowPadding),
+      Math.max(arrowPadding, panelRect.width - arrowPadding),
+    );
     panel.dataset.placement = canPlaceBelow ? "below" : "above";
     panel.style.top = `${top}px`;
     panel.style.left = `${left}px`;
+    panel.style.setProperty("--floating-arrow-left", `${arrowLeft}px`);
     return canPlaceBelow ? "below" : "above";
   }
 
@@ -574,6 +584,8 @@
     );
     tooltip.addEventListener("mouseenter", clearAuthorActivityTooltipCloseTimer);
     tooltip.addEventListener("mouseleave", scheduleAuthorActivityTooltipClose);
+    tooltip.addEventListener("focusin", clearAuthorActivityTooltipCloseTimer);
+    tooltip.addEventListener("focusout", scheduleAuthorActivityTooltipClose);
     document.body.append(tooltip);
     authorActivityTooltip = tooltip;
     authorActivityTooltipTarget = trigger;
@@ -1587,7 +1599,7 @@
     trigger.setAttribute("aria-controls", "board-author-menu");
     trigger.setAttribute("aria-expanded", "false");
     trigger.setAttribute("aria-label", `${author.authorNickname || "작성자"} 프로필 보기`);
-    trigger.dataset.authorActivityTooltip = "글 · 댓글 · 리뷰 활동 등을 확인할 수 있어요.";
+    trigger.dataset.authorActivityTooltip = "글 · 댓글 · 리뷰 활동을 확인할 수 있어요.";
     trigger.addEventListener("mouseenter", () => showAuthorActivityTooltip(trigger));
     trigger.addEventListener("mouseleave", scheduleAuthorActivityTooltipClose);
     trigger.addEventListener("focus", () => showAuthorActivityTooltip(trigger));
