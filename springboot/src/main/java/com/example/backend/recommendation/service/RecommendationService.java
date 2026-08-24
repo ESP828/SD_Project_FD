@@ -2,6 +2,7 @@ package com.example.backend.recommendation.service;
 
 import com.example.backend.auth.domain.entity.Account;
 import com.example.backend.auth.repository.AccountRepository;
+import com.example.backend.favorite.query.PublicRestaurantFavoriteQueryRepository;
 import com.example.backend.global.security.principal.AuthenticatedAccount;
 import com.example.backend.recommendation.ai.DocumentBuilder;
 import com.example.backend.recommendation.integration.kakao.KakaoLocalGeocodingClient;
@@ -10,6 +11,7 @@ import com.example.backend.recommendation.dto.request.NaturalLanguageRecommendat
 import com.example.backend.recommendation.dto.response.NaturalLanguageRecommendationResponse;
 import com.example.backend.recommendation.dto.response.NaturalLanguageRecommendationResponse.RecommendedItemDto;
 import com.example.backend.recommendation.dto.response.PersonalRecommendationResponse;
+import com.example.backend.recommendation.dto.response.RestaurantRankResponse;
 import com.example.backend.recommendation.model.RecommendationModelStore;
 import com.example.backend.recommendation.query.PublicRecommendationQueryRepository;
 import com.example.backend.recommendation.query.RecommendationQueryRepository;
@@ -18,6 +20,12 @@ import com.example.backend.recommendation.score.RecommendationScoreCalculator;
 import com.example.backend.recommendation.text.ParsedRecommendationQuery;
 import com.example.backend.recommendation.text.RecommendationQueryParser;
 import com.example.backend.restaurant.domain.entity.PublicRestaurant;
+import com.example.backend.review.integration.sentiment.SentimentAnalysisClient;
+import com.example.backend.review.integration.sentiment.dto.RestaurantSentimentSummaryRequest;
+import com.example.backend.review.integration.sentiment.dto.RestaurantSentimentSummaryResponse;
+import com.example.backend.review.domain.entity.Review;
+import com.example.backend.review.repository.PublicRestaurantReviewAggregate;
+import com.example.backend.review.repository.ReviewRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -57,6 +65,11 @@ public class RecommendationService {
     private final PythonEmbeddingClient pythonEmbeddingClient;
     private final KakaoLocalGeocodingClient kakaoLocalGeocodingClient;
     private final String aiModelName;
+    private final ReviewRepository reviewRepository;
+    private final PublicRestaurantFavoriteQueryRepository publicRestaurantFavoriteQueryRepository;
+    private final SentimentAnalysisClient sentimentAnalysisClient;
+    private final PublicRestaurantImageService publicRestaurantImageService;
+    private final RestaurantOfficialImageCacheService restaurantOfficialImageCacheService;
 
     public RecommendationService(RecommendationQueryParser queryParser,
                                  RecommendationModelStore modelStore,
@@ -67,7 +80,12 @@ public class RecommendationService {
                                  AccountRepository accountRepository,
                                  PythonEmbeddingClient pythonEmbeddingClient,
                                  KakaoLocalGeocodingClient kakaoLocalGeocodingClient,
-                                 @Value("${recommendation.ai.model-name:KURE-v1}") String aiModelName) {
+                                 @Value("${recommendation.ai.model-name:KURE-v1}") String aiModelName,
+                                 ReviewRepository reviewRepository,
+                                 PublicRestaurantFavoriteQueryRepository publicRestaurantFavoriteQueryRepository,
+                                 SentimentAnalysisClient sentimentAnalysisClient,
+                                 PublicRestaurantImageService publicRestaurantImageService,
+                                 RestaurantOfficialImageCacheService restaurantOfficialImageCacheService) {
         this.queryParser = queryParser;
         this.modelStore = modelStore;
         this.scoreCalculator = scoreCalculator;
@@ -78,6 +96,11 @@ public class RecommendationService {
         this.pythonEmbeddingClient = pythonEmbeddingClient;
         this.kakaoLocalGeocodingClient = kakaoLocalGeocodingClient;
         this.aiModelName = aiModelName;
+        this.reviewRepository = reviewRepository;
+        this.publicRestaurantFavoriteQueryRepository = publicRestaurantFavoriteQueryRepository;
+        this.sentimentAnalysisClient = sentimentAnalysisClient;
+        this.publicRestaurantImageService = publicRestaurantImageService;
+        this.restaurantOfficialImageCacheService = restaurantOfficialImageCacheService;
     }
 
     /**
@@ -308,7 +331,8 @@ public class RecommendationService {
                     restaurant.getLongitude() != null ? restaurant.getLongitude().doubleValue() : null,
                     Math.round(distanceMeters * 10) / 10.0,
                     Math.round(finalScore * 10000) / 10000.0,
-                    reasons
+                    reasons,
+                    null
             ));
         }
 
@@ -442,12 +466,15 @@ public class RecommendationService {
                     candidate.getLongitude() != null ? candidate.getLongitude().doubleValue() : null,
                     Math.round(distanceMeters * 10) / 10.0,
                     Math.round(finalScore * 10000) / 10000.0,
-                    reasons
+                    reasons,
+                    null
             ));
         }
 
         scoredItems.sort((a, b) -> Double.compare(b.score(), a.score()));
-        List<RecommendedItemDto> finalItems = scoredItems.stream().limit(limit).toList();
+        List<RecommendedItemDto> finalItems = attachImagesForReviewedRestaurants(
+                diversifyByFavoriteCategory(scoredItems, favoriteCategories, limit)
+        );
 
         String summary = !favoriteCategories.isEmpty()
                 ? "회원님의 " + String.join(", ", favoriteCategories) + " 취향 기반 맞춤 추천"
@@ -550,10 +577,24 @@ public class RecommendationService {
         double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
         return R * c;
     }
+    // 베이지안 평균 보정 기준(m). "이 정도는 쌓여야 그 매장의 평점/긍정비율을 믿을 만하다"고
+    // 보는 최소 리뷰 수. 리뷰가 이보다 적으면 전체 평균(prior) 쪽으로 더 세게 끌어당겨진다.
+    // 예: 리뷰 15개·긍정 70%가 리뷰 3개·긍정 80%보다 랭킹이 높게 나오는 건 이 보정 때문이다.
+    private static final double RANK_BAYESIAN_MIN_REVIEWS = 8.0;
+    private static final double RANK_DEFAULT_PRIOR_RATING = 3.5;
+    private static final double RANK_DEFAULT_PRIOR_POSITIVE_RATIO = 60.0;
+    private static final double RANK_POSITIVE_WEIGHT = 0.40;
+    private static final double RANK_RATING_WEIGHT = 0.35;
+    private static final double RANK_FAVORITE_WEIGHT = 0.25;
+    private static final double RANK_FAVORITE_REFERENCE = 50.0;
+
     /**
-     * 💡 [맛집 랭킹] 찜(40%) + 평점(30%, 10개 미만 50% 페널티) + 리뷰(30%) 복합 랭킹 산출
+     * 💡 [맛집 랭킹] AI 리뷰 감성분석 긍정비율 + 평점 + 찜 개수를 종합해서 산출한다.
+     * 긍정비율·평점은 그대로 쓰지 않고 베이지안 평균으로 보정한다 - 리뷰 몇 개짜리 매장이
+     * 우연히 높은 점수를 받아 상위에 올라오는 걸 막고, 리뷰가 많이 쌓여 신뢰도가 높은
+     * 매장이 더 높게 평가되도록 하기 위함이다.
      */
-    public List<com.example.backend.recommendation.dto.response.RestaurantRankResponse> getTopRankedRestaurants(
+    public List<RestaurantRankResponse> getTopRankedRestaurants(
             Double userLat,
             Double userLng,
             Double radiusMeters,
@@ -585,29 +626,76 @@ public class RecommendationService {
             return Collections.emptyList();
         }
 
-        List<com.example.backend.recommendation.dto.response.RestaurantRankResponse> rankList = new ArrayList<>();
+        List<Long> candidateIds = candidates.stream().map(PublicRestaurant::getPublicRestaurantId).toList();
+
+        // 2. 실제 리뷰 개수·평균 평점을 매장별로 한 번에 집계 (매장마다 따로 쿼리하면 느려진다)
+        Map<Long, PublicRestaurantReviewAggregate> reviewAggregates = new HashMap<>();
+        reviewRepository.aggregateActiveByPublicRestaurantIds(candidateIds)
+                .forEach(row -> reviewAggregates.put(row.publicRestaurantId(), row));
+
+        // 3. 실제 찜 개수를 매장별로 한 번에 집계
+        Map<Long, Long> favoriteCounts = publicRestaurantFavoriteQueryRepository.countBatch(candidateIds);
+
+        // 4. 리뷰가 실제로 있는 매장만 AI 감성분석을 돌린다(리뷰 없는 매장은 어차피 베이지안
+        //    보정으로 prior 값을 그대로 쓰게 되니 굳이 FastAPI를 호출할 필요가 없다).
+        Map<Long, Double> positiveRatios = new HashMap<>();
+        for (PublicRestaurant restaurant : candidates) {
+            Long id = restaurant.getPublicRestaurantId();
+            PublicRestaurantReviewAggregate aggregate = reviewAggregates.get(id);
+            if (aggregate == null || aggregate.reviewCount() == null || aggregate.reviewCount() <= 0) {
+                continue;
+            }
+            try {
+                List<Review> reviews = reviewRepository.findAllActiveForSentimentByPublicRestaurantId(id);
+                if (reviews.isEmpty()) continue;
+                List<RestaurantSentimentSummaryRequest.ReviewItem> reviewItems = reviews.stream()
+                        .map(r -> new RestaurantSentimentSummaryRequest.ReviewItem(r.getContent(), r.getRating()))
+                        .toList();
+                RestaurantSentimentSummaryResponse summary = sentimentAnalysisClient.summarizeRestaurant(
+                        id, restaurant.getName(), reviewItems
+                );
+                positiveRatios.put(id, summary.positiveRatio());
+            } catch (RuntimeException e) {
+                log.warn("맛집 랭킹용 감성분석 호출 실패 (publicRestaurantId={}): {}", id, e.getMessage());
+            }
+        }
+
+        // 5. 베이지안 평균의 기준점(prior) 계산 - 실제 데이터가 있는 매장들의 평균값.
+        //    데이터가 하나도 없으면(리뷰 자체가 아예 없는 DB 등) 상수 기본값을 쓴다.
+        double priorRating = reviewAggregates.values().stream()
+                .filter(a -> a.averageRating() != null)
+                .mapToDouble(PublicRestaurantReviewAggregate::averageRating)
+                .average()
+                .orElse(RANK_DEFAULT_PRIOR_RATING);
+        double priorPositiveRatio = positiveRatios.values().stream()
+                .mapToDouble(Double::doubleValue)
+                .average()
+                .orElse(RANK_DEFAULT_PRIOR_POSITIVE_RATIO);
+
+        List<RestaurantRankResponse> rankList = new ArrayList<>();
 
         for (PublicRestaurant restaurant : candidates) {
-            long id = restaurant.getPublicRestaurantId() != null ? restaurant.getPublicRestaurantId() : 1L;
+            Long id = restaurant.getPublicRestaurantId();
+            PublicRestaurantReviewAggregate aggregate = reviewAggregates.get(id);
+            long reviewCount = (aggregate != null && aggregate.reviewCount() != null) ? aggregate.reviewCount() : 0L;
+            double rawRating = (aggregate != null && aggregate.averageRating() != null)
+                    ? aggregate.averageRating() : priorRating;
+            long favoriteCount = favoriteCounts.getOrDefault(id, 0L);
+            Double positiveRatio = positiveRatios.get(id);
 
-            // 💡 1. 지표 데이터 추출 (시연용 안정적 결정값 / 실제 DB 컬럼 연동)
-            double rawRating = 3.5 + ((id * 7 % 16) * 0.1);    // 3.5 ~ 5.0
-            int reviewCount = (int) ((id * 13) % 65);          // 0 ~ 64개
-            int favoriteCount = (int) ((id * 17) % 40);        // 0 ~ 39개
+            // 베이지안 평균: (v/(v+m))*실제값 + (m/(v+m))*prior. 리뷰가 적을수록(v가 작을수록)
+            // prior 쪽으로 더 세게 끌려간다 - 리뷰 3개짜리 80%보다 15개짜리 70%가 더 신뢰도 높게 나오는 이유.
+            double weight = reviewCount / (reviewCount + RANK_BAYESIAN_MIN_REVIEWS);
+            double bayesianRating = weight * rawRating + (1 - weight) * priorRating;
+            double bayesianPositiveRatio = weight * (positiveRatio != null ? positiveRatio : priorPositiveRatio)
+                    + (1 - weight) * priorPositiveRatio;
 
-            // 💡 2. 가중치 점수 계산 (100점 만점 기준)
-            // A. 찜 점수 (40점 만점, 50개 기준 정규화)
-            double favoriteScore = Math.min(favoriteCount / 50.0, 1.0) * 40.0;
+            double ratingScore = (bayesianRating / 5.0) * 100.0;
+            double favoriteScore = Math.min(favoriteCount / RANK_FAVORITE_REFERENCE, 1.0) * 100.0;
 
-            // B. 평점 점수 (30점 만점, 5.0 만점 기준 정규화 + 리뷰 10개 미만 50% 페널티)
-            double baseRatingScore = (rawRating / 5.0) * 30.0;
-            double ratingScore = (reviewCount >= 10) ? baseRatingScore : (baseRatingScore * 0.5);
-
-            // C. 리뷰 수 점수 (30점 만점, 100개 기준 정규화)
-            double reviewScore = Math.min(reviewCount / 100.0, 1.0) * 30.0;
-
-            // D. 최종 복합 랭킹 점수 (최대 100.0점)
-            double finalRankScore = favoriteScore + ratingScore + reviewScore;
+            double finalRankScore = bayesianPositiveRatio * RANK_POSITIVE_WEIGHT
+                    + ratingScore * RANK_RATING_WEIGHT
+                    + favoriteScore * RANK_FAVORITE_WEIGHT;
 
             // 거리 계산
             double distanceMeters = 0.0;
@@ -622,17 +710,19 @@ public class RecommendationService {
             String category = displayCategoryName(restaurant);
             if (category == null || category.isBlank()) category = "음식점";
 
-            rankList.add(new com.example.backend.recommendation.dto.response.RestaurantRankResponse(
+            rankList.add(new RestaurantRankResponse(
                     id,
                     restaurant.getName() != null ? restaurant.getName() : "식당명 없음",
                     category,
                     restaurant.getRoadAddress() != null ? restaurant.getRoadAddress() : restaurant.getLotAddress(),
                     Math.round(rawRating * 10.0) / 10.0,
-                    reviewCount,
-                    favoriteCount,
+                    (int) reviewCount,
+                    (int) favoriteCount,
                     Math.round(ratingScore * 100.0) / 100.0,
-                    Math.round(finalRankScore * 10.0) / 10.0,
-                    Math.round(distanceMeters * 10.0) / 10.0
+                    Math.round(finalRankScore * 100.0) / 100.0,
+                    Math.round(distanceMeters * 10.0) / 10.0,
+                    positiveRatio == null ? null : Math.round(positiveRatio * 10.0) / 10.0,
+                    null
             ));
         }
 
@@ -645,6 +735,136 @@ public class RecommendationService {
             return Integer.compare(b.reviewCount(), a.reviewCount());
         });
 
-        return rankList.stream().limit(limit > 0 ? limit : 10).toList();
-    }}
+        return attachImagesForRankedRestaurants(rankList.stream().limit(limit > 0 ? limit : 10).toList());
+    }
+
+    /**
+     * 리뷰가 있는 매장에 한해서만 카카오 이미지 검색을 호출해 대표 이미지를 채운다.
+     * 정렬·제한(limit)까지 끝난 최종 목록에만 적용한다 - 후보 300개 전체에 돌리면
+     * 실제 화면에 안 보이는 매장까지 API를 호출하게 되어 낭비다.
+     */
+    private List<RestaurantRankResponse> attachImagesForRankedRestaurants(List<RestaurantRankResponse> items) {
+        // 1. 카카오맵 매장주 공식 사진을 (1시간 캐시를 거쳐) 화면에 보이는 가게 전부에 대해
+        //    비동기·병렬로 조회한다. 페이지 진입마다 목록의 가게들을 전부 조회하게 되지만,
+        //    같은 PC에서는 캐시가 살아있는 동안 실제 외부 호출 없이 즉시 응답한다.
+        List<String> names = items.stream().map(RestaurantRankResponse::name).toList();
+        Map<String, String> officialImages = restaurantOfficialImageCacheService.getImageUrlsAsync(names).join();
+
+        return items.stream()
+                .map(item -> {
+                    String officialImageUrl = officialImages.get(item.name() == null ? null : item.name().trim());
+                    if (officialImageUrl != null) {
+                        return new RestaurantRankResponse(
+                                item.restaurantId(), item.name(), item.category(), item.address(), item.rawRating(),
+                                item.reviewCount(), item.favoriteCount(), item.adjustedRatingScore(), item.finalRankScore(),
+                                item.distanceMeters(), item.positiveRatio(), officialImageUrl
+                        );
+                    }
+                    if (item.reviewCount() == null || item.reviewCount() <= 0 || item.restaurantId() == null) {
+                        return item;
+                    }
+                    // 2. 공식 사진이 없으면 기존 카카오 이미지 검색(DB 캐시) 결과로 대체한다.
+                    String imageUrl = publicRestaurantImageService.getOrFetchImageUrl(item.restaurantId(), item.name());
+                    return new RestaurantRankResponse(
+                            item.restaurantId(), item.name(), item.category(), item.address(), item.rawRating(),
+                            item.reviewCount(), item.favoriteCount(), item.adjustedRatingScore(), item.finalRankScore(),
+                            item.distanceMeters(), item.positiveRatio(), imageUrl
+                    );
+                })
+                .toList();
+    }
+
+    /**
+     * 점수 순으로만 자르면, 찜한 카테고리가 여러 개여도(예: 양식+일식) 특정 지역에 한쪽
+     * 카테고리 매장이 더 많다는 이유만으로 그 카테고리가 상위 N개를 전부 차지해버릴 수 있다
+     * (카테고리 일치 시 보너스 점수는 동일하게 붙지만, 그다음 동점자 처리가 거리순이라
+     * 매장이 더 밀집한 카테고리가 유리해짐). 찜한 카테고리가 2개 이상이면 라운드로빈으로
+     * 카테고리마다 골고루 뽑고, 그래도 자리가 남으면 전체 점수 순으로 채운다.
+     */
+    private List<RecommendedItemDto> diversifyByFavoriteCategory(
+            List<RecommendedItemDto> sortedItems, Set<String> favoriteCategories, int limit
+    ) {
+        if (favoriteCategories.size() < 2 || limit <= 0) {
+            return sortedItems.stream().limit(limit).toList();
+        }
+
+        Map<String, Deque<RecommendedItemDto>> byCategory = new LinkedHashMap<>();
+        for (String category : favoriteCategories) {
+            byCategory.put(category, new ArrayDeque<>());
+        }
+        for (RecommendedItemDto item : sortedItems) {
+            Deque<RecommendedItemDto> bucket = byCategory.get(item.categoryName());
+            if (bucket != null) {
+                bucket.add(item);
+            }
+        }
+
+        List<RecommendedItemDto> result = new ArrayList<>(limit);
+        Set<Long> picked = new HashSet<>();
+        boolean progressed = true;
+        while (result.size() < limit && progressed) {
+            progressed = false;
+            for (Deque<RecommendedItemDto> bucket : byCategory.values()) {
+                if (result.size() >= limit) break;
+                RecommendedItemDto next = bucket.poll();
+                if (next != null) {
+                    result.add(next);
+                    picked.add(next.sourceId());
+                    progressed = true;
+                }
+            }
+        }
+
+        // 찜한 카테고리만으로는 limit을 못 채우면(후보가 적을 때), 남은 자리는 전체 점수 순으로 채운다.
+        if (result.size() < limit) {
+            for (RecommendedItemDto item : sortedItems) {
+                if (result.size() >= limit) break;
+                if (picked.add(item.sourceId())) {
+                    result.add(item);
+                }
+            }
+        }
+
+        result.sort((a, b) -> Double.compare(b.score(), a.score()));
+        return result;
+    }
+
+    /** {@link #attachImagesForRankedRestaurants}와 같은 이유로, 개인화 추천 결과에도 동일하게 적용한다. */
+    private List<RecommendedItemDto> attachImagesForReviewedRestaurants(List<RecommendedItemDto> items) {
+        // 1. 카카오맵 매장주 공식 사진을 (1시간 캐시를 거쳐) 목록의 가게 전부에 대해
+        //    비동기·병렬로 조회한다.
+        List<String> names = items.stream().map(RecommendedItemDto::restaurantName).toList();
+        Map<String, String> officialImages = restaurantOfficialImageCacheService.getImageUrlsAsync(names).join();
+
+        List<Long> ids = items.stream().map(RecommendedItemDto::sourceId).filter(Objects::nonNull).toList();
+        Map<Long, PublicRestaurantReviewAggregate> aggregates = new HashMap<>();
+        if (!ids.isEmpty()) {
+            reviewRepository.aggregateActiveByPublicRestaurantIds(ids)
+                    .forEach(a -> aggregates.put(a.publicRestaurantId(), a));
+        }
+
+        return items.stream()
+                .map(item -> {
+                    String officialImageUrl = officialImages.get(
+                            item.restaurantName() == null ? null : item.restaurantName().trim());
+                    if (officialImageUrl != null) {
+                        return new RecommendedItemDto(
+                                item.sourceType(), item.sourceId(), item.restaurantName(), item.categoryName(), item.address(),
+                                item.latitude(), item.longitude(), item.distanceMeters(), item.score(), item.reasons(), officialImageUrl
+                        );
+                    }
+                    // 2. 공식 사진이 없으면 기존 카카오 이미지 검색(DB 캐시) 결과로 대체한다.
+                    PublicRestaurantReviewAggregate aggregate = aggregates.get(item.sourceId());
+                    if (aggregate == null || aggregate.reviewCount() == null || aggregate.reviewCount() <= 0) {
+                        return item;
+                    }
+                    String imageUrl = publicRestaurantImageService.getOrFetchImageUrl(item.sourceId(), item.restaurantName());
+                    return new RecommendedItemDto(
+                            item.sourceType(), item.sourceId(), item.restaurantName(), item.categoryName(), item.address(),
+                            item.latitude(), item.longitude(), item.distanceMeters(), item.score(), item.reasons(), imageUrl
+                    );
+                })
+                .toList();
+    }
+}
 

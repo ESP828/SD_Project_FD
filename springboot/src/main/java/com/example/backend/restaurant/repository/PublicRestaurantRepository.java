@@ -32,7 +32,8 @@ public interface PublicRestaurantRepository extends JpaRepository<PublicRestaura
      */
     @Query(value = """
             SELECT p.* FROM public_restaurant p
-            WHERE p.latitude BETWEEN :minLatitude AND :maxLatitude
+            WHERE p.status = 'ACTIVE'
+              AND p.latitude BETWEEN :minLatitude AND :maxLatitude
               AND p.longitude BETWEEN :minLongitude AND :maxLongitude
               AND (
                 p.name LIKE :keywordPattern
@@ -60,7 +61,8 @@ public interface PublicRestaurantRepository extends JpaRepository<PublicRestaura
      */
     @Query(value = """
             SELECT p.* FROM public_restaurant p
-            WHERE p.latitude BETWEEN :minLatitude AND :maxLatitude
+            WHERE p.status = 'ACTIVE'
+              AND p.latitude BETWEEN :minLatitude AND :maxLatitude
               AND p.longitude BETWEEN :minLongitude AND :maxLongitude
               AND MATCH(p.name, p.category_large_name, p.category_small_name, p.road_address, p.lot_address)
                   AGAINST(:keyword IN NATURAL LANGUAGE MODE)
