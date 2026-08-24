@@ -190,10 +190,22 @@
             <span>${formatDate(comment.createdAt)}</span>
           </div>
           <button type="button" class="button button-sm community-delete-button" data-delete-comment="${comment.commentId}">삭제</button>
-          <p>${escapeHtml(comment.content || "내용 없는 댓글")}</p>
+          <p class="community-comment-content"></p>
         </article>
       `;
     }).join("");
+
+    const contentNodes = commentsList.querySelectorAll(".community-comment-content");
+    commentState.comments.forEach((comment, index) => {
+      const node = contentNodes[index];
+      if (!node) return;
+      const content = comment.content || "내용 없는 댓글";
+      if (window.FooduckEmojis) {
+        window.FooduckEmojis.renderText(node, content);
+      } else {
+        node.textContent = content;
+      }
+    });
   }
 
   function updateCommentPagination(totalElements = 0) {

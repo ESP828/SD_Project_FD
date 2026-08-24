@@ -237,7 +237,13 @@
     if (!value) return "-";
     const date = new Date(value);
     if (Number.isNaN(date.getTime())) return "-";
-    return new Intl.DateTimeFormat("ko-KR", { year: "numeric", month: "2-digit", day: "2-digit" }).format(date);
+    return new Intl.DateTimeFormat("ko-KR", {
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+    }).format(date);
   }
 
   // 요청 중에 button.disabled를 쓰면 커서가 "클릭 금지"로 바뀌어 눌리지 않는 것처럼 보인다.
@@ -268,6 +274,54 @@
     }
   }
 
+  async function bindDetailReviewAuthorMenus(reviews) {
+    const board = window.FooduckBoard;
+    if (!board?.authorIdentity || !Array.isArray(reviews) || reviews.length === 0) return;
+
+    const reviewById = new Map();
+    const query = new URLSearchParams();
+    reviews.slice(0, 3).forEach((review) => {
+      const reviewId = Number(review?.reviewId);
+      if (!Number.isSafeInteger(reviewId) || reviewId <= 0) return;
+      reviewById.set(reviewId, review);
+      query.append("reviewIds", String(reviewId));
+    });
+    if (reviewById.size === 0) return;
+
+    let links;
+    try {
+      const payload = await Api.get(
+        `/board/posts/authors/reviews?${query.toString()}`,
+        { auth: false },
+      );
+      links = Array.isArray(payload?.data) ? payload.data : [];
+    } catch (_error) {
+      return;
+    }
+
+    const accountIdByReviewId = new Map(
+      links.map((link) => [Number(link.reviewId), Number(link.authorAccountId)]),
+    );
+
+    detailBody.querySelectorAll("[data-map-review-author-id]").forEach((host) => {
+      const reviewId = Number(host.dataset.mapReviewAuthorId);
+      const review = reviewById.get(reviewId);
+      const authorAccountId = accountIdByReviewId.get(reviewId);
+      if (!review?.authorNickname || !Number.isSafeInteger(authorAccountId) || authorAccountId <= 0) return;
+
+      host.replaceChildren(board.authorIdentity(
+        { ...review, authorAccountId },
+        {
+          showAuthorMenu: true,
+          showLoginIdentity: false,
+          showRole: false,
+          authorMenuContext: "REVIEW",
+          authorActivityCueMode: "compact",
+        },
+      ));
+    });
+  }
+
   function renderDetailPanel(place, detail, menuItems, reviewPage) {
     const isOwned = isOwnedPlace(place);
     const category = place.category_name || "기타";
@@ -293,10 +347,10 @@
       ? reviews.slice(0, 3).map((review) => `
           <div class="place-detail-review-item">
             <div class="place-detail-review-head">
-              <span>${escapeHtml(review.authorNickname || "익명")}</span>
+              <span class="place-detail-review-author" data-map-review-author-id="${Number(review.reviewId) || 0}">${escapeHtml(review.authorNickname || "익명")}</span>
               <span>★ ${review.rating}.0</span>
             </div>
-            <p>${review.content ? escapeHtml(review.content) : "내용 없음"} · ${formatDate(review.createdAt)}</p>
+            <p class="place-detail-review-copy"></p>
           </div>
         `).join("")
       : '<div class="place-detail-empty">아직 작성된 리뷰가 없습니다.</div>';
@@ -329,6 +383,20 @@
       <a class="button button-primary place-detail-link"
          href="${detailHref(place)}">상세 페이지에서 더 보기</a>
     `;
+
+    const reviewCopies = detailBody.querySelectorAll(".place-detail-review-copy");
+    reviews.slice(0, 3).forEach((review, index) => {
+      const target = reviewCopies[index];
+      if (!target) return;
+      const reviewText = `${review.content || "내용 없음"} · ${formatDate(review.createdAt)}`;
+      if (window.FooduckEmojis) {
+        window.FooduckEmojis.renderText(target, reviewText);
+      } else {
+        target.textContent = reviewText;
+      }
+    });
+
+    void bindDetailReviewAuthorMenus(reviews);
 
     const favoriteButton = document.getElementById("place-detail-favorite-btn");
     favoriteButton.addEventListener("click", () => toggleDetailPanelFavorite(favoriteButton, place));
