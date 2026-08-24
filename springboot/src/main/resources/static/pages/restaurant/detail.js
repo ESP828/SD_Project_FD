@@ -3838,7 +3838,8 @@
         </div>
       </div>
     `;
-    sourceNote.textContent = "가게 기본정보 출처: 사업자 직접 등록";
+    bindStoreOwnerAuthor(store);
+
 
     renderTabs(["menu", "news", "review", "info"]);
     activateTab(tabOrder.includes(requestedTab) ? requestedTab : "menu");
