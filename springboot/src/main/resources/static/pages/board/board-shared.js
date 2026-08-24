@@ -1599,7 +1599,7 @@
     trigger.setAttribute("aria-controls", "board-author-menu");
     trigger.setAttribute("aria-expanded", "false");
     trigger.setAttribute("aria-label", `${author.authorNickname || "작성자"} 프로필 보기`);
-    trigger.dataset.authorActivityTooltip = "글 · 댓글 · 리뷰 활동을 확인할 수 있어요.";
+    trigger.dataset.authorActivityTooltip = "글 · 댓글 · 리뷰 활동 등을 확인할 수 있어요.";
     trigger.addEventListener("mouseenter", () => showAuthorActivityTooltip(trigger));
     trigger.addEventListener("mouseleave", scheduleAuthorActivityTooltipClose);
     trigger.addEventListener("focus", () => showAuthorActivityTooltip(trigger));
