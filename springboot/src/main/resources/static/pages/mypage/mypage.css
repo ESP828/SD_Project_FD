@@ -201,8 +201,7 @@
 }
 
 .activity-grid--business,
-.activity-grid--admin,
-.activity-grid--business-applications {
+.activity-grid--admin {
   --activity-grid-columns: 5;
   gap: 0;
   overflow: hidden;
@@ -365,7 +364,7 @@
 .mypage-layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 340px;
-  align-items: start;
+  align-items: stretch;
   gap: 20px;
 }
 
@@ -376,6 +375,12 @@
   border-radius: var(--radius-lg);
   background: #fff;
   box-shadow: var(--shadow-sm);
+}
+
+.mypage-account-panel {
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
 }
 
 .mypage-panel-header {
@@ -398,13 +403,21 @@
   font-size: 0.75rem;
 }
 
-.mypage-panel-header .button[hidden] {
+.mypage-panel-header .button[hidden],
+.mypage-panel-header .icon-button[hidden] {
   display: none;
+}
+
+.mypage-panel-header .icon-button,
+.mypage-panel-header .icon-button:hover {
+  border-color: transparent;
 }
 
 .account-details {
   display: grid;
+  flex: 1 1 auto;
   grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-content: start;
   margin: 0;
   padding: 8px 24px 24px;
 }
@@ -428,10 +441,18 @@
 }
 
 .mypage-profile-form {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+  gap: 16px;
+  padding: 24px;
+}
+
+.mypage-profile-fields-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 16px;
-  padding: 24px;
 }
 
 .mypage-profile-field {
@@ -471,8 +492,7 @@
 
 .mypage-profile-form-status {
   min-height: 1.3em;
-  grid-column: 1 / -1;
-  margin: 0;
+  margin: auto 0 0;
   color: var(--color-muted);
   font-size: 0.76rem;
   font-weight: 700;
@@ -484,9 +504,20 @@
 
 .mypage-profile-form-actions {
   display: flex;
-  grid-column: 1 / -1;
   justify-content: flex-end;
   gap: 8px;
+}
+
+.mypage-account-manage-button {
+  margin-right: auto;
+  color: #fff;
+  border-color: #a83a32;
+  background: #a83a32;
+}
+
+.mypage-account-manage-button:hover,
+.mypage-account-manage-button:focus-visible {
+  background: #872c27;
 }
 
 .mypage-profile-feedback {
@@ -577,6 +608,73 @@
   color: #8f2f29;
 }
 
+.notification-summary {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 22px;
+  color: inherit;
+}
+
+.notification-summary:hover strong,
+.notification-summary:focus-visible strong {
+  color: var(--color-orange);
+}
+
+.notification-summary img {
+  width: 82px;
+}
+
+.notification-summary strong,
+.notification-summary span {
+  display: block;
+}
+
+.notification-summary strong {
+  margin-bottom: 4px;
+  font-size: 1rem;
+}
+
+.notification-summary span {
+  color: var(--color-muted);
+  font-size: 0.76rem;
+}
+
+.mypage-account-dialog {
+  width: min(440px, calc(100% - 32px));
+  padding: 0;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-float);
+}
+
+.mypage-account-dialog::backdrop {
+  background: rgba(9, 23, 41, 0.55);
+  backdrop-filter: blur(4px);
+}
+
+.mypage-dialog-close {
+  display: grid;
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  color: #8f2f29;
+  background: transparent;
+  transition: background 140ms ease;
+}
+
+.mypage-dialog-close:hover,
+.mypage-dialog-close:focus-visible {
+  background: rgba(143, 47, 41, 0.1);
+}
+
+.mypage-dialog-close .material-symbols-rounded {
+  font-size: 20px;
+}
+
 .mypage-danger-body {
   display: grid;
   gap: 14px;
@@ -643,38 +741,6 @@
 .mypage-withdraw-submit:hover,
 .mypage-withdraw-submit:focus-visible {
   background: #872c27;
-}
-
-.notification-summary {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  padding: 22px;
-  color: inherit;
-}
-
-.notification-summary:hover strong,
-.notification-summary:focus-visible strong {
-  color: var(--color-orange);
-}
-
-.notification-summary img {
-  width: 82px;
-}
-
-.notification-summary strong,
-.notification-summary span {
-  display: block;
-}
-
-.notification-summary strong {
-  margin-bottom: 4px;
-  font-size: 1rem;
-}
-
-.notification-summary span {
-  color: var(--color-muted);
-  font-size: 0.76rem;
 }
 
 @media (max-width: 980px) {
@@ -772,7 +838,7 @@
   .activity-grid,
   .mypage-side-stack,
   .account-details,
-  .mypage-profile-form {
+  .mypage-profile-fields-grid {
     grid-template-columns: 1fr;
   }
 

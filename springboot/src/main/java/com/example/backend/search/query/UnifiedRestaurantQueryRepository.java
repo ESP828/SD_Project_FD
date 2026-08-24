@@ -30,7 +30,13 @@ public class UnifiedRestaurantQueryRepository {
                    r.address as road_address,
                    cast(null as char) as lot_address,
                    r.latitude as latitude,
-                   r.longitude as longitude
+                   r.longitude as longitude,
+                   (
+                       select ri2.image_url from restaurant_image ri2
+                        where ri2.restaurant_id = r.restaurant_id
+                        order by ri2.representative desc, ri2.display_order asc, ri2.restaurant_image_id asc
+                        limit 1
+                   ) as image_url
               from restaurant r
               left join restaurant_category c on c.category_id = r.category_id
              where r.status = 'ACTIVE'
@@ -45,7 +51,8 @@ public class UnifiedRestaurantQueryRepository {
                    p.road_address as road_address,
                    p.lot_address as lot_address,
                    p.latitude as latitude,
-                   p.longitude as longitude
+                   p.longitude as longitude,
+                   nullif(p.image_url, '') as image_url
               from public_restaurant p
              where p.status = 'ACTIVE'
             """;
@@ -59,7 +66,8 @@ public class UnifiedRestaurantQueryRepository {
                     rs.getString("road_address"),
                     rs.getString("lot_address"),
                     readCoordinate(rs, "latitude"),
-                    readCoordinate(rs, "longitude")
+                    readCoordinate(rs, "longitude"),
+                    rs.getString("image_url")
             );
 
     private final NamedParameterJdbcTemplate jdbcTemplate;

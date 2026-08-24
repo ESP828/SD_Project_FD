@@ -12,6 +12,8 @@ public record RestaurantSearchItemResponse(
         String roadAddress,
         String lotAddress,
         Double lat,
-        Double lon
+        Double lon,
+        // 캐싱된 매장 대표 이미지. 없으면 null - 프론트에서는 로고+카테고리 색상으로 대체한다.
+        String imageUrl
 ) {
 }

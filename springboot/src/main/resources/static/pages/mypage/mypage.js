@@ -51,7 +51,7 @@
     return `${year}-${month}-${day}`;
   }
 
-  function createProfileForm(data, onCancel) {
+  function createProfileForm(data, onCancel, onAccountManage) {
     const form = element("form", "mypage-profile-form");
     const loginId = input("text", "loginId", data.loginId || "소셜 로그인 계정");
     const email = input("email", "email", data.email || "등록된 이메일 없음");
@@ -89,22 +89,25 @@
     const status = element("p", "mypage-profile-form-status");
     status.setAttribute("aria-live", "polite");
     const actions = element("div", "mypage-profile-form-actions");
-    const cancelButton = element("button", "button button-secondary", "취소");
+    const accountButton = element("button", "button button-sm mypage-account-manage-button", "계정탈퇴");
+    accountButton.type = "button";
+    accountButton.addEventListener("click", onAccountManage);
+    const cancelButton = element("button", "button button-secondary button-sm", "취소");
     cancelButton.type = "button";
-    const saveButton = element("button", "button button-primary", "저장하기");
+    const saveButton = element("button", "button button-primary button-sm", "저장하기");
     saveButton.type = "submit";
-    actions.append(cancelButton, saveButton);
+    actions.append(accountButton, cancelButton, saveButton);
 
-    form.append(
+    const fieldsGrid = element("div", "mypage-profile-fields-grid");
+    fieldsGrid.append(
       field("로그인 아이디", loginId),
       field("이메일", email),
       field("닉네임", nickname),
       field("가입일", createdAt),
       field("성별", gender),
       field("생년월일", birthDate),
-      status,
-      actions,
     );
+    form.append(fieldsGrid, status, actions);
 
     cancelButton.addEventListener("click", onCancel);
     form.addEventListener("submit", async (event) => {
@@ -178,30 +181,30 @@
     return node;
   }
 
-  function createWithdrawalPanel(data) {
-    const panel = element("section", "mypage-side-panel mypage-danger-panel");
+  function createWithdrawalDialog(data) {
+    const dialog = element("dialog", "mypage-account-dialog mypage-danger-panel");
     const header = element("div", "mypage-panel-header");
     const title = element("div");
     title.append(
-      element("h3", "", "계정 관리"),
+      element("h3", "", "계정 탈퇴"),
       element("p", "", "탈퇴 후에는 계정으로 다시 로그인할 수 없습니다."),
     );
-    header.append(title);
+    const closeButton = element("button", "mypage-dialog-close", "");
+    closeButton.type = "button";
+    closeButton.setAttribute("aria-label", "닫기");
+    const closeIcon = element("span", "material-symbols-rounded", "close");
+    closeIcon.setAttribute("aria-hidden", "true");
+    closeButton.append(closeIcon);
+    closeButton.addEventListener("click", () => dialog.close());
+    header.append(title, closeButton);
     const body = element("div", "mypage-danger-body");
 
-    function showSummary() {
-      const copy = element(
+    function showForm() {
+      const intro = element(
         "p",
         "",
         "작성한 콘텐츠는 보존되며, 사업자 계정의 운영 중 음식점은 운영 중지됩니다.",
       );
-      const openButton = element("button", "button button-secondary mypage-withdraw-button", "회원 탈퇴");
-      openButton.type = "button";
-      openButton.addEventListener("click", showForm);
-      body.replaceChildren(copy, openButton);
-    }
-
-    function showForm() {
       const form = element("form", "mypage-withdraw-form");
       let password = null;
       if (data.loginId) {
@@ -226,7 +229,7 @@
       const submitButton = element("button", "button button-sm mypage-withdraw-submit", "탈퇴하기");
       cancelButton.type = "button";
       submitButton.type = "submit";
-      cancelButton.addEventListener("click", showSummary);
+      cancelButton.addEventListener("click", () => dialog.close());
       actions.append(cancelButton, submitButton);
       form.append(status, actions);
 
@@ -279,13 +282,13 @@
         }
       });
 
-      body.replaceChildren(form);
-      (password || confirmation).focus();
+      body.replaceChildren(intro, form);
     }
 
-    showSummary();
-    panel.append(header, body);
-    return panel;
+    dialog.addEventListener("close", showForm);
+    showForm();
+    dialog.append(header, body);
+    return dialog;
   }
 
   function render(data, successMessage = "") {
@@ -318,15 +321,19 @@
     );
 
     const layout = element("div", "mypage-layout");
-    const accountPanel = element("section", "mypage-panel");
+    const accountPanel = element("section", "mypage-panel mypage-account-panel");
     const accountHeader = element("div", "mypage-panel-header");
     const accountTitle = element("div");
     accountTitle.append(
       element("h3", "", "내 정보"),
       element("p", "", "내 프로필에 등록된 정보"),
     );
-    const editButton = element("button", "button button-secondary button-sm", "수정하기");
+    const editButton = element("button", "icon-button", "");
     editButton.type = "button";
+    editButton.setAttribute("aria-label", "내 정보 수정");
+    const editIcon = element("i", "fa-solid fa-pen");
+    editIcon.setAttribute("aria-hidden", "true");
+    editButton.append(editIcon);
     accountHeader.append(accountTitle, editButton);
     const details = element("dl", "account-details");
     details.append(
@@ -341,12 +348,18 @@
       feedback.setAttribute("role", "status");
       accountPanel.append(feedback);
     }
+    const withdrawalDialog = createWithdrawalDialog(data);
+    accountPanel.append(withdrawalDialog);
     editButton.addEventListener("click", () => {
       editButton.hidden = true;
-      const form = createProfileForm(data, () => {
-        form.replaceWith(details);
-        editButton.hidden = false;
-      });
+      const form = createProfileForm(
+        data,
+        () => {
+          form.replaceWith(details);
+          editButton.hidden = false;
+        },
+        () => withdrawalDialog.showModal(),
+      );
       details.replaceWith(form);
       form.elements.nickname.focus();
     });
@@ -368,6 +381,9 @@
       action("작성한 게시글", "커뮤니티 게시글 모아보기", detailPath("posts")),
       action("작성한 댓글", "커뮤니티 댓글 모아보기", detailPath("comments")),
       action("알림", "새로 도착한 알림 확인하기", detailPath("notifications")),
+      session.canManageBusiness
+        ? action("사업자 관리", "내 가게와 사업자 기능", "/business")
+        : action("사업자 권한 신청", "내 가게를 등록하고 싶다면 신청해 보세요", "/business#business-application"),
     );
     if (data.loginId) {
       actionList.append(
@@ -376,25 +392,18 @@
     }
     actionPanel.append(actionHeader, actionList);
 
-    const notificationPanel = element("section", "mypage-side-panel");
-    notificationPanel.id = "notifications";
-    const notification = element("a", "notification-summary");
-    notification.href = detailPath("notifications");
-    const notificationImage = new Image();
-    notificationImage.src = "/images/characters/notification.png";
-    notificationImage.alt = "";
-    const notificationCopy = element("div");
-    notificationCopy.append(
-      element("strong", "", `읽지 않은 알림 ${data.unreadNotificationCount || 0}개`),
-      element("span", "", "알림을 확인하고 읽음 처리할 수 있습니다."),
-    );
-    notification.append(notificationImage, notificationCopy);
-    notificationPanel.append(notification);
-    side.append(actionPanel, createWithdrawalPanel(data), notificationPanel);
+    side.append(actionPanel);
     layout.append(accountPanel, side);
 
     content.append(summary, activities, layout);
     window.FooduckIcons?.enhance(content);
+
+    // "내 정보"는 수정하기를 눌러 폼으로 바뀌면 항목이 늘어나 "내 활동 바로가기"보다
+    // 길어질 수 있다. 두 박스 세로 길이가 항상 같게, "내 활동 바로가기" 높이에 맞춰
+    // 고정해 두고, 폼 내용이 넘치면 박스 밖으로 커지는 대신 안에서 스크롤되게 한다.
+    requestAnimationFrame(() => {
+      accountPanel.style.height = `${actionPanel.offsetHeight}px`;
+    });
   }
 
   function renderError(error) {

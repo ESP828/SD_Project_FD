@@ -744,26 +744,14 @@ public class RecommendationService {
      * 실제 화면에 안 보이는 매장까지 API를 호출하게 되어 낭비다.
      */
     private List<RestaurantRankResponse> attachImagesForRankedRestaurants(List<RestaurantRankResponse> items) {
-        // 1. 카카오맵 매장주 공식 사진을 (1시간 캐시를 거쳐) 화면에 보이는 가게 전부에 대해
-        //    비동기·병렬로 조회한다. 페이지 진입마다 목록의 가게들을 전부 조회하게 되지만,
-        //    같은 PC에서는 캐시가 살아있는 동안 실제 외부 호출 없이 즉시 응답한다.
-        List<String> names = items.stream().map(RestaurantRankResponse::name).toList();
-        Map<String, String> officialImages = restaurantOfficialImageCacheService.getImageUrlsAsync(names).join();
-
+        // 카카오 이미지 검색(공식 API) + DB 캐시로만 채운다. 예전엔 네이버 지도를 헤드리스
+        // 브라우저로 여는 조회도 같이 돌면서 응답을 막고 있어서(.join()), 캐시가 비어있는
+        // 첫 진입 때 매장 하나당 몇 초씩 걸려 페이지 전체가 느려지는 원인이었다.
         return items.stream()
                 .map(item -> {
-                    String officialImageUrl = officialImages.get(item.name() == null ? null : item.name().trim());
-                    if (officialImageUrl != null) {
-                        return new RestaurantRankResponse(
-                                item.restaurantId(), item.name(), item.category(), item.address(), item.rawRating(),
-                                item.reviewCount(), item.favoriteCount(), item.adjustedRatingScore(), item.finalRankScore(),
-                                item.distanceMeters(), item.positiveRatio(), officialImageUrl
-                        );
-                    }
                     if (item.reviewCount() == null || item.reviewCount() <= 0 || item.restaurantId() == null) {
                         return item;
                     }
-                    // 2. 공식 사진이 없으면 기존 카카오 이미지 검색(DB 캐시) 결과로 대체한다.
                     String imageUrl = publicRestaurantImageService.getOrFetchImageUrl(item.restaurantId(), item.name());
                     return new RestaurantRankResponse(
                             item.restaurantId(), item.name(), item.category(), item.address(), item.rawRating(),
@@ -831,11 +819,6 @@ public class RecommendationService {
 
     /** {@link #attachImagesForRankedRestaurants}와 같은 이유로, 개인화 추천 결과에도 동일하게 적용한다. */
     private List<RecommendedItemDto> attachImagesForReviewedRestaurants(List<RecommendedItemDto> items) {
-        // 1. 카카오맵 매장주 공식 사진을 (1시간 캐시를 거쳐) 목록의 가게 전부에 대해
-        //    비동기·병렬로 조회한다.
-        List<String> names = items.stream().map(RecommendedItemDto::restaurantName).toList();
-        Map<String, String> officialImages = restaurantOfficialImageCacheService.getImageUrlsAsync(names).join();
-
         List<Long> ids = items.stream().map(RecommendedItemDto::sourceId).filter(Objects::nonNull).toList();
         Map<Long, PublicRestaurantReviewAggregate> aggregates = new HashMap<>();
         if (!ids.isEmpty()) {
@@ -845,15 +828,6 @@ public class RecommendationService {
 
         return items.stream()
                 .map(item -> {
-                    String officialImageUrl = officialImages.get(
-                            item.restaurantName() == null ? null : item.restaurantName().trim());
-                    if (officialImageUrl != null) {
-                        return new RecommendedItemDto(
-                                item.sourceType(), item.sourceId(), item.restaurantName(), item.categoryName(), item.address(),
-                                item.latitude(), item.longitude(), item.distanceMeters(), item.score(), item.reasons(), officialImageUrl
-                        );
-                    }
-                    // 2. 공식 사진이 없으면 기존 카카오 이미지 검색(DB 캐시) 결과로 대체한다.
                     PublicRestaurantReviewAggregate aggregate = aggregates.get(item.sourceId());
                     if (aggregate == null || aggregate.reviewCount() == null || aggregate.reviewCount() <= 0) {
                         return item;

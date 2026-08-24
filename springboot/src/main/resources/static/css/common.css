@@ -254,6 +254,11 @@ h4 {
   border-color: #cbd6e3;
 }
 
+.header-actions .icon-button,
+.header-actions .icon-button:hover {
+  border-color: transparent;
+}
+
 .nav-toggle {
   display: none;
 }

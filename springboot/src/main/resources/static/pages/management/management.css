@@ -178,7 +178,7 @@
 
 .application-form textarea {
   padding: 12px;
-  resize: vertical;
+  resize: none;
 }
 
 .application-form .full {

@@ -5,7 +5,6 @@
   const loginGate = document.getElementById("business-login-gate");
   const profileHost = document.getElementById("business-profile-host");
   const application = document.getElementById("business-application");
-  const applicationMetrics = document.getElementById("business-application-metrics");
   const applicationHistory = document.getElementById("business-application-history");
   const applicationStatus = document.getElementById("business-application-status");
   const dashboard = document.getElementById("business-dashboard");
@@ -16,7 +15,7 @@
 
   if (
     !session || !profile || !loading || !loginGate || !profileHost ||
-    !application || !applicationMetrics || !applicationHistory || !applicationStatus ||
+    !application || !applicationHistory || !applicationStatus ||
     !dashboard || !businessMetrics || !restaurantPanel || !actionPanel || !statusPanel
   ) {
     return;
@@ -185,14 +184,6 @@
 
   function renderApplications(items) {
     state.applications = Array.isArray(items) ? items : [];
-    const countStatus = (status) => state.applications.filter((item) => item.status === status).length;
-    applicationMetrics.replaceChildren(
-      metric("신청 횟수", state.applications.length, "#business-application-history", "article"),
-      metric("승인 대기", countStatus("PENDING"), "#business-application-history", "schedule"),
-      metric("승인", countStatus("APPROVED"), "#business-application-history", "check_circle"),
-      metric("거절", countStatus("REJECTED"), "#business-application-history", "error"),
-      metric("취소", countStatus("CANCELED"), "#business-application-history", "close"),
-    );
 
     applicationHistory.replaceChildren();
     if (state.applications.length === 0) {
@@ -222,10 +213,6 @@
   }
 
   function renderApplicationError(error) {
-    applicationMetrics.replaceChildren(errorPanel(
-      "신청 현황을 불러오지 못했습니다.",
-      error?.message,
-    ));
     applicationHistory.replaceChildren(
       element("p", "management-empty", error?.message || "신청 내역을 불러오지 못했습니다."),
     );
