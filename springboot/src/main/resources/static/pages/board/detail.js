@@ -1816,47 +1816,16 @@
       : post.ownedByCurrentUser || session.isAdmin;
     if (canManage) {
       if (!newsPost && session.isAdmin && !isPinnedPost(post)) {
-        if (post.bestOverride === true) {
-          const bestExcludeButton = actionButton(
-            "베스트에서 내리기",
-            "button button-sm button-secondary",
-            (event) => updateBestOverride("EXCLUDE", event),
-          );
-          bestExcludeButton.disabled = bestOverrideInFlight;
-          actions.append(bestExcludeButton);
-        } else if (post.bestOverride === false) {
-          const bestIncludeButton = actionButton(
-            "베스트로 올리기",
-            "button button-sm button-secondary",
-            (event) => updateBestOverride("INCLUDE", event),
-          );
-          bestIncludeButton.disabled = bestOverrideInFlight;
-          actions.append(bestIncludeButton);
-        } else {
-          const bestIncludeButton = actionButton(
-            "베스트로 올리기",
-            "button button-sm button-secondary",
-            (event) => updateBestOverride("INCLUDE", event),
-          );
-          const bestExcludeButton = actionButton(
-            "베스트에서 내리기",
-            "button button-sm button-secondary",
-            (event) => updateBestOverride("EXCLUDE", event),
-          );
-          bestIncludeButton.disabled = bestOverrideInFlight;
-          bestExcludeButton.disabled = bestOverrideInFlight;
-          actions.append(bestIncludeButton, bestExcludeButton);
-        }
-
-        if (post.bestOverride !== null && post.bestOverride !== undefined) {
-          const bestAutoButton = actionButton(
-            "자동 선정으로 복원",
-            "button button-sm button-secondary",
-            (event) => updateBestOverride("AUTO", event),
-          );
-          bestAutoButton.disabled = bestOverrideInFlight;
-          actions.append(bestAutoButton);
-        }
+        const automaticallyBest = Number(post.likeCount || 0) >= 3;
+        const currentlyBest = post.bestOverride === true
+          || (post.bestOverride !== false && automaticallyBest);
+        const bestToggleButton = actionButton(
+          currentlyBest ? "베스트에서 내리기" : "베스트로 올리기",
+          "button button-sm button-secondary",
+          (event) => updateBestOverride(currentlyBest ? "EXCLUDE" : "INCLUDE", event),
+        );
+        bestToggleButton.disabled = bestOverrideInFlight;
+        actions.append(bestToggleButton);
       }
 
       if (!newsPost && session.isAdmin && isPinnedPost(post)) {

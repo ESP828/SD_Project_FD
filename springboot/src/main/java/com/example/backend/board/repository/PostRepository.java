@@ -177,11 +177,7 @@ public interface PostRepository extends JpaRepository<Post, Long> {
               and p.category <> :excludedCategory
               and p.category <> com.example.backend.board.domain.type.PostCategory.NEWS
               and (:readableBoardType is null or p.boardType = :readableBoardType)
-            order by
-              case when p.bestOverride = true then 0 else 1 end,
-              p.likeCount desc,
-              p.createdAt desc,
-              p.postId desc
+            order by p.likeCount desc, p.createdAt desc, p.postId desc
             """,
             countQuery = """
             select count(p)

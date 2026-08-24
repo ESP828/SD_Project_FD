@@ -975,12 +975,12 @@ public class PostService {
         String mode = modeValue == null
                 ? ""
                 : modeValue.strip().toUpperCase(Locale.ROOT);
+        boolean automaticallyBest = post.getLikeCount() >= BEST_COMMUNITY_MINIMUM_LIKE_COUNT;
         Boolean bestOverride = switch (mode) {
-            case "INCLUDE" -> Boolean.TRUE;
-            case "EXCLUDE" -> Boolean.FALSE;
-            case "AUTO" -> null;
+            case "INCLUDE" -> automaticallyBest ? null : Boolean.TRUE;
+            case "EXCLUDE" -> automaticallyBest ? Boolean.FALSE : null;
             default -> throw badRequest(
-                    "베스트 설정은 INCLUDE, EXCLUDE, AUTO 중 하나여야 합니다."
+                    "베스트 설정은 INCLUDE 또는 EXCLUDE 중 하나여야 합니다."
             );
         };
 

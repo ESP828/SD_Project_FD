@@ -1401,17 +1401,23 @@ body > [data-site-header] > .site-header {
   resize: none;
   overflow-y: hidden;
   padding: 12px;
-  border: 0;
+  border: 1px solid var(--color-line);
   border-radius: 12px;
   outline: 0;
-  background: transparent;
+  background: #fff;
   box-shadow: none;
+  transition: border-color 150ms ease, box-shadow 150ms ease, background-color 150ms ease;
+}
+
+.store-news-comment-form textarea:hover {
+  border-color: rgba(255, 152, 0, 0.36);
 }
 
 .store-news-comment-form textarea:focus {
-  border-color: transparent;
+  border-color: var(--color-orange);
   outline: 0;
-  box-shadow: none;
+  background: #fff;
+  box-shadow: 0 0 0 3px rgba(255, 152, 0, 0.12);
 }
 
 .store-news-comments-panel .comment-pagination {
