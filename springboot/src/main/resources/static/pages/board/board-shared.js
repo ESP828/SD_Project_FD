@@ -21,9 +21,9 @@
   };
 
   const roleDescriptions = {
-    USER: "FOODUCK의 일반 이용 회원입니다.",
+    USER: "일반 이용 회원입니다.",
     BUSINESS: "사업자 권한이 확인된 회원입니다.",
-    ADMIN: "FOODUCK 운영 및 관리 권한을 가진 회원입니다.",
+    ADMIN: "운영 및 관리 권한을 가진 회원입니다.",
   };
 
   let activeRoleBadge = null;
