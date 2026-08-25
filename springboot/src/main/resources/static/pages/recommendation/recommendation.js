@@ -229,10 +229,9 @@ const RecommendationPage = {
       if (!items || items.length === 0) {
         container.innerHTML = `
           <div style="text-align: center; padding: 40px 0;">
-            <img src="/images/characters/cooking.png" alt="오리" style="width: 120px; margin-bottom: 16px; opacity: 0.9;" />
+            <img src="/images/characters/cooking.png" alt="오리" style="width: 120px; margin: 0 auto 16px; opacity: 0.9;" />
             <h3 style="font-size: 16px; font-weight: bold; margin-bottom: 8px;">추천에 사용할 음식점 데이터가 아직 없습니다</h3>
-            <p style="font-size: 13px; color: #888; margin-bottom: 20px;">맛집을 찜 등록하면 이곳에 취향 맞춤 추천이 표시됩니다.</p>
-            <a href="/map" class="button button-secondary" style="display: inline-block; padding: 8px 20px; border-radius: 20px; border: 1px solid #ddd; text-decoration: none; font-weight: bold;">Kakao Map에서 먼저 찾기</a>
+            <p style="font-size: 13px; color: #888;">맛집을 찜 등록하면 이곳에 취향 맞춤 추천이 표시됩니다.</p>
           </div>
         `;
         return;

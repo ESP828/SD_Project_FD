@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="여러 식당의 식사비를 사다리 게임으로 재미있게 정산하세요." />
+  <title>오늘의 맛집 정산 사다리</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <main class="app-shell">
+    <section class="hero">
+      <p class="eyebrow">맛집 투어의 마지막 코스</p>
+      <h1>오늘의 정산 사다리</h1>
+      <p>여러 식당에서 쓴 금액을 모아, 조금은 짜릿하게 나눠 보세요.</p>
+    </section>
+
+    <section class="card setup-card" id="setupSection">
+      <div class="section-title">
+        <span class="step">1</span>
+        <div><h2>정산 조건</h2><p>인원과 식당별 결제 금액을 입력해 주세요.</p></div>
+      </div>
+
+      <div class="people-control">
+        <span>정산 인원</span>
+        <div class="stepper" aria-label="정산 인원 선택">
+          <button type="button" id="decreasePeople" aria-label="인원 줄이기">−</button>
+          <strong id="peopleCount" aria-live="polite">3</strong>
+          <button type="button" id="increasePeople" aria-label="인원 늘리기">＋</button>
+        </div>
+      </div>
+
+      <div class="amount-heading">
+        <div><span>식당별 금액</span><small>최대 5곳</small></div>
+        <button type="button" class="add-button" id="addRestaurant">＋ 식당 추가</button>
+      </div>
+      <div id="amountList" class="amount-list"></div>
+      <p class="total-line">총 결제 금액 <strong id="totalAmount">0원</strong></p>
+      <p class="message" id="setupMessage" role="alert"></p>
+      <button type="button" class="primary-button" id="makeLadder">이름 입력하고 사다리 만들기</button>
+    </section>
+
+    <section class="card ladder-card hidden" id="ladderSection">
+      <div class="section-title">
+        <span class="step">2</span>
+        <div><h2>사다리 게임</h2><p>각 시작점에 참여자 이름을 입력하세요.</p></div>
+      </div>
+      <div class="name-grid" id="nameInputs"></div>
+      <div class="ladder-wrap">
+        <canvas id="ladderCanvas" aria-label="정산 사다리 게임"></canvas>
+        <div class="prize-grid" id="prizeLabels"></div>
+      </div>
+      <p class="message" id="ladderMessage" role="alert"></p>
+      <div class="ladder-actions">
+        <button type="button" class="shuffle-button" id="shuffleLadder">↻ 사다리 섞기</button>
+        <button type="button" class="primary-button accent" id="startGame">사다리 출발!</button>
+      </div>
+    </section>
+
+    <section class="card result-card hidden" id="resultSection" aria-live="polite">
+      <div class="confetti" aria-hidden="true">🎉</div>
+      <p class="eyebrow">정산 결과</p>
+      <h2>오늘은 이렇게 나눠요!</h2>
+      <div id="resultList" class="result-list"></div>
+      <div class="summary"><span>전체 결제 금액</span><strong id="resultTotal"></strong></div>
+      <p class="result-note">재미를 위해 균등 분할에서 약간의 편차를 적용했어요.</p>
+      <button type="button" class="secondary-button" id="restartGame">처음부터 다시 하기</button>
+    </section>
+  </main>
+  <script src="script.js"></script>
+</body>
+</html>

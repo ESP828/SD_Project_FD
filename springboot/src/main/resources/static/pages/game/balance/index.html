@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="7개의 밸런스 질문으로 알아보는 나의 음식 취향과 오늘의 메뉴 추천">
+  <title>오늘 뭐 먹지? | 음식 밸런스 게임</title>
+  <style>
+    :root{--ink:#182217;--cream:#f8f3e8;--lime:#dfff00;--red:#ff5038;--pink:#ffb6d2}
+    *{box-sizing:border-box}
+    body{margin:0;color:var(--ink);background:var(--cream);font-family:Arial,"Apple SD Gothic Neo","Malgun Gothic",sans-serif}
+    button{font:inherit}
+    .shell{min-height:100vh;position:relative;overflow:hidden;display:flex;flex-direction:column;padding:28px 42px 20px;background:radial-gradient(circle at 15% 25%,rgba(255,80,56,.14),transparent 26%),radial-gradient(circle at 87% 70%,rgba(223,255,0,.24),transparent 25%),var(--cream)}
+    .brand{position:relative;z-index:2;width:max-content;font-weight:950;font-size:20px;letter-spacing:-1.5px;transform:rotate(-2deg);border-bottom:5px solid var(--red)}
+    .hero{width:min(950px,100%);margin:auto;text-align:center;position:relative;padding:65px 24px 55px}
+    .eyebrow{margin:0 0 18px;font-size:12px;font-weight:900;letter-spacing:3px;color:#6d7568}
+    h1{margin:0;font-size:clamp(44px,7vw,88px);line-height:.98;letter-spacing:-6px;font-weight:950}
+    .hero h1 em{color:var(--red);font-style:normal;position:relative;z-index:1}
+    .hero h1 em:after{content:"";position:absolute;left:-2%;bottom:3px;width:104%;height:14px;background:var(--lime);z-index:-1;transform:rotate(-1deg)}
+    .hero-copy{margin:28px auto 30px;color:#63695f;font-size:17px;line-height:1.7}
+    .start,.restart{border:0;background:var(--ink);color:#fff;border-radius:100px;padding:18px 28px;font-weight:900;font-size:17px;cursor:pointer;box-shadow:6px 7px 0 var(--red);transition:.2s}
+    .start:hover,.restart:hover{transform:translate(3px,3px);box-shadow:3px 4px 0 var(--red)}
+    .start span{margin-left:20px;color:var(--lime)}
+    .sticker{position:absolute;right:10%;top:7%;padding:11px 15px;background:var(--lime);border:2px solid var(--ink);font-size:13px;font-weight:950;transform:rotate(8deg);box-shadow:4px 4px 0 var(--ink)}
+    .food{position:absolute;font-size:clamp(44px,6vw,72px);filter:drop-shadow(0 10px 8px rgba(0,0,0,.12));animation:float 3s ease-in-out infinite}
+    .f1{left:2%;top:26%;transform:rotate(-12deg)}.f2{right:1%;bottom:20%;animation-delay:-.8s}.f3{left:12%;bottom:5%;font-size:42px;animation-delay:-1.8s}
+    @keyframes float{50%{translate:0 -12px;rotate:5deg}}
+    footer{text-align:center;font-size:12px;font-weight:700;color:#858a82}
+    .game-head{display:flex;align-items:center;justify-content:space-between;font-size:12px;font-weight:950;letter-spacing:2px}
+    .progress{height:5px;background:#dfddd4;margin-top:22px}.progress span{display:block;height:100%;background:var(--red);transition:width .35s}
+    .question{width:min(980px,100%);margin:auto;text-align:center;animation:enter .35s ease both}
+    @keyframes enter{from{opacity:0;transform:translateY(12px)}}
+    .question h1{font-size:clamp(34px,5vw,56px);letter-spacing:-4px}
+    .question h1 small{display:block;margin-bottom:8px;font-size:18px;letter-spacing:-1px;color:var(--red)}
+    .choices{display:grid;grid-template-columns:1fr 1fr;gap:22px;position:relative;margin-top:36px}
+    .choice{min-height:250px;border:3px solid var(--ink);border-radius:26px;padding:28px;cursor:pointer;position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--ink);box-shadow:8px 9px 0 var(--ink);transition:.18s}
+    .choice-a{background:var(--pink)}.choice-b{background:var(--lime)}
+    .choice:hover{transform:translateY(-6px) rotate(-1deg);box-shadow:10px 14px 0 var(--ink)}
+    .choice:disabled{cursor:default}.choice.selected{transform:scale(.97);box-shadow:3px 4px 0 var(--ink);filter:saturate(1.3)}
+    .choice-key{position:absolute;top:18px;left:20px;border:2px solid var(--ink);border-radius:50%;width:32px;height:32px;display:grid;place-items:center;font-weight:950}
+    .choice-emoji{font-size:66px;line-height:1;margin-bottom:20px}
+    .choice strong{font-size:clamp(22px,3vw,34px);letter-spacing:-2px}.pick{font-size:12px;font-weight:800;margin-top:12px;opacity:.6}
+    .vs{position:absolute;left:50%;top:50%;translate:-50% -50%;background:var(--red);color:#fff;border:3px solid var(--ink);border-radius:50%;width:54px;height:54px;display:grid;place-items:center;z-index:2;font-weight:950;transform:rotate(-8deg)}
+    .hint{margin:27px 0 0;font-size:12px;color:#797e75;font-weight:700}
+    .result{width:min(720px,100%);margin:24px auto auto;text-align:center;background:#fffdf7;border:3px solid var(--ink);border-radius:30px;box-shadow:10px 12px 0 var(--ink);padding:35px 50px 32px}
+    .result-emoji{font-size:72px;line-height:1;margin:0 0 12px;animation:pop .5s cubic-bezier(.17,.89,.32,1.49)}
+    @keyframes pop{from{transform:scale(.3) rotate(-20deg)}}
+    .result h1{font-size:clamp(32px,5vw,50px);letter-spacing:-4px}
+    .result-copy{max-width:570px;margin:18px auto 26px;line-height:1.65;font-size:14px;color:#656b61}
+    .meters{display:grid;gap:13px;text-align:left;background:var(--cream);border-radius:18px;padding:19px 22px}
+    .meter-label{display:flex;justify-content:space-between;font-size:12px;font-weight:850;margin-bottom:7px}.meter-label strong{color:var(--red)}
+    .meter-track{height:9px;border-radius:20px;background:#deddd4;overflow:hidden}.meter-track span{display:block;height:100%;background:var(--red);border-radius:inherit;animation:grow .8s ease both}
+    @keyframes grow{from{width:0!important}}
+    .recommend{margin:20px 0;text-align:left;background:var(--ink);color:#fff;border-radius:20px;padding:20px 22px;display:flex;align-items:center;justify-content:space-between;gap:25px}
+    .recommend-label{color:var(--lime);font-size:9px;letter-spacing:2px;font-weight:900}.recommend h2{margin:5px 0 0;font-size:18px;letter-spacing:-1px;white-space:nowrap}
+    .menu-list{display:flex;flex-wrap:wrap;gap:7px;justify-content:flex-end}.menu-list span{background:#fff;color:var(--ink);border-radius:100px;padding:8px 11px 8px 7px;font-size:11px;font-weight:850}
+    .menu-list b{display:inline-grid;place-items:center;width:19px;height:19px;margin-right:5px;border-radius:50%;background:var(--red);color:#fff}
+    .restart{padding:12px 20px;box-shadow:4px 5px 0 var(--red);font-size:13px}
+    @media(max-width:640px){
+      .shell{padding:22px 18px 18px}.hero{padding:90px 4px 40px}.hero h1{font-size:48px;letter-spacing:-4px}.sticker{right:2%;top:10%}
+      .f1{left:-8%;top:28%}.f2{right:-8%;bottom:19%}.f3{display:none}.question{margin:auto 0}.question h1{font-size:34px;letter-spacing:-3px}
+      .choices{gap:12px;margin-top:28px}.choice{min-height:260px;padding:19px 10px;border-radius:20px;box-shadow:5px 6px 0 var(--ink)}
+      .choice-emoji{font-size:50px}.choice strong{font-size:21px;letter-spacing:-1.5px;word-break:keep-all}.vs{width:46px;height:46px;font-size:13px}
+      .result{padding:30px 20px 25px;border-radius:24px;box-shadow:6px 7px 0 var(--ink)}.result h1{font-size:35px}.recommend{align-items:flex-start;flex-direction:column}.menu-list{justify-content:flex-start}
+    }
+  </style>
+</head>
+<body>
+  <main id="app"></main>
+  <script>
+    const questions=[
+      {k:"비 오는 날에는?",t:"빗소리 들으며 당기는 한 끼",a:["얼큰한 짬뽕","🍜",{spicy:3,soup:3,adventure:1}],b:["바삭한 파전","🥞",{crispy:3,comfort:2}]},
+      {k:"스트레스받은 날에는?",t:"오늘의 기분 전환 버튼",a:["매운 음식으로 풀기","🌶️",{spicy:4,adventure:1}],b:["달콤한 디저트로 달래기","🍰",{sweet:4,comfort:2}]},
+      {k:"야식이 생각나는 밤에는?",t:"딱 하나만 고를 수 있다면",a:["불향 가득 닭발","🔥",{spicy:4,adventure:2}],b:["치즈 듬뿍 피자","🍕",{comfort:3,crispy:1}]},
+      {k:"여행지 맛집을 고를 때는?",t:"나를 더 설레게 하는 곳",a:["현지인만 아는 로컬 식당","🗺️",{adventure:4,spicy:1}],b:["후기 확실한 유명 맛집","⭐",{comfort:4}]},
+      {k:"쌀쌀한 퇴근길에는?",t:"몸부터 녹여줄 저녁 메뉴",a:["보글보글 부대찌개","🥘",{soup:4,spicy:2,comfort:1}],b:["노릇노릇 돈가스","🍛",{crispy:4,comfort:2}]},
+      {k:"주말의 느긋한 점심에는?",t:"포기할 수 없는 한 가지",a:["진한 국물 쌀국수","🍲",{soup:4,adventure:2}],b:["바삭한 치킨 한 마리","🍗",{crispy:4,comfort:1}]},
+      {k:"새로운 메뉴가 보인다면?",t:"당신의 주문 방식은",a:["처음 보는 메뉴에 도전","✨",{adventure:5}],b:["늘 먹던 최애 메뉴 주문","💛",{comfort:5}]}
+    ];
+    const profiles={
+      spicy:["🔥","얼큰한 자극 추구형","밋밋한 한 끼보다는 혀끝이 짜릿한 맛! 스트레스도 매콤하게 날려버리는 화끈한 미식가예요.",["마라탕","불향 짬뽕","무뼈 닭발"]],
+      soup:["♨️","따끈한 국물 충전형","한 숟갈에 마음까지 풀리는 국물파. 뜨끈하고 깊은 맛에서 오늘을 버틸 에너지를 얻어요.",["순대국","나가사키 짬뽕","샤부샤부"]],
+      adventure:["🧭","호기심 가득 미식 탐험형","처음 보는 메뉴도 일단 도전! 익숙함보다 새로운 맛의 발견에 더 크게 설레는 탐험가예요.",["똠얌꿍","우육면","멕시칸 타코"]],
+      comfort:["💛","실패 없는 위로 음식형","내 입맛을 가장 잘 아는 건 역시 나. 익숙하고 든든한 최애 메뉴가 최고의 휴식이에요.",["제육볶음","치즈 돈가스","김치찌개"]],
+      crispy:["⚡","바삭한 식감 애호형","첫입의 경쾌한 바삭 소리가 행복의 신호! 맛만큼 재미있는 식감을 중요하게 생각해요.",["후라이드 치킨","새우튀김 우동","등심 돈가스"]],
+      sweet:["🍓","달콤한 기분 회복형","기분 전환에는 달콤함이 정답. 한입의 디저트로 평범한 하루를 특별하게 만드는 타입이에요.",["수플레 팬케이크","딸기 빙수","크림 도넛"]]
+    };
+    const app=document.querySelector("#app");
+    let started=false,step=0,locked=false,scores={spicy:0,soup:0,adventure:0,comfort:0,crispy:0,sweet:0};
+    function home(){
+      app.innerHTML=`<div class="shell"><div class="brand">오늘 뭐 먹지?</div><section class="hero"><div class="sticker">7번만 고르면 끝!</div><p class="eyebrow">FOOD BALANCE GAME</p><h1>취향대로 고르면<br><em>오늘의 메뉴</em>가 딱!</h1><p class="hero-copy">고민은 우리가 할게요. 당신은 더 당기는 음식만 골라주세요.</p><button class="start" onclick="start()">게임 시작하기 <span>→</span></button><div class="food f1">🍜</div><div class="food f2">🍕</div><div class="food f3">🌶️</div></section><footer>오늘의 배고픔을 취향으로 해결해요 · 약 1분 소요</footer></div>`;
+    }
+    function start(){started=true;step=0;locked=false;scores={spicy:0,soup:0,adventure:0,comfort:0,crispy:0,sweet:0};question()}
+    function question(){
+      const q=questions[step],n=String(step+1).padStart(2,"0"),total=String(questions.length).padStart(2,"0");
+      app.innerHTML=`<div class="shell"><header class="game-head"><div class="brand">오늘 뭐 먹지?</div><span>${n} / ${total}</span></header><div class="progress"><span style="width:${(step+1)/questions.length*100}%"></span></div><section class="question"><p class="eyebrow">QUESTION ${n}</p><h1><small>${q.k}</small>${q.t}</h1><div class="choices">${choiceHTML("a",q.a)}${choiceHTML("b",q.b)}<div class="vs">VS</div></div><p class="hint">고민은 짧게, 끌리는 쪽을 골라주세요!</p></section></div>`;
+    }
+    function choiceHTML(key,c){return `<button class="choice choice-${key}" onclick="choose('${key}',this)"><span class="choice-key">${key.toUpperCase()}</span><span class="choice-emoji">${c[1]}</span><strong>${c[0]}</strong><span class="pick">이게 더 당겨요</span></button>`}
+    function choose(key,button){
+      if(locked)return;locked=true;button.classList.add("selected");document.querySelectorAll(".choice").forEach(x=>x.disabled=true);
+      const traits=questions[step][key][2];Object.entries(traits).forEach(([k,v])=>scores[k]+=v);
+      setTimeout(()=>{step++;locked=false;step<questions.length?question():result()},280);
+    }
+    function result(){
+      const trait=Object.entries(scores).sort((a,b)=>b[1]-a[1])[0][0],p=profiles[trait];
+      const meters=[["매운맛 선호도",Math.min(95,35+scores.spicy*5)],["국물 음식 선호도",Math.min(95,35+scores.soup*6)],["새로운 음식 도전도",Math.min(95,30+scores.adventure*6)]];
+      app.innerHTML=`<div class="shell"><div class="brand">오늘 뭐 먹지?</div><section class="result"><p class="eyebrow">당신의 음식 취향은</p><div class="result-emoji">${p[0]}</div><h1>${p[1]}!</h1><p class="result-copy">${p[2]}</p><div class="meters">${meters.map(m=>`<div><div class="meter-label"><span>${m[0]}</span><strong>${m[1]}%</strong></div><div class="meter-track"><span style="width:${m[1]}%"></span></div></div>`).join("")}</div><div class="recommend"><div><span class="recommend-label">TODAY'S PICK</span><h2>오늘은 이거 어때요?</h2></div><div class="menu-list">${p[3].map((m,i)=>`<span><b>${i+1}</b>${m}</span>`).join("")}</div></div><button class="restart" onclick="start()">↻ 다시 해보기</button></section></div>`;
+    }
+    home();
+  </script>
+</body>
+</html>

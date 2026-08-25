@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="푸드덕에서 즐기는 미니 게임">
+  <title>게임 · 푸드덕</title>
+  <link rel="icon" href="/images/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/css/common.css">
+  <link rel="stylesheet" href="/pages/game/game.css">
+</head>
+<body>
+  <div data-site-header data-active-nav="game"></div>
+
+  <main class="game-main">
+    <section class="container game-content" aria-labelledby="game-heading">
+      <h2 id="game-heading" class="sr-only">게임 목록</h2>
+      <div class="game-tabs" role="tablist" aria-label="게임 선택">
+        <button id="game-tab-balance" class="game-tab is-active" type="button" role="tab"
+                aria-selected="true" aria-controls="game-frame-wrap" data-game="balance">
+          <span class="material-symbols-rounded" aria-hidden="true">favorite</span>
+          오늘 뭐 먹지 밸런스게임
+        </button>
+        <button id="game-tab-ladder" class="game-tab" type="button" role="tab"
+                aria-selected="false" aria-controls="game-frame-wrap" data-game="ladder">
+          <span class="material-symbols-rounded" aria-hidden="true">ladder</span>
+          맛집 정산 사다리
+        </button>
+      </div>
+
+      <div id="game-frame-wrap" class="game-frame-wrap">
+        <iframe id="game-frame" class="game-frame" title="게임 화면" src=""></iframe>
+      </div>
+    </section>
+  </main>
+
+  <div data-site-footer></div>
+
+  <script src="/js/api.js"></script>
+  <script src="/js/common.js"></script>
+  <script src="/pages/game/game.js"></script>
+</body>
+</html>
