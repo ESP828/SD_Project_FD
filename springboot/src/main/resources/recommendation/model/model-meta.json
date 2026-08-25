@@ -1,0 +1,8 @@
+{
+  "modelVersion": "fooduck-tfidf-v4-document-v2-unigram",
+  "vocabularySize": 50000,
+  "totalDocuments": 135702,
+  "documentVersion": 2,
+  "documentCorpusHash": "6f46edeb30950a8143453b17ce9fd9cc2a0e003fb7d0ec6a9ee7d01b55acb453",
+  "builtAt": "2026-08-25T10:43:02.375575+00:00"
+}

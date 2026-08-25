@@ -49,7 +49,11 @@ public class RecommendationController {
     }
 
     /**
-     * 💡 나를 위한 맛집 (Java 단독 연산 개인화 추천 API)
+     * 나를 위한 맛집 개인화 추천 API.
+     *
+     * <p>Spring Boot가 찜 중심 취향에 내가 남긴 평점을 보정하고, 나이·성별 정보가
+     * 있으면 약한 보조 신호로 추가한다. 취향 유사도는 KURE FastAPI에 맡기며,
+     * KURE 장애 시에는 TF-IDF로 내려간다. 거리는 3km 후보 범위와 표시에만 쓴다.
      */
     @GetMapping("/personal")
     public ResponseEntity<ApiResponse<PersonalRecommendationResponse>> getPersonalRecommendations(

@@ -1,2 +1,4 @@
 /_서버실행.bat text eol=crlf
 /springboot/run-local.ps1 text eol=crlf
+/springboot/ai/model/kure/*/embeddings-part-*.npy binary
+/springboot/ai/model/kure/*/restaurant_ids-sharded.npy binary

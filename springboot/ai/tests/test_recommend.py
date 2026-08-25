@@ -71,6 +71,47 @@ class RecommendTest(unittest.TestCase):
         self.assertEqual(result["items"][0]["id"], 30)
         self.assertAlmostEqual(result["items"][0]["score"], 1.0, places=5)
 
+    def test_profile_weights_positive_signals(self):
+        # 5점(1.0)을 준 10번 매장이 4점(0.6)을 준 20번보다 프로필을 더 크게 끈다.
+        result = recommend.score_profile(
+            [{"restaurantId": 10, "weight": 1.0}, {"restaurantId": 20, "weight": 0.6}],
+            [],
+            [10, 20],
+        )
+        scores = {item["id"]: item["score"] for item in result["items"]}
+        self.assertGreater(scores[10], scores[20])
+
+    def test_profile_penalises_candidates_close_to_negative_signals(self):
+        without_negative = recommend.score_profile(
+            [{"restaurantId": 30, "weight": 1.0}], [], [20]
+        )["items"][0]["score"]
+        with_negative = recommend.score_profile(
+            [{"restaurantId": 30, "weight": 1.0}],
+            [{"restaurantId": 20, "weight": 1.0}],
+            [20],
+        )["items"][0]["score"]
+        self.assertLess(with_negative, without_negative)
+
+    def test_profile_skips_signals_missing_from_index(self):
+        # 신호 매장 하나가 인덱스에 없다는 이유로 개인화 전체가 실패하면 안 된다.
+        result = recommend.score_profile(
+            [{"restaurantId": 999, "weight": 1.0}, {"restaurantId": 10, "weight": 1.0}],
+            [{"restaurantId": 888, "weight": 1.0}],
+            [10, 20],
+        )
+        scores = {item["id"]: item["score"] for item in result["items"]}
+        self.assertAlmostEqual(scores[10], 1.0, places=5)
+
+    def test_profile_rejects_candidate_missing_from_index(self):
+        with self.assertRaises(recommend.KureServiceError) as error:
+            recommend.score_profile([{"restaurantId": 10, "weight": 1.0}], [], [10, 999])
+        self.assertEqual(error.exception.code, "KURE_CANDIDATE_SET_MISMATCH")
+
+    def test_profile_fails_when_every_positive_signal_is_unknown(self):
+        with self.assertRaises(recommend.KureServiceError) as error:
+            recommend.score_profile([{"restaurantId": 999, "weight": 1.0}], [], [10])
+        self.assertEqual(error.exception.code, "KURE_PROFILE_NOT_READY")
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -18,7 +18,8 @@ def with_active_document_version(arguments: list[str]) -> list[str]:
     index_version = pointer.get("indexVersion")
     if not index_version:
         raise RuntimeError("KURE current.json has no indexVersion.")
-    manifest_path = Path(KURE_ROOT) / str(index_version) / "manifest.json"
+    manifest_filename = pointer.get("manifestFilename", "manifest.json")
+    manifest_path = Path(KURE_ROOT) / str(index_version) / str(manifest_filename)
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     document_version = int(manifest.get("documentVersion", -1))
     if document_version not in (1, 2):

@@ -1,6 +1,34 @@
 (() => {
   const PAGE_SIZE = 12;
 
+  // AI 추천으로 받아올 결과 수의 범위.
+  const MIN_AI_RESULT_LIMIT = 1;
+  const MAX_AI_RESULT_LIMIT = 300;
+
+  /**
+   * 검색어에서 결정적으로 결과 수를 정한다.
+   *
+   * 예전에는 1200을 요청해 백엔드 상한 1000을 그대로 받아왔고, 화면에는 늘
+   * "총 1000개 추천 결과"가 떴다. 그 1000은 추천 결과가 아니라 반경 안 후보 전량이라
+   * 사용자에게 오해를 주고, 매 검색마다 1000건을 직렬화하는 비용도 컸다.
+   *
+   * 같은 글자를 넣으면 언제나 같은 개수가 나와야 하므로 난수를 쓰지 않고
+   * FNV-1a 32비트 해시를 쓴다. 공백은 무시하므로 "혼밥 맛집"과 "혼밥맛집"은 같은 값이 된다.
+   */
+  function aiResultLimit(query) {
+    const compact = String(query || "").replace(/\s+/g, "");
+    if (compact.length === 0) {
+      return MIN_AI_RESULT_LIMIT;
+    }
+    let hash = 0x811c9dc5;
+    for (let index = 0; index < compact.length; index += 1) {
+      hash ^= compact.charCodeAt(index);
+      hash = Math.imul(hash, 0x01000193) >>> 0;
+    }
+    const span = MAX_AI_RESULT_LIMIT - MIN_AI_RESULT_LIMIT + 1;
+    return MIN_AI_RESULT_LIMIT + (hash % span);
+  }
+
   const form = document.getElementById("restaurant-search-form");
   const keywordInput = document.getElementById("search-keyword");
   const categorySelect = document.getElementById("search-category");
@@ -467,7 +495,11 @@ function updateUrlState(page = 0) {
       MULTIPLE_LOCATIONS_DATA_UNAVAILABLE: "복수 위치",
       SEMANTIC_EVIDENCE_LOW: "의미 일치 근거",
     };
+    // 분위기는 사실상 모든 검색에서 완화되어 안내로서 의미가 없다. 문구에서만 감추고
+    // 응답의 relaxedFilters 자체는 그대로 둔다(디버깅에 계속 쓰인다).
+    const hiddenRelaxedFilters = new Set(["ATMOSPHERE_DATA_UNAVAILABLE"]);
     const relaxed = (aiRecommendationMeta?.relaxedFilters || [])
+      .filter((filter) => !hiddenRelaxedFilters.has(filter))
       .map((filter) => relaxedLabels[filter] || filter);
     if (relaxed.length > 0) {
       notices.push(`${relaxed.join(", ")} 조건은 데이터 부족으로 완화했습니다.`);
@@ -547,7 +579,7 @@ function updateUrlState(page = 0) {
         latitude: coords.latitude,
         longitude: coords.longitude,
         radiusMeters: 2000,
-        limit: 1200, // 👈 넉넉히 가져와서 프론트에서 12개씩 페이징
+        limit: aiResultLimit(fullQuery), // 검색어로 정해지는 1~300건, 프론트에서 12개씩 페이징
         // 상세 조건에서 고른 성별·연령대는 이번 검색에만 반영되는 값이다(회원 정보 변경 아님).
         gender: selectedGender(),
         ageGroup: selectedAgeGroup(),

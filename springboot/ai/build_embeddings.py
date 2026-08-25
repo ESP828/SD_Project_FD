@@ -12,6 +12,17 @@ from sqlalchemy import URL, create_engine, text
 from sqlalchemy.engine import make_url
 from sklearn.feature_extraction.text import TfidfVectorizer
 
+from embedding_store import (
+    DEFAULT_MAX_SHARD_BYTES,
+    SHARDED_MANIFEST_FILENAME,
+    SHARDED_RESTAURANT_IDS_FILENAME,
+    SHARDED_STORAGE_FORMAT,
+    embedding_set_sha256,
+    file_sha256,
+    load_embedding_store,
+    write_embedding_shards,
+)
+
 
 BASE_DIR = Path(__file__).resolve().parent
 OUTPUT_DIR = BASE_DIR / "model"
@@ -364,10 +375,14 @@ def canonical_document_v2(row) -> str:
         if value is not None and not pd.isna(value):
             parts.append(f"공식 외부평점 {provider} {float(value):.2f}")
             break
-    review_count = int(row.get("review_count") or 0)
-    average_rating = row.get("average_rating")
-    if review_count > 0 and average_rating is not None and not pd.isna(average_rating):
-        parts.append(f"FOODUCK 리뷰 평점 {float(average_rating):.2f} 리뷰 {review_count}개")
+    # FOODUCK 리뷰 평점/리뷰 수는 일부러 문서에 넣지 않는다.
+    # 이 문서는 KURE 임베딩 인덱스의 원본이라, 텍스트가 바뀌면 documentCorpusHash가 달라지고
+    # --verify가 실패해 KURE 전체가 KURE_INDEX_MISMATCH로 내려간다. 리뷰는 사용자가 언제든
+    # 남기므로, 리뷰 한 건에 검색 엔진이 죽는 구조가 된다(실제로 review_id 1790 등록으로 재현).
+    # 평점과 리뷰 수는 Java의 RestaurantQualityService가 QualityScore로 따로 반영하므로
+    # 문서에서 빼도 추천에 쓰이는 정보는 잃지 않는다.
+    # 위의 "공식 외부평점"은 evidence 테이블의 정적 값이라 그대로 둔다.
+    # review_count 컬럼 자체는 코퍼스 통계(fooduckReviewCount)에 계속 쓰이므로 조회는 유지한다.
     return " ".join(part for part in parts if part)
 
 
@@ -400,14 +415,6 @@ def document_corpus_hash(
         frame.iterrows(), canonical_documents(frame, document_version)
     ):
         digest.update(f"{int(row['id'])}\t{document}\n".encode("utf-8"))
-    return digest.hexdigest()
-
-
-def file_sha256(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as file_handle:
-        for chunk in iter(lambda: file_handle.read(8 * 1024 * 1024), b""):
-            digest.update(chunk)
     return digest.hexdigest()
 
 
@@ -484,6 +491,13 @@ def _write_json_atomic(path: Path, value) -> None:
     temporary = path.with_suffix(path.suffix + ".tmp")
     temporary.write_text(json.dumps(value, ensure_ascii=False, indent=2), encoding="utf-8")
     os.replace(temporary, path)
+
+
+def _kure_pointer(manifest: dict) -> dict:
+    return {
+        "indexVersion": manifest["indexVersion"],
+        "manifestFilename": manifest.get("manifestFilename", "manifest.json"),
+    }
 
 
 def verify_tfidf_artifacts(
@@ -590,7 +604,7 @@ def activate_prepared_models(
     try:
         _replace_tfidf_files(prepared_tfidf_directory)
         if kure_manifest is not None:
-            _write_json_atomic(CURRENT_POINTER_PATH, {"indexVersion": kure_manifest["indexVersion"]})
+            _write_json_atomic(CURRENT_POINTER_PATH, _kure_pointer(kure_manifest))
         verify_tfidf_artifacts(SPRING_MODEL_DIR, frame, document_version)
         if kure_manifest is not None:
             active_directory, active_manifest = _load_current_bundle()
@@ -614,11 +628,18 @@ def activate_prepared_models(
 
 def _write_bundle(
     frame: pd.DataFrame,
-    embeddings_source: Path,
+    embeddings_source,
     provenance: str,
     document_version: int = DOCUMENT_VERSION,
+    storage_dtype: str = "float16",
+    max_shard_bytes: int = DEFAULT_MAX_SHARD_BYTES,
+    provenance_details: dict | None = None,
 ) -> dict:
-    embeddings = np.load(embeddings_source, mmap_mode="r")
+    embeddings = (
+        np.load(embeddings_source, mmap_mode="r")
+        if isinstance(embeddings_source, (str, Path))
+        else embeddings_source
+    )
     if embeddings.ndim != 2 or embeddings.shape[0] != len(frame):
         raise RuntimeError(
             f"Embedding shape {embeddings.shape} does not match restaurant count {len(frame)}."
@@ -633,32 +654,51 @@ def _write_bundle(
 
     temporary_directory.mkdir(parents=True, exist_ok=False)
     try:
-        embeddings_target = temporary_directory / "embeddings.npy"
-        ids_target = temporary_directory / "restaurant_ids.npy"
-        shutil.copy2(embeddings_source, embeddings_target)
+        embedding_shards = write_embedding_shards(
+            embeddings,
+            temporary_directory,
+            storage_dtype=storage_dtype,
+            max_shard_bytes=max_shard_bytes,
+        )
+        ids_target = temporary_directory / SHARDED_RESTAURANT_IDS_FILENAME
         np.save(ids_target, frame["id"].to_numpy(dtype=np.int64))
+        if ids_target.stat().st_size >= max_shard_bytes:
+            raise RuntimeError(
+                f"KURE restaurant ID file exceeds {max_shard_bytes:,} bytes."
+            )
 
         manifest = {
             "indexVersion": index_version,
             "modelName": EMBEDDING_MODEL_NAME,
             "modelRevision": _model_revision(),
             "dimension": int(embeddings.shape[1]),
-            "embeddingDtype": str(embeddings.dtype),
+            "embeddingDtype": str(np.dtype(storage_dtype)),
             "restaurantCount": int(len(frame)),
             "restaurantIdHash": restaurant_id_hash(frame["id"].tolist()),
             "documentCorpusHash": document_corpus_hash(frame, document_version),
-            "embeddingSha256": file_sha256(embeddings_target),
+            "embeddingStorage": SHARDED_STORAGE_FORMAT,
+            "embeddingShards": embedding_shards,
+            "embeddingSetSha256": embedding_set_sha256(embedding_shards),
             "restaurantIdsSha256": file_sha256(ids_target),
             "documentVersion": document_version,
             "normalized": True,
             "builtAt": now.isoformat(),
             "provenance": provenance,
-            "embeddingFilename": embeddings_target.name,
             "restaurantIdsFilename": ids_target.name,
+            "manifestFilename": SHARDED_MANIFEST_FILENAME,
+            "maxArtifactBytes": int(max_shard_bytes),
         }
-        _write_json_atomic(temporary_directory / "manifest.json", manifest)
+        if provenance_details:
+            manifest["provenanceDetails"] = provenance_details
+        manifest_path = temporary_directory / SHARDED_MANIFEST_FILENAME
+        _write_json_atomic(manifest_path, manifest)
+        if manifest_path.stat().st_size >= max_shard_bytes:
+            raise RuntimeError(f"KURE manifest exceeds {max_shard_bytes:,} bytes.")
         temporary_directory.rename(final_directory)
-        print(f"KURE index bundle prepared: {final_directory}")
+        print(
+            f"KURE index bundle prepared: {final_directory}, "
+            f"shards={len(embedding_shards)}, maxBytes={max_shard_bytes:,}"
+        )
         return manifest
     except Exception:
         shutil.rmtree(temporary_directory, ignore_errors=True)
@@ -692,21 +732,9 @@ def migrate_legacy_index(frame: pd.DataFrame, document_version: int = DOCUMENT_V
     activate_kure_bundle(directory, manifest, frame, document_version)
 
 
-def build_kure_index(
-    frame: pd.DataFrame,
-    document_version: int = DOCUMENT_VERSION,
-    activate: bool = True,
-    batch_size: int = 32,
-    device: str | None = None,
-    inference_dtype: str = "auto",
-) -> dict:
+def _load_kure_model(device: str | None, inference_dtype: str):
     from sentence_transformers import SentenceTransformer
 
-    if frame.empty:
-        raise RuntimeError("No public restaurants were returned from MySQL.")
-
-    documents = canonical_documents(frame, document_version)
-    print(f"Encoding {len(documents):,} restaurant documents with {EMBEDDING_MODEL_NAME}...")
     model_kwargs = {} if device in (None, "auto") else {"device": device}
     model = SentenceTransformer(EMBEDDING_MODEL_NAME, **model_kwargs)
     resolved_dtype = inference_dtype
@@ -716,20 +744,193 @@ def build_kure_index(
         if model.device.type != "cuda":
             raise RuntimeError("KURE float16 inference requires a CUDA device.")
         model.half()
-    embeddings = model.encode(
-        documents,
-        batch_size=batch_size,
-        show_progress_bar=True,
-        normalize_embeddings=True,
-    )
+    return model
 
-    temporary_embeddings = OUTPUT_DIR / ".kure-embeddings.tmp.npy"
-    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-    np.save(temporary_embeddings, embeddings)
-    try:
-        manifest = _write_bundle(frame, temporary_embeddings, "full-rebuild", document_version)
-    finally:
-        temporary_embeddings.unlink(missing_ok=True)
+
+def _build_incremental_embeddings(
+    frame: pd.DataFrame,
+    current_documents: list[str],
+    document_version: int,
+    reuse_corpus_path: Path,
+    batch_size: int,
+    device: str | None,
+    inference_dtype: str,
+    storage_dtype: str,
+) -> tuple[np.ndarray, dict]:
+    corpus_path = reuse_corpus_path.resolve()
+    corpus_manifest_path = corpus_path.with_name("manifest.json")
+    if not corpus_path.is_file() or not corpus_manifest_path.is_file():
+        raise RuntimeError("The verified reuse corpus and its manifest.json are required.")
+
+    corpus_manifest = json.loads(corpus_manifest_path.read_text(encoding="utf-8"))
+    base_directory, base_manifest = _load_current_bundle()
+    if int(base_manifest.get("documentVersion", -1)) != document_version:
+        raise RuntimeError("The reusable KURE index document version does not match.")
+    if int(corpus_manifest.get("documentVersion", -1)) != document_version:
+        raise RuntimeError("The reusable corpus document version does not match.")
+    if corpus_manifest.get("restaurantIdHash") != base_manifest.get("restaurantIdHash"):
+        raise RuntimeError("The reusable corpus restaurant IDs do not match the base KURE index.")
+    if corpus_manifest.get("documentCorpusHash") != base_manifest.get("documentCorpusHash"):
+        raise RuntimeError("The reusable corpus documents do not match the base KURE index.")
+    if file_sha256(corpus_path) != corpus_manifest.get("corpusSha256"):
+        raise RuntimeError("The reusable corpus checksum is invalid.")
+
+    current_revision = _model_revision()
+    if not current_revision or base_manifest.get("modelRevision") != current_revision:
+        raise RuntimeError("The reusable KURE model revision does not match the local model.")
+
+    base_ids_path = base_directory / base_manifest["restaurantIdsFilename"]
+    base_ids = np.load(base_ids_path, mmap_mode="r")
+    if file_sha256(base_ids_path) != base_manifest.get("restaurantIdsSha256"):
+        raise RuntimeError("The reusable KURE restaurant ID checksum is invalid.")
+    base_embeddings = load_embedding_store(
+        base_directory, base_manifest, verify_checksums=True
+    )
+    if base_embeddings.shape != (
+        int(base_manifest["restaurantCount"]), int(base_manifest["dimension"])
+    ):
+        raise RuntimeError("The reusable KURE embedding shape is invalid.")
+
+    target_dtype = np.dtype(storage_dtype)
+    if base_embeddings.dtype != target_dtype:
+        raise RuntimeError(
+            "Incremental KURE rebuild requires the base and target storage dtypes to match."
+        )
+
+    old_documents: dict[int, str] = {}
+    corpus_ids: list[int] = []
+    with corpus_path.open("r", encoding="utf-8") as file_handle:
+        for line_number, line in enumerate(file_handle, start=1):
+            row = json.loads(line)
+            if int(row.get("documentVersion", -1)) != document_version:
+                raise RuntimeError(
+                    f"Reusable corpus document version mismatch at line {line_number}."
+                )
+            restaurant_id = int(row["publicRestaurantId"])
+            if restaurant_id in old_documents:
+                raise RuntimeError(f"Duplicate restaurant ID in reusable corpus: {restaurant_id}")
+            corpus_ids.append(restaurant_id)
+            old_documents[restaurant_id] = str(row["document"])
+
+    corpus_id_array = np.asarray(corpus_ids, dtype=np.int64)
+    if not np.array_equal(corpus_id_array, np.asarray(base_ids)):
+        raise RuntimeError("The reusable corpus row order does not match the base KURE index.")
+
+    current_ids = frame["id"].to_numpy(dtype=np.int64)
+    base_positions_by_id = {
+        int(restaurant_id): position
+        for position, restaurant_id in enumerate(base_ids)
+    }
+    base_positions = np.asarray(
+        [base_positions_by_id.get(int(restaurant_id), -1) for restaurant_id in current_ids],
+        dtype=np.int64,
+    )
+    changed_mask = np.asarray([
+        base_position < 0 or old_documents.get(int(restaurant_id)) != document
+        for restaurant_id, document, base_position in zip(
+            current_ids, current_documents, base_positions
+        )
+    ])
+    changed_positions = np.flatnonzero(changed_mask)
+    reused_positions = np.flatnonzero(~changed_mask)
+
+    embeddings = np.empty(
+        (len(frame), int(base_manifest["dimension"])), dtype=target_dtype
+    )
+    copy_batch_size = 10_000
+    for offset in range(0, len(reused_positions), copy_batch_size):
+        positions = reused_positions[offset:offset + copy_batch_size]
+        embeddings[positions] = np.asarray(
+            base_embeddings[base_positions[positions]], dtype=target_dtype
+        )
+
+    if changed_positions.size > 0:
+        changed_documents = [current_documents[int(position)] for position in changed_positions]
+        print(
+            f"Encoding {len(changed_documents):,} changed restaurant documents with "
+            f"{EMBEDDING_MODEL_NAME}; reusing {len(reused_positions):,} verified vectors..."
+        )
+        model = _load_kure_model(device, inference_dtype)
+        changed_embeddings = model.encode(
+            changed_documents,
+            batch_size=batch_size,
+            show_progress_bar=True,
+            normalize_embeddings=True,
+        )
+        embeddings[changed_positions] = np.asarray(
+            changed_embeddings, dtype=target_dtype
+        )
+
+    if not np.all(np.isfinite(embeddings)):
+        raise RuntimeError("Incremental KURE embeddings contain non-finite values.")
+
+    base_id_set = set(map(int, base_ids))
+    current_id_set = set(map(int, current_ids))
+    details = {
+        "baseIndexVersion": base_manifest["indexVersion"],
+        "baseDocumentCorpusHash": base_manifest["documentCorpusHash"],
+        "reuseCorpusFilename": corpus_path.name,
+        "reuseCorpusSha256": corpus_manifest["corpusSha256"],
+        "reusedEmbeddingCount": int(len(reused_positions)),
+        "encodedEmbeddingCount": int(len(changed_positions)),
+        "removedRestaurantCount": int(len(base_id_set - current_id_set)),
+        "newRestaurantCount": int(len(current_id_set - base_id_set)),
+    }
+    return embeddings, details
+
+
+def build_kure_index(
+    frame: pd.DataFrame,
+    document_version: int = DOCUMENT_VERSION,
+    activate: bool = True,
+    batch_size: int = 32,
+    device: str | None = None,
+    inference_dtype: str = "auto",
+    storage_dtype: str = "float16",
+    max_shard_bytes: int = DEFAULT_MAX_SHARD_BYTES,
+    reuse_current_index: bool = False,
+    reuse_corpus_path: Path | None = None,
+) -> dict:
+    if frame.empty:
+        raise RuntimeError("No public restaurants were returned from MySQL.")
+    if reuse_current_index != (reuse_corpus_path is not None):
+        raise RuntimeError(
+            "--reuse-current-index and --reuse-corpus must be provided together."
+        )
+
+    documents = canonical_documents(frame, document_version)
+    provenance = "full-rebuild"
+    provenance_details = None
+    if reuse_current_index:
+        embeddings, provenance_details = _build_incremental_embeddings(
+            frame,
+            documents,
+            document_version,
+            reuse_corpus_path,
+            batch_size,
+            device,
+            inference_dtype,
+            storage_dtype,
+        )
+        provenance = "incremental-rebuild-verified-corpus"
+    else:
+        print(f"Encoding {len(documents):,} restaurant documents with {EMBEDDING_MODEL_NAME}...")
+        model = _load_kure_model(device, inference_dtype)
+        embeddings = model.encode(
+            documents,
+            batch_size=batch_size,
+            show_progress_bar=True,
+            normalize_embeddings=True,
+        )
+    manifest = _write_bundle(
+        frame,
+        embeddings,
+        provenance,
+        document_version,
+        storage_dtype=storage_dtype,
+        max_shard_bytes=max_shard_bytes,
+        provenance_details=provenance_details,
+    )
     directory = KURE_ROOT / manifest["indexVersion"]
     verify_kure_bundle(directory, manifest, frame, document_version)
     if activate:
@@ -745,9 +946,10 @@ def _load_current_bundle() -> tuple[Path, dict]:
     if not index_version:
         raise RuntimeError("KURE current.json has no indexVersion.")
     directory = KURE_ROOT / str(index_version)
-    manifest_path = directory / "manifest.json"
+    manifest_filename = pointer.get("manifestFilename", "manifest.json")
+    manifest_path = directory / str(manifest_filename)
     if not manifest_path.exists():
-        raise RuntimeError("KURE manifest.json is missing.")
+        raise RuntimeError(f"KURE {manifest_filename} is missing.")
     return directory, json.loads(manifest_path.read_text(encoding="utf-8"))
 
 
@@ -765,9 +967,8 @@ def verify_kure_bundle(
     frame: pd.DataFrame,
     document_version: int = DOCUMENT_VERSION,
 ) -> None:
-    embeddings_path = directory / manifest["embeddingFilename"]
     ids_path = directory / manifest["restaurantIdsFilename"]
-    if not embeddings_path.exists() or not ids_path.exists():
+    if not ids_path.exists():
         raise RuntimeError("KURE bundle files are missing.")
     if int(manifest.get("documentVersion", -1)) != document_version:
         raise RuntimeError(
@@ -775,7 +976,7 @@ def verify_kure_bundle(
         )
 
     ids = np.load(ids_path, mmap_mode="r")
-    embeddings = np.load(embeddings_path, mmap_mode="r")
+    embeddings = load_embedding_store(directory, manifest, verify_checksums=True)
     expected_shape = (int(manifest["restaurantCount"]), int(manifest["dimension"]))
     if embeddings.shape != expected_shape:
         raise RuntimeError(f"KURE embedding shape mismatch: {embeddings.shape} != {expected_shape}")
@@ -790,8 +991,6 @@ def verify_kure_bundle(
         raise RuntimeError("KURE restaurant ID manifest hash mismatch.")
     if file_sha256(ids_path) != manifest["restaurantIdsSha256"]:
         raise RuntimeError("KURE restaurant ID file checksum mismatch.")
-    if file_sha256(embeddings_path) != manifest["embeddingSha256"]:
-        raise RuntimeError("KURE embedding file checksum mismatch.")
     if restaurant_id_hash(frame["id"].tolist()) != manifest["restaurantIdHash"]:
         raise RuntimeError("KURE restaurant IDs do not match the current MySQL dataset.")
     if document_corpus_hash(frame, document_version) != manifest["documentCorpusHash"]:
@@ -801,6 +1000,22 @@ def verify_kure_bundle(
     sample_norms = np.linalg.norm(np.asarray(embeddings[sample_positions]), axis=1)
     if not np.allclose(sample_norms, 1.0, atol=1e-3):
         raise RuntimeError("KURE embeddings are not L2-normalized.")
+
+    strict_limit = int(manifest.get("maxArtifactBytes", 0))
+    if strict_limit > 0:
+        artifact_names = [
+            manifest.get("manifestFilename", SHARDED_MANIFEST_FILENAME),
+            manifest["restaurantIdsFilename"],
+            *(shard["filename"] for shard in manifest.get("embeddingShards", [])),
+        ]
+        oversized = [
+            name for name in artifact_names
+            if (directory / name).stat().st_size >= strict_limit
+        ]
+        if oversized:
+            raise RuntimeError(
+                "KURE Git artifact size limit exceeded: " + ", ".join(oversized)
+            )
     print(
         "KURE index verified: "
         f"version={manifest['indexVersion']}, restaurants={manifest['restaurantCount']:,}, "
@@ -817,7 +1032,7 @@ def activate_kure_bundle(
     verify_kure_bundle(directory, manifest, frame, document_version)
     previous_pointer = CURRENT_POINTER_PATH.read_bytes() if CURRENT_POINTER_PATH.exists() else None
     try:
-        _write_json_atomic(CURRENT_POINTER_PATH, {"indexVersion": manifest["indexVersion"]})
+        _write_json_atomic(CURRENT_POINTER_PATH, _kure_pointer(manifest))
         active_directory, active_manifest = _load_current_bundle()
         verify_kure_bundle(active_directory, active_manifest, frame, document_version)
     except Exception:
@@ -962,10 +1177,36 @@ def main(argv: list[str] | None = None) -> int:
         default="auto",
         help="KURE inference dtype; auto uses float16 on CUDA and float32 otherwise.",
     )
+    parser.add_argument(
+        "--storage-dtype",
+        choices=("float16", "float32"),
+        default="float16",
+        help="KURE artifact dtype; float16 preserves the existing index storage format.",
+    )
+    parser.add_argument(
+        "--max-shard-bytes",
+        type=int,
+        default=DEFAULT_MAX_SHARD_BYTES,
+        help="Strict per-file limit for Git-safe KURE embedding shards.",
+    )
+    parser.add_argument(
+        "--reuse-current-index",
+        action="store_true",
+        help="Reuse unchanged vectors from the verified active KURE index.",
+    )
+    parser.add_argument(
+        "--reuse-corpus",
+        type=Path,
+        help="JSONL corpus that exactly matches the active index used for incremental rebuilds.",
+    )
     arguments = parser.parse_args(argv)
 
     if arguments.batch_size < 1:
         parser.error("--batch-size must be at least 1.")
+    if arguments.max_shard_bytes < 1_000_000:
+        parser.error("--max-shard-bytes must be at least 1,000,000.")
+    if arguments.reuse_current_index != (arguments.reuse_corpus is not None):
+        parser.error("--reuse-current-index and --reuse-corpus must be provided together.")
 
     if arguments.rebuild_embeddings:
         arguments.all = True
@@ -1000,6 +1241,10 @@ def main(argv: list[str] | None = None) -> int:
                 batch_size=arguments.batch_size,
                 device=arguments.device,
                 inference_dtype=arguments.inference_dtype,
+                storage_dtype=arguments.storage_dtype,
+                max_shard_bytes=arguments.max_shard_bytes,
+                reuse_current_index=arguments.reuse_current_index,
+                reuse_corpus_path=arguments.reuse_corpus,
             )
             activate_prepared_models(
                 tfidf_staging,
@@ -1026,6 +1271,10 @@ def main(argv: list[str] | None = None) -> int:
             batch_size=arguments.batch_size,
             device=arguments.device,
             inference_dtype=arguments.inference_dtype,
+            storage_dtype=arguments.storage_dtype,
+            max_shard_bytes=arguments.max_shard_bytes,
+            reuse_current_index=arguments.reuse_current_index,
+            reuse_corpus_path=arguments.reuse_corpus,
         )
     if arguments.export_corpus:
         export_document_corpus(

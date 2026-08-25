@@ -1,11 +1,16 @@
 package com.example.backend.recommendation.dto.response;
 
-import com.example.backend.recommendation.dto.response.NaturalLanguageRecommendationResponse.RecommendedItemDto;
-
 import java.util.List;
 
+/**
+ * 「나를 위한 맛집」 응답.
+ *
+ * <p>어떤 재료로 만든 추천인지를 personalizationLevel로 알려준다.
+ * FULL(찜+프로필) / BEHAVIOR_ONLY(찜만) /
+ * NO_FAVORITES(찜 없음) / ANONYMOUS(비로그인).
+ */
 public record PersonalRecommendationResponse(
-        boolean hasPreferenceData,       // 찜/선호 데이터 존재 여부 (false면 오리 UI 출력)
-        String userPreferenceSummary,    // 예: "회원님이 찜한 양식, 파스타 취향 기반"
-        List<RecommendedItemDto> items   // 추천 매장 목록
+        String personalizationLevel,
+        String userPreferenceSummary,
+        List<PersonalRecommendedItemDto> items
 ) {}

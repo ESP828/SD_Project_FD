@@ -15,20 +15,32 @@ public class CandidateFilterService {
 
     private static final double METERS_PER_LATITUDE_DEGREE = 111_320.0;
 
+    /** {@code ai/app.py}의 {@code MAX_PROFILE_CANDIDATE_RESTAURANTS}와 같은 값이어야 한다. */
+    static final int KURE_MAX_PROFILE_CANDIDATES = 20_000;
+
     private final PublicRecommendationQueryRepository repository;
     private final int candidateLimit;
     private final int evidenceCandidateLimit;
+    private final int personalCandidateLimit;
 
     public CandidateFilterService(
             PublicRecommendationQueryRepository repository,
             @Value("${recommendation.candidate-limit:1000}") int candidateLimit,
-            @Value("${recommendation.evidence-candidate-limit:5000}") int evidenceCandidateLimit
+            @Value("${recommendation.evidence-candidate-limit:5000}") int evidenceCandidateLimit,
+            @Value("${recommendation.personal-candidate-limit:20000}") int personalCandidateLimit
     ) {
         this.repository = repository;
         this.candidateLimit = Math.max(100, Math.min(candidateLimit, 2000));
         this.evidenceCandidateLimit = Math.max(
                 this.candidateLimit,
                 Math.min(evidenceCandidateLimit, 10_000)
+        );
+        // 개인화는 자연어 검색과 달리 상위 N건을 미리 고르는 단계가 없다. 반경 안 매장을 다 담아야
+        // 취향 점수가 실제 주변 전체를 대상으로 계산된다(강남 3km 기준 약 13,500건).
+        // 상한은 ai/app.py의 MAX_PROFILE_CANDIDATE_RESTAURANTS를 넘을 수 없다. 넘기면 KURE가
+        // 요청을 422로 거절해 매 요청이 조용히 TF-IDF fallback으로 떨어진다.
+        this.personalCandidateLimit = Math.max(
+                1_000, Math.min(personalCandidateLimit, KURE_MAX_PROFILE_CANDIDATES)
         );
     }
 
@@ -83,8 +95,14 @@ public class CandidateFilterService {
     ) {
         int radiusMeters = Math.max(100, Math.min(requestedRadiusMeters, 20_000));
         Bounds bounds = bounds(centerLatitude, centerLongitude, radiusMeters);
-        List<PublicRestaurant> candidates = query(
-                bounds, centerLatitude, centerLongitude, null, null, candidateLimit
+        List<PublicRestaurant> candidates = repository.findPersonalCandidatesInBounds(
+                bounds.minLatitude(),
+                bounds.maxLatitude(),
+                bounds.minLongitude(),
+                bounds.maxLongitude(),
+                centerLatitude,
+                centerLongitude,
+                PageRequest.of(0, personalCandidateLimit)
         );
         return new CandidateSelection(
                 insideRadius(candidates, centerLatitude, centerLongitude, radiusMeters),

@@ -38,7 +38,7 @@ class CandidateFilterServiceTest {
     @Test
     void appliesTextRadiusAndExcludedCategoryBeforeScoring() {
         PublicRecommendationQueryRepository repository = mock(PublicRecommendationQueryRepository.class);
-        CandidateFilterService service = new CandidateFilterService(repository, 1_000, 5_000);
+        CandidateFilterService service = new CandidateFilterService(repository, 1_000, 5_000, 20_000);
         RecommendationQueryParser parser = new RecommendationQueryParser(new RecommendationTextRules());
         ParsedRecommendationQuery parsed = parser.parse(
                 "강남역 근처 카페 말고 500m 이내 한식집 추천해줘"
@@ -63,7 +63,7 @@ class CandidateFilterServiceTest {
     @Test
     void expandsTheCandidatePoolForRareStructuredEvidence() {
         PublicRecommendationQueryRepository repository = mock(PublicRecommendationQueryRepository.class);
-        CandidateFilterService service = new CandidateFilterService(repository, 1_000, 5_000);
+        CandidateFilterService service = new CandidateFilterService(repository, 1_000, 5_000, 20_000);
         RecommendationQueryParser parser = new RecommendationQueryParser(new RecommendationTextRules());
         ParsedRecommendationQuery parsed = parser.parse(
                 "명동역 주변 채식 메뉴가 있는 음식점 알려줘"
@@ -79,6 +79,30 @@ class CandidateFilterServiceTest {
                 anyDouble(), anyDouble(), anyDouble(), anyDouble(),
                 eq(37.56), eq(126.98), eq(null), eq(null),
                 argThat(pageable -> pageable.getPageSize() == 5_000)
+        );
+    }
+
+    @Test
+    void personalCandidatesCoverTheWholeRadiusInsteadOfASmallSlice() {
+        PublicRecommendationQueryRepository repository = mock(PublicRecommendationQueryRepository.class);
+        CandidateFilterService service = new CandidateFilterService(repository, 1_000, 5_000, 20_000);
+        PublicRestaurant candidate = restaurant(10L, "한식", 37.5001, 127.0001);
+        when(repository.findPersonalCandidatesInBounds(
+                anyDouble(), anyDouble(), anyDouble(), anyDouble(),
+                eq(37.5), eq(127.0), any(Pageable.class)
+        )).thenReturn(List.of(candidate));
+
+        CandidateFilterService.CandidateSelection selection = service.selectWithoutQuery(
+                37.5, 127.0, 3_000
+        );
+
+        assertThat(selection.candidates()).extracting(PublicRestaurant::getPublicRestaurantId)
+                .containsExactly(10L);
+        // 자연어 검색의 1,000건이 아니라 개인화 전용 상한을 써야 반경 안 매장이 통째로 빠지지 않는다.
+        verify(repository).findPersonalCandidatesInBounds(
+                anyDouble(), anyDouble(), anyDouble(), anyDouble(),
+                eq(37.5), eq(127.0),
+                argThat(pageable -> pageable.getPageSize() == 20_000)
         );
     }
 

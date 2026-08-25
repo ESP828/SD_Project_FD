@@ -13,6 +13,12 @@ import sentiment
 _initialization_future = None
 MAX_CANDIDATE_RESTAURANTS = 10_000
 
+# 「나를 위한 맛집」은 자연어 검색과 달리 상위 N건을 미리 고르는 단계가 없다.
+# 반경 안 매장을 전부 채점해야 하므로(강남 3km 기준 약 13,500건) 별도의 상한을 둔다.
+# Spring의 recommendation.personal-candidate-limit 상한과 같은 값이어야 한다.
+# 이 값이 더 작으면 밀집 지역에서 매 요청이 422로 거절되어 조용히 TF-IDF로 떨어진다.
+MAX_PROFILE_CANDIDATE_RESTAURANTS = 20_000
+
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
@@ -39,6 +45,20 @@ class FavoriteScoreRequest(BaseModel):
     candidateRestaurantIds: List[int] = Field(
         min_length=1,
         max_length=MAX_CANDIDATE_RESTAURANTS,
+    )
+
+
+class WeightedRestaurantSignal(BaseModel):
+    restaurantId: int
+    weight: float = Field(gt=0)
+
+
+class PersonalProfileScoreRequest(BaseModel):
+    positiveSignals: List[WeightedRestaurantSignal] = Field(min_length=1, max_length=500)
+    negativeSignals: List[WeightedRestaurantSignal] = Field(default_factory=list, max_length=500)
+    candidateRestaurantIds: List[int] = Field(
+        min_length=1,
+        max_length=MAX_PROFILE_CANDIDATE_RESTAURANTS,
     )
 
 
@@ -96,6 +116,19 @@ def embedding_search(request: EmbeddingSearchRequest):
 def embedding_favorites(request: FavoriteScoreRequest):
     return recommend.score_favorites(
         request.favoriteRestaurantIds,
+        request.candidateRestaurantIds,
+    )
+
+
+@app.post("/embedding/profile")
+def embedding_profile(request: PersonalProfileScoreRequest):
+    """찜 + 내가 남긴 평점을 가중치로 합친 개인 취향 프로필 기반 후보 점수.
+
+    /embedding/favorites 는 기존 호출부 호환을 위해 그대로 둔다.
+    """
+    return recommend.score_profile(
+        [signal.model_dump() for signal in request.positiveSignals],
+        [signal.model_dump() for signal in request.negativeSignals],
         request.candidateRestaurantIds,
     )
 
