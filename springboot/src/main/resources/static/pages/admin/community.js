@@ -318,7 +318,8 @@
     if (!deleteButton) return;
     const postId = Number(deleteButton.dataset.deletePost);
     const post = state.posts.find((item) => item.postId === postId);
-    if (!post || !window.confirm(`「${post.title || "제목 없는 게시글"}」 게시글을 삭제하시겠습니까?\n연결된 댓글과 추천도 함께 정리됩니다.`)) {
+    if (!post) return;
+    if (!(await window.FooduckConfirm(`「${post.title || "제목 없는 게시글"}」 게시글을 삭제하시겠습니까?\n연결된 댓글과 추천도 함께 정리됩니다.`))) {
       return;
     }
     deleteButton.disabled = true;
@@ -337,7 +338,7 @@
     const deleteButton = event.target.closest("[data-delete-comment]");
     if (!deleteButton) return;
     const commentId = Number(deleteButton.dataset.deleteComment);
-    if (!window.confirm("이 댓글을 삭제하시겠습니까?")) return;
+    if (!(await window.FooduckConfirm("이 댓글을 삭제하시겠습니까?"))) return;
     deleteButton.disabled = true;
     try {
       await Api.delete(`/board/comments/${encodeURIComponent(commentId)}`);

@@ -100,6 +100,13 @@
   padding-right: 54px;
 }
 
+/* type="search" 기본 X(지우기) 버튼이 AI/필터 버튼과 겹쳐 보여서 숨긴다. */
+.search-input-wrap input[type="search"]::-webkit-search-cancel-button,
+.search-input-wrap input[type="search"]::-webkit-search-decoration {
+  appearance: none;
+  -webkit-appearance: none;
+}
+
 .search-filter-toggle {
   position: absolute;
   top: 50%;

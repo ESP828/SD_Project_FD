@@ -50,6 +50,7 @@ public class WebMvcConfig implements WebMvcConfigurer {
                 Map.entry("/business", "/pages/business/index.html"),
                 Map.entry("/business/detail", "/pages/business/detail.html"),
                 Map.entry("/business/restaurant-form", "/pages/business/restaurant-form.html"),
+                Map.entry("/game", "/pages/game/index.html"),
                 Map.entry("/map", "/pages/map/index.html"),
                 Map.entry("/mypage", "/pages/mypage/index.html"),
                 Map.entry("/mypage/detail", "/pages/mypage/detail.html"),

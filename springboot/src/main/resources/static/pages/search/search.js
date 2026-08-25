@@ -244,7 +244,9 @@
 
     if (isRecommendation) {
       const distanceLabel = Number.isFinite(item.distanceMeters)
-        ? `약 ${(item.distanceMeters / 1000).toFixed(1)}km 거리`
+        ? item.distanceMeters < 1000
+          ? `약 ${Math.round(item.distanceMeters)}m 거리`
+          : `약 ${(item.distanceMeters / 1000).toFixed(1)}km 거리`
         : "거리 정보 없음";
       const distanceInfo = createTextRow(
         "search-result-distance",

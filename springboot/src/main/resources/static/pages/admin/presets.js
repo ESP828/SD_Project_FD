@@ -60,7 +60,8 @@
     const edit = event.target.closest("[data-edit]");
     if (edit) openForm(presets.find((preset) => preset.presetId === Number(edit.dataset.edit)));
     const remove = event.target.closest("[data-delete]");
-    if (!remove || !confirm("이 보물지도를 삭제 상태로 변경할까요?")) return;
+    if (!remove) return;
+    if (!(await window.FooduckConfirm("이 보물지도를 삭제 상태로 변경할까요?"))) return;
     try { await Api.delete(`/admin/presets/${remove.dataset.delete}`); await load(); }
     catch (error) { alert(error.message); }
   });

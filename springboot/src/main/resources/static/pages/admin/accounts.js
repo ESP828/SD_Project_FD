@@ -130,7 +130,7 @@
     if (deleteButton) {
       const accountId = deleteButton.getAttribute("data-delete");
       const displayId = deleteButton.getAttribute("data-display-id");
-      if (!window.confirm(`${displayId} 계정을 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.`)) return;
+      if (!(await window.FooduckConfirm(`${displayId} 계정을 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.`))) return;
       try {
         await Api.delete(`/admin/accounts/${accountId}`);
         loadAccounts();

@@ -1,0 +1,64 @@
+.game-main {
+  min-height: calc(100vh - var(--header-height));
+  padding-bottom: 90px;
+}
+
+.game-content {
+  padding-top: 32px;
+}
+
+.game-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 18px;
+}
+
+.game-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  padding: 0 18px;
+  border: 1px solid var(--color-line);
+  border-radius: 13px;
+  color: var(--color-muted);
+  background: #fff;
+  font-size: 0.86rem;
+  font-weight: 850;
+}
+
+.game-tab .material-symbols-rounded {
+  font-size: 19px;
+}
+
+.game-tab.is-active {
+  border-color: var(--color-navy);
+  color: #fff;
+  background: var(--color-navy);
+}
+
+.game-frame-wrap {
+  overflow: hidden;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-lg);
+  background: #fff;
+  box-shadow: var(--shadow-sm);
+}
+
+.game-frame {
+  display: block;
+  width: 100%;
+  /* 실제 높이는 game.js가 게임 내용 크기에 맞춰 매번 다시 잰다.
+     자바스크립트가 아직 안 붙었거나 로딩 중일 때만 이 기본값을 쓴다. */
+  height: 640px;
+  border: 0;
+}
+
+@media (max-width: 640px) {
+  .game-tab {
+    flex: 1 1 auto;
+    justify-content: center;
+    text-align: center;
+  }
+}
