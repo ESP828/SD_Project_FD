@@ -428,6 +428,11 @@ class PresetControllerIntegrationTest {
                 ).header("Authorization", "Bearer " + accessToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.restaurantCount").value(14));
+        assertEquals(1, jdbcTemplate.queryForObject(
+                "select count(*) from public_restaurant where public_restaurant_id = ?",
+                Integer.class,
+                restaurants.get(0)
+        ));
         mockMvc.perform(post(
                         "/api/presets/{presetId}/restaurants/{restaurantId}",
                         limitedPresetId,
@@ -485,6 +490,17 @@ class PresetControllerIntegrationTest {
         mockMvc.perform(post(
                 "/api/presets/{presetId}/restaurants/{restaurantId}", presetId, candidateId))
                 .andExpect(status().isUnauthorized());
+
+        mockMvc.perform(delete(
+                        "/api/presets/{presetId}/restaurants/{restaurantId}",
+                        presetId,
+                        restaurantId
+                ).header("Authorization", "Bearer " + otherToken))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("PRESET_OWNER_REQUIRED"));
+        mockMvc.perform(delete(
+                "/api/presets/{presetId}/restaurants/{restaurantId}", presetId, restaurantId))
+                .andExpect(status().isUnauthorized());
         assertEquals(1, countPresetRestaurants(presetId));
     }
 
@@ -493,8 +509,14 @@ class PresetControllerIntegrationTest {
     void getsPresetMapRestaurants() throws Exception {
         mockMvc.perform(get("/api/presets/{presetId}/map-restaurants", presetId))
                 .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.isOwner").value(false))
                 .andExpect(jsonPath("$.data.restaurants[0].restaurantId").value(restaurantId))
                 .andExpect(jsonPath("$.data.restaurants[0].coordinateAvailable").value(true));
+
+        mockMvc.perform(get("/api/presets/{presetId}/map-restaurants", presetId)
+                        .header("Authorization", "Bearer " + accessToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.isOwner").value(true));
     }
 
     @Test

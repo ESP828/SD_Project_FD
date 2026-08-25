@@ -86,6 +86,7 @@
     overview: {},
     items: [],
   };
+  const pendingReviewDeleteIds = new Set();
 
   function element(tag, className, text) {
     const node = document.createElement(tag);
@@ -241,7 +242,7 @@
     editButton.type = "button";
     deleteButton.type = "button";
     editButton.addEventListener("click", () => openReviewEditor(card, item, href));
-    deleteButton.addEventListener("click", () => deleteReview(item, deleteButton));
+    deleteButton.addEventListener("click", () => deleteReview(item));
     actions.append(viewLink, editButton, deleteButton);
     footer.append(element("time", "", formatDate(item.createdAt)), actions);
     card.append(createCardTop(item.restaurantName || "음식점", "내 리뷰", href));
@@ -317,19 +318,34 @@
     reviewContent.focus();
   }
 
-  async function deleteReview(item, button) {
-    if (!window.confirm("이 리뷰를 삭제할까요?")) return;
-    button.disabled = true;
+  async function deleteReview(item) {
+    const reviewId = Number(item?.reviewId);
+    if (
+      !Number.isSafeInteger(reviewId) || reviewId <= 0 ||
+      pendingReviewDeleteIds.has(reviewId)
+    ) {
+      return;
+    }
+
+    pendingReviewDeleteIds.add(reviewId);
     try {
-      await Api.delete(`/reviews/${encodeURIComponent(item.reviewId)}`);
+      const confirmed = await window.FooduckConfirm.open({
+        title: "리뷰를 삭제할까요?",
+        message: `“${item.restaurantName || "음식점"}”에 작성한 리뷰를 삭제하면 되돌릴 수 없습니다.`,
+        confirmLabel: "리뷰 삭제",
+        pendingLabel: "삭제 중...",
+        errorMessage: "리뷰를 삭제하지 못했습니다. 잠시 후 다시 시도해 주세요.",
+        danger: true,
+        onConfirm: () => Api.delete(`/reviews/${encodeURIComponent(reviewId)}`),
+      });
+      if (!confirmed) return;
       state.items = state.items.filter(
-        (candidate) => String(candidate.reviewId) !== String(item.reviewId),
+        (candidate) => String(candidate.reviewId) !== String(reviewId),
       );
       state.overview.reviewCount = Math.max(0, Number(state.overview.reviewCount || 0) - 1);
       render(state.overview, state.items);
-    } catch (error) {
-      button.disabled = false;
-      window.alert(error.message || "리뷰를 삭제하지 못했습니다.");
+    } finally {
+      pendingReviewDeleteIds.delete(reviewId);
     }
   }
 

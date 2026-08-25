@@ -5,6 +5,8 @@
   const savedMessageKey = "fooduck:preset-created";
   let preset;
   let toastTimer = null;
+  let presetDeleteInFlight = false;
+  const restaurantDeleteInFlight = new Set();
 
   function element(tagName, className = "", text = "") {
     const node = document.createElement(tagName);
@@ -37,6 +39,14 @@
     }
     if (!message) return;
     showToast(message);
+  }
+
+  function confirmDeleteAction(options) {
+    if (typeof window.FooduckConfirm?.open !== "function") {
+      showToast("삭제 확인창을 불러오지 못했습니다. 페이지를 새로고침해 주세요.", true);
+      return Promise.resolve(false);
+    }
+    return window.FooduckConfirm.open({ danger: true, ...options });
   }
 
   function imagePlaceholder() {
@@ -94,22 +104,35 @@
 
   async function deletePreset(button) {
     if (!requireLogin()) return;
+    if (!preset?.isOwner || presetDeleteInFlight) return;
+
     const title = preset?.title || "이 보물지도";
-    if (!window.confirm(`“${title}”을(를) 삭제할까요?\n삭제하면 목록에서 사라지고 담아둔 맛집도 함께 정리됩니다.`)) {
-      return;
-    }
+    presetDeleteInFlight = true;
     button.disabled = true;
+    let navigationStarted = false;
     try {
-      await Api.delete(`/presets/${requestedId}`);
-      try {
-        sessionStorage.setItem(savedMessageKey, `“${title}” 보물지도를 삭제했습니다.`);
-      } catch (_error) {
-        /* 안내 메시지를 남기지 못해도 삭제 자체는 끝났으므로 그대로 이동한다 */
+      await confirmDeleteAction({
+        title: "보물지도를 삭제할까요?",
+        message: `“${title}”을(를) 삭제하면 복구할 수 없으며 담아둔 맛집도 함께 정리됩니다.`,
+        confirmLabel: "보물지도 삭제",
+        pendingLabel: "삭제 중…",
+        errorMessage: "보물지도를 삭제하지 못했습니다.",
+        onConfirm: async () => {
+          await Api.delete(`/presets/${requestedId}`);
+          try {
+            sessionStorage.setItem(savedMessageKey, `“${title}” 보물지도를 삭제했습니다.`);
+          } catch (_error) {
+            /* 안내 메시지를 남기지 못해도 삭제 자체는 끝났으므로 그대로 이동한다 */
+          }
+          navigationStarted = true;
+          location.assign("/presset");
+        },
+      });
+    } finally {
+      if (!navigationStarted) {
+        presetDeleteInFlight = false;
+        if (button.isConnected) button.disabled = false;
       }
-      location.assign("/presset");
-    } catch (error) {
-      button.disabled = false;
-      showToast(error.message || "보물지도를 삭제하지 못했습니다.", true);
     }
   }
 
@@ -139,17 +162,39 @@
 
   async function removeRestaurant(button, restaurant) {
     if (!requireLogin()) return;
+    if (!preset?.isOwner) return;
+
+    const restaurantId = Number(restaurant.restaurantId);
+    if (!Number.isSafeInteger(restaurantId) || restaurantId <= 0 || restaurantDeleteInFlight.has(restaurantId)) {
+      return;
+    }
     const restaurantName = restaurant.name || "선택한 맛집";
-    // 삭제 버튼이 찜 버튼 옆의 작은 아이콘이라 실수로 눌렸을 때를 대비해 한 번 확인한다.
-    if (!window.confirm(`“${restaurantName}”을(를) 이 보물지도에서 삭제할까요?`)) return;
+    restaurantDeleteInFlight.add(restaurantId);
     button.disabled = true;
     try {
-      await Api.delete(`/presets/${requestedId}/restaurants/${restaurant.restaurantId}`);
-      await reloadPreset();
-      showToast(`“${restaurantName}” 식당이 보물지도에서 삭제되었습니다.`);
-    } catch (error) {
-      button.disabled = false;
-      showToast(error.message || `${restaurantName} 식당을 삭제하지 못했습니다.`, true);
+      await confirmDeleteAction({
+        title: "이 식당을 보물지도에서 삭제할까요?",
+        message: `“${restaurantName}” 식당 정보 자체는 삭제되지 않으며 현재 보물지도에서만 제외됩니다.`,
+        confirmLabel: "식당 삭제",
+        pendingLabel: "삭제 중…",
+        errorMessage: `${restaurantName} 식당을 삭제하지 못했습니다.`,
+        onConfirm: async () => {
+          const response = await Api.delete(`/presets/${requestedId}/restaurants/${restaurantId}`);
+          const nextRestaurants = (Array.isArray(preset.restaurants) ? preset.restaurants : [])
+            .filter((item) => Number(item.restaurantId) !== restaurantId);
+          const responseCount = Number(response.data?.restaurantCount);
+          preset = {
+            ...preset,
+            restaurants: nextRestaurants,
+            restaurantCount: Number.isFinite(responseCount) ? responseCount : nextRestaurants.length,
+          };
+          render(preset);
+          showToast(`“${restaurantName}” 식당이 보물지도에서 삭제되었습니다.`);
+        },
+      });
+    } finally {
+      restaurantDeleteInFlight.delete(restaurantId);
+      if (button.isConnected) button.disabled = false;
     }
   }
 

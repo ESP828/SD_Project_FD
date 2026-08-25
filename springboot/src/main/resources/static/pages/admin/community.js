@@ -58,6 +58,8 @@
     comments: [],
     requestVersion: 0,
   };
+  const pendingPostDeleteIds = new Set();
+  const pendingCommentDeleteIds = new Set();
 
   const BOARD_LABELS = {
     GENERAL: "일반",
@@ -318,19 +320,30 @@
     if (!deleteButton) return;
     const postId = Number(deleteButton.dataset.deletePost);
     const post = state.posts.find((item) => item.postId === postId);
-    if (!post) return;
-    if (!(await window.FooduckConfirm(`「${post.title || "제목 없는 게시글"}」 게시글을 삭제하시겠습니까?\n연결된 댓글과 추천도 함께 정리됩니다.`))) {
+    if (
+      !Number.isSafeInteger(postId) || postId <= 0 || !post ||
+      pendingPostDeleteIds.has(postId)
+    ) {
       return;
     }
-    deleteButton.disabled = true;
+
+    pendingPostDeleteIds.add(postId);
     try {
-      await Api.delete(`/board/posts/${encodeURIComponent(postId)}`);
+      const confirmed = await window.FooduckConfirm.open({
+        title: "게시글을 삭제할까요?",
+        message: `“${post.title || "제목 없는 게시글"}” 게시글과 연결된 댓글·추천도 함께 정리됩니다.`,
+        confirmLabel: "게시글 삭제",
+        pendingLabel: "삭제 중...",
+        errorMessage: "게시글을 삭제하지 못했습니다. 잠시 후 다시 시도해 주세요.",
+        danger: true,
+        onConfirm: () => Api.delete(`/board/posts/${encodeURIComponent(postId)}`),
+      });
+      if (!confirmed) return;
       if (commentState.postId === postId && commentsDialog.open) closeComments();
       if (state.posts.length === 1 && state.page > 0) state.page -= 1;
       await loadPosts();
-    } catch (error) {
-      window.alert(error.message || "게시글을 삭제하지 못했습니다.");
-      deleteButton.disabled = false;
+    } finally {
+      pendingPostDeleteIds.delete(postId);
     }
   });
 
@@ -338,17 +351,31 @@
     const deleteButton = event.target.closest("[data-delete-comment]");
     if (!deleteButton) return;
     const commentId = Number(deleteButton.dataset.deleteComment);
-    if (!(await window.FooduckConfirm("이 댓글을 삭제하시겠습니까?"))) return;
-    deleteButton.disabled = true;
+    if (
+      !Number.isSafeInteger(commentId) || commentId <= 0 ||
+      pendingCommentDeleteIds.has(commentId)
+    ) {
+      return;
+    }
+
+    pendingCommentDeleteIds.add(commentId);
     try {
-      await Api.delete(`/board/comments/${encodeURIComponent(commentId)}`);
+      const confirmed = await window.FooduckConfirm.open({
+        title: "댓글을 삭제할까요?",
+        message: "삭제한 댓글은 되돌릴 수 없습니다.",
+        confirmLabel: "댓글 삭제",
+        pendingLabel: "삭제 중...",
+        errorMessage: "댓글을 삭제하지 못했습니다. 잠시 후 다시 시도해 주세요.",
+        danger: true,
+        onConfirm: () => Api.delete(`/board/comments/${encodeURIComponent(commentId)}`),
+      });
+      if (!confirmed) return;
       if (commentState.comments.length === 1 && commentState.page > 0) {
         commentState.page -= 1;
       }
       await Promise.all([loadComments(), loadPosts()]);
-    } catch (error) {
-      window.alert(error.message || "댓글을 삭제하지 못했습니다.");
-      deleteButton.disabled = false;
+    } finally {
+      pendingCommentDeleteIds.delete(commentId);
     }
   });
 

@@ -14,11 +14,14 @@
     return;
   }
 
+  const pendingRestaurantDeleteIds = new Set();
+
   const tabs = {
     restaurants: {
       label: "내 음식점",
       icon: "storefront",
       title: "내 음식점",
+      description: "현재 계정에 연결된 음식점과 운영 상태입니다.",
       countKey: "restaurantCount",
       emptyIcon: "storefront",
       emptyTitle: "연결된 음식점이 없습니다.",
@@ -29,6 +32,7 @@
       label: "운영 중",
       icon: "store",
       title: "운영 중인 음식점",
+      description: "현재 ACTIVE 상태로 노출 중인 음식점입니다.",
       countKey: "activeRestaurantCount",
       emptyIcon: "store",
       emptyTitle: "운영 중인 음식점이 없습니다.",
@@ -39,6 +43,7 @@
       label: "가게 소식",
       icon: "campaign",
       title: "가게 소식 현황",
+      description: "음식점별로 등록된 활성 소식 수를 확인합니다.",
       countKey: "newsCount",
       itemCountKey: "newsCount",
       itemCountLabel: "소식",
@@ -51,6 +56,7 @@
       label: "받은 리뷰",
       icon: "rate_review",
       title: "받은 리뷰 현황",
+      description: "내 음식점별 활성 리뷰 수를 확인합니다.",
       countKey: "reviewCount",
       itemCountKey: "reviewCount",
       itemCountLabel: "리뷰",
@@ -63,6 +69,7 @@
       label: "찜 현황",
       icon: "favorite",
       title: "찜 받은 현황",
+      description: "내 음식점별로 사용자에게 저장된 횟수를 확인합니다.",
       countKey: "favoriteCount",
       itemCountKey: "favoriteCount",
       itemCountLabel: "찜",
@@ -167,7 +174,7 @@
       statusButton.addEventListener("click", () => changeRestaurantStatus(restaurant, statusButton));
       const deleteButton = element("button", "button button-sm button-secondary", "삭제");
       deleteButton.type = "button";
-      deleteButton.addEventListener("click", () => deleteRestaurant(restaurant, deleteButton));
+      deleteButton.addEventListener("click", () => deleteRestaurant(restaurant));
       actions.append(editLink, statusButton, deleteButton);
     }
     footer.append(element("time", "", `${formatDate(restaurant.createdAt)} 등록`), actions);
@@ -196,17 +203,29 @@
     }
   }
 
-  async function deleteRestaurant(restaurant, button) {
-    if (!window.confirm(`${restaurant.name || "이 음식점"}을 삭제할까요? 삭제 후 목록에서 제외됩니다.`)) {
+  async function deleteRestaurant(restaurant) {
+    const restaurantId = Number(restaurant?.restaurantId);
+    if (
+      !Number.isSafeInteger(restaurantId) || restaurantId <= 0 ||
+      pendingRestaurantDeleteIds.has(restaurantId)
+    ) {
       return;
     }
-    button.disabled = true;
+
+    pendingRestaurantDeleteIds.add(restaurantId);
     try {
-      await Api.delete(`/business/restaurants/${restaurant.restaurantId}`);
-      window.location.reload();
-    } catch (error) {
-      button.disabled = false;
-      window.alert(error.message || "음식점을 삭제하지 못했습니다.");
+      const confirmed = await window.FooduckConfirm.open({
+        title: "내 음식점을 삭제할까요?",
+        message: `“${restaurant.name || "이 음식점"}”을 삭제 상태로 변경합니다. 삭제 후 사업자 목록과 일반 화면에서 제외됩니다.`,
+        confirmLabel: "음식점 삭제",
+        pendingLabel: "삭제 중...",
+        errorMessage: "음식점을 삭제하지 못했습니다. 잠시 후 다시 시도해 주세요.",
+        danger: true,
+        onConfirm: () => Api.delete(`/business/restaurants/${encodeURIComponent(restaurantId)}`),
+      });
+      if (confirmed) window.location.reload();
+    } finally {
+      pendingRestaurantDeleteIds.delete(restaurantId);
     }
   }
 

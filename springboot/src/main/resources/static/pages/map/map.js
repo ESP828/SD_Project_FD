@@ -23,9 +23,9 @@
   const query = new URLSearchParams(location.search);
   const presetMode = query.has("presetId");
   const presetId = Number(query.get("presetId"));
-  // 편집 기능(목록 삭제·검색 결과 추가)은 보물지도 소유자만 쓸 수 있다.
-  // 소유자 여부는 보물지도 화면에서 edit 파라미터로 넘겨주고, 로그인 여부는 여기서 한 번 더 확인한다.
-  const editMode = presetMode
+  // edit 파라미터는 편집 화면을 요청했다는 뜻일 뿐이다. 실제 편집 권한은
+  // map-restaurants 응답의 isOwner 값까지 확인한 뒤 확정한다.
+  const editRequested = presetMode
     && query.has("edit")
     && Boolean(window.FooduckSession?.authenticated);
   const requestedRestaurantId = Number(query.get("restaurantId"));
@@ -55,6 +55,8 @@
   let lastSearchKeyword = "";
   let lastSearchCategory = "";
   let presetItems = [];
+  let presetRestaurantIds = new Set();
+  let editMode = false;
   let detailRequestToken = 0;
   let resultMode = "preset";
   let userLocation = null;
@@ -69,6 +71,8 @@
   let panelResizeFrame = 0;
   let panelResizeUntil = 0;
   const pendingFavoriteIds = new Set();
+  const pendingPresetRestaurantActions = new Map();
+  const confirmingPresetRestaurantIds = new Set();
 
   function setMapStatus(message, isError = false) {
     if (!mapStatus) return;
@@ -561,8 +565,10 @@
         <h3>리뷰</h3>
         ${reviewHtml}
       </div>
-      <a class="button button-primary place-detail-link"
-         href="${detailHref(place)}">상세 페이지에서 더 보기</a>
+      <div class="place-detail-actions">
+        <a class="button button-primary place-detail-link"
+           href="${detailHref(place)}">상세 페이지에서 더 보기</a>
+      </div>
     `;
 
     const reviewCopies = detailBody.querySelectorAll(".place-detail-review-copy");
@@ -587,6 +593,11 @@
     });
 
     void bindDetailReviewAuthorMenus(reviews);
+
+    if (editMode && !isOwned) {
+      detailBody.querySelector(".place-detail-actions")
+        ?.prepend(createPresetRestaurantActionButton(place, "detail"));
+    }
 
     const favoriteButton = document.getElementById("place-detail-favorite-btn");
     favoriteButton.addEventListener("click", () => toggleDetailPanelFavorite(favoriteButton, place));
@@ -666,44 +677,203 @@
     return false;
   }
 
-  async function addToPreset(button, place) {
-    button.disabled = true;
-    try {
-      await Api.post(`/presets/${presetId}/restaurants/${place.restaurantId}`);
-      button.classList.add("is-added");
-      // 아이콘만 있는 버튼이므로 상태 안내는 접근성 이름과 툴팁으로 함께 바꿔 준다.
-      button.innerHTML = '<span class="material-symbols-rounded" aria-hidden="true">check_circle</span>';
-      button.title = "보물지도에 추가됨";
-      button.setAttribute("aria-label", `${place.place_name} 보물지도에 추가됨`);
-      window.FooduckIcons?.enhance(button);
-      await new Promise((resolve) => setTimeout(resolve, 500));
-      await fetchPresetData();
-      renderPresetFilters();
-      setMapStatus(`"${place.place_name}"을(를) presset에 추가했습니다.`);
-      if (resultMode === "search" && lastSearchKeyword) {
-        await searchPlaces(lastSearchKeyword);
+  function restaurantIdOf(placeOrId) {
+    const value = typeof placeOrId === "object" && placeOrId !== null
+      ? placeOrId.restaurantId
+      : placeOrId;
+    const restaurantId = Number(value);
+    return Number.isSafeInteger(restaurantId) && restaurantId > 0 ? restaurantId : null;
+  }
+
+  function isPresetRestaurant(placeOrId) {
+    const restaurantId = restaurantIdOf(placeOrId);
+    return restaurantId !== null && presetRestaurantIds.has(restaurantId);
+  }
+
+  function presetActionLabel(added, operation = null) {
+    if (operation === "add") return "추가 중…";
+    if (operation === "remove") return "삭제 중…";
+    return added ? "보물지도에서 삭제" : "맛집 추가";
+  }
+
+  function syncPresetRestaurantActionButton(button) {
+    const restaurantId = restaurantIdOf(button.dataset.presetRestaurantId);
+    if (restaurantId === null) return;
+
+    const restaurantName = button.dataset.restaurantName || "선택한 맛집";
+    const added = presetRestaurantIds.has(restaurantId);
+    const operation = pendingPresetRestaurantActions.get(restaurantId) || null;
+    const label = presetActionLabel(added, operation);
+    const iconName = operation ? "progress_activity" : (added ? "delete" : "add");
+    const icon = document.createElement("span");
+    icon.className = "material-symbols-rounded";
+    icon.setAttribute("aria-hidden", "true");
+    icon.textContent = iconName;
+
+    button.classList.toggle("place-result-add", !added);
+    button.classList.toggle("place-result-remove", added);
+    button.classList.toggle("is-remove", added);
+    button.classList.toggle("is-pending", Boolean(operation));
+    button.disabled = Boolean(operation);
+    button.setAttribute("aria-pressed", String(added));
+    button.setAttribute("aria-label", `${restaurantName} ${label}`);
+    button.title = label;
+    if (added) {
+      button.setAttribute("aria-haspopup", "dialog");
+    } else {
+      button.removeAttribute("aria-haspopup");
+    }
+    if (operation) {
+      button.setAttribute("aria-busy", "true");
+    } else {
+      button.removeAttribute("aria-busy");
+    }
+
+    if (button.classList.contains("place-detail-preset-action")) {
+      const copy = document.createElement("span");
+      copy.textContent = label;
+      button.replaceChildren(icon, copy);
+    } else {
+      button.replaceChildren(icon);
+    }
+    window.FooduckIcons?.enhance(button);
+  }
+
+  function syncPresetRestaurantActions(restaurantId) {
+    const normalizedId = restaurantIdOf(restaurantId);
+    if (normalizedId === null) return;
+    document.querySelectorAll(`[data-preset-restaurant-id="${normalizedId}"]`)
+      .forEach(syncPresetRestaurantActionButton);
+  }
+
+  function createPresetRestaurantActionButton(place, variant = "side") {
+    const restaurantId = restaurantIdOf(place);
+    const button = document.createElement("button");
+    button.type = "button";
+    button.dataset.presetRestaurantId = String(restaurantId || "");
+    button.dataset.restaurantName = place.place_name || "선택한 맛집";
+    button.className = variant === "detail"
+      ? "button button-secondary place-detail-preset-action"
+      : "place-result-side-button";
+    button.addEventListener("click", (event) => {
+      event.stopPropagation();
+      if (isPresetRestaurant(place)) {
+        void removeFromPreset(place);
       } else {
-        renderItems(presetItems, pageTitle.textContent, true, "preset");
+        void addToPreset(place);
       }
+    });
+    syncPresetRestaurantActionButton(button);
+    return button;
+  }
+
+  function toLocalPresetPlace(place) {
+    return {
+      ...place,
+      sourceType: "PUBLIC",
+      restaurantId: Number(place.restaurantId),
+      category_name: place.category_name || "기타",
+      favoriteByCurrentUser: Boolean(place.favoriteByCurrentUser),
+    };
+  }
+
+  function refreshPresetUiAfterMutation(changedRestaurantId) {
+    const previousMode = resultMode;
+    const previousTitle = currentResultTitle;
+    const previousItems = previousMode === "preset" ? presetItems : currentPlaceList;
+    const previousSelectedId = selectedRestaurantId;
+    const detailWasOpen = detailPanel.classList.contains("is-open");
+
+    renderPresetFilters();
+    renderItems(previousItems, previousTitle, false, previousMode);
+
+    const selectedStillVisible = previousItems.some(
+      (item) => restaurantIdOf(item) === restaurantIdOf(previousSelectedId),
+    );
+    if (detailWasOpen && selectedStillVisible) {
+      selectRestaurant(previousSelectedId, false);
+    } else if (!selectedStillVisible) {
+      selectedRestaurantId = null;
+    }
+    syncPresetRestaurantActions(changedRestaurantId);
+  }
+
+  async function addToPreset(place) {
+    if (!requireLogin() || !editMode || isOwnedPlace(place)) return;
+    const restaurantId = restaurantIdOf(place);
+    if (restaurantId === null
+      || isPresetRestaurant(restaurantId)
+      || pendingPresetRestaurantActions.has(restaurantId)
+      || confirmingPresetRestaurantIds.has(restaurantId)) {
+      return;
+    }
+
+    pendingPresetRestaurantActions.set(restaurantId, "add");
+    syncPresetRestaurantActions(restaurantId);
+    try {
+      await Api.post(`/presets/${presetId}/restaurants/${restaurantId}`);
+      if (!presetRestaurantIds.has(restaurantId)) {
+        presetRestaurantIds.add(restaurantId);
+        presetItems = [...presetItems, toLocalPresetPlace(place)];
+      }
+      refreshPresetUiAfterMutation(restaurantId);
+      setMapStatus(`"${place.place_name}"을(를) 보물지도에 추가했습니다.`);
     } catch (error) {
+      setMapStatus(error.message || "추가 중 오류가 발생했습니다.", true);
       window.alert(error.message || "추가 중 오류가 발생했습니다.");
-      button.disabled = false;
+    } finally {
+      pendingPresetRestaurantActions.delete(restaurantId);
+      syncPresetRestaurantActions(restaurantId);
     }
   }
 
-  async function removeFromPreset(button, place) {
-    if (!window.confirm(`"${place.place_name}"을(를) 이 보물지도에서 삭제할까요?`)) return;
-    button.disabled = true;
+  async function removeFromPreset(place) {
+    if (!requireLogin() || !editMode) return;
+    const restaurantId = restaurantIdOf(place);
+    if (restaurantId === null
+      || !isPresetRestaurant(restaurantId)
+      || pendingPresetRestaurantActions.has(restaurantId)
+      || confirmingPresetRestaurantIds.has(restaurantId)) {
+      return;
+    }
+    if (typeof window.FooduckConfirm?.open !== "function") {
+      setMapStatus("삭제 확인창을 불러오지 못했습니다. 페이지를 새로고침해 주세요.", true);
+      return;
+    }
+
+    const restaurantName = place.place_name || "선택한 맛집";
+    confirmingPresetRestaurantIds.add(restaurantId);
+    syncPresetRestaurantActions(restaurantId);
     try {
-      if (place.restaurantId > 0) {
-        await Api.delete(`/presets/${presetId}/restaurants/${place.restaurantId}`);
-      }
-      presetItems = presetItems.filter((item) => item.restaurantId !== place.restaurantId);
-      renderItems(presetItems, pageTitle.textContent);
-      setMapStatus(`"${place.place_name}"을(를) 보물지도에서 삭제했습니다.`);
-    } catch (error) {
-      window.alert(error.message || "삭제 중 오류가 발생했습니다.");
-      button.disabled = false;
+      await window.FooduckConfirm.open({
+        title: "이 식당을 보물지도에서 삭제할까요?",
+        message: `“${restaurantName}” 식당 정보 자체는 삭제되지 않으며 현재 보물지도에서만 제외됩니다.`,
+        confirmLabel: "식당 삭제",
+        pendingLabel: "삭제 중…",
+        errorMessage: `${restaurantName} 식당을 삭제하지 못했습니다.`,
+        danger: true,
+        iconName: "delete",
+        onConfirm: async () => {
+          pendingPresetRestaurantActions.set(restaurantId, "remove");
+          syncPresetRestaurantActions(restaurantId);
+          try {
+            await Api.delete(`/presets/${presetId}/restaurants/${restaurantId}`);
+            presetRestaurantIds.delete(restaurantId);
+            presetItems = presetItems.filter((item) => restaurantIdOf(item) !== restaurantId);
+            refreshPresetUiAfterMutation(restaurantId);
+            setMapStatus(`"${restaurantName}"을(를) 보물지도에서 삭제했습니다.`);
+          } catch (error) {
+            setMapStatus(error.message || "삭제 중 오류가 발생했습니다.", true);
+            throw error;
+          } finally {
+            pendingPresetRestaurantActions.delete(restaurantId);
+            syncPresetRestaurantActions(restaurantId);
+          }
+        },
+      });
+    } finally {
+      confirmingPresetRestaurantIds.delete(restaurantId);
+      syncPresetRestaurantActions(restaurantId);
     }
   }
 
@@ -769,32 +939,10 @@
     number.className = "place-result-index";
     number.textContent = String(index + 1).padStart(2, "0");
     side.append(number);
-    if (editMode && resultMode === "preset") {
-      const remove = document.createElement("button");
-      remove.className = "place-result-side-button place-result-remove";
-      remove.type = "button";
-      remove.title = "보물지도에서 삭제";
-      remove.setAttribute("aria-label", `${place.place_name} 보물지도에서 삭제`);
-      remove.innerHTML = '<span class="material-symbols-rounded" aria-hidden="true">delete</span>';
-      remove.addEventListener("click", (event) => {
-        event.stopPropagation();
-        removeFromPreset(remove, place);
-      });
-      side.append(remove);
-    }
-    // 보물지도에는 공공데이터 음식점만 담을 수 있어서, 사업자 등록 매장에는 추가 버튼을 두지 않는다.
-    if (editMode && resultMode === "search" && !isOwnedPlace(place)) {
-      const add = document.createElement("button");
-      add.className = "place-result-side-button place-result-add";
-      add.type = "button";
-      add.title = "보물지도에 추가";
-      add.setAttribute("aria-label", `${place.place_name} 보물지도에 추가`);
-      add.innerHTML = '<span class="material-symbols-rounded" aria-hidden="true">add</span>';
-      add.addEventListener("click", (event) => {
-        event.stopPropagation();
-        addToPreset(add, place);
-      });
-      side.append(add);
+    // 공공데이터 음식점은 현재 보물지도 포함 여부에 따라 같은 자리에서 추가·삭제로 전환한다.
+    // 검색·카테고리·주변 결과도 동일한 식당 ID 집합을 사용하므로 중복 추가 버튼이 나타나지 않는다.
+    if (editMode && !isOwnedPlace(place)) {
+      side.append(createPresetRestaurantActionButton(place));
     }
     main.append(info, side);
     body.append(main);
@@ -904,6 +1052,11 @@
     const response = await Api.get(`/presets/${presetId}/map-restaurants`);
     const data = response.data || {};
     presetItems = (data.restaurants || []).map(toPresetPlace);
+    presetRestaurantIds = new Set(
+      presetItems.map((item) => restaurantIdOf(item)).filter((restaurantId) => restaurantId !== null),
+    );
+    // URL만 edit=1로 바꾼 비소유자에게 편집 UI가 노출되지 않도록 서버 응답으로 확정한다.
+    editMode = editRequested && Boolean(data.isOwner);
     // 제목은 진입 목적과 무관하게 보물지도 이름만 쓴다(결과 목록 제목으로도 그대로 재사용된다).
     pageTitle.textContent = data.title || "보물지도";
     document.title = `${data.title || "보물지도"} 지도 · 푸드덕`;

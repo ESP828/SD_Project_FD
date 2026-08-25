@@ -7,6 +7,7 @@ public record PresetMapResponse(
         String title,
         long favoriteCount,
         boolean favoriteByCurrentUser,
+        boolean isOwner,
         List<PresetRestaurantResponse> restaurants
 ) {
     public PresetMapResponse {

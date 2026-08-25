@@ -28,6 +28,7 @@
   let editingAccountId = null;
   let isDeleteMode = false;
   let currentAccounts = [];
+  const pendingAccountDeleteIds = new Set();
 
   const STATUS_LABELS = { ACTIVE: "활성", INACTIVE: "비활성", SUSPENDED: "정지", WITHDRAWN: "탈퇴" };
 
@@ -128,14 +129,30 @@
     }
 
     if (deleteButton) {
-      const accountId = deleteButton.getAttribute("data-delete");
-      const displayId = deleteButton.getAttribute("data-display-id");
-      if (!(await window.FooduckConfirm(`${displayId} 계정을 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.`))) return;
+      const accountId = Number(deleteButton.getAttribute("data-delete"));
+      const account = currentAccounts.find((item) => Number(item.accountId) === accountId);
+      if (
+        !Number.isSafeInteger(accountId) || accountId <= 0 || !account ||
+        account.role === "ROLE_ADMIN" || pendingAccountDeleteIds.has(accountId)
+      ) {
+        return;
+      }
+
+      const displayId = account.loginId || "소셜 계정";
+      pendingAccountDeleteIds.add(accountId);
       try {
-        await Api.delete(`/admin/accounts/${accountId}`);
-        loadAccounts();
-      } catch (error) {
-        window.alert(error.message || "삭제 중 오류가 발생했습니다.");
+        const confirmed = await window.FooduckConfirm.open({
+          title: "계정을 삭제할까요?",
+          message: `“${displayId}” 계정을 탈퇴 처리합니다. 로그인 연결이 해제되고 활성 서비스 이용이 중단됩니다.`,
+          confirmLabel: "계정 삭제",
+          pendingLabel: "삭제 중...",
+          errorMessage: "계정을 삭제하지 못했습니다. 잠시 후 다시 시도해 주세요.",
+          danger: true,
+          onConfirm: () => Api.delete(`/admin/accounts/${encodeURIComponent(accountId)}`),
+        });
+        if (confirmed) await loadAccounts();
+      } finally {
+        pendingAccountDeleteIds.delete(accountId);
       }
     }
   });

@@ -519,20 +519,6 @@
       "M7 15l1.5 5h3L10 15",
       "M20 9v6",
     ],
-    sports_esports: [
-      "M6 8h12a4 4 0 0 1 4 4l-1.2 6a2 2 0 0 1-3.4 1.1L15 17H9l-2.4 2.1A2 2 0 0 1 3.2 18L2 12a4 4 0 0 1 4-4z",
-      "M7 10v4",
-      "M5 12h4",
-      "M16 11h.01",
-      "M18 13h.01",
-    ],
-    ladder: [
-      "M7 3v18",
-      "M17 3v18",
-      "M7 7h10",
-      "M7 12h10",
-      "M7 17h10",
-    ],
   };
 
   function setIcon(element, iconName) {
@@ -583,6 +569,131 @@
       element.textContent = text;
     }
     return element;
+  }
+
+  let confirmDialogSequence = 0;
+
+  /**
+   * 게시글·보물지도처럼 되돌리기 어려운 작업에 공통으로 쓰는 확인창이다.
+   * onConfirm을 전달하면 요청이 끝날 때까지 창을 유지해 중복 실행을 막고,
+   * 실패 메시지도 같은 창 안에서 안내한다.
+   */
+  function openConfirmDialog({
+    title = "계속할까요?",
+    message = "이 작업을 계속하시겠습니까?",
+    confirmLabel = "확인",
+    cancelLabel = "취소",
+    pendingLabel = `${confirmLabel} 중…`,
+    errorMessage = "작업을 완료하지 못했습니다. 잠시 후 다시 시도해 주세요.",
+    danger = false,
+    iconName = danger ? "delete" : "edit",
+    onConfirm = null,
+  } = {}) {
+    return new Promise((resolve) => {
+      const returnFocus = document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : null;
+      const sequence = ++confirmDialogSequence;
+      const titleId = `fooduck-confirm-title-${sequence}`;
+      const messageId = `fooduck-confirm-message-${sequence}`;
+      const errorId = `fooduck-confirm-error-${sequence}`;
+
+      const dialog = createElement("dialog", "fooduck-confirm-dialog");
+      dialog.setAttribute("aria-modal", "true");
+      dialog.setAttribute("aria-labelledby", titleId);
+      dialog.setAttribute("aria-describedby", `${messageId} ${errorId}`);
+
+      const shell = createElement("div", "fooduck-confirm-shell");
+      const heading = createElement("div", "fooduck-confirm-heading");
+      const iconWrap = createElement("span", "fooduck-confirm-icon");
+      const actionIcon = createElement("span", "material-symbols-rounded", iconName);
+      actionIcon.setAttribute("aria-hidden", "true");
+      setIcon(actionIcon, iconName);
+      iconWrap.append(actionIcon);
+
+      const copy = createElement("div", "fooduck-confirm-copy");
+      const titleNode = createElement("h2", "", title);
+      titleNode.id = titleId;
+      const messageNode = createElement("p", "", message);
+      messageNode.id = messageId;
+      copy.append(titleNode, messageNode);
+      heading.append(iconWrap, copy);
+
+      const errorNode = createElement("p", "fooduck-confirm-error");
+      errorNode.id = errorId;
+      errorNode.setAttribute("role", "alert");
+      errorNode.hidden = true;
+
+      const actions = createElement("div", "fooduck-confirm-actions");
+      const cancelButton = createElement("button", "button button-sm button-secondary", cancelLabel);
+      cancelButton.type = "button";
+      const confirmButton = createElement(
+        "button",
+        danger ? "button button-sm button-danger" : "button button-sm button-primary",
+        confirmLabel,
+      );
+      confirmButton.type = "button";
+      actions.append(cancelButton, confirmButton);
+      shell.append(heading, errorNode, actions);
+      dialog.append(shell);
+      document.body.append(dialog);
+
+      let settled = false;
+      let busy = false;
+
+      const setBusy = (nextBusy) => {
+        busy = nextBusy;
+        dialog.toggleAttribute("aria-busy", busy);
+        cancelButton.disabled = busy;
+        confirmButton.disabled = busy;
+        confirmButton.textContent = busy ? pendingLabel : confirmLabel;
+      };
+
+      const finish = (result) => {
+        if (settled) return;
+        settled = true;
+        if (dialog.open) dialog.close();
+        dialog.remove();
+        if (returnFocus?.isConnected) {
+          window.queueMicrotask(() => returnFocus.focus({ preventScroll: true }));
+        }
+        resolve(result);
+      };
+
+      cancelButton.addEventListener("click", () => {
+        if (!busy) finish(false);
+      });
+      confirmButton.addEventListener("click", async () => {
+        if (busy) return;
+        if (typeof onConfirm !== "function") {
+          finish(true);
+          return;
+        }
+
+        errorNode.hidden = true;
+        errorNode.textContent = "";
+        setBusy(true);
+        try {
+          await onConfirm();
+          finish(true);
+        } catch (error) {
+          errorNode.textContent = error?.message || errorMessage;
+          errorNode.hidden = false;
+          setBusy(false);
+          confirmButton.focus({ preventScroll: true });
+        }
+      });
+      dialog.addEventListener("cancel", (event) => {
+        event.preventDefault();
+        if (!busy) finish(false);
+      });
+      dialog.addEventListener("click", (event) => {
+        if (event.target === dialog && !busy) finish(false);
+      });
+
+      dialog.showModal();
+      confirmButton.focus({ preventScroll: true });
+    });
   }
 
   function primaryAuthorityCode(authorities) {
@@ -1081,9 +1192,6 @@
     if (path === "/search") {
       return "search";
     }
-    if (path === "/game") {
-      return "game";
-    }
     return "";
   }
 
@@ -1113,12 +1221,6 @@
         label: "검색",
         icon: "search",
         href: "/search",
-      },
-      {
-        id: "game",
-        label: "게임",
-        icon: "sports_esports",
-        href: "/game",
       },
     ];
     const active = currentQuickTarget();
@@ -1573,6 +1675,7 @@
     normalize: normalizeHourText,
   };
 
+  window.FooduckConfirm = { open: openConfirmDialog };
   window.FooduckIcons = { set: setIcon, enhance: enhanceIcons };
   window.FooduckEmojis = {
     items: FOODUCK_CUSTOM_EMOJIS,
@@ -1607,72 +1710,6 @@
     missingLabels: passwordMissingLabels,
     enhance: enhancePasswordFields,
   };
-
-  // 브라우저 기본 confirm()은 주소(localhost 등)가 그대로 노출되는 시스템 팝업이라,
-  // 삭제처럼 되돌릴 수 없는 동작 확인에는 사이트 디자인을 따르는 다이얼로그를 대신 쓴다.
-  let confirmDialogEls = null;
-  function ensureConfirmDialog() {
-    if (confirmDialogEls) return confirmDialogEls;
-    const dialog = document.createElement("dialog");
-    dialog.className = "fd-confirm-dialog";
-    const title = document.createElement("h2");
-    title.className = "fd-confirm-dialog-title";
-    const message = document.createElement("p");
-    message.className = "fd-confirm-dialog-message";
-    const actions = document.createElement("div");
-    actions.className = "fd-confirm-dialog-actions";
-    const cancelButton = document.createElement("button");
-    cancelButton.type = "button";
-    cancelButton.className = "button button-secondary button-sm";
-    const confirmButton = document.createElement("button");
-    confirmButton.type = "button";
-    actions.append(cancelButton, confirmButton);
-    dialog.append(title, message, actions);
-    document.body.append(dialog);
-    confirmDialogEls = { dialog, title, message, cancelButton, confirmButton };
-    return confirmDialogEls;
-  }
-
-  /**
-   * window.confirm()을 대신하는 사이트 자체 확인 다이얼로그.
-   * @returns {Promise<boolean>} 확인 버튼을 눌렀으면 true, 취소·닫기(Esc 포함)면 false.
-   */
-  function foodduckConfirm(message, options = {}) {
-    const {
-      title = "확인이 필요합니다",
-      confirmLabel = "삭제",
-      cancelLabel = "취소",
-      danger = true,
-    } = options;
-    const els = ensureConfirmDialog();
-    els.title.textContent = title;
-    els.message.textContent = message;
-    els.cancelButton.textContent = cancelLabel;
-    els.confirmButton.textContent = confirmLabel;
-    els.confirmButton.className = `button button-sm ${danger ? "button-danger" : "button-primary"}`;
-
-    return new Promise((resolve) => {
-      let settled = false;
-      const finish = (result) => {
-        if (settled) return;
-        settled = true;
-        els.dialog.removeEventListener("close", onClose);
-        els.confirmButton.removeEventListener("click", onConfirm);
-        els.cancelButton.removeEventListener("click", onCancel);
-        resolve(result);
-      };
-      const onConfirm = () => { els.dialog.close(); finish(true); };
-      const onCancel = () => { els.dialog.close(); finish(false); };
-      // Esc 키 등으로 닫혔을 때도 취소로 처리한다(버튼 클릭으로 이미 끝난 경우는 settled 가드로 무시).
-      const onClose = () => finish(false);
-      els.confirmButton.addEventListener("click", onConfirm);
-      els.cancelButton.addEventListener("click", onCancel);
-      els.dialog.addEventListener("close", onClose);
-      els.dialog.showModal();
-    });
-  }
-
-  window.FooduckConfirm = foodduckConfirm;
 
   function initializeScrollTopButton() {
     if (document.querySelector(".board-scroll-top")) return;

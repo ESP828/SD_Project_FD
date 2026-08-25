@@ -2132,66 +2132,12 @@
     danger = false,
     iconName = danger ? "delete" : "edit",
   } = {}) {
-    return new Promise((resolve) => {
-      const returnFocus = document.activeElement instanceof HTMLElement
-        ? document.activeElement
-        : null;
-      const dialog = document.createElement("dialog");
-      dialog.className = "board-dialog comment-confirm-dialog";
-
-      const shell = element("div", "dialog-shell comment-confirm-shell");
-      const heading = element("div", "comment-confirm-heading");
-      const iconWrap = element("span", "comment-confirm-icon");
-      const actionIcon = element("span", "material-symbols-rounded", iconName);
-      actionIcon.setAttribute("aria-hidden", "true");
-      iconWrap.append(actionIcon);
-
-      const copy = element("div", "comment-confirm-copy");
-      copy.append(
-        element("h2", "", title || "계속할까요?"),
-        element("p", "", message || "이 작업을 계속하시겠습니까?"),
-      );
-      heading.append(iconWrap, copy);
-
-      const actions = element("div", "comment-confirm-actions");
-      const cancelButton = element("button", "button button-sm button-secondary", "취소");
-      cancelButton.type = "button";
-      const confirmButton = element(
-        "button",
-        danger ? "button button-sm button-danger" : "button button-sm button-primary",
-        confirmLabel,
-      );
-      confirmButton.type = "button";
-      actions.append(cancelButton, confirmButton);
-      shell.append(heading, actions);
-      dialog.append(shell);
-      document.body.append(dialog);
-      window.FooduckIcons?.enhance(dialog);
-
-      let settled = false;
-      const finish = (result) => {
-        if (settled) return;
-        settled = true;
-        dialog.close();
-        dialog.remove();
-        if (!result && returnFocus?.isConnected) {
-          returnFocus.focus({ preventScroll: true });
-        }
-        resolve(result);
-      };
-
-      cancelButton.addEventListener("click", () => finish(false));
-      confirmButton.addEventListener("click", () => finish(true));
-      dialog.addEventListener("cancel", (event) => {
-        event.preventDefault();
-        finish(false);
-      });
-      dialog.addEventListener("click", (event) => {
-        if (event.target === dialog) finish(false);
-      });
-
-      dialog.showModal();
-      confirmButton.focus();
+    return window.FooduckConfirm.open({
+      title,
+      message,
+      confirmLabel,
+      danger,
+      iconName,
     });
   }
 

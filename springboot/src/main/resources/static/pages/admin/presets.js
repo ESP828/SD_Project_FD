@@ -12,6 +12,7 @@
   const requestedId = Number(new URLSearchParams(location.search).get("presetId"));
   let presets = [];
   let editingId = null;
+  const pendingPresetDeleteIds = new Set();
 
   function escapeHtml(value) {
     return String(value ?? "").replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[char]));
@@ -58,12 +59,34 @@
   dialog.querySelector("[data-close]").addEventListener("click", () => dialog.close());
   body.addEventListener("click", async (event) => {
     const edit = event.target.closest("[data-edit]");
-    if (edit) openForm(presets.find((preset) => preset.presetId === Number(edit.dataset.edit)));
+    if (edit) {
+      openForm(presets.find((preset) => preset.presetId === Number(edit.dataset.edit)));
+      return;
+    }
     const remove = event.target.closest("[data-delete]");
     if (!remove) return;
-    if (!(await window.FooduckConfirm("이 보물지도를 삭제 상태로 변경할까요?"))) return;
-    try { await Api.delete(`/admin/presets/${remove.dataset.delete}`); await load(); }
-    catch (error) { alert(error.message); }
+
+    const presetId = Number(remove.dataset.delete);
+    const preset = presets.find((item) => Number(item.presetId) === presetId);
+    if (!Number.isSafeInteger(presetId) || presetId <= 0 || !preset || pendingPresetDeleteIds.has(presetId)) {
+      return;
+    }
+
+    pendingPresetDeleteIds.add(presetId);
+    try {
+      const confirmed = await window.FooduckConfirm.open({
+        title: "보물지도를 삭제할까요?",
+        message: `“${preset.title || "제목 없는 보물지도"}”을 삭제 상태로 변경합니다. 일반 화면에서 숨겨지고 대표 이미지도 제거됩니다.`,
+        confirmLabel: "보물지도 삭제",
+        pendingLabel: "삭제 중...",
+        errorMessage: "보물지도를 삭제하지 못했습니다. 잠시 후 다시 시도해 주세요.",
+        danger: true,
+        onConfirm: () => Api.delete(`/admin/presets/${encodeURIComponent(presetId)}`),
+      });
+      if (confirmed) await load();
+    } finally {
+      pendingPresetDeleteIds.delete(presetId);
+    }
   });
   form.addEventListener("submit", async (event) => {
     event.preventDefault();

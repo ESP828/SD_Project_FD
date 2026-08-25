@@ -235,6 +235,7 @@ public class PresetService {
                 preset.title(),
                 preset.favoriteCount(),
                 preset.favoriteByCurrentUser(),
+                preset.isOwner(),
                 queryRepository.findActiveRestaurants(presetId, accountId)
         );
     }
