@@ -49,9 +49,24 @@ class DocumentVersionTest(unittest.TestCase):
             "여의도 식당 음식 한식 한식 일반 음식점업 서울특별시 영등포구 여의대로 1 "
             "주차 가능 와이파이 제공 다국어 메뉴판 제공 대표메뉴 비빔밥 "
             "해시태그 안심식당,애견동반 영업시간 11:00~21:00 휴무일 매주 일요일 "
-            "예약정보 전화 예약 FOODUCK 리뷰 평점 4.50 리뷰 3개",
+            "예약정보 전화 예약",
             canonical_document_v2(_row()),
         )
+
+    def test_document_v2_keeps_live_review_aggregates_out(self):
+        """리뷰 평점/리뷰 수는 행에 있어도 문서에 들어가면 안 된다.
+
+        들어가면 리뷰 한 건마다 documentCorpusHash가 달라져 --verify가 실패하고,
+        KURE 인덱스 전체가 KURE_INDEX_MISMATCH로 내려간다.
+        """
+        row = _row()
+        row["review_count"] = 42
+        row["average_rating"] = 4.9
+
+        document = canonical_document_v2(row)
+
+        self.assertNotIn("FOODUCK 리뷰", document)
+        self.assertEqual(canonical_document_v2(_row()), document)
 
     def test_document_v2_appends_official_menu_price_and_quality_fields(self):
         row = _row()

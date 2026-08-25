@@ -1,5 +1,6 @@
 package com.example.backend.recommendation.integration.python;
 
+import com.example.backend.recommendation.preference.domain.WeightedRestaurantSignal;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Value;
@@ -13,6 +14,7 @@ import java.net.http.HttpResponse;
 import java.net.http.HttpTimeoutException;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -51,6 +53,36 @@ public class PythonEmbeddingClient {
         request.put("favoriteRestaurantIds", favoriteRestaurantIds);
         request.put("candidateRestaurantIds", candidateRestaurantIds);
         return post("/embedding/favorites", request);
+    }
+
+    /**
+     * 찜과 내가 남긴 평점을 가중치로 합친 개인 취향 프로필로 후보 점수를 받는다.
+     * 기존 {@link #scoreFavorites}는 호환용으로 남겨 둔다.
+     */
+    public EmbeddingResult scorePersonalProfile(
+            List<WeightedRestaurantSignal> positiveSignals,
+            List<WeightedRestaurantSignal> negativeSignals,
+            List<Long> candidateRestaurantIds
+    ) throws PythonEmbeddingException {
+        Map<String, Object> request = new LinkedHashMap<>();
+        request.put("positiveSignals", toSignalPayload(positiveSignals));
+        request.put("negativeSignals", toSignalPayload(negativeSignals));
+        request.put("candidateRestaurantIds", candidateRestaurantIds);
+        return post("/embedding/profile", request);
+    }
+
+    private static List<Map<String, Object>> toSignalPayload(List<WeightedRestaurantSignal> signals) {
+        if (signals == null || signals.isEmpty()) {
+            return List.of();
+        }
+        List<Map<String, Object>> payload = new ArrayList<>(signals.size());
+        for (WeightedRestaurantSignal signal : signals) {
+            Map<String, Object> item = new LinkedHashMap<>();
+            item.put("restaurantId", signal.restaurantId());
+            item.put("weight", signal.weight());
+            payload.add(item);
+        }
+        return payload;
     }
 
     private EmbeddingResult post(String path, Map<String, Object> requestBody)

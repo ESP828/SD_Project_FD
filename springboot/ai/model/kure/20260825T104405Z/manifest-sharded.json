@@ -1,0 +1,60 @@
+{
+  "indexVersion": "20260825T104405Z",
+  "modelName": "nlpai-lab/KURE-v1",
+  "modelRevision": "d14c8a9423946e268a0c9952fecf3a7aabd73bd9",
+  "dimension": 1024,
+  "embeddingDtype": "float16",
+  "restaurantCount": 135702,
+  "restaurantIdHash": "021e523cbc6741f4213f170067d15e79b8843508c21a5b684e817469e92a6a0d",
+  "documentCorpusHash": "6f46edeb30950a8143453b17ce9fd9cc2a0e003fb7d0ec6a9ee7d01b55acb453",
+  "embeddingStorage": "sharded-npy-v1",
+  "embeddingShards": [
+    {
+      "filename": "embeddings-part-000.npy",
+      "rowStart": 0,
+      "rowEnd": 43943,
+      "byteSize": 89995392,
+      "sha256": "d0ca093cda9b806270220274b1070b51b49e6dbb3d5d3299d5fa4340c712dae3"
+    },
+    {
+      "filename": "embeddings-part-001.npy",
+      "rowStart": 43943,
+      "rowEnd": 87886,
+      "byteSize": 89995392,
+      "sha256": "1e420886699f6375b9394cd58c9f51d07b07e45c3f4160cff1685fe5987c24b7"
+    },
+    {
+      "filename": "embeddings-part-002.npy",
+      "rowStart": 87886,
+      "rowEnd": 131829,
+      "byteSize": 89995392,
+      "sha256": "5e55d3fb9196cb33698cf04d2ef816993add7cc4173f49ce301b0be3be748917"
+    },
+    {
+      "filename": "embeddings-part-003.npy",
+      "rowStart": 131829,
+      "rowEnd": 135702,
+      "byteSize": 7932032,
+      "sha256": "e50159f4a1bc837959ef8d47fe21385ca36e4db52b39283366a8f4d3fe9f7871"
+    }
+  ],
+  "embeddingSetSha256": "60db6064406ee1d1cd71983ce0dffdef299e60510d438d3b0849797bf450f1f2",
+  "restaurantIdsSha256": "74d450d4420dcabaeda154cd8087fbb44353e69a9668c35f51872f7f243aa1b2",
+  "documentVersion": 2,
+  "normalized": true,
+  "builtAt": "2026-08-25T10:44:05.780467+00:00",
+  "provenance": "incremental-rebuild-verified-corpus",
+  "restaurantIdsFilename": "restaurant_ids-sharded.npy",
+  "manifestFilename": "manifest-sharded.json",
+  "maxArtifactBytes": 90000000,
+  "provenanceDetails": {
+    "baseIndexVersion": "20260824T090052Z",
+    "baseDocumentCorpusHash": "35c858cd74873170380e753341ca79210725ed875cae167a956ffe58273a62e3",
+    "reuseCorpusFilename": "corpus.jsonl",
+    "reuseCorpusSha256": "4df096c8feeb02781fac2388abdcf052a3b97e401ff98ba3064c31039dacaaf5",
+    "reusedEmbeddingCount": 135656,
+    "encodedEmbeddingCount": 46,
+    "removedRestaurantCount": 240,
+    "newRestaurantCount": 0
+  }
+}

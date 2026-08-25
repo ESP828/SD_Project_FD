@@ -56,8 +56,11 @@ class DocumentV2BuilderTest {
                 "여의도 식당 음식 한식 한식 일반 음식점업 서울특별시 영등포구 여의대로 1 "
                         + "주차 가능 와이파이 제공 다국어 메뉴판 제공 대표메뉴 비빔밥 "
                         + "해시태그 안심식당,애견동반 영업시간 11:00~21:00 휴무일 매주 일요일 "
-                        + "예약정보 전화 예약 FOODUCK 리뷰 평점 4.50 리뷰 3개"
+                        + "예약정보 전화 예약"
         );
+        // 리뷰 평점/리뷰 수는 evidence에 값이 있어도 문서에 넣지 않는다.
+        // 넣으면 리뷰 한 건마다 KURE 인덱스 전체가 stale로 판정되어 검색이 통째로 내려간다.
+        assertThat(document).doesNotContain("FOODUCK 리뷰");
         assertThat(DocumentV2Builder.DOCUMENT_VERSION).isEqualTo(2);
     }
 

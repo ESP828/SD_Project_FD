@@ -40,7 +40,8 @@ public interface PublicRecommendationQueryRepository extends JpaRepository<Publi
 
     @Query("""
         SELECT p FROM PublicRestaurant p
-        WHERE (:minLat IS NULL OR p.latitude >= :minLat)
+        WHERE p.status = com.example.backend.restaurant.domain.type.RestaurantStatus.ACTIVE
+          AND (:minLat IS NULL OR p.latitude >= :minLat)
           AND (:maxLat IS NULL OR p.latitude <= :maxLat)
           AND (:minLng IS NULL OR p.longitude >= :minLng)
           AND (:maxLng IS NULL OR p.longitude <= :maxLng)
@@ -62,6 +63,39 @@ public interface PublicRecommendationQueryRepository extends JpaRepository<Publi
             @Param("centerLng") Double centerLng,
             @Param("categoryMedium") String categoryMedium,
             @Param("categorySmallKeyword") String categorySmallKeyword,
+            Pageable pageable
+    );
+
+    /**
+     * 개인화 후보. 상한은 반경 안의 매장을 다 담을 만큼 크게 잡으므로 평소에는 절단이 일어나지 않고,
+     * 취향 점수는 반경 안 전체를 대상으로 계산된다.
+     *
+     * <p>정렬은 상한이 실제로 걸릴 때만 의미가 있다. 그때 버려야 할 것은 "가장 먼 매장"이지
+     * "ID가 큰 매장"이 아니다. ID 순으로 자르면 반경 안 매장의 대부분이 취향 평가를 받지 못한 채
+     * 사라진다(강남 3km 기준 13,463건 중 830건만 평가되던 원인). 중심 좌표는 요청마다 고정이므로
+     * 거리 순으로 정렬해도 같은 요청은 같은 후보군을 본다.
+     */
+    @Query("""
+        SELECT p FROM PublicRestaurant p
+        WHERE p.status = com.example.backend.restaurant.domain.type.RestaurantStatus.ACTIVE
+          AND (:minLat IS NULL OR p.latitude >= :minLat)
+          AND (:maxLat IS NULL OR p.latitude <= :maxLat)
+          AND (:minLng IS NULL OR p.longitude >= :minLng)
+          AND (:maxLng IS NULL OR p.longitude <= :maxLng)
+        ORDER BY
+          CASE WHEN :centerLat IS NULL OR :centerLng IS NULL THEN 0
+               ELSE (p.latitude - :centerLat) * (p.latitude - :centerLat)
+                  + (p.longitude - :centerLng) * (p.longitude - :centerLng)
+          END ASC,
+          p.publicRestaurantId ASC
+    """)
+    List<PublicRestaurant> findPersonalCandidatesInBounds(
+            @Param("minLat") Double minLat,
+            @Param("maxLat") Double maxLat,
+            @Param("minLng") Double minLng,
+            @Param("maxLng") Double maxLng,
+            @Param("centerLat") Double centerLat,
+            @Param("centerLng") Double centerLng,
             Pageable pageable
     );
 

@@ -6,11 +6,17 @@ from pathlib import Path
 
 import numpy as np
 
+from embedding_store import file_sha256, load_embedding_store
+
 
 BASE_DIR = Path(__file__).resolve().parent
 KURE_ROOT = BASE_DIR / "model" / "kure"
 CURRENT_POINTER_PATH = KURE_ROOT / "current.json"
 EMBEDDING_MODEL_NAME = "nlpai-lab/KURE-v1"
+
+# 싫다고 표시한 매장과 닮은 후보를 얼마나 깎을지. 긍정/부정 매장이 같은 상권에서 나오면
+# 두 프로필이 서로 닮아 상쇄되므로, 인수인계서의 0.45보다 낮은 값에서 시작한다.
+NEGATIVE_PROFILE_PENALTY = 0.30
 
 
 class KureServiceError(RuntimeError):
@@ -40,14 +46,6 @@ _manifest: dict = {}
 def _set_state(**values) -> None:
     with _state_lock:
         _state.update(values)
-
-
-def _sha256_file(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as file_handle:
-        for chunk in iter(lambda: file_handle.read(8 * 1024 * 1024), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
 
 
 def _restaurant_id_hash(ids) -> str:
@@ -84,26 +82,31 @@ def initialize() -> None:
             raise KureServiceError("KURE_INDEX_NOT_READY", "KURE current.json is invalid.")
 
         index_directory = KURE_ROOT / str(index_version)
-        manifest_path = index_directory / "manifest.json"
+        manifest_filename = pointer.get("manifestFilename", "manifest.json")
+        manifest_path = index_directory / str(manifest_filename)
         if not manifest_path.exists():
-            raise KureServiceError("KURE_INDEX_NOT_READY", "KURE manifest.json is missing.")
+            raise KureServiceError(
+                "KURE_INDEX_NOT_READY", f"KURE {manifest_filename} is missing."
+            )
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-        embeddings_path = index_directory / manifest["embeddingFilename"]
         restaurant_ids_path = index_directory / manifest["restaurantIdsFilename"]
-        if not embeddings_path.exists() or not restaurant_ids_path.exists():
+        if not restaurant_ids_path.exists():
             raise KureServiceError("KURE_INDEX_NOT_READY", "KURE bundle files are missing.")
 
-        embeddings = np.load(embeddings_path, mmap_mode="r")
+        try:
+            embeddings = load_embedding_store(
+                index_directory, manifest, verify_checksums=True
+            )
+        except RuntimeError as error:
+            raise KureServiceError("KURE_INDEX_MISMATCH", str(error)) from error
         restaurant_ids = np.load(restaurant_ids_path, mmap_mode="r")
         expected_shape = (int(manifest["restaurantCount"]), int(manifest["dimension"]))
         if embeddings.shape != expected_shape or restaurant_ids.shape != (expected_shape[0],):
             raise KureServiceError("KURE_INDEX_MISMATCH", "KURE bundle shape is invalid.")
         if _restaurant_id_hash(restaurant_ids) != manifest["restaurantIdHash"]:
             raise KureServiceError("KURE_INDEX_MISMATCH", "KURE restaurant ID hash is invalid.")
-        if _sha256_file(restaurant_ids_path) != manifest["restaurantIdsSha256"]:
+        if file_sha256(restaurant_ids_path) != manifest["restaurantIdsSha256"]:
             raise KureServiceError("KURE_INDEX_MISMATCH", "KURE restaurant ID checksum is invalid.")
-        if _sha256_file(embeddings_path) != manifest["embeddingSha256"]:
-            raise KureServiceError("KURE_INDEX_MISMATCH", "KURE embedding checksum is invalid.")
 
         id_to_index = {int(restaurant_id): index for index, restaurant_id in enumerate(restaurant_ids)}
         _embeddings = embeddings
@@ -213,6 +216,71 @@ def score_favorites(favorite_restaurant_ids: list[int], candidate_restaurant_ids
         raise KureServiceError("KURE_PROFILE_NOT_READY", "Favorite profile vector is empty.")
     profile_vector /= norm
     similarities = np.dot(np.asarray(embeddings[candidate_indices]), profile_vector).flatten()
+    items = [
+        {"id": restaurant_id, "score": float(score)}
+        for restaurant_id, score in zip(candidate_ids, similarities)
+    ]
+    return _result(manifest, items)
+
+
+def _weighted_profile(embeddings, id_to_index: dict[int, int], signals) -> np.ndarray | None:
+    """가중치를 준 매장 임베딩의 평균. 신호 매장이 인덱스에 없으면 조용히 건너뛴다.
+
+    후보 ID와 달리 신호 ID는 엄격하게 다루지 않는다. 사용자가 찜한 매장 하나가
+    인덱스 재빌드 전이라는 이유로 개인화 전체를 TF-IDF로 떨어뜨릴 이유가 없다.
+    """
+    indices: list[int] = []
+    weights: list[float] = []
+    for signal in signals or []:
+        restaurant_id = int(signal["restaurantId"])
+        weight = float(signal["weight"])
+        index = id_to_index.get(restaurant_id)
+        if index is None or weight <= 0.0:
+            continue
+        indices.append(index)
+        weights.append(weight)
+    if not indices:
+        return None
+
+    vectors = np.asarray(embeddings[np.asarray(indices, dtype=np.int64)], dtype=np.float32)
+    weight_column = np.asarray(weights, dtype=np.float32).reshape(-1, 1)
+    profile_vector = (vectors * weight_column).sum(axis=0) / float(weight_column.sum())
+    norm = float(np.linalg.norm(profile_vector))
+    if norm <= 1e-12:
+        return None
+    return profile_vector / norm
+
+
+def score_profile(
+    positive_signals: list[dict],
+    negative_signals: list[dict],
+    candidate_restaurant_ids: list[int],
+) -> dict:
+    """찜과 평점을 가중 평균한 개인 취향 프로필로 후보 점수를 매긴다.
+
+    긍정 프로필과의 유사도에서 부정 프로필과의 유사도를 일정 비율만큼 뺀다.
+    좋아한 것과 닮았더라도 싫어한 것과 더 닮았다면 위로 올라오지 않는다.
+    """
+    _, embeddings, id_to_index, manifest = _ready_snapshot()
+    candidate_ids = list(dict.fromkeys(int(value) for value in candidate_restaurant_ids))
+    if not candidate_ids:
+        return _result(manifest, [])
+
+    positive_profile = _weighted_profile(embeddings, id_to_index, positive_signals)
+    if positive_profile is None:
+        raise KureServiceError(
+            "KURE_PROFILE_NOT_READY",
+            "Positive preference profile is empty.",
+        )
+    negative_profile = _weighted_profile(embeddings, id_to_index, negative_signals)
+
+    candidate_indices = _candidate_indices(candidate_ids, id_to_index)
+    candidate_embeddings = np.asarray(embeddings[candidate_indices])
+    similarities = np.dot(candidate_embeddings, positive_profile).flatten()
+    if negative_profile is not None:
+        penalties = np.dot(candidate_embeddings, negative_profile).flatten()
+        similarities = similarities - NEGATIVE_PROFILE_PENALTY * penalties
+
     items = [
         {"id": restaurant_id, "score": float(score)}
         for restaurant_id, score in zip(candidate_ids, similarities)

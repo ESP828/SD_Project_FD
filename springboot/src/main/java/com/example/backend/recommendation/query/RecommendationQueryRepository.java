@@ -61,6 +61,68 @@ public class RecommendationQueryRepository {
              order by uf.created_at desc
             """;
 
+    // 연령대/성별 집단의 실제 반응을 카테고리 단위로 모은 SQL.
+    // distinct_users/interactions는 카테고리별 값이 아니라 집단 전체 표본 수다.
+    // 60대 이상은 하나의 연령대로 묶어 PersonalPreferenceService의 구간과 맞춘다.
+    private static final String COHORT_CATEGORY_PREFERENCE_SQL = """
+            with behavior_signal as (
+                    select f.account_id,
+                           coalesce(nullif(p.category_medium_name, ''),
+                                    nullif(p.category_small_name, ''),
+                                    nullif(p.category_large_name, '')) as category_name,
+                           0.7 as weight
+                      from favorite f
+                      join account a on a.account_id = f.account_id
+                      join public_restaurant p on p.public_restaurant_id = f.public_restaurant_id
+                     where f.public_restaurant_id is not null
+                       and a.status = 'ACTIVE'
+                       and (:ageGroup is null
+                            or (a.birth_date is not null
+                                and least(floor(timestampdiff(year, a.birth_date, curdate()) / 10) * 10, 60)
+                                    = :ageGroup))
+                       and (:gender is null or a.gender = :gender)
+                    union all
+                    select r.account_id,
+                           coalesce(nullif(p.category_medium_name, ''),
+                                    nullif(p.category_small_name, ''),
+                                    nullif(p.category_large_name, '')) as category_name,
+                           case r.rating
+                                when 5 then 1.0
+                                when 4 then 0.6
+                                when 2 then -0.6
+                                when 1 then -1.0
+                                else 0.0
+                           end as weight
+                      from review r
+                      join account a on a.account_id = r.account_id
+                      join public_restaurant p on p.public_restaurant_id = r.public_restaurant_id
+                     where r.status = 'ACTIVE'
+                       and r.public_restaurant_id is not null
+                       and a.status = 'ACTIVE'
+                       and (:ageGroup is null
+                            or (a.birth_date is not null
+                                and least(floor(timestampdiff(year, a.birth_date, curdate()) / 10) * 10, 60)
+                                    = :ageGroup))
+                       and (:gender is null or a.gender = :gender)
+            ),
+            cohort_totals as (
+                    select count(distinct account_id) as distinct_users,
+                           count(*) as interactions
+                      from behavior_signal
+                     where category_name is not null
+            )
+            select behavior_signal.category_name,
+                   sum(behavior_signal.weight) as weight_sum,
+                   cohort_totals.distinct_users,
+                   cohort_totals.interactions
+              from behavior_signal
+             cross join cohort_totals
+             where behavior_signal.category_name is not null
+             group by behavior_signal.category_name,
+                      cohort_totals.distinct_users,
+                      cohort_totals.interactions
+            """;
+
     // 후보 매장 전체 200건 조회 SQL (기존 유지)
     private static final String CANDIDATE_SQL = """
             select r.restaurant_id,
@@ -198,6 +260,37 @@ public class RecommendationQueryRepository {
                         resultSet.getDouble("category_preference")
                 )
         );
+    }
+
+    /**
+     * 연령대/성별 집단이 실제로 어떤 카테고리에 반응했는지 집계한다.
+     * 개인 취향과 같은 가중치 표(찜 +0.7, 5점 +1.0 ~ 1점 -1.0)를 쓰기 때문에
+     * "20대는 카페를 좋아한다"는 추정이 아니라 이 서비스의 실제 행동만 반영된다.
+     * ageGroup, gender 중 null인 조건은 걸지 않는다(둘 다 null이면 전체 이용자 집계).
+     */
+    public List<CohortCategoryPreference> aggregateCohortCategoryPreference(
+            Integer ageGroup,
+            String gender
+    ) {
+        var parameters = new MapSqlParameterSource()
+                .addValue("ageGroup", ageGroup)
+                .addValue("gender", gender);
+        return jdbcTemplate.query(COHORT_CATEGORY_PREFERENCE_SQL, parameters, (resultSet, rowNumber) ->
+                new CohortCategoryPreference(
+                        resultSet.getString("category_name"),
+                        resultSet.getDouble("weight_sum"),
+                        resultSet.getLong("distinct_users"),
+                        resultSet.getLong("interactions")
+                )
+        );
+    }
+
+    public record CohortCategoryPreference(
+            String categoryName,
+            double weightSum,
+            long distinctUsers,
+            long interactions
+    ) {
     }
 
     private static Double nullableDouble(java.sql.ResultSet resultSet, String column)

@@ -85,6 +85,16 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
     List<PublicRestaurantReviewAggregate> aggregateActiveByPublicRestaurantIds(
             @Param("publicRestaurantIds") List<Long> publicRestaurantIds
     );
+    // 개인화 추천용. 한 사용자가 공공데이터 매장에 남긴 활성 평점을 한 번에 가져온다
+    // (찜과 합쳐 취향 신호를 만들 때 쓴다. 리뷰 본문은 필요 없어서 평점만 뽑는다).
+    @Query("SELECT new com.example.backend.review.repository.AccountPublicRestaurantRating("
+            + "r.publicRestaurant.publicRestaurantId, r.rating) "
+            + "FROM Review r WHERE r.account.accountId = :accountId AND r.status = 'ACTIVE' "
+            + "AND r.publicRestaurant IS NOT NULL")
+    List<AccountPublicRestaurantRating> findActivePublicRatingsByAccountId(
+            @Param("accountId") Long accountId
+    );
+
     @Query("SELECT r FROM Review r WHERE r.reviewId = :reviewId "
             + "AND r.account.accountId = :accountId AND r.status = 'ACTIVE'")
     Optional<Review> findActiveOwnedReview(

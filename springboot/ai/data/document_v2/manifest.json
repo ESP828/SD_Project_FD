@@ -1,0 +1,24 @@
+{
+  "corpusVersion": 1,
+  "documentVersion": 2,
+  "restaurantCount": 135702,
+  "restaurantIdHash": "021e523cbc6741f4213f170067d15e79b8843508c21a5b684e817469e92a6a0d",
+  "documentCorpusHash": "6f46edeb30950a8143453b17ce9fd9cc2a0e003fb7d0ec6a9ee7d01b55acb453",
+  "corpusSha256": "e8cd45c63acf36578c43b3aeffd62c679038306c7b1b82d61cbe16f60ab1a970",
+  "enrichedRestaurantCount": 41411,
+  "fooduckReviewedRestaurantCount": 75,
+  "officialMenuRestaurantCount": 10747,
+  "officialPricedMenuRestaurantCount": 10574,
+  "officialQualityRestaurantCount": 41314,
+  "evidenceSourceCodes": [
+    "SEOUL_TOURISM_MULTILINGUAL_MENU_20230111",
+    "SEOUL_TOURISM_RESTAURANT_OPERATIONS_20230111",
+    "SEOUL_TOURISM_RESTAURANT_QUALITY_20230111",
+    "SEOUL_YEONGDEUNGPO_RESTAURANT_OPERATIONS_20220228"
+  ],
+  "generatedAt": "2026-08-25T10:48:44.366395+00:00",
+  "trainingPerformed": false,
+  "activeKureIndexModified": false,
+  "tfidfModelModified": false,
+  "corpusFilename": "corpus.jsonl"
+}

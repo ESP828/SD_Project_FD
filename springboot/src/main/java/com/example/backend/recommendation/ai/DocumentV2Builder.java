@@ -63,14 +63,13 @@ public class DocumentV2Builder {
                     evidence.officialRating()
             ));
         }
-        if (evidence.averageRating() != null && evidence.reviewCount() > 0) {
-            append(parts, String.format(
-                    Locale.ROOT,
-                    "FOODUCK 리뷰 평점 %.2f 리뷰 %d개",
-                    evidence.averageRating(),
-                    evidence.reviewCount()
-            ));
-        }
+        // FOODUCK 리뷰 평점/리뷰 수는 일부러 문서에 넣지 않는다.
+        // 이 문서는 KURE 임베딩 인덱스의 원본이라 텍스트가 바뀌면 코퍼스 해시가 달라지고,
+        // 그러면 인덱스 전체가 stale로 판정되어 KURE가 통째로 내려간다.
+        // 리뷰는 사용자가 언제든 남기므로, 리뷰 한 건에 검색 엔진이 죽는 구조가 된다.
+        // 평점과 리뷰 수는 RestaurantQualityService가 QualityScore로 따로 반영하므로
+        // 여기서 빼도 추천에 쓰이는 정보는 잃지 않는다.
+        // 반면 위의 "공식 외부평점"은 evidence 테이블의 정적 값이라 그대로 둔다.
         return String.join(" ", parts);
     }
 

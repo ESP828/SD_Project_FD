@@ -39,6 +39,8 @@ class RecommendationScoreNormalizerTest {
 
     @Test
     void confidenceAdjustedRankSuppressesWeakRelativeWinner() {
+        // KURE 구간 0.20~0.55는 파서가 카테고리를 떼고 남긴 잔여 텍스트에 맞춘 값이다.
+        // "조용한"(0.3848) 같은 정상 질의가 살아 있어야 하므로 하한을 올리면 안 된다.
         assertThat(normalizer.confidenceAdjustedRank("KURE", 0.20, 1.0)).isZero();
         assertThat(normalizer.confidenceAdjustedRank("KURE", 0.375, 1.0))
                 .isCloseTo(0.5, org.assertj.core.data.Offset.offset(1e-12));

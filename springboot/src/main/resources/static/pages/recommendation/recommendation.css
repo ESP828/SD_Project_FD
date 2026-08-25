@@ -590,3 +590,45 @@
   height: 58px;
   border-radius: 10px;
 }
+
+/* 개인화 추천 카드 - 평점 줄과 추천 사유 배지.
+   사유 배지 색은 어떤 신호로 올라온 카드인지 한눈에 구분하려고 나눈다. */
+.personal-rating-line {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: bold;
+  color: #f39c12;
+  margin: 2px 0 0 0;
+}
+
+.personal-rating-divider {
+  color: #ccc;
+  font-weight: normal;
+}
+
+.personal-reason-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+
+.personal-reason-badge.is-taste {
+  color: #c2185b;
+  background: #fce4ec;
+}
+
+.personal-reason-badge.is-quality {
+  color: #ef6c00;
+  background: #fff3e0;
+}
+
+.personal-reason-badge.is-demographic {
+  color: #1565c0;
+  background: #e3f2fd;
+}

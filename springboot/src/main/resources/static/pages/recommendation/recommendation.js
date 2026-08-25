@@ -43,6 +43,36 @@ function formatDistance(distanceMeters) {
 }
 
 /**
+ * 개인화 추천 사유를 배지로 바꾼다. 사유 문구는 백엔드가 "실제로 계산에 쓴 신호"에 대해서만
+ * 내려주므로, 여기서 임의로 배지를 추가하지 않는다(화면 설명과 점수가 어긋나면 안 된다).
+ */
+function buildPersonalReasonBadge(reason) {
+  const text = String(reason || "");
+  let icon = "fa-lightbulb";
+  let variant = "is-taste";
+  if (text.includes("찜한") || text.includes("찜하신")) {
+    icon = "fa-heart";
+  } else if (text.includes("이용자 평점")) {
+    icon = "fa-star";
+    variant = "is-quality";
+  } else if (text.includes("이용자 반응")) {
+    icon = "fa-user-group";
+    variant = "is-demographic";
+  }
+  return `<span class="personal-reason-badge ${variant}"><i class="fa-solid ${icon}" aria-hidden="true"></i> ${text}</span>`;
+}
+
+/** 카드에 표시할 "★ 4.6 · 리뷰 23개". 리뷰가 없으면 아무것도 표시하지 않는다. */
+function buildRatingLine(item) {
+  const reviewCount = Number(item.reviewCount);
+  const averageRating = Number(item.averageRating);
+  if (!Number.isFinite(reviewCount) || reviewCount <= 0 || !Number.isFinite(averageRating)) {
+    return "";
+  }
+  return `<span class="personal-rating-line"><i class="fa-solid fa-star" aria-hidden="true"></i> ${averageRating.toFixed(1)} <span class="personal-rating-divider">·</span> 리뷰 ${reviewCount}개</span>`;
+}
+
+/**
  * 매장 썸네일용 카테고리 배경색(너무 진하지 않은 파스텔톤). map.js의 카테고리 분류
  * 기준과 맞춘다.
  */
@@ -223,21 +253,36 @@ const RecommendationPage = {
       const result = await res.json();
       console.log("📥 [개인화 추천 API 원본 데이터]:", result);
 
-      const items = (result && result.data && result.data.items) ? result.data.items : (Array.isArray(result) ? result : []);
+      const responseData = result && result.data ? result.data : null;
+      const items = (responseData && responseData.items) ? responseData.items : (Array.isArray(result) ? result : []);
       this.personalList = items;
 
       if (!items || items.length === 0) {
+        const requiresLogin = responseData && responseData.personalizationLevel === "ANONYMOUS";
+        const needsFavoriteData = responseData && (
+          responseData.personalizationLevel === "NO_FAVORITES"
+          || responseData.personalizationLevel === "INSUFFICIENT_TASTE"
+        );
+        const emptyTitle = requiresLogin
+          ? "로그인 후 나만의 추천을 확인해보세요"
+          : (needsFavoriteData ? "아직 찜한 맛집이 없어요" : "취향에 맞는 주변 맛집을 찾지 못했습니다");
+        const emptyMessage = requiresLogin
+          ? "찜과 리뷰 기록을 안전하게 연결하려면 로그인이 필요합니다."
+          : (needsFavoriteData
+            ? "맛집을 하나 이상 찜하면 나만의 추천이 시작됩니다."
+            : "검색 범위를 넓히거나 다른 위치에서 다시 확인해 주세요.");
+        // 빈 상태에는 별도 이동 버튼을 두지 않는다.
         container.innerHTML = `
-          <div style="text-align: center; padding: 40px 0;">
-            <img src="/images/characters/cooking.png" alt="오리" style="width: 120px; margin: 0 auto 16px; opacity: 0.9;" />
-            <h3 style="font-size: 16px; font-weight: bold; margin-bottom: 8px;">추천에 사용할 음식점 데이터가 아직 없습니다</h3>
-            <p style="font-size: 13px; color: #888;">맛집을 찜 등록하면 이곳에 취향 맞춤 추천이 표시됩니다.</p>
+          <div class="recommendation-empty">
+            <img src="/images/characters/cooking.png" alt="오리" style="width: 120px; margin-bottom: 16px; opacity: 0.9;" />
+            <h3 style="font-size: 16px; font-weight: bold; margin-bottom: 8px;">${emptyTitle}</h3>
+            <p style="font-size: 13px; color: #888;">${emptyMessage}</p>
           </div>
         `;
         return;
       }
 
-      const summaryText = (result.data && (result.data.userPreferenceSummary || result.data.summary)) || '회원 맞춤 추천 맛집';
+      const summaryText = (responseData && (responseData.userPreferenceSummary || responseData.summary)) || '회원 맞춤 추천 맛집';
 
       // 💡 grid-template-columns: repeat(2, minmax(0, 1fr)) 적용으로 너비 오버플로우 방지
       let html = `
@@ -253,8 +298,9 @@ const RecommendationPage = {
         const cleanName = cleanRestaurantName(rawName);
 
         const reasonBadges = (item.reasons && item.reasons.length > 0)
-          ? item.reasons.map(r => `<span style="font-size: 11px; color: #2e7d32; background: #e8f5e9; padding: 2px 6px; border-radius: 4px; white-space: nowrap;"><i class="fa-solid fa-lightbulb" aria-hidden="true"></i> ${r}</span>`).join('')
-          : `<span style="font-size: 11px; color: #2e7d32;"><i class="fa-solid fa-lightbulb" aria-hidden="true"></i> 회원님 취향 맞춤 맛집</span>`;
+          ? item.reasons.map(buildPersonalReasonBadge).join('')
+          : `<span class="personal-reason-badge is-taste"><i class="fa-solid fa-lightbulb" aria-hidden="true"></i> 회원님 취향 맞춤 맛집</span>`;
+        const ratingLine = buildRatingLine(item);
 
         const distanceLabel = formatDistance(item.distanceMeters);
         const thumbnailTag = buildThumbnailImgTag(item.imageUrl, item.category || item.categoryName, 56, 12);
@@ -284,6 +330,9 @@ const RecommendationPage = {
                     ${item.category || item.categoryName || '음식점'}
                   </span>
                 </div>
+
+                <!-- 평점/리뷰 수 (리뷰가 있는 매장에만 표시) -->
+                ${ratingLine}
 
                 <!-- 주소 -->
                 <p style="font-size: 12px; color: #666; margin: 4px 0 10px 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${item.address || ''}">

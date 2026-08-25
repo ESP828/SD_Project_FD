@@ -47,19 +47,26 @@ springboot/db-backups/
 springboot/deliverables/
 
 # AI 추천 모델 산출물 (DB 데이터로부터 build_search_index.py로 명시적으로 생성/재생성)
-# 100MB+ 바이너리라 Git에 올리면 GitHub push 자체가 거부되고, DB 내용이 바뀌면 즉시 stale해짐.
+# 레거시 단일 바이너리와 롤백 모델은 로컬에만 둔다. 활성 KURE 분할 번들과
+# Java TF-IDF JSON은 재현 가능한 실행 산출물로 Git에 포함한다.
 springboot/ai/model/*.npy
 springboot/ai/model/*.pkl
 springboot/ai/model/*.joblib
 springboot/ai/model/embedding_model.json
-springboot/ai/model/kure/
+springboot/ai/model/kure/**
+!springboot/ai/model/kure/current.json
+!springboot/ai/model/kure/*/
+!springboot/ai/model/kure/*/manifest-sharded.json
+!springboot/ai/model/kure/*/restaurant_ids-sharded.npy
+!springboot/ai/model/kure/*/embeddings-part-*.npy
+# 커밋 대상은 current.json이 가리키는 "활성 인덱스 하나"뿐이다.
+# 인덱스를 재생성하면 이전 버전은 로컬 롤백용으로만 남기고 여기에 한 줄 추가한다.
+# 그러지 않으면 폐기된 인덱스까지 267MB씩 따라 들어간다.
+springboot/ai/model/kure/20260825T062200Z/
 springboot/ai/model/tfidf/
 springboot/ai/model/.model-set-*.tmp/
 springboot/ai/.training-venv/
 springboot/ai/__pycache__/
-springboot/src/main/resources/recommendation/model/vocabulary.json
-springboot/src/main/resources/recommendation/model/idf.json
-springboot/src/main/resources/recommendation/model/model-meta.json
 # Python (springboot/ai)
 __pycache__/
 *.pyc
