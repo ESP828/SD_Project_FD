@@ -5,24 +5,29 @@
   // 메인 인기 보물지도는 페이지를 오갈 때마다 같은 응답을 다시 기다릴 필요가 없다.
   // 브라우저 탭이 열려 있는 동안만 짧게 보관해 초기 체감 속도를 높이고,
   // 오래된 데이터는 화면을 막지 않은 채 뒤에서 다음 방문용으로 갱신한다.
-  const HOME_PRESET_CACHE_KEY = "fooduck:home:popular-presets:v1";
+  const HOME_PRESET_CACHE_KEY = "fooduck:home:popular-presets:all:v2";
   const HOME_PRESET_CACHE_TTL_MS = 2 * 60 * 1000;
   const HOME_PRESET_CACHE_STALE_MS = 30 * 60 * 1000;
+  const HOME_PRESET_PAGE_SIZE = 24;
 
-  function markPresetVisualEmpty(visual, image = null) {
-    visual.classList.add("is-empty");
-    image?.remove();
+  function showEmptyPresetState() {
+    const state = document.createElement("p");
+    state.className = "home-preset-state";
+    state.textContent = "현재 이미지가 등록된 보물지도가 없습니다.";
+    list.replaceChildren(state);
+    list.setAttribute("aria-busy", "false");
   }
 
-  // Image error events do not bubble, so capture them at the list level. This
-  // also covers cards cloned later by the automatic carousel.
+  // 이미지 로드에 실패한 카드도 빈 이미지 카드와 동일하게 홈페이지에서만 숨긴다.
+  // 원본 보물지도 데이터와 보물지도 목록에는 영향을 주지 않는다.
   list.addEventListener("error", (event) => {
     const image = event.target;
     if (!(image instanceof HTMLImageElement)) return;
 
-    const visual = image.closest(".home-preset-visual");
-    if (!visual || !list.contains(visual)) return;
-    markPresetVisualEmpty(visual, image);
+    const card = image.closest(".home-preset-card");
+    if (!card || !list.contains(card)) return;
+    card.remove();
+    if (!list.querySelector(".home-preset-card")) showEmptyPresetState();
   }, true);
 
   function readPresetCache() {
@@ -54,7 +59,13 @@
     }
   }
 
-  function renderCard(preset, rank) {
+  function renderCard(preset) {
+    const thumbnail = [
+      preset.imageUrl,
+      ...(Array.isArray(preset.thumbnailImageUrls) ? preset.thumbnailImageUrls : []),
+    ].find((value) => typeof value === "string" && value.trim())?.trim() || null;
+    if (!thumbnail) return null;
+
     const link = document.createElement("a");
     link.className = "home-preset-card";
     link.href = `/presset/detail?presetId=${encodeURIComponent(preset.presetId)}`;
@@ -62,22 +73,14 @@
 
     const visual = document.createElement("div");
     visual.className = "home-preset-visual";
-    const thumbnail = [
-      preset.imageUrl,
-      ...(Array.isArray(preset.thumbnailImageUrls) ? preset.thumbnailImageUrls : []),
-    ].find((value) => typeof value === "string" && value.trim())?.trim() || null;
-    if (thumbnail) {
-      const img = new Image();
-      img.src = thumbnail;
-      img.alt = "";
-      img.loading = "lazy";
-      img.decoding = "async";
-      img.fetchPriority = "low";
-      img.draggable = false;
-      visual.append(img);
-    } else {
-      markPresetVisualEmpty(visual);
-    }
+    const img = new Image();
+    img.src = thumbnail;
+    img.alt = "";
+    img.loading = "lazy";
+    img.decoding = "async";
+    img.fetchPriority = "low";
+    img.draggable = false;
+    visual.append(img);
     link.append(visual);
 
     const body = document.createElement("div");
@@ -241,24 +244,67 @@
     const presets = Array.isArray(payload?.data?.content) ? payload.data.content : [];
     list.replaceChildren();
     list.setAttribute("aria-busy", "false");
-    if (!presets.length) {
-      const state = document.createElement("p");
-      state.className = "home-preset-state";
-      state.textContent = "현재 공개된 보물지도가 없습니다.";
-      list.append(state);
+    const cards = presets
+      .map((preset) => renderCard(preset))
+      .filter(Boolean);
+    if (!cards.length) {
+      showEmptyPresetState();
       return;
     }
-    presets.forEach((preset, index) => list.append(renderCard(preset, index + 1)));
+    list.append(...cards);
     startAutoScroll();
   }
 
-  function fetchAndCachePresets({ render = true } = {}) {
-    return Api.get("/presets?page=0&size=4&sort=popular")
-      .then((payload) => {
-        writePresetCache(payload);
-        if (render) renderPresetPayload(payload);
-        return payload;
+  async function fetchAllPresets() {
+    const firstPayload = await Api.get(
+      `/presets?page=0&size=${HOME_PRESET_PAGE_SIZE}&sort=popular`,
+    );
+    const firstPage = firstPayload?.data || {};
+    const pagePayloads = [firstPayload];
+    const reportedTotalPages = Number(firstPage.totalPages);
+    const totalPages = Number.isSafeInteger(reportedTotalPages) && reportedTotalPages > 0
+      ? reportedTotalPages
+      : 1;
+
+    // API의 최대 페이지 크기(24개)를 지키면서 마지막 페이지까지 모두 가져온다.
+    // 순차 조회로 요청 폭주를 막고 인기순 카드 순서도 안정적으로 유지한다.
+    for (let page = 1; page < totalPages; page += 1) {
+      pagePayloads.push(await Api.get(
+        `/presets?page=${page}&size=${HOME_PRESET_PAGE_SIZE}&sort=popular`,
+      ));
+    }
+
+    const seenPresetIds = new Set();
+    const content = pagePayloads
+      .flatMap((payload) => Array.isArray(payload?.data?.content) ? payload.data.content : [])
+      .filter((preset) => {
+        const presetId = Number(preset?.presetId);
+        if (!Number.isSafeInteger(presetId) || presetId <= 0) return true;
+        if (seenPresetIds.has(presetId)) return false;
+        seenPresetIds.add(presetId);
+        return true;
       });
+
+    return {
+      ...firstPayload,
+      data: {
+        ...firstPage,
+        content,
+        page: 0,
+        size: content.length,
+        totalElements: content.length,
+        totalPages: content.length ? 1 : 0,
+        first: true,
+        last: true,
+      },
+    };
+  }
+
+  async function fetchAndCachePresets({ render = true } = {}) {
+    const payload = await fetchAllPresets();
+    writePresetCache(payload);
+    if (render) renderPresetPayload(payload);
+    return payload;
   }
 
   const cachedPresets = readPresetCache();
