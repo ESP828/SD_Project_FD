@@ -5,7 +5,6 @@
   const pagination = document.querySelector("#preset-pagination");
   const searchForm = document.querySelector("#preset-search-form");
   const keywordInput = document.querySelector("#preset-keyword");
-  const tagSelect = document.querySelector("#preset-tag-select");
   const sortSelect = document.querySelector("#preset-sort-select");
   const searchReset = document.querySelector("#preset-search-reset");
   const viewTabs = Array.from(document.querySelectorAll("[data-preset-sort]"));
@@ -19,15 +18,12 @@
   const initialSort = ["popular", "latest", "favorite"].includes(requestedSort)
     ? requestedSort
     : "latest";
-  const requestedTagId = Number.parseInt(initialParams.get("tagId"), 10);
   const requestedPage = Number.parseInt(initialParams.get("page"), 10);
   const state = {
     page: Number.isSafeInteger(requestedPage) && requestedPage > 0 ? requestedPage - 1 : 0,
     size: 12,
     sort: initialSort,
-    tagId: Number.isSafeInteger(requestedTagId) && requestedTagId > 0 ? requestedTagId : null,
     keyword: normalizeKeyword(initialParams.get("keyword")),
-    tags: [],
   };
   let requestGeneration = 0;
 
@@ -49,7 +45,6 @@
   function listUrlFromState() {
     const params = new URLSearchParams();
     if (state.sort !== "latest") params.set("sort", state.sort);
-    if (state.tagId) params.set("tagId", String(state.tagId));
     if (state.keyword) params.set("keyword", state.keyword);
     if (state.page > 0) params.set("page", String(state.page + 1));
     const query = params.toString();
@@ -69,7 +64,6 @@
 
   function syncSearchControls() {
     keywordInput.value = state.keyword;
-    tagSelect.value = state.tagId === null ? "" : String(state.tagId);
     sortSelect.value = state.sort;
   }
 
@@ -90,10 +84,8 @@
   function restoreStateFromLocation() {
     const params = new URLSearchParams(location.search);
     const sort = params.get("sort");
-    const tagId = Number.parseInt(params.get("tagId"), 10);
     const page = Number.parseInt(params.get("page"), 10);
     state.sort = ["popular", "latest", "favorite"].includes(sort) ? sort : "latest";
-    state.tagId = Number.isSafeInteger(tagId) && tagId > 0 ? tagId : null;
     state.keyword = normalizeKeyword(params.get("keyword"));
     state.page = Number.isSafeInteger(page) && page > 0 ? page - 1 : 0;
     syncSearchControls();
@@ -222,16 +214,16 @@
     card.append(createCardVisual(preset));
 
     const info = element("div", "preset-card-info");
+    const topRow = element("div", "preset-card-top-row");
     const tags = element("div", "preset-card-tag-list");
     cardTagNames(preset).forEach((tagName) => {
       tags.append(element("span", "preset-card-tag", tagName));
     });
-    if (tags.childElementCount) info.append(tags);
 
     const titleLink = element("a", "preset-card-title", preset.title || "이름 없는 보물지도");
     titleLink.href = detailPath(preset.presetId);
-    info.append(titleLink);
 
+    const bottomRow = element("div", "preset-card-bottom-row");
     const meta = element("div", "preset-card-meta");
     meta.append(element("span", "", `🍴 맛집 ${Number(preset.restaurantCount || 0).toLocaleString("ko-KR")}곳`));
     meta.append(element("span", "", `👁 조회 ${Number(preset.viewCount || 0).toLocaleString("ko-KR")}`));
@@ -242,8 +234,11 @@
     );
     favoriteCount.setAttribute("data-favorite-count", "");
     meta.append(favoriteCount);
-    info.append(meta);
-    card.append(info);
+
+    const goMap = element("a", "button button-secondary preset-card-map-link", "지도에서 보기");
+    const mapQuery = new URLSearchParams({ presetId: preset.presetId });
+    if (preset.isOwner) mapQuery.set("edit", "1");
+    goMap.href = `/map?${mapQuery.toString()}`;
 
     const description = element("div", "preset-card-description");
     const descriptionText = typeof preset.description === "string" ? preset.description.trim() : "";
@@ -253,10 +248,6 @@
       description.classList.add("is-empty");
       description.setAttribute("aria-hidden", "true");
     }
-    card.append(description);
-
-    const actions = element("div", "preset-card-actions");
-
     const favorite = element("button", "preset-favorite-button");
     favorite.type = "button";
     appendFavoriteIcon(favorite);
@@ -268,12 +259,10 @@
       event.stopPropagation();
       toggleFavorite(favorite, preset);
     });
-    const goMap = element("a", "button button-secondary preset-card-map-link", "지도에서 보기");
-    const mapQuery = new URLSearchParams({ presetId: preset.presetId });
-    if (preset.isOwner) mapQuery.set("edit", "1");
-    goMap.href = `/map?${mapQuery.toString()}`;
-    actions.append(favorite, goMap);
-    card.append(actions);
+    topRow.append(tags, favorite);
+    bottomRow.append(meta, goMap);
+    info.append(topRow, titleLink, description, bottomRow);
+    card.append(info);
 
     card.addEventListener("click", (event) => {
       if (event.target.closest("a, button")) return;
@@ -281,19 +270,6 @@
     });
 
     return card;
-  }
-
-  function renderTagSelectOptions() {
-    tagSelect.replaceChildren();
-    const all = element("option", "", "태그 전체");
-    all.value = "";
-    tagSelect.append(all);
-    state.tags.forEach((tag) => {
-      const option = element("option", "", `#${tag.tagName}`);
-      option.value = String(tag.tagId);
-      tagSelect.append(option);
-    });
-    tagSelect.value = state.tagId === null ? "" : String(state.tagId);
   }
 
   function selectView(sort) {
@@ -338,9 +314,7 @@
     list.replaceChildren();
     list.setAttribute("aria-busy", "false");
     const conditions = [];
-    const selectedTag = state.tags.find((tag) => tag.tagId === state.tagId);
     if (state.keyword) conditions.push(`“${state.keyword}” 검색`);
-    if (selectedTag) conditions.push(`#${selectedTag.tagName}`);
     const conditionText = conditions.length ? ` · ${conditions.join(" · ")}` : "";
     count.textContent = `총 ${Number(pageData.totalElements || 0).toLocaleString("ko-KR")}개의 보물지도${conditionText}`;
     list.classList.toggle("preset-list--state", presets.length === 0);
@@ -348,7 +322,7 @@
       const empty = element("div", "preset-state preset-state--surface");
       const description = state.keyword
         ? `“${state.keyword}”이(가) 제목 또는 태그에 포함된 보물지도가 없습니다.`
-        : "다른 태그를 선택하거나 검색 조건을 초기화해 보세요.";
+        : "검색 조건을 바꾸거나 초기화해 보세요.";
       empty.append(
         element("h3", "", "조건에 맞는 보물지도가 없습니다."),
         element("p", "", description),
@@ -378,7 +352,6 @@
     const generation = ++requestGeneration;
     list.setAttribute("aria-busy", "true");
     const params = new URLSearchParams({ page: state.page, size: state.size, sort: state.sort });
-    if (state.tagId) params.set("tagId", state.tagId);
     if (state.keyword) params.set("keyword", state.keyword);
     try {
       const payload = await Api.get(`/presets?${params.toString()}`);
@@ -393,10 +366,6 @@
   searchForm.addEventListener("submit", (event) => {
     event.preventDefault();
     state.keyword = normalizeKeyword(keywordInput.value);
-    const selectedTagId = Number.parseInt(tagSelect.value, 10);
-    state.tagId = Number.isSafeInteger(selectedTagId) && selectedTagId > 0
-      ? selectedTagId
-      : null;
     state.sort = ["latest", "popular", "favorite"].includes(sortSelect.value)
       ? sortSelect.value
       : "latest";
@@ -409,7 +378,6 @@
 
   searchReset.addEventListener("click", () => {
     state.keyword = "";
-    state.tagId = null;
     state.sort = "latest";
     state.page = 0;
     syncSearchControls();
@@ -450,16 +418,5 @@
     });
   }
   showCreatedMessage();
-
-  Promise.all([Api.get("/presets/tags"), Promise.resolve()])
-    .then(([payload]) => {
-      state.tags = Array.isArray(payload.data) ? payload.data : [];
-      renderTagSelectOptions();
-      syncSearchControls();
-    })
-    .catch(() => {
-      renderTagSelectOptions();
-      syncSearchControls();
-    })
-    .finally(loadPresets);
+  loadPresets();
 })();

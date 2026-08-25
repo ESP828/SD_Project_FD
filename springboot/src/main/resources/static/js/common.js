@@ -800,16 +800,20 @@
           <div class="footer-main">
             <div class="footer-brand">
               <img src="/images/logos/brand-horizontal.png" alt="foodduck">
-              <p>맛집을 찾고, 취향에 맞게 저장하고, 경험을 나누는 맛집 탐색·보관 서비스</p>
+              <div class="footer-brand-row">
+                <p>맛집을 찾고, 취향에 맞게 저장하고, 경험을 나누는 맛집 탐색·보관 서비스</p>
+                <nav class="footer-links" aria-label="푸드덕 안내" tabindex="0">
+                  <button type="button" class="footer-link" data-footer-dialog="footer-about-dialog">서비스 소개</button>
+                  <button type="button" class="footer-link" data-footer-dialog="footer-faq-dialog">자주 묻는 질문</button>
+                  <button type="button" class="footer-link" data-footer-dialog="footer-terms-dialog">이용약관</button>
+                  <button type="button" class="footer-link" data-footer-dialog="footer-privacy-dialog">개인정보처리방침</button>
+                </nav>
+              </div>
+
               <span class="footer-brand-accent" aria-hidden="true"></span>
             </div>
 
-            <nav class="footer-links" aria-label="푸드덕 안내" tabindex="0">
-              <button type="button" class="footer-link" data-footer-dialog="footer-about-dialog">서비스 소개</button>
-              <button type="button" class="footer-link" data-footer-dialog="footer-faq-dialog">자주 묻는 질문</button>
-              <button type="button" class="footer-link" data-footer-dialog="footer-terms-dialog">이용약관</button>
-              <button type="button" class="footer-link" data-footer-dialog="footer-privacy-dialog">개인정보처리방침</button>
-            </nav>
+
           </div>
 
           <div class="footer-meta">

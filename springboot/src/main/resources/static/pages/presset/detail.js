@@ -4,8 +4,6 @@
   const requestedId = Number(requestedQuery.get("presetId"));
   const savedMessageKey = "fooduck:preset-created";
   let preset;
-  let selectedCategory = "전체";
-  let restaurantCountLabel = null;
   let toastTimer = null;
 
   function element(tagName, className = "", text = "") {
@@ -205,13 +203,18 @@
       element("span", "preset-restaurant-number", String(index + 1).padStart(2, "0")),
     );
 
-    const body = element("a", "preset-restaurant-body preset-restaurant-body-link");
-    body.href = restaurantDetailPath(restaurant.restaurantId);
-    body.setAttribute("aria-label", `${restaurant.name || "음식점"} 상세페이지 보기`);
-    body.append(element("h3", "", restaurant.name || "이름 정보 없음"));
+    const contentArea = element("div", "preset-restaurant-content");
+    const titleLink = element("a", "preset-restaurant-title-link");
+    titleLink.href = restaurantDetailPath(restaurant.restaurantId);
+    titleLink.setAttribute("aria-label", `${restaurant.name || "음식점"} 상세페이지 보기`);
+    titleLink.append(element("h3", "", restaurant.name || "이름 정보 없음"));
+
+    const infoLink = element("a", "preset-restaurant-info-link");
+    infoLink.href = restaurantDetailPath(restaurant.restaurantId);
+    infoLink.setAttribute("aria-label", `${restaurant.name || "음식점"} 주소 및 상세정보 보기`);
     const address = [restaurant.address, restaurant.addressDetail].filter(Boolean).join(" ");
     const basicInfo = [restaurant.categoryName, address].filter(Boolean).join(" · ");
-    if (basicInfo) body.append(element("p", "preset-restaurant-subline", basicInfo));
+    if (basicInfo) infoLink.append(element("p", "preset-restaurant-subline", basicInfo));
 
     const facts = element("div", "preset-restaurant-meta");
     const averageRating = Number(restaurant.averageRating);
@@ -227,9 +230,7 @@
         : (window.FooduckHours?.normalize(restaurant.openingHours) || restaurant.openingHours.trim());
       facts.append(element("span", "", `영업시간 ${hoursText}`));
     }
-    if (facts.childElementCount) body.append(facts);
-
-    const actions = element("div", "preset-restaurant-actions");
+    if (facts.childElementCount) infoLink.append(facts);
 
     // 찜과 삭제(X)는 카드 오른쪽 위 모서리에 나란히 둔다(왼쪽 찜, 오른쪽 삭제).
     const actionRow = element("div", "preset-restaurant-action-row");
@@ -259,42 +260,33 @@
       remove.addEventListener("click", () => removeRestaurant(remove, restaurant));
       actionRow.append(remove);
     }
-
-    actions.append(actionRow);
+    const footer = element("div", "preset-restaurant-footer");
+    footer.append(infoLink);
 
     if (restaurant.coordinateAvailable) {
       const map = element("a", "button button-secondary preset-restaurant-map-btn", "지도에서 보기");
       map.href = mapPath(restaurant.restaurantId, Boolean(preset.isOwner));
-      actions.append(map);
+      footer.append(map);
     } else {
-      actions.append(element("span", "preset-coordinate-missing", "지도 위치 미등록"));
+      footer.append(element("span", "preset-coordinate-missing", "지도 위치 미등록"));
     }
-    // 정보 링크와 액션 영역을 형제 요소로 유지해 하트·삭제·지도 버튼 클릭이 상세 이동으로 이어지지 않게 한다.
-    card.append(visual, body, actions);
+    // 각 액션은 상세 링크의 바깥에 두어 찜·삭제·지도 클릭이 식당 상세 이동으로 이어지지 않게 한다.
+    contentArea.append(actionRow, titleLink, footer);
+    card.append(visual, contentArea);
     return card;
   }
 
   function renderRestaurants(host) {
     host.replaceChildren();
-    const all = Array.isArray(preset.restaurants) ? preset.restaurants : [];
-    const visible = selectedCategory === "전체"
-      ? all
-      : all.filter((restaurant) => restaurant.categoryName === selectedCategory);
-    // 패널 헤더의 개수는 지금 보고 있는 목록과 같은 수를 알려 준다.
-    if (restaurantCountLabel) {
-      const shown = selectedCategory === "전체"
-        ? Number(preset.restaurantCount ?? all.length ?? 0)
-        : visible.length;
-      restaurantCountLabel.textContent = `총 ${shown.toLocaleString("ko-KR")}곳`;
-    }
-    if (!visible.length) {
+    const restaurants = Array.isArray(preset.restaurants) ? preset.restaurants : [];
+    if (!restaurants.length) {
       const empty = element("div", "preset-state preset-state--surface surface-card");
-      empty.append(element("h3", "", "해당 종류의 음식점이 없습니다."));
+      empty.append(element("h3", "", "이 보물지도에 등록된 음식점이 없습니다."));
       host.append(empty);
       return;
     }
     const fragment = document.createDocumentFragment();
-    visible.forEach((restaurant) => fragment.append(createRestaurantCard(restaurant, all.indexOf(restaurant))));
+    restaurants.forEach((restaurant, index) => fragment.append(createRestaurantCard(restaurant, index)));
     host.append(fragment);
   }
 
@@ -303,18 +295,42 @@
     content.replaceChildren();
     content.setAttribute("aria-busy", "false");
     document.title = `${data.title || "보물지도"} · 푸드덕`;
-    const breadcrumbTitle = document.getElementById("preset-breadcrumb-title");
-    if (breadcrumbTitle) breadcrumbTitle.textContent = data.title || "상세";
 
     const hero = element("section", "preset-detail-hero surface-card");
     const visual = element("div", "preset-detail-visual");
     visual.append(safeImage(data.imageUrl, `${data.title || "보물지도"} 대표 이미지`, "preset-detail-image"));
 
     const copy = element("div", "preset-detail-copy");
-    copy.append(element("h1", "", data.title || "맛집 보물지도"));
+    const title = element("h1", "", data.title || "맛집 보물지도");
+
+    const toolbar = element("div", "preset-detail-toolbar");
     const tags = element("div", "preset-detail-tags");
     presetTagNames(data).forEach((tagName) => tags.append(element("span", "preset-category", tagName)));
-    if (tags.childElementCount) copy.append(tags);
+
+    const iconActions = element("div", "preset-detail-icon-actions");
+    const favorite = element("button", "preset-detail-favorite");
+    favorite.type = "button";
+    appendFavoriteIcon(favorite);
+    favorite.classList.toggle("is-active", data.favoriteByCurrentUser);
+    favorite.setAttribute("aria-pressed", String(Boolean(data.favoriteByCurrentUser)));
+    favorite.setAttribute("aria-label", data.favoriteByCurrentUser ? "보물지도 찜 해제" : "보물지도 찜");
+    favorite.addEventListener("click", () => togglePresetFavorite(favorite));
+    iconActions.append(favorite);
+
+    if (data.isOwner) {
+      const remove = element("button", "preset-restaurant-remove preset-detail-remove");
+      remove.type = "button";
+      remove.setAttribute("aria-label", `${data.title || "보물지도"} 보물지도 삭제`);
+      remove.title = "보물지도 삭제";
+      const removeIcon = element("span", "material-symbols-rounded", "close");
+      removeIcon.setAttribute("aria-hidden", "true");
+      window.FooduckIcons?.set(removeIcon, "close");
+      remove.append(removeIcon);
+      remove.addEventListener("click", () => deletePreset(remove));
+      iconActions.append(remove);
+    }
+    toolbar.append(tags, iconActions);
+    copy.append(toolbar, title);
 
     const stats = element("div", "preset-detail-stats");
     const restaurantCount = Number(data.restaurantCount ?? data.restaurants?.length ?? 0);
@@ -335,21 +351,10 @@
     if (data.isOwner) {
       const edit = element("a", "button button-secondary preset-detail-edit", "⚙ 보물지도 수정");
       edit.href = `/presset/register?presetId=${encodeURIComponent(requestedId)}`;
-      const remove = element("button", "button button-secondary preset-detail-delete", "🗑 보물지도 삭제");
-      remove.type = "button";
-      remove.addEventListener("click", () => deletePreset(remove));
-      actions.append(edit, remove);
+      actions.append(edit);
     }
     copy.append(actions);
-
-    const favorite = element("button", "preset-detail-favorite");
-    favorite.type = "button";
-    appendFavoriteIcon(favorite);
-    favorite.classList.toggle("is-active", data.favoriteByCurrentUser);
-    favorite.setAttribute("aria-pressed", String(Boolean(data.favoriteByCurrentUser)));
-    favorite.setAttribute("aria-label", data.favoriteByCurrentUser ? "보물지도 찜 해제" : "보물지도 찜");
-    favorite.addEventListener("click", () => togglePresetFavorite(favorite));
-    hero.append(visual, copy, favorite);
+    hero.append(visual, copy);
 
     const section = element("section", "preset-restaurants");
     section.id = "preset-detail-restaurants";
@@ -358,8 +363,8 @@
     const sectionTitle = element("div", "preset-restaurants-heading-copy");
     const listTitle = element("h2", "", "이 보물지도에 포함된 맛집");
     listTitle.id = "preset-restaurants-title";
-    restaurantCountLabel = element("p", "", `총 ${restaurantCount.toLocaleString("ko-KR")}곳`);
-    sectionTitle.append(listTitle, restaurantCountLabel);
+    const totalRestaurantCountLabel = element("p", "", `총 ${restaurantCount.toLocaleString("ko-KR")}곳`);
+    sectionTitle.append(listTitle, totalRestaurantCountLabel);
     sectionHeading.append(sectionTitle);
     if (data.isOwner) {
       // 목록 패널 헤더 오른쪽 끝에서 바로 이어서 맛집을 담을 수 있게 한다.
@@ -368,29 +373,11 @@
       sectionHeading.append(addHere);
     }
 
-    const categories = [
-      "전체",
-      ...new Set((data.restaurants || []).map((restaurant) => restaurant.categoryName).filter(Boolean)),
-    ];
-    if (!categories.includes(selectedCategory)) selectedCategory = "전체";
-    const categoryBar = element("div", "preset-filters preset-filters--detail");
     const restaurantList = element("div", "preset-restaurant-list");
-    categories.forEach((category) => {
-      const button = element("button", "preset-filter", category);
-      button.type = "button";
-      button.setAttribute("aria-pressed", String(category === selectedCategory));
-      button.addEventListener("click", () => {
-        selectedCategory = category;
-        categoryBar.querySelectorAll("button").forEach((item) => item.setAttribute("aria-pressed", String(item === button)));
-        renderRestaurants(restaurantList);
-      });
-      categoryBar.append(button);
-    });
-    // 필터는 목록 패널 바깥 위쪽에 두고, 제목·개수·추가 버튼과 목록은 한 패널로 묶는다.
     const listPanel = element("section", "preset-restaurants-panel");
     listPanel.setAttribute("aria-labelledby", listTitle.id);
     listPanel.append(sectionHeading, restaurantList);
-    section.append(categoryBar, listPanel);
+    section.append(listPanel);
     renderRestaurants(restaurantList);
     content.append(hero, section);
   }

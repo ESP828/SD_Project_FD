@@ -7,10 +7,10 @@
   <title>보물지도 · 푸드덕</title>
   <link rel="icon" href="/images/favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/css/common.css">
-  <link rel="stylesheet" href="/pages/presset/presset.css?v=20260824-preset-dropdown">
+  <link rel="stylesheet" href="/pages/presset/presset.css?v=20260825-search-width-v8">
   <link rel="stylesheet" href="/css/category-hero.css">
 </head>
-<body>
+<body class="preset-list-page">
   <div data-site-header data-active-nav="presset"></div>
 
   <main class="preset-main">
@@ -20,7 +20,7 @@
           <h1>나의 취향을<br>선택해놓은 맛집</h1>
           <div class="preset-hero-actions">
             <a
-              class="button button-primary"
+              class="button button-primary preset-hero-register-button"
               href="/presset/register"
               data-preset-register-link
             >
@@ -39,7 +39,8 @@
     <section id="preset-collection" class="container preset-collection">
       <div class="preset-section-heading">
         <div>
-          <h2>취향별 보물지도를 둘러보세요</h2>
+
+
         </div>
       </div>
 
@@ -81,11 +82,14 @@
 
       <div id="preset-search-panel" class="preset-discovery-panel surface-card">
         <div class="preset-discovery-main">
+
           <form id="preset-search-form" class="preset-search" role="search">
-            <label class="preset-search-select">
-              <span class="sr-only">태그 선택</span>
-              <select id="preset-tag-select" aria-label="보물지도 태그 선택">
-                <option value="">태그 전체</option>
+  <label class="preset-search-select">
+              <span class="sr-only">보물지도 정렬</span>
+              <select id="preset-sort-select" aria-label="보물지도 정렬">
+                <option value="latest">최신순</option>
+                <option value="popular">인기순</option>
+                <option value="favorite">찜 많은 순</option>
               </select>
             </label>
             <label class="preset-search-field">
@@ -99,14 +103,7 @@
                 placeholder="제목 또는 태그 검색 (예: 성수, 데이트)"
               >
             </label>
-            <label class="preset-search-select">
-              <span class="sr-only">보물지도 정렬</span>
-              <select id="preset-sort-select" aria-label="보물지도 정렬">
-                <option value="latest">최신순</option>
-                <option value="popular">인기순</option>
-                <option value="favorite">찜 많은 순</option>
-              </select>
-            </label>
+
             <button class="button button-sm button-navy preset-search-submit" type="submit">검색</button>
             <button
               id="preset-search-reset"
@@ -156,6 +153,6 @@
 
   <script src="/js/api.js"></script>
   <script src="/js/common.js"></script>
-  <script src="/pages/presset/presset.js"></script>
+  <script src="/pages/presset/presset.js?v=20260825-preset-card-layout-v3"></script>
 </body>
 </html>
