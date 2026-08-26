@@ -387,8 +387,11 @@
   flex: 1;
   overflow-y: auto;
   margin-inline: -24px;
-  scrollbar-color: #ced7e2 transparent;
-  scrollbar-width: thin;
+  scrollbar-width: none;
+}
+
+.place-results::-webkit-scrollbar {
+  display: none;
 }
 
 .place-result {
@@ -722,6 +725,11 @@
   height: 100%;
   padding: 70px 24px 36px;
   overflow-y: auto;
+  scrollbar-width: none;
+}
+
+.place-detail-body::-webkit-scrollbar {
+  display: none;
 }
 
 .place-detail-close {
@@ -1018,8 +1026,15 @@
 }
 
 @media (max-width: 840px) {
+  html,
   body {
     overflow: auto;
+    scrollbar-width: none;
+  }
+
+  html::-webkit-scrollbar,
+  body::-webkit-scrollbar {
+    display: none;
   }
 
   /* 상단 사이트 헤더와 같은 구조: 페이지는 화면 끝까지 깔리는 흰 바탕이고,

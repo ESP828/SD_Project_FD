@@ -13,6 +13,7 @@ const passwordConfirmStatus = document.getElementById("password-confirm-status")
 
 const emailInput = document.getElementById("signup-email");
 const sendCodeBtn = document.getElementById("send-code-btn");
+const verificationField = document.getElementById("signup-verification-field");
 const verificationCodeInput = document.getElementById("signup-verification-code");
 const verifyCodeBtn = document.getElementById("verify-code-btn");
 const emailVerifyStatus = document.getElementById("email-verify-status");
@@ -89,6 +90,7 @@ passwordConfirmInput.addEventListener("input", updatePasswordConfirmStatus);
 
 emailInput.addEventListener("input", () => {
   verifiedEmail = null;
+  verificationField.classList.remove("is-expanded");
   verificationCodeInput.value = "";
   verificationCodeInput.disabled = true;
   verifyCodeBtn.disabled = true;
@@ -104,16 +106,26 @@ sendCodeBtn.addEventListener("click", async () => {
   sendCodeBtn.disabled = true;
   const originalLabel = sendCodeBtn.textContent;
   sendCodeBtn.textContent = "발송 중...";
+
+  // 실제 메일 발송(수십 초 걸릴 수 있는 SMTP 통신)이 끝나기 전에 입력란부터 펼쳐서,
+  // 버튼을 누르자마자 "인증번호 입력란이 나타나는" 반응을 바로 보여준다. 발송이 끝나기 전에도
+  // 입력 자체는 막지 않는다 - 틀린 번호를 넣으면 인증확인 쪽에서 다시 확인하라고 안내하면
+  // 되므로, 여기서 입력을 잠가 둘 이유가 없다.
+  verificationField.classList.add("is-expanded");
+  verificationCodeInput.disabled = false;
+  verifyCodeBtn.disabled = false;
+  verificationCodeInput.value = "";
+  verificationCodeInput.focus();
   setStatus(emailVerifyStatus, "인증번호를 보내고 있습니다. 최대 1분 정도 걸릴 수 있어요.", false);
   try {
     await Api.post("/auth/email/verification-code", { email }, { auth: false });
     verifiedEmail = null;
-    verificationCodeInput.disabled = false;
-    verifyCodeBtn.disabled = false;
-    verificationCodeInput.value = "";
-    verificationCodeInput.focus();
     setStatus(emailVerifyStatus, "인증번호를 발송했습니다. 5분 이내에 입력해 주세요.", true);
   } catch (error) {
+    // 발송이 실제로 실패했으면 존재하지 않는 인증번호를 입력하게 둘 수 없으니 다시 접는다.
+    verificationField.classList.remove("is-expanded");
+    verificationCodeInput.disabled = true;
+    verifyCodeBtn.disabled = true;
     setStatus(emailVerifyStatus, error.message, false);
   } finally {
     sendCodeBtn.disabled = false;
@@ -125,7 +137,7 @@ verifyCodeBtn.addEventListener("click", async () => {
   const email = emailInput.value.trim();
   const code = verificationCodeInput.value.trim();
   if (!/^[0-9]{6}$/.test(code)) {
-    setStatus(emailVerifyStatus, "인증번호 6자리를 입력해 주세요.", false);
+    setStatus(emailVerifyStatus, "인증번호를 다시 확인해 주세요.", false);
     return;
   }
   verifyCodeBtn.disabled = true;
@@ -134,8 +146,10 @@ verifyCodeBtn.addEventListener("click", async () => {
     verifiedEmail = email;
     setStatus(emailVerifyStatus, "이메일 인증이 완료되었습니다.", true);
   } catch (error) {
+    // 코드가 틀렸을 때 서버 에러 문구를 그대로 보여주는 대신, 다시 확인해 보라는
+    // 한 가지 안내로 통일한다(만료/횟수초과/불일치를 사용자가 굳이 구분할 필요는 없다).
     verifiedEmail = null;
-    setStatus(emailVerifyStatus, error.message, false);
+    setStatus(emailVerifyStatus, "인증번호를 다시 확인해 주세요.", false);
   } finally {
     verifyCodeBtn.disabled = false;
   }

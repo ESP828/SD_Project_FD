@@ -1301,8 +1301,9 @@
     setActiveCategoryButton();
     searchAreaButton.hidden = true;
 
-    // 정확히 일치하는 매장명이 DB 전체에서 딱 하나뿐이면, 지도 반경(500m) 제한 없이
-    // 그 매장으로 바로 이동·포커싱한다(동명 매장이 여러 곳이면 아래 반경 검색으로 진행).
+    // 검색어가 상호명에 포함되는 매장이 DB 전체에서 딱 하나뿐이면("힘난다짬뽕"만 쳐도 "힘난다짬뽕앤버거신논현역점"이
+    // 특정되는 식), 지도 반경(500m) 제한 없이 그 매장으로 바로 이동·포커싱한다
+    // (같은 검색어로 걸리는 매장이 여러 곳이면 아래 반경 검색으로 진행).
     try {
       const exactResponse = await Api.get(
         `/public/search/restaurants/find-by-name?name=${encodeURIComponent(normalized)}`,
@@ -1469,6 +1470,11 @@
   categoryList.querySelectorAll("[data-category]").forEach((button) => {
     button.setAttribute("aria-pressed", "false");
     button.addEventListener("click", () => {
+      // 검색 페이지의 빠른 카테고리 버튼과 같은 로직: 이미 선택된 버튼을 다시 누르면 취소한다.
+      if (button.classList.contains("is-active")) {
+        void resetCategorySearchOnReturn();
+        return;
+      }
       setActiveCategoryButton(button);
       searchByCategory(button.dataset.category);
     });
