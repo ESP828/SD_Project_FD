@@ -73,6 +73,7 @@
   const commentEmojiToggle = document.getElementById("comment-emoji-toggle");
   const commentEmojiPanel = document.getElementById("comment-emoji-panel");
   const commentSubmitButton = commentForm?.querySelector('button[type="submit"]');
+  const commentFormDescription = commentForm?.querySelector(".comment-form-heading span");
   const toast = document.getElementById("board-toast");
 
   if (!session || !board || !detailContent) return;
@@ -308,6 +309,10 @@
       danger: true,
       ...options,
     });
+  }
+
+  function isWithdrawnAuthor(author) {
+    return author?.authorNickname === "탈퇴한 회원";
   }
 
   function isNewsPost(post = state.post) {
@@ -1668,6 +1673,7 @@
 
   function renderPost(post) {
     state.post = post;
+    const withdrawnAuthor = isWithdrawnAuthor(post);
     const newsPost = isNewsPost(post);
     const newsTarget = newsPost ? newsSource(post) : null;
     const newsReturnPath = newsPost ? restaurantNewsPath(post) : null;
@@ -1763,8 +1769,33 @@
       toggleLike,
     );
     likeButton.disabled = likeInFlight;
+    if (withdrawnAuthor) {
+      likeButton.title = "탈퇴한 회원의 게시물에는 추천할 수 없습니다.";
+      likeButton.setAttribute("aria-label", "탈퇴한 회원의 게시물에는 추천할 수 없습니다.");
+    }
     activeLikeButton = likeButton;
     actions.append(likeButton);
+
+    if (commentContent) {
+      commentContent.disabled = withdrawnAuthor;
+      commentContent.placeholder = withdrawnAuthor
+        ? "작성자가 탈퇴하여 댓글을 작성할 수 없습니다."
+        : "맛있는 이야기에 댓글을 남겨 보세요.";
+    }
+    if (commentFormDescription) {
+      commentFormDescription.textContent = withdrawnAuthor
+        ? "작성자가 탈퇴한 게시물에는 댓글을 작성할 수 없습니다."
+        : "이야기를 읽고 의견을 남겨 보세요.";
+    }
+    if (commentImageInput) commentImageInput.disabled = withdrawnAuthor;
+    if (commentImageSelect) commentImageSelect.disabled = withdrawnAuthor;
+    if (commentEmojiToggle) commentEmojiToggle.disabled = withdrawnAuthor;
+    if (commentSubmitButton) commentSubmitButton.disabled = withdrawnAuthor;
+    if (commentWriteShortcut) commentWriteShortcut.hidden = withdrawnAuthor;
+    if (withdrawnAuthor) {
+      clearCommentImageSelection();
+      closeEmojiPicker();
+    }
     const canManage = newsPost
       ? post.newsManageableByCurrentUser === true && Boolean(newsTarget)
       : post.ownedByCurrentUser || session.isAdmin;
@@ -1928,6 +1959,10 @@
   }
 
   async function toggleLike() {
+    if (isWithdrawnAuthor(state.post)) {
+      showToast(toast, "탈퇴한 회원의 게시물에는 추천할 수 없습니다.", true);
+      return;
+    }
     if (!session.authenticated) {
       openDetailLogin({
         successMessage: "로그인되었습니다. 추천을 이어갑니다.",
@@ -2526,6 +2561,7 @@
 
   function renderCommentItem(comment, options = {}) {
     const { isReply = false, hasReplies = false } = options;
+    const withdrawnAuthor = isWithdrawnAuthor(comment);
     const item = element(
       "article",
       isReply ? "comment-item comment-reply" : "comment-item",
@@ -2550,9 +2586,11 @@
     if (image) item.append(image);
 
     const actions = element("div", "comment-actions");
-    actions.append(
-      actionButton("답글", "comment-action", () => openReplyComposer(comment, item)),
-    );
+    if (!withdrawnAuthor) {
+      actions.append(
+        actionButton("답글", "comment-action", () => openReplyComposer(comment, item)),
+      );
+    }
     if (comment.ownedByCurrentUser || session.isAdmin) {
       actions.append(
         actionButton("수정", "comment-action", () => editComment(comment, item)),
@@ -2564,12 +2602,14 @@
       );
     }
     item.append(actions);
-    item.classList.add("comment-item--replyable");
-    item.addEventListener("click", (event) => {
-      if (activeReplyForm && item.contains(activeReplyForm)) return;
-      if (shouldIgnoreCommentAreaReplyClick(event, item)) return;
-      openReplyComposer(comment, item);
-    });
+    if (!withdrawnAuthor) {
+      item.classList.add("comment-item--replyable");
+      item.addEventListener("click", (event) => {
+        if (activeReplyForm && item.contains(activeReplyForm)) return;
+        if (shouldIgnoreCommentAreaReplyClick(event, item)) return;
+        openReplyComposer(comment, item);
+      });
+    }
     return item;
   }
 
@@ -3114,6 +3154,10 @@
 
   commentForm.addEventListener("submit", async (event) => {
     event.preventDefault();
+    if (isWithdrawnAuthor(state.post)) {
+      showToast(toast, "작성자가 탈퇴한 게시물에는 댓글을 작성할 수 없습니다.", true);
+      return;
+    }
     if (!session.authenticated) {
       if (completeDetailLoginIfReady()) {
         window.setTimeout(() => commentForm.requestSubmit(), 0);
