@@ -2526,6 +2526,7 @@
 
   function renderCommentItem(comment, options = {}) {
     const { isReply = false, hasReplies = false } = options;
+    const withdrawnAuthor = comment.authorNickname === "탈퇴한 회원";
     const item = element(
       "article",
       isReply ? "comment-item comment-reply" : "comment-item",
@@ -2550,9 +2551,11 @@
     if (image) item.append(image);
 
     const actions = element("div", "comment-actions");
-    actions.append(
-      actionButton("답글", "comment-action", () => openReplyComposer(comment, item)),
-    );
+    if (!withdrawnAuthor) {
+      actions.append(
+        actionButton("답글", "comment-action", () => openReplyComposer(comment, item)),
+      );
+    }
     if (comment.ownedByCurrentUser || session.isAdmin) {
       actions.append(
         actionButton("수정", "comment-action", () => editComment(comment, item)),
@@ -2564,12 +2567,14 @@
       );
     }
     item.append(actions);
-    item.classList.add("comment-item--replyable");
-    item.addEventListener("click", (event) => {
-      if (activeReplyForm && item.contains(activeReplyForm)) return;
-      if (shouldIgnoreCommentAreaReplyClick(event, item)) return;
-      openReplyComposer(comment, item);
-    });
+    if (!withdrawnAuthor) {
+      item.classList.add("comment-item--replyable");
+      item.addEventListener("click", (event) => {
+        if (activeReplyForm && item.contains(activeReplyForm)) return;
+        if (shouldIgnoreCommentAreaReplyClick(event, item)) return;
+        openReplyComposer(comment, item);
+      });
+    }
     return item;
   }
 

@@ -1,6 +1,7 @@
 package com.example.backend.board.service;
 
 import com.example.backend.auth.domain.entity.Account;
+import com.example.backend.auth.domain.type.AccountStatus;
 import com.example.backend.board.domain.entity.Comment;
 import com.example.backend.board.domain.entity.Post;
 import com.example.backend.board.domain.type.CommentStatus;
@@ -706,6 +707,9 @@ public class CommentService {
         assertParentPostReadable(target, currentAccount);
         if (!target.getPost().getPostId().equals(postId)) {
             throw badRequest("같은 게시글의 댓글에만 답글을 남길 수 있습니다.");
+        }
+        if (target.getAuthor().getStatus() == AccountStatus.WITHDRAWN) {
+            throw badRequest("탈퇴한 회원의 댓글에는 답글을 남길 수 없습니다.");
         }
         Long rootParentCommentId = target.getParentCommentId() == null
                 ? target.getCommentId()
