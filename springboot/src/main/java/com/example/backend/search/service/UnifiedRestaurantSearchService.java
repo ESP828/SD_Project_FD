@@ -82,7 +82,8 @@ public class UnifiedRestaurantSearchService {
     }
 
     /**
-     * 상호명이 정확히 일치하는 음식점이 딱 하나일 때만 반환한다(동명 매장이면 어디로 이동할지 알 수 없다).
+     * 상호명에 검색어가 포함되는 음식점이 딱 하나일 때만 반환한다(검색어만으로 매장이 특정되면 그 매장으로 이동;
+     * 같은 검색어에 걸리는 매장이 여러 곳이면 어디로 이동할지 알 수 없다).
      */
     public RestaurantSearchItemResponse findByExactName(String name) {
         if (name == null || name.isBlank()) {

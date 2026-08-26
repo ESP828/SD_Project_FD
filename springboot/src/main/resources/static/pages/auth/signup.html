@@ -54,14 +54,18 @@
               <button type="button" class="button button-secondary button-sm field-action" id="send-code-btn">인증코드 발송</button>
             </div>
           </label>
-          <label class="field">
-            <span>인증번호 <span class="field-hint">숫자 6자리, 5분 이내 입력</span></span>
-            <div class="field-row">
-              <input type="text" name="verificationCode" id="signup-verification-code" placeholder="이메일로 받은 인증번호" inputmode="numeric" pattern="^[0-9]{6}$" maxlength="6" disabled required>
-              <button type="button" class="button button-secondary button-sm field-action" id="verify-code-btn" disabled>인증확인</button>
+          <div class="field-collapsible" id="signup-verification-field">
+            <div class="field-collapsible-inner">
+              <label class="field">
+                <span>인증번호 <span class="field-hint">숫자 6자리, 5분 이내 입력</span></span>
+                <div class="field-row">
+                  <input type="text" name="verificationCode" id="signup-verification-code" placeholder="이메일로 받은 인증번호" inputmode="numeric" pattern="^[0-9]{6}$" maxlength="6" disabled required>
+                  <button type="button" class="button button-secondary button-sm field-action" id="verify-code-btn" disabled>인증확인</button>
+                </div>
+                <p class="field-status" id="email-verify-status"></p>
+              </label>
             </div>
-            <p class="field-status" id="email-verify-status"></p>
-          </label>
+          </div>
           <label class="field">
             <span>닉네임 <span class="field-hint">2~30자</span></span>
             <input type="text" name="nickname" placeholder="사용하실 닉네임을 입력해주세요" autocomplete="nickname" minlength="2" maxlength="30" required>

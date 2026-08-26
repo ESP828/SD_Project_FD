@@ -123,6 +123,26 @@
   font-weight: 800;
 }
 
+/* 이메일 인증코드처럼 발송 전에는 자리를 차지하지 않다가, 발송하면 카드가 자연스럽게
+   늘어나며 입력칸이 나타나게 하는 접이식 필드. grid-template-rows를 0fr↔1fr로 트랜지션해서
+   내용 높이를 몰라도 부드럽게 펼쳐진다. */
+.field-collapsible {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  transition: grid-template-rows 280ms ease, opacity 220ms ease;
+}
+
+.field-collapsible.is-expanded {
+  grid-template-rows: 1fr;
+  opacity: 1;
+}
+
+.field-collapsible-inner {
+  overflow: hidden;
+  min-height: 0;
+}
+
 #login-form label.field {
   color: var(--color-ink);
 }

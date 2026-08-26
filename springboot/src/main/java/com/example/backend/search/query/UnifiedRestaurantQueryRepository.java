@@ -172,18 +172,20 @@ public class UnifiedRestaurantQueryRepository {
     }
 
     /**
-     * 지도 반경 제한 없이 상호명이 정확히 일치하는 음식점을 찾는다.
-     * 같은 이름이 둘 이상이면 어느 매장인지 특정할 수 없으므로 호출부에서 사용하지 않는다.
+     * 지도 반경 제한 없이 상호명이 검색어를 포함하는 음식점을 찾는다("힘난다짬뽕" → "힘난다짬뽕앤버거신논현역점"처럼
+     * 검색어만으로 매장이 특정되면 된다). DB 상호명은 공백 없이 저장돼 있으므로("버거킹신논현역점") 검색어의 공백은
+     * 무시하고 비교한다. 같은 조건에 걸리는 이름이 둘 이상이면 어느 매장인지 특정할 수 없으므로 호출부에서 사용하지 않는다.
      */
     public List<RestaurantSearchItemResponse> findByExactName(String name) {
-        MapSqlParameterSource parameters = new MapSqlParameterSource("exactName", name);
+        String normalized = name.replaceAll("\\s+", "");
+        MapSqlParameterSource parameters = new MapSqlParameterSource("exactName", "%" + normalized + "%");
         String sql = """
                 select t.* from (
                 %s
-                   and r.name = :exactName
+                   and replace(r.name, ' ', '') like :exactName
                 union all
                 %s
-                   and p.name = :exactName
+                   and replace(p.name, ' ', '') like :exactName
                 ) t
                  order by t.source_order asc, t.id asc
                  limit 3
