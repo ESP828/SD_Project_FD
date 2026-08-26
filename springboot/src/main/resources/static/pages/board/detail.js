@@ -1784,7 +1784,7 @@
     }
     if (commentFormDescription) {
       commentFormDescription.textContent = withdrawnAuthor
-        ? "작성자가 탈퇴한 게시물로 댓글을 작성할 수 없습니다."
+        ? "작성자가 탈퇴한 게시물에는 댓글을 작성할 수 없습니다."
         : "이야기를 읽고 의견을 남겨 보세요.";
     }
     if (commentImageInput) commentImageInput.disabled = withdrawnAuthor;
