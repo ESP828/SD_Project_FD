@@ -21,12 +21,25 @@
 }
 
 .restaurants-status-filter {
-  display: inline-flex;
+  display: flex;
+  width: 100%;
   gap: 8px;
   padding: 5px;
   border: 1px solid var(--color-line);
   border-radius: 14px;
   background: #fff;
+  box-sizing: border-box;
+}
+
+/* 내부 4개 버튼/요소가 각각 25%씩 균등 분할 */
+.restaurants-status-filter > * {
+  flex: 1 1 0;
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  box-sizing: border-box;
 }
 
 .restaurants-status-btn {

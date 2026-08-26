@@ -1,3 +1,6 @@
+/* ===================================================
+   1. 툴바 & 상단 게시판 필터 (100% 균등 분할)
+=================================================== */
 .community-toolbar {
   display: grid;
   gap: 14px;
@@ -5,25 +8,34 @@
 }
 
 .community-board-filter {
-  display: inline-flex;
-  width: fit-content;
+  display: flex;
+  width: 100%;
   gap: 8px;
   padding: 5px;
   border: 1px solid var(--color-line);
   border-radius: 14px;
   background: #fff;
+  box-sizing: border-box;
 }
 
-.community-board-button {
+.community-board-filter .community-board-button {
+  flex: 1 1 0;
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   min-height: 38px;
-  padding: 8px 16px;
+  padding: 8px 12px;
   border: 0;
   border-radius: 10px;
   color: var(--color-muted);
   background: transparent;
   font-size: 0.8rem;
   font-weight: 800;
+  text-align: center;
   cursor: pointer;
+  box-sizing: border-box;
+  transition: color 140ms ease, background 140ms ease;
 }
 
 .community-board-button:hover,
@@ -36,14 +48,30 @@
   background: var(--color-navy);
 }
 
+/* ===================================================
+   2. 검색 폼 (원래 그리드 형태 유지 + 분류 열 너비 100% 채움)
+=================================================== */
 .community-search-form {
   display: grid;
   grid-template-columns: minmax(130px, 0.35fr) minmax(220px, 1fr) auto auto;
   gap: 8px;
+  width: 100%;
+  box-sizing: border-box;
 }
 
+/* 💡 분류 컨테이너 및 select 요소가 해당 열의 100%를 꽉 채우도록 설정 */
+.community-category-field {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.community-category-field select,
 .community-search-form select,
 .community-search-form input {
+  display: block;
+  width: 100%;
   min-width: 0;
   min-height: 42px;
   padding: 0 12px;
@@ -54,6 +82,7 @@
   background: #fff;
   font-family: inherit;
   font-size: 0.8rem;
+  box-sizing: border-box;
 }
 
 .community-search-form select:focus,
@@ -62,32 +91,38 @@
   box-shadow: 0 0 0 3px rgba(255, 152, 0, 0.12);
 }
 
+/* ===================================================
+   3. 커뮤니티 유동 반응형 테이블
+=================================================== */
 .community-table-wrap {
   overflow-x: auto;
   border: 1px solid var(--color-line);
   border-radius: var(--radius-lg);
   background: #fff;
   box-shadow: var(--shadow-sm);
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .community-table {
   width: 100%;
-  min-width: 1020px;
+  min-width: 640px;
   border-collapse: collapse;
-  font-size: 0.82rem;
+  font-size: clamp(0.72rem, 1vw, 0.82rem);
 }
 
 .community-table th,
 .community-table td {
-  padding: 13px 14px;
+  padding: clamp(8px, 1.1vw, 13px) clamp(6px, 1vw, 14px);
   border-bottom: 1px solid var(--color-line);
   text-align: center;
   white-space: nowrap;
+  box-sizing: border-box;
 }
 
 .community-table th {
   color: var(--color-subtle);
-  font-size: 0.72rem;
+  font-size: clamp(0.66rem, 0.9vw, 0.72rem);
   font-weight: 850;
   text-transform: uppercase;
   letter-spacing: 0.03em;
@@ -103,8 +138,9 @@
 
 .community-title-cell {
   width: 100%;
-  min-width: 230px;
+  min-width: 140px;
   max-width: 360px;
+  text-align: left;
 }
 
 .community-title-cell a {
@@ -123,11 +159,11 @@
 
 .community-badge {
   display: inline-flex;
-  padding: 4px 9px;
+  padding: 3px clamp(5px, 0.8vw, 9px);
   border-radius: 999px;
   color: var(--color-navy);
   background: #edf1f5;
-  font-size: 0.7rem;
+  font-size: clamp(0.62rem, 0.8vw, 0.7rem);
   font-weight: 800;
 }
 
@@ -139,7 +175,16 @@
 .community-actions {
   display: flex;
   justify-content: center;
-  gap: 6px;
+  align-items: center;
+  gap: 4px;
+}
+
+.community-actions .button,
+.community-delete-button {
+  min-height: clamp(28px, 3.2vw, 34px);
+  padding: 0 clamp(6px, 1vw, 10px);
+  font-size: clamp(0.68rem, 0.85vw, 0.78rem);
+  border-radius: 8px;
 }
 
 .community-delete-button {
@@ -162,6 +207,9 @@
   white-space: normal !important;
 }
 
+/* ===================================================
+   4. 페이지네이션 & 푸터
+=================================================== */
 .community-footer-row,
 .community-comments-footer {
   display: flex;
@@ -196,6 +244,9 @@
   text-align: center;
 }
 
+/* ===================================================
+   5. 댓글 모달 (Dialog)
+=================================================== */
 .community-comments-dialog {
   width: min(760px, calc(100% - 32px));
   max-height: calc(100vh - 48px);
@@ -295,9 +346,30 @@
   border-top: 1px solid var(--color-line);
 }
 
-@media (max-width: 720px) {
+/* ===================================================
+   6. 반응형 미디어 쿼리 (768px & 500px)
+=================================================== */
+/* ===================================================
+   6. 반응형 미디어 쿼리 (768px 이하 모바일 전 구간 적용)
+=================================================== */
+@media (max-width: 768px) {
+  .community-table {
+    min-width: 540px;
+  }
+
+  .community-table th,
+  .community-table td {
+    padding: 8px 6px;
+  }
+
   .community-search-form {
     grid-template-columns: 1fr 1fr;
+  }
+
+  /* 💡 501px 이상 모바일 구간에서도 500px 이하와 동일하게 가로 100% 전체 차지 */
+  .community-category-field {
+    grid-column: 1 / -1 !important;
+    width: 100%;
   }
 
   .community-search-form input {
@@ -316,18 +388,25 @@
 }
 
 @media (max-width: 500px) {
-  .community-board-filter,
-  .community-search-form {
+  .community-board-filter {
     width: 100%;
+  }
+
+  .community-search-form {
     grid-template-columns: 1fr;
   }
 
-  .community-board-filter {
-    display: grid;
+  .community-category-field {
+    grid-column: 1 / -1 !important;
+    width: 100%;
   }
 
   .community-search-form input {
     grid-column: auto;
+  }
+
+  .community-search-form button {
+    width: 100%;
   }
 
   .community-comments-header,

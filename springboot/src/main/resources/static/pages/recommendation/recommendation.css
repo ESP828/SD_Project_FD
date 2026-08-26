@@ -671,3 +671,22 @@
     letter-spacing: -0.03em;
   }
 }
+/* ===================================================
+   나를 위한 맛집 그리드: PC 2열 / 모바일 1열
+=================================================== */
+.personal-cards-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr)); /* 기본(PC): 2열 */
+  gap: 14px;
+  align-items: stretch;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* 모바일 화면 (768px 이하): 한 줄에 카드 1개씩 배치 */
+@media (max-width: 768px) {
+  .personal-cards-grid {
+    grid-template-columns: 1fr !important; /* 1열로 변경 */
+    gap: 12px;
+  }
+}

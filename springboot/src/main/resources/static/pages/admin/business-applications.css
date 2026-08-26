@@ -12,13 +12,24 @@
 }
 
 .apps-status-filter {
-  display: inline-flex;
+  display: flex;
+  width: 100%;
   gap: 8px;
   margin-bottom: 18px;
   padding: 5px;
   border: 1px solid var(--color-line);
   border-radius: 14px;
   background: #fff;
+  box-sizing: border-box;
+}
+
+/* 내부 버튼들도 너비에 맞춰 균등하게 꽉 채우려면 추가 */
+.apps-status-filter > button,
+.apps-status-filter > a {
+  flex: 1 1 0;
+  min-width: 0;
+  text-align: center;
+  justify-content: center;
 }
 
 .apps-status-btn {

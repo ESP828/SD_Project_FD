@@ -289,7 +289,7 @@ const RecommendationPage = {
         <div style="margin-bottom: 16px; padding: 10px 14px; background: #fff8e1; border-radius: 8px; color: #f39c12; font-size: 13px; font-weight: bold;">
           <i class="fa-solid fa-bullhorn" aria-hidden="true"></i> ${summaryText}
         </div>
-        <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; align-items: stretch;">
+        <div class="personal-cards-grid">
       `;
 
       items.forEach((item) => {
@@ -460,4 +460,5 @@ const RecommendationPage = {
       container.innerHTML = `<p style="color: #888; font-size: 13px; text-align: center; padding: 20px 0;">랭킹 목록을 불러올 수 없습니다.</p>`;
     }
   }
+
 };
