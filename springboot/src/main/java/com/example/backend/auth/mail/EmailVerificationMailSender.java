@@ -1,11 +1,12 @@
 package com.example.backend.auth.mail;
 
+import com.example.backend.global.exception.BusinessException;
+import com.example.backend.global.exception.ErrorCode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.mail.MailException;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
-import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -20,11 +21,12 @@ public class EmailVerificationMailSender {
     }
 
     /**
-     * 실제 SMTP 발송(TLS 핸드셰이크 포함)은 수백ms~수초가 걸려서 요청 스레드를 그대로 막으면
-     * "인증코드 발송" 버튼이 느리게 느껴진다. 인증코드는 이미 DB에 동기로 저장돼 있으므로
-     * 메일 발송 자체는 비동기로 돌리고 API 응답은 즉시 내려준다.
+     * 예전에는 @Async로 돌려서 SMTP 발송(TLS 핸드셰이크 포함, 수백ms~수초)이 API 응답을
+     * 막지 않게 했는데, 그 결과 발송이 실패해도(SMTP 인증 실패, 타임아웃 등) 예외가
+     * 요청 스레드로 전달되지 않고 로그에만 찍혀서 "인증번호 발송했습니다" 성공 메시지가
+     * 그대로 사용자에게 내려갔다 - 정작 메일은 안 왔는데 화면은 성공이라고 알려주는 상태.
+     * TemporaryPasswordMailSender와 동일하게 동기로 보내고 실패를 그대로 알린다.
      */
-    @Async
     public void send(String email, String code) {
         SimpleMailMessage message = new SimpleMailMessage();
         message.setTo(email);
@@ -35,6 +37,7 @@ public class EmailVerificationMailSender {
             log.info("Verification email sent to {}", email);
         } catch (MailException exception) {
             log.warn("Failed to send verification email to {}", email, exception);
+            throw new BusinessException(ErrorCode.EMAIL_SEND_FAILED);
         }
     }
 }
