@@ -181,9 +181,14 @@ public class NotificationService {
                 : normalized.substring(0, MAX_CONTENT_LENGTH);
     }
 
+    /**
+     * "/pages/..." 정적 경로와 "/business" 같은 WebMvcConfig의 클린 URL을 모두 허용한다.
+     * 외부로 나가는 절대경로(open redirect)만 막으면 되므로, 단일 "/"로 시작하고
+     * "//"(스킴 없는 프로토콜 상대 URL)·역슬래시·개행이 없는 동일 출처 상대경로면 통과시킨다.
+     */
     private String requireInternalTargetUrl(String targetUrl) {
         String normalized = targetUrl == null ? "" : targetUrl.strip();
-        if (!normalized.startsWith("/pages/")
+        if (!normalized.startsWith("/")
                 || normalized.startsWith("//")
                 || normalized.indexOf('\\') >= 0
                 || normalized.indexOf('\r') >= 0

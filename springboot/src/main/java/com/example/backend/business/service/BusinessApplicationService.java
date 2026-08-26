@@ -20,11 +20,17 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.concurrent.ThreadLocalRandom;
 
 @Service
 public class BusinessApplicationService {
 
     private static final DateTimeFormatter NTS_DATE_FORMAT = DateTimeFormatter.ofPattern("yyyyMMdd");
+
+    // 테스트 편의용 예외 트리거. 사업자등록번호에 "0"만 입력하면 체크섬·국세청 진위확인을
+    // 전부 건너뛴다. 저장은 "0" 그대로 하지 않고 매번 새 값을 만들어서, 여러 명이 동시에
+    // "0"으로 테스트해도 business_number 유니크 제약(대기중 신청·승인된 사업자)에 걸리지 않게 한다.
+    private static final String VERIFICATION_BYPASS_INPUT = "0";
 
     private final BusinessApplicationRepository businessApplicationRepository;
     private final AccountRepository accountRepository;
@@ -58,19 +64,25 @@ public class BusinessApplicationService {
             throw new BusinessException(ErrorCode.DATA_CONFLICT);
         }
 
-        String normalizedNumber = BusinessRegistrationNumberValidator.normalize(request.businessNumber());
-        if (!BusinessRegistrationNumberValidator.isValidChecksum(normalizedNumber)) {
-            throw new BusinessException(ErrorCode.INVALID_BUSINESS_NUMBER);
-        }
+        String normalizedNumber;
+        if (VERIFICATION_BYPASS_INPUT.equals(request.businessNumber() == null ? null : request.businessNumber().trim())) {
+            // 체크섬·국세청 검증을 건너뛴 신청이라는 걸 값 자체로 알아볼 수 있게 TEST- 접두사를 쓴다.
+            normalizedNumber = "TEST-" + System.currentTimeMillis() + ThreadLocalRandom.current().nextInt(10, 99);
+        } else {
+            normalizedNumber = BusinessRegistrationNumberValidator.normalize(request.businessNumber());
+            if (!BusinessRegistrationNumberValidator.isValidChecksum(normalizedNumber)) {
+                throw new BusinessException(ErrorCode.INVALID_BUSINESS_NUMBER);
+            }
 
-        if (ntsBusinessVerificationClient.isConfigured()) {
-            boolean matched = ntsBusinessVerificationClient.verify(
-                    normalizedNumber,
-                    request.openedAt().format(NTS_DATE_FORMAT),
-                    request.representativeName()
-            );
-            if (!matched) {
-                throw new BusinessException(ErrorCode.BUSINESS_REGISTRATION_MISMATCH);
+            if (ntsBusinessVerificationClient.isConfigured()) {
+                boolean matched = ntsBusinessVerificationClient.verify(
+                        normalizedNumber,
+                        request.openedAt().format(NTS_DATE_FORMAT),
+                        request.representativeName()
+                );
+                if (!matched) {
+                    throw new BusinessException(ErrorCode.BUSINESS_REGISTRATION_MISMATCH);
+                }
             }
         }
 
