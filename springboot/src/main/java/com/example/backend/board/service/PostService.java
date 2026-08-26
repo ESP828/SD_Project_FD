@@ -1754,7 +1754,7 @@ public class PostService {
 
     private void assertLikeablePost(Post post) {
         if (post.getAuthor().getStatus() == AccountStatus.WITHDRAWN) {
-            throw badRequest("탈퇴한 회원의 게시물입니다.");
+            throw badRequest("탈퇴한 회원의 게시물에는 추천할 수 없습니다.");
         }
         if (post.getCategory() != PostCategory.NEWS) {
             return;

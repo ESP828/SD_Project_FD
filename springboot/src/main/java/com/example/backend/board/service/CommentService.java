@@ -684,7 +684,7 @@ public class CommentService {
         assertCommunityPost(post);
         accessPolicy.assertCanRead(post.getBoardType(), currentAccount);
         if (post.getAuthor().getStatus() == AccountStatus.WITHDRAWN) {
-            throw badRequest("탈퇴한 회원의 게시물입니다.");
+            throw badRequest("작성자가 탈퇴한 게시물에는 댓글을 작성할 수 없습니다.");
         }
         return post;
     }
@@ -712,7 +712,7 @@ public class CommentService {
             throw badRequest("같은 게시글의 댓글에만 답글을 남길 수 있습니다.");
         }
         if (target.getAuthor().getStatus() == AccountStatus.WITHDRAWN) {
-            throw badRequest("탈퇴한 회원의 댓글에는 답글을 남길 수 없습니다.");
+            throw badRequest("탈퇴한 회원의 댓글에는 답글을 작성할 수 없습니다.");
         }
         Long rootParentCommentId = target.getParentCommentId() == null
                 ? target.getCommentId()

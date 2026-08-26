@@ -73,6 +73,7 @@
   const commentEmojiToggle = document.getElementById("comment-emoji-toggle");
   const commentEmojiPanel = document.getElementById("comment-emoji-panel");
   const commentSubmitButton = commentForm?.querySelector('button[type="submit"]');
+  const commentFormDescription = commentForm?.querySelector(".comment-form-heading span");
   const toast = document.getElementById("board-toast");
 
   if (!session || !board || !detailContent) return;
@@ -1768,14 +1769,23 @@
       toggleLike,
     );
     likeButton.disabled = likeInFlight;
+    if (withdrawnAuthor) {
+      likeButton.title = "탈퇴한 회원의 게시물에는 추천할 수 없습니다.";
+      likeButton.setAttribute("aria-label", "탈퇴한 회원의 게시물에는 추천할 수 없습니다.");
+    }
     activeLikeButton = likeButton;
     actions.append(likeButton);
 
     if (commentContent) {
       commentContent.disabled = withdrawnAuthor;
       commentContent.placeholder = withdrawnAuthor
-        ? "탈퇴한 회원의 게시물입니다."
+        ? "작성자가 탈퇴하여 댓글을 작성할 수 없습니다."
         : "맛있는 이야기에 댓글을 남겨 보세요.";
+    }
+    if (commentFormDescription) {
+      commentFormDescription.textContent = withdrawnAuthor
+        ? "작성자가 탈퇴한 게시물로 댓글을 작성할 수 없습니다."
+        : "이야기를 읽고 의견을 남겨 보세요.";
     }
     if (commentImageInput) commentImageInput.disabled = withdrawnAuthor;
     if (commentImageSelect) commentImageSelect.disabled = withdrawnAuthor;
@@ -1950,7 +1960,7 @@
 
   async function toggleLike() {
     if (isWithdrawnAuthor(state.post)) {
-      showToast(toast, "탈퇴한 회원의 게시물입니다.", true);
+      showToast(toast, "탈퇴한 회원의 게시물에는 추천할 수 없습니다.", true);
       return;
     }
     if (!session.authenticated) {
@@ -3145,7 +3155,7 @@
   commentForm.addEventListener("submit", async (event) => {
     event.preventDefault();
     if (isWithdrawnAuthor(state.post)) {
-      showToast(toast, "탈퇴한 회원의 게시물입니다.", true);
+      showToast(toast, "작성자가 탈퇴한 게시물에는 댓글을 작성할 수 없습니다.", true);
       return;
     }
     if (!session.authenticated) {
