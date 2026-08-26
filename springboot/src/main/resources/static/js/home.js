@@ -9,8 +9,16 @@
   const HOME_PRESET_CACHE_TTL_MS = 2 * 60 * 1000;
   const HOME_PRESET_CACHE_STALE_MS = 30 * 60 * 1000;
   const HOME_PRESET_PAGE_SIZE = 24;
+  const HOME_PRESET_CLONE_ATTRIBUTE = "data-home-preset-clone";
+  const HOME_PRESET_KEY_ATTRIBUTE = "data-home-preset-key";
+  const originalCardSelector = `.home-preset-card:not([${HOME_PRESET_CLONE_ATTRIBUTE}])`;
+  const cloneCardSelector = `.home-preset-card[${HOME_PRESET_CLONE_ATTRIBUTE}]`;
+  const reducedMotionQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
+  let autoScrollController = null;
 
   function showEmptyPresetState() {
+    autoScrollController?.destroy();
+    autoScrollController = null;
     const state = document.createElement("p");
     state.className = "home-preset-state";
     state.textContent = "현재 이미지가 등록된 보물지도가 없습니다.";
@@ -26,8 +34,22 @@
 
     const card = image.closest(".home-preset-card");
     if (!card || !list.contains(card)) return;
-    card.remove();
-    if (!list.querySelector(".home-preset-card")) showEmptyPresetState();
+
+    // 같은 카드를 복제한 항목까지 함께 제거해야 두 카드 세트의 폭이 계속 일치한다.
+    // 그렇지 않으면 첫 카드의 이미지가 깨졌을 때 루프 기준 노드가 DOM에서 빠져
+    // 이동 거리가 0이 되거나, 세트 경계에 빈 공간이 생긴다.
+    const itemKey = card.getAttribute(HOME_PRESET_KEY_ATTRIBUTE);
+    const failedCards = itemKey === null
+      ? [card]
+      : Array.from(list.querySelectorAll(".home-preset-card"))
+        .filter((candidate) => candidate.getAttribute(HOME_PRESET_KEY_ATTRIBUTE) === itemKey);
+    failedCards.forEach((failedCard) => failedCard.remove());
+
+    if (!list.querySelector(originalCardSelector)) {
+      showEmptyPresetState();
+      return;
+    }
+    autoScrollController?.refresh();
   }, true);
 
   function readPresetCache() {
@@ -131,38 +153,90 @@
   }
 
   function startAutoScroll() {
-    const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    if (prefersReducedMotion) return;
-
-    const originalCards = Array.from(list.children);
-    if (originalCards.length < 2) return;
-
-    // 카드 세트를 한 번 더 복제해 이어붙여서, 오른쪽에서 왼쪽으로 끊김 없이 계속 흐르도록 만든다.
-    let firstClone = null;
-    originalCards.forEach((card, index) => {
-      const clone = card.cloneNode(true);
-      if (index === 0) firstClone = clone;
-      list.append(clone);
-    });
-
-    // 이미지 드래그가 포인터 이벤트를 가로채지 않도록 하고 디코딩은 렌더링과 분리한다.
-    list.querySelectorAll("img").forEach((img) => {
-      img.draggable = false;
-      img.decoding = "async";
-    });
+    if (reducedMotionQuery.matches) return null;
 
     let animationFrame = 0;
+    let resizeFrame = 0;
     let isVisible = !("IntersectionObserver" in window);
     let pointerPaused = false;
     let focusPaused = false;
+    let isDestroyed = false;
     let lastFrameTime = 0;
+    let loopPoint = 0;
     const frameInterval = 1000 / 30;
     const pixelsPerMillisecond = 0.036;
 
-    function getLoopPoint() {
-      return firstClone
-        ? firstClone.offsetLeft - originalCards[0].offsetLeft
+    function originalCards() {
+      return Array.from(list.querySelectorAll(originalCardSelector));
+    }
+
+    function removeClones() {
+      list.querySelectorAll(cloneCardSelector).forEach((clone) => clone.remove());
+    }
+
+    function appendCloneSet(cards) {
+      const fragment = document.createDocumentFragment();
+      cards.forEach((card) => {
+        const clone = card.cloneNode(true);
+        clone.setAttribute(HOME_PRESET_CLONE_ATTRIBUTE, "");
+        clone.setAttribute("aria-hidden", "true");
+        clone.tabIndex = -1;
+        clone.querySelectorAll("a, button, input, select, textarea, [tabindex]")
+          .forEach((interactive) => { interactive.tabIndex = -1; });
+        fragment.append(clone);
+      });
+      list.append(fragment);
+    }
+
+    function normalizeScrollLeft(value) {
+      if (loopPoint <= 0) return 0;
+      return ((value % loopPoint) + loopPoint) % loopPoint;
+    }
+
+    function rebuildClones() {
+      if (isDestroyed) return;
+      const previousLoopPoint = loopPoint;
+      const previousScrollLeft = list.scrollLeft;
+      stopAnimation();
+      removeClones();
+
+      const cards = originalCards();
+      cards.forEach((card, index) => {
+        card.setAttribute(HOME_PRESET_KEY_ATTRIBUTE, String(index));
+      });
+
+      if (cards.length < 2) {
+        loopPoint = 0;
+        list.scrollLeft = 0;
+        return;
+      }
+
+      // 한 세트의 폭이 화면보다 짧아도 루프 경계 오른쪽이 비지 않도록
+      // 화면을 덮는 데 필요한 만큼 복제 세트를 추가한다.
+      appendCloneSet(cards);
+      const firstClone = list.querySelector(cloneCardSelector);
+      loopPoint = firstClone ? firstClone.offsetLeft - cards[0].offsetLeft : 0;
+      let cloneSetCount = 1;
+      while (
+        loopPoint > 0
+        && list.scrollWidth + 0.5 < loopPoint + list.clientWidth
+        && cloneSetCount < 20
+      ) {
+        appendCloneSet(cards);
+        cloneSetCount += 1;
+      }
+
+      if (loopPoint <= 0) {
+        list.scrollLeft = 0;
+        return;
+      }
+
+      const progress = previousLoopPoint > 0
+        ? (((previousScrollLeft % previousLoopPoint) + previousLoopPoint) % previousLoopPoint)
+          / previousLoopPoint
         : 0;
+      list.scrollLeft = progress * loopPoint;
+      scheduleAnimation();
     }
 
     function isUserPaused() {
@@ -176,7 +250,14 @@
     }
 
     function scheduleAnimation() {
-      if (animationFrame || !isVisible || document.hidden || isUserPaused()) return;
+      if (
+        animationFrame
+        || isDestroyed
+        || loopPoint <= 0
+        || !isVisible
+        || document.hidden
+        || isUserPaused()
+      ) return;
       animationFrame = window.requestAnimationFrame(step);
     }
 
@@ -187,10 +268,10 @@
       const elapsed = Math.min(timestamp - lastFrameTime, 100);
       if (elapsed >= frameInterval) {
         lastFrameTime = timestamp;
-        const loopPoint = getLoopPoint();
         if (loopPoint > 0) {
-          list.scrollLeft += elapsed * pixelsPerMillisecond;
-          if (list.scrollLeft >= loopPoint) list.scrollLeft -= loopPoint;
+          list.scrollLeft = normalizeScrollLeft(
+            list.scrollLeft + elapsed * pixelsPerMillisecond,
+          );
         }
       }
       scheduleAnimation();
@@ -204,7 +285,6 @@
       }, { rootMargin: "120px 0px", threshold: 0.01 })
       : null;
 
-    visibilityObserver?.observe(list);
     const pauseForPointer = () => {
       pointerPaused = true;
       stopAnimation();
@@ -227,21 +307,73 @@
       if (document.hidden) stopAnimation();
       else scheduleAnimation();
     };
+    const handleResize = () => {
+      if (resizeFrame || isDestroyed) return;
+      resizeFrame = window.requestAnimationFrame(() => {
+        resizeFrame = 0;
+        rebuildClones();
+      });
+    };
+    const handlePageHide = (event) => {
+      stopAnimation();
+      if (!event.persisted) destroy();
+    };
+    const handlePageShow = () => {
+      rebuildClones();
+      scheduleAnimation();
+    };
+    const resizeObserver = "ResizeObserver" in window
+      ? new ResizeObserver(handleResize)
+      : null;
+
+    function destroy() {
+      if (isDestroyed) return;
+      isDestroyed = true;
+      stopAnimation();
+      if (resizeFrame) window.cancelAnimationFrame(resizeFrame);
+      resizeFrame = 0;
+      visibilityObserver?.disconnect();
+      resizeObserver?.disconnect();
+      list.removeEventListener("pointerenter", pauseForPointer);
+      list.removeEventListener("pointerleave", resumeFromPointer);
+      list.removeEventListener("focusin", pauseForFocus);
+      list.removeEventListener("focusout", resumeFromFocus);
+      document.removeEventListener("visibilitychange", handleDocumentVisibility);
+      window.removeEventListener("resize", handleResize);
+      window.removeEventListener("pagehide", handlePageHide);
+      window.removeEventListener("pageshow", handlePageShow);
+      removeClones();
+      list.scrollLeft = 0;
+    }
+
+    rebuildClones();
     list.addEventListener("pointerenter", pauseForPointer, { passive: true });
     list.addEventListener("pointerleave", resumeFromPointer, { passive: true });
     list.addEventListener("focusin", pauseForFocus);
     list.addEventListener("focusout", resumeFromFocus);
     document.addEventListener("visibilitychange", handleDocumentVisibility);
-    window.addEventListener("pagehide", () => {
-      stopAnimation();
-      visibilityObserver?.disconnect();
-      document.removeEventListener("visibilitychange", handleDocumentVisibility);
-    }, { once: true });
+    window.addEventListener("resize", handleResize, { passive: true });
+    window.addEventListener("pagehide", handlePageHide);
+    window.addEventListener("pageshow", handlePageShow);
+    resizeObserver?.observe(list);
+    visibilityObserver?.observe(list);
     scheduleAnimation();
+
+    return { refresh: rebuildClones, destroy };
+  }
+
+  function syncAutoScrollWithMotionPreference() {
+    autoScrollController?.destroy();
+    autoScrollController = null;
+    if (!reducedMotionQuery.matches && list.querySelector(originalCardSelector)) {
+      autoScrollController = startAutoScroll();
+    }
   }
 
   function renderPresetPayload(payload) {
     const presets = Array.isArray(payload?.data?.content) ? payload.data.content : [];
+    autoScrollController?.destroy();
+    autoScrollController = null;
     list.replaceChildren();
     list.setAttribute("aria-busy", "false");
     const cards = presets
@@ -252,7 +384,7 @@
       return;
     }
     list.append(...cards);
-    startAutoScroll();
+    syncAutoScrollWithMotionPreference();
   }
 
   async function fetchAllPresets() {
@@ -305,6 +437,12 @@
     writePresetCache(payload);
     if (render) renderPresetPayload(payload);
     return payload;
+  }
+
+  if (typeof reducedMotionQuery.addEventListener === "function") {
+    reducedMotionQuery.addEventListener("change", syncAutoScrollWithMotionPreference);
+  } else if (typeof reducedMotionQuery.addListener === "function") {
+    reducedMotionQuery.addListener(syncAutoScrollWithMotionPreference);
   }
 
   const cachedPresets = readPresetCache();

@@ -770,37 +770,37 @@ h4 {
   padding-block: 40px 34px;
 }
 
-/* 안내 링크는 브랜드 소개 아래 한 줄로 두어 푸터 왼쪽 기준선에서 시작하게 한다. */
+/* 로고 아래에서 소개 문구와 안내·고지 영역의 시작점을 나란히 맞춘다. */
 .footer-main {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  gap: 26px;
+  gap: 22px;
   align-items: start;
 }
 
 .footer-brand img {
+  display: block;
   width: 138px;
-  margin-bottom: 14px;
+  margin-bottom: 10px;
 }
 
-.footer-brand p {
+.footer-content-row {
+  display: grid;
+  grid-template-columns: minmax(360px, 0.85fr) minmax(0, 1.15fr);
+  gap: 48px;
+  align-items: start;
+}
+
+.footer-tagline {
+  min-width: 0;
+}
+
+.footer-tagline p {
   max-width: 520px;
   margin: 0;
   color: #5f6875;
-  font-size: 0.9rem;
+  font-size: calc(0.9rem - 2px);
   line-height: 1.72;
-}
-
-.footer-brand-row {
-  display: flex;
-  width: 100%;
-  min-width: 0;
-  align-items: center;
-}
-
-.footer-brand-row > p {
-  min-width: 0;
-  flex: 0 1 auto;
 }
 
 .footer-brand-accent {
@@ -814,15 +814,14 @@ h4 {
 
 .footer-links {
   display: flex;
-  width: auto;
+  width: 100%;
   min-width: 0;
-  flex: 0 1 auto;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
   justify-content: flex-start;
   gap: 14px 26px;
   margin: 0;
-  padding-left: 10px;
-  overflow-x: auto;
+  padding: 0;
+  overflow-x: visible;
 }
 
 .footer-link {
@@ -861,22 +860,20 @@ h4 {
   outline-offset: 3px;
 }
 
-.footer-meta {
+.footer-information {
   display: grid;
-  grid-template-columns: minmax(220px, 0.62fr) minmax(0, 1.38fr);
-  gap: 34px 64px;
-  align-items: start;
-  margin-top: 30px;
+  min-width: 0;
+  gap: 12px;
 }
 
 .footer-business {
-  margin: 0;
+  margin: 18px 0 0;
   color: #7b8490;
   font-size: 0.77rem;
   line-height: 1.8;
 }
 
-.footer-business p {
+.footer-business > p:not(.footer-copyright) {
   display: flex;
   flex-wrap: wrap;
   gap: 6px 14px;
@@ -890,6 +887,14 @@ h4 {
 .footer-business address {
   margin-top: 3px;
   font-style: normal;
+}
+
+.footer-copyright {
+  display: block;
+  margin: 8px 0 0;
+  color: #9299a3;
+  font-size: 0.75rem;
+  line-height: 1.6;
 }
 
 .footer-notices {
@@ -911,17 +916,6 @@ h4 {
 
 .footer-notices p:last-child {
   margin-bottom: 0;
-}
-
-.footer-bottom {
-  display: flex;
-  min-height: 58px;
-  align-items: center;
-  justify-content: space-between;
-  gap: 20px;
-  border-top: 1px solid #eef1f4;
-  color: #9299a3;
-  font-size: 0.75rem;
 }
 
 .footer-dialog {
@@ -1148,6 +1142,11 @@ h4 {
     font-size: 0.88rem;
   }
 
+  .footer-content-row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 22px;
+  }
+
 }
 
 @media (max-width: 1080px) and (min-width: 761px) {
@@ -1253,22 +1252,6 @@ h4 {
     gap: 12px 22px;
   }
 
-  .footer-brand-row {
-    align-items: flex-start;
-    flex-direction: column;
-    gap: 10px;
-  }
-
-  .footer-brand-row .footer-links {
-    width: 100%;
-    padding-left: 0;
-  }
-
-  .footer-meta {
-    grid-template-columns: 1fr;
-    gap: 22px;
-  }
-
   .footer-dialog {
     width: min(100% - 20px, 680px);
     max-height: calc(100vh - 20px);
@@ -1286,12 +1269,6 @@ h4 {
   .footer-dialog-close {
     width: calc(100% - 40px);
     margin: 15px 20px 20px;
-  }
-
-  .footer-bottom {
-    align-items: flex-start;
-    flex-direction: column;
-    padding-block: 16px;
   }
 
   body {
