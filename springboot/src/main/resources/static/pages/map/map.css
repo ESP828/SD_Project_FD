@@ -360,6 +360,13 @@
   font-weight: 900;
 }
 
+.result-summary-status-group {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 8px;
+}
+
 .map-status {
   max-width: 205px;
   margin: 0;
