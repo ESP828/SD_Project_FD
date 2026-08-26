@@ -1317,13 +1317,41 @@
     try {
       setMapStatus(`“${normalized}” 검색 중입니다.`);
       const response = await Api.get(`/public/search/restaurants/bounds?${params}`, { auth: false });
-      const results = (response.data || []).map(toSearchPlace);
+      let results = (response.data || []).map(toSearchPlace);
+      // 지금 지도가 보여주는 위치 근처에는 결과가 없을 수 있다(예: 다른 지역 보물지도를
+      // 보다가 그 자리에서 전혀 다른 동네를 검색한 경우). 이럴 때 "검색 결과 없음"으로
+      // 끝내지 않고, 반경 제한 없이 전국에서 한 번 더 찾아본다.
+      let widenedNationwide = false;
+      if (!results.length) {
+        try {
+          const nationwideParams = new URLSearchParams({ keyword: normalized, page: "0", size: "20" });
+          const nationwideResponse = await Api.get(
+            `/public/search/restaurants?${nationwideParams}`,
+            { auth: false },
+          );
+          const nationwideItems = nationwideResponse.data?.items || [];
+          if (nationwideItems.length) {
+            results = nationwideItems.map(toSearchPlace);
+            widenedNationwide = true;
+          }
+        } catch (_error) {
+          // 확대 검색이 실패해도 아래에서 원래의 "결과 없음" 안내로 처리한다.
+        }
+      }
       renderItems(results, "검색 결과", true, "search", {
         message: `이 지역에서 “${normalized}”에 대한 검색 결과를 찾지 못했습니다.`
           + " 검색어를 다시 확인하거나, 지도를 옮겨 다른 지역에서 찾아보세요.",
         actions: emptySearchActions(),
       });
-      setMapStatus(results.length ? `${results.length}개의 장소를 표시했습니다.` : "검색 결과가 없습니다.", !results.length);
+      if (results.length) {
+        setMapStatus(
+          widenedNationwide
+            ? `이 지역에는 없어 전국에서 “${normalized}” ${results.length}개를 찾아 보여드립니다.`
+            : `${results.length}개의 장소를 표시했습니다.`,
+        );
+      } else {
+        setMapStatus("검색 결과가 없습니다.", true);
+      }
       saveMapState();
     } catch (error) {
       renderEmptyResults("장소 검색 중 오류가 발생했습니다.");
@@ -1396,8 +1424,23 @@
     }
   }
 
+  // "새로고침"이나 "뒤로가기"로 이 페이지에 돌아온 경우에만 이전 검색 상태를 되살린다.
+  // 메뉴 링크 등으로 방금 새로 들어온 경우(navigate)까지 복원하면, 몇 분 전 다른 곳에서
+  // 검색해 둔 결과·지도 중심이 아무 예고 없이 다시 나타나 "검색이 됐다 안됐다" 하는 것처럼 보인다.
+  function isReturningNavigation() {
+    try {
+      const [entry] = performance.getEntriesByType("navigation");
+      if (entry) return entry.type === "back_forward" || entry.type === "reload";
+    } catch (_error) {
+      /* Navigation Timing API를 못 쓰면 아래 폴백으로 넘어간다. */
+    }
+    // 구형 브라우저 폴백.
+    return performance.navigation?.type === 2 || performance.navigation?.type === 1;
+  }
+
   function readMapState() {
     try {
+      if (!isReturningNavigation()) return null;
       const raw = sessionStorage.getItem(MAP_STATE_KEY);
       if (!raw) return null;
       const state = JSON.parse(raw);
