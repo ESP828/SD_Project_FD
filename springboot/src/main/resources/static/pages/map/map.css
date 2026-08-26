@@ -788,6 +788,7 @@
   line-height: 1.5;
 }
 
+/* 1. 기본 찜 버튼 스타일 보완 */
 .place-detail-favorite {
   display: grid;
   width: 42px;
@@ -798,6 +799,39 @@
   border-radius: 50%;
   color: var(--color-muted);
   background: #fff;
+  transition: transform 150ms ease, border-color 150ms ease, color 150ms ease;
+}
+
+/* 2. 840px 이하 모바일/태블릿 반응형 구간 수정 */
+@media (max-width: 840px) {
+  /* 닫기 버튼이 우측 끝(right: 0)에 위치 */
+  .place-detail-close {
+    top: 12px;
+    right: 0;
+  }
+
+  /* 닫기 버튼(34px)과 겹치지 않도록 헤더 우측 여백을 확보하거나 찜 버튼을 왼쪽으로 이동 */
+  .place-detail-header {
+    margin-bottom: 16px;
+    padding-bottom: 16px;
+    padding-right: 44px; /* 닫기 버튼 영역만큼 우측 여백 확보 */
+    border-bottom: 1px solid rgba(232, 237, 244, 0.9);
+  }
+
+  /* 찜 버튼 위치를 닫기 버튼 왼쪽으로 확실하게 밀어줌 */
+  .place-detail-favorite {
+    margin-right: 4px;
+    margin-top: -4px; /* 닫기 버튼과 세로 정렬 맞춤 */
+  }
+}
+
+/* 3. 520px 이하 초소형 모바일 대응 */
+@media (max-width: 520px) {
+  .place-detail-favorite {
+    width: 38px;
+    height: 38px;
+    margin-right: 6px;
+  }
 }
 
 .place-detail-favorite.is-favorited {

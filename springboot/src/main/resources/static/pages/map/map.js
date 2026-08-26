@@ -374,10 +374,14 @@
   function closeDetailPanel() {
     detailRequestToken += 1;
     restoreActiveMarker();
-    if (!detailPanel.classList.contains("is-open")) return;
-    rememberMapAnchor();
-    detailPanel.classList.remove("is-open");
-    trackPanelResize();
+    placeResults.querySelector(".place-result.is-active")?.classList.remove("is-active");
+    selectedRestaurantId = null;
+    detailBody.replaceChildren();
+    if (detailPanel.classList.contains("is-open")) {
+      rememberMapAnchor();
+      detailPanel.classList.remove("is-open");
+      trackPanelResize();
+    }
   }
 
   function escapeHtml(value) {

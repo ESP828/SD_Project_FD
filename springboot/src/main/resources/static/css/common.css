@@ -1385,17 +1385,6 @@ h4 {
   }
 }
 
-/* 모바일에서는 기준 폭(390px)으로 그린 화면을 통째로 확대·축소한다.
-   여백·글자·이미지가 대부분 px로 잡혀 있어 개별 규칙으로는 같이 커지지 않으므로,
-   페이지 전체 배율을 화면 폭에 맞춰 조절한다. 배율은 common.js가 --page-scale로 넣는다. */
-@media (max-width: 640px) {
-  body {
-    zoom: var(--page-scale, 1);
-    /* vh는 배율의 영향을 받지 않아 화면보다 길어지므로 배율만큼 되돌린다. */
-    min-height: calc(100vh / var(--page-scale, 1));
-  }
-}
-
 
 /* FOODUCK custom Pepe emoji */
 .fooduck-custom-emoji-inline {
@@ -1473,4 +1462,185 @@ h4 {
   margin: 6px 8px;
   object-fit: contain;
   vertical-align: middle;
+}
+
+@media (max-width: 720px) {
+  select:not([multiple]) {
+    appearance: none !important;
+    -webkit-appearance: none !important;
+    background-image:
+      linear-gradient(45deg, transparent 50%, var(--color-muted) 50%),
+      linear-gradient(135deg, var(--color-muted) 50%, transparent 50%) !important;
+    background-position: calc(100% - 25px) 50%, calc(100% - 20px) 50% !important;
+    background-size: 5px 5px, 5px 5px !important;
+    background-repeat: no-repeat !important;
+  }
+}
+
+/* 1. 승인 대기 행 레이아웃 안정화 */
+.management-preview-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+/* 2. 텍스트 영역이 버튼을 밀어내지 않도록 가변 너비 및 말줄임 지정 */
+.management-preview-copy {
+  flex: 1 1 auto;
+  min-width: 0; /* Flexbox 자식 요소 축소 허용 필수 속성 */
+}
+
+.management-preview-heading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.management-preview-heading strong {
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.management-preview-copy p,
+.management-preview-copy small {
+  display: block;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 2px 0 0 0;
+}
+
+/* 3. 버튼이 찌그러지거나 튀어나가지 않도록 고정 */
+.management-preview-row .button,
+.management-preview-row .button-secondary {
+  flex-shrink: 0; /* 버튼 크기 유지 */
+  white-space: nowrap;
+  box-sizing: border-box;
+}
+
+/* 4. 모바일 화면(600px 이하)에서 버튼이 아래로 자연스럽게 정돈되도록 전환 */
+@media (max-width: 600px) {
+  .management-preview-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .management-preview-row .button {
+    width: 100%;
+    text-align: center;
+    justify-content: center;
+  }
+}
+@media (max-width: 768px) {
+  /* 1. 절대 위치(absolute)로 겹쳐 있는 경우 */
+  /* 닫기 버튼이 우측 끝(right: 16px)에 위치할 때 */
+  .map-detail-close,
+  .restaurant-detail-close,
+  .map-drawer-close,
+  [data-detail-close] {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    z-index: 10;
+  }
+
+  /* 찜 버튼을 닫기 버튼의 왼쪽으로 위치 이동 */
+  .map-detail-favorite,
+  .restaurant-favorite-btn,
+  .map-drawer-favorite,
+  [data-favorite-btn],
+  #restaurant-favorite-button {
+    position: absolute;
+    top: 16px;
+    right: 60px; /* 닫기 버튼 크기(약 36~40px) + 간격(8px)만큼 왼쪽으로 배치 */
+    z-index: 10;
+  }
+
+  /* 2. 상단 헤더 컨테이너가 Flex/Grid로 구성되어 있는 경우 */
+  .map-detail-header-actions,
+  .restaurant-detail-top-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    z-index: 10;
+  }
+
+  .map-detail-header-actions .button,
+  .restaurant-detail-top-actions .button {
+    flex-shrink: 0;
+  }
+}/* ===================================================
+   PC / 데스크톱 (769px 이상): 기본 스타일 및 가로 1행 유지
+=================================================== */
+.recommendation-hero-actions {
+  display: flex !important;
+  flex-direction: row !important;
+  flex-wrap: nowrap !important; /* 768px 초과에서도 두 줄로 떨어지지 않음 */
+  align-items: center !important;
+  gap: 10px !important;
+  width: auto !important;
+}
+
+.recommendation-hero-actions .button {
+  flex-shrink: 0 !important;
+  white-space: nowrap !important;
+}
+
+/* ===================================================
+   모바일 전용 (768px 이하): 너비에 맞춰 1행 비례 유동 축소
+=================================================== */
+@media (max-width: 768px) {
+  .recommendation-hero-actions {
+    display: flex !important;
+    flex-direction: row !important;
+    flex-wrap: nowrap !important; /* 모바일에서도 가로 1행 유지 */
+    align-items: center !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    gap: clamp(4px, 1.2vw, 8px) !important;
+    box-sizing: border-box !important;
+  }
+
+  .recommendation-hero-actions .button {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    min-width: 0 !important;
+    min-height: clamp(38px, 4.5vw, 44px) !important;
+    padding-inline: clamp(4px, 1.5vw, 12px) !important;
+    font-size: clamp(0.7rem, 2.1vw, 0.86rem) !important;
+    letter-spacing: -0.04em !important;
+    white-space: nowrap !important;
+    box-sizing: border-box !important;
+  }
+
+  /* 텍스트가 더 긴 왼쪽 '맛집찾기' 버튼 */
+  .recommendation-hero-actions .button-primary {
+    flex: 1.2 1 0% !important;
+    gap: clamp(2px, 0.8vw, 5px) !important;
+  }
+
+  /* 오른쪽 '보물지도' 버튼 */
+  .recommendation-hero-actions .button-secondary {
+    flex: 1 1 0% !important;
+  }
+
+  /* 모바일 아이콘 크기 축소 */
+  .recommendation-hero-actions .button .material-symbols-rounded {
+    font-size: clamp(14px, 3.2vw, 18px) !important;
+    flex-shrink: 0 !important;
+  }
 }

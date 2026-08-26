@@ -187,7 +187,7 @@
     const title = element("div");
     title.append(
       element("h3", "", "계정 탈퇴"),
-      element("p", "", "탈퇴 후에는 계정으로 다시 로그인할 수 없습니다."),
+      element("p", "", "탈퇴 이후에는 계정으로 다시 로그인할 수 없습니다."),
     );
     const closeButton = element("button", "mypage-dialog-close", "");
     closeButton.type = "button";

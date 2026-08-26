@@ -192,7 +192,7 @@
   }
 
   function favoriteCard(item) {
-    const card = element("article", "mypage-detail-card");
+    const card = element("article", "mypage-detail-card mypage-favorite-card");
     const href = restaurantDetailPath(item);
     card.append(
       createCardTop(item.restaurantName || "이름 없는 가게", item.categoryName || "카테고리 없음", href),
@@ -204,7 +204,7 @@
   }
 
   function presetCard(item) {
-    const card = element("article", "mypage-detail-card");
+    const card = element("article", "mypage-detail-card mypage-preset-card");
     const href = presetDetailPath(item.presetId);
     card.append(createCardTop(item.title || "제목 없는 보물지도", item.category || "카테고리 없음", href));
 
@@ -227,7 +227,7 @@
   }
 
   function reviewCard(item) {
-    const card = element("article", "mypage-detail-card");
+    const card = element("article", "mypage-detail-card mypage-review-card");
     const href = restaurantDetailPath(item);
     const footer = element("div", "mypage-detail-card-footer");
     const actions = element("div", "mypage-detail-card-actions");
@@ -350,7 +350,7 @@
   }
 
   function postCard(item) {
-    const card = element("article", "mypage-detail-card");
+    const card = element("article", "mypage-detail-card mypage-post-card");
     const href = boardDetailPath(item.postId);
     card.append(createCardTop(item.title || "제목 없는 게시글", item.category || "일반", href));
     const meta = element("div", "mypage-detail-meta");
@@ -520,6 +520,18 @@
     const menuBar = element("nav", "mypage-detail-nav");
     menuBar.setAttribute("aria-label", "마이페이지 상세 메뉴");
     menuBar.style.setProperty("--mypage-detail-nav-columns", Math.max(items.length, 1));
+    const select = element("select", "mypage-detail-nav-select");
+    select.setAttribute("aria-label", "마이페이지 상세 항목 선택");
+    items.forEach((item) => {
+      const option = element("option", "", item.label);
+      option.value = item.href;
+      option.selected = item.current;
+      select.append(option);
+    });
+    select.addEventListener("change", () => {
+      window.location.href = select.value;
+    });
+    menuBar.append(select);
     items.forEach((item) => {
       const link = element("a");
       link.href = item.href;
@@ -575,7 +587,7 @@
     const menuBar = createMenuBar(menuItems);
     const body = element("div", "mypage-detail-body");
     body.append(renderItems(items));
-    surface.append(heading, menuBar, body);
+    surface.append( heading,menuBar, body);
     main.append(surface);
     layout.append(main);
     content.append(layout);

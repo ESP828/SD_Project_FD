@@ -632,3 +632,42 @@
   color: #1565c0;
   background: #e3f2fd;
 }
+/* 모바일 (768px 이하) 탭 2분할 50% 고정 */
+@media (max-width: 768px) {
+  /* 탭 전체 컨테이너: flex 너비 100% 보장 및 박스 사이징 */
+  .reco-tabs {
+    display: flex !important;
+    width: 100% !important;
+    gap: 6px;
+    margin-bottom: 16px;
+    box-sizing: border-box;
+  }
+
+  /* 각 탭 버튼: 50% 균등 분할 */
+  .reco-tabs .reco-tab {
+    flex: 1 1 50% !important;
+    width: 50% !important;
+    min-width: 0 !important;
+    min-height: 44px;
+    padding: 0 4px !important;
+    font-size: 0.84rem !important;
+    text-align: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    box-sizing: border-box;
+  }
+}
+
+/* 360px 이하 초소형 화면 대응 */
+@media (max-width: 360px) {
+  .reco-tabs {
+    gap: 4px;
+  }
+
+  .reco-tabs .reco-tab {
+    min-height: 40px;
+    font-size: 0.78rem !important;
+    letter-spacing: -0.03em;
+  }
+}

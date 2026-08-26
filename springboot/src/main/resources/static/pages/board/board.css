@@ -1005,44 +1005,6 @@
   }
 }
 
-@media (max-width: 480px) {
-  .board-tabs {
-    display: flex;
-    align-items: stretch;
-    flex-direction: column;
-  }
-
-  .board-tab-buttons {
-    display: none;
-  }
-
-  .board-tab-select-label,
-  .board-tab-select {
-    display: block;
-  }
-
-  .board-tab-select-label {
-    margin-bottom: 6px;
-  }
-
-  .board-tab-select {
-    width: 100%;
-  }
-
-  .board-panel-header {
-    align-items: flex-start;
-    padding-inline: 18px;
-  }
-
-  .post-row {
-    padding-inline: 18px;
-  }
-
-  .dialog-shell {
-    padding: 26px 19px;
-  }
-}
-
 /* 독립형 목록·작성·상세 화면 */
 .post-row {
   color: inherit;
@@ -4632,5 +4594,120 @@ body.guidance-settings-visible.board-scroll-top-visible .board-toast {
 
   body.guidance-settings-visible.board-scroll-top-visible .board-toast {
     bottom: calc(max(10px, env(safe-area-inset-bottom)) + 188px);
+  }
+}
+
+/* 360px 이하 초소형 모바일 화면 대응 */
+@media (max-width: 360px) {
+  /* 1. 상단 탭 버튼: 높이를 키우고(min-height: 48px), 두 줄 표시 허용 */
+  .board-tabs {
+    display: flex !important;
+    width: 100%;
+    gap: 4px;
+    margin-bottom: 12px;
+  }
+
+  .board-tab-buttons {
+    display: flex !important;
+    width: 100%;
+    gap: 4px;
+  }
+
+  .board-tab {
+    flex: 1 1 25%;
+    min-width: 0 !important;
+    min-height: 48px; /* 버튼 높이 확장 (두 줄 텍스트 수용) */
+    padding: 6px 2px !important;
+    font-size: 0.72rem !important;
+    line-height: 1.25 !important;
+    letter-spacing: -0.04em;
+    text-align: center;
+
+    /* 줄바꿈 및 말줄임 해제 설정 */
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    white-space: normal !important; /* ... 말줄임 대신 줄바꿈 허용 */
+    word-break: keep-all !important; /* 단어 단위 줄바꿈 유지 */
+    overflow: visible !important;
+    text-overflow: clip !important;
+    box-sizing: border-box;
+  }
+
+  /* 2. 게시글 목록 헤더 패딩 축소 및 제목/글쓰기 버튼 줄바꿈 허용 */
+  .board-panel-header {
+    padding: 16px 12px !important;
+    flex-wrap: wrap;
+    gap: 10px;
+    box-sizing: border-box;
+  }
+
+  .board-panel-header > div {
+    min-width: 0;
+    flex: 1 1 auto;
+  }
+
+  .board-panel-header .button,
+  #write-button {
+    flex-shrink: 0;
+  }
+
+  /* 3. 게시글 상세 하단 액션 버튼 그룹 해제 및 100% 폭 전환 */
+  .detail-actions {
+    --detail-action-min: 0px;
+    gap: 6px;
+  }
+
+  .detail-actions-group,
+  .detail-actions-group:has(> .button:nth-child(2)),
+  .detail-actions-group:has(> .button:nth-child(3)) {
+    min-width: 0 !important;
+    width: 100%;
+    flex-wrap: wrap;
+  }
+
+  .detail-actions > .button,
+  .detail-actions-group > .button {
+    min-width: 0 !important;
+    flex: 1 1 100%;
+    box-sizing: border-box;
+  }
+
+  /* 4. 툴바 내부 여백 및 1열 배치 */
+  .board-toolbar {
+    grid-template-columns: 1fr !important;
+    padding: 10px;
+    box-sizing: border-box;
+  }
+
+  .board-toolbar .button {
+    grid-column: auto;
+    width: 100%;
+  }
+
+  /* 5. 카드 내부 패딩 축소 */
+  .board-form-card,
+  .board-detail-card,
+  .board-comments-card,
+  .board-list-panel {
+    padding-inline: 12px !important;
+    box-sizing: border-box;
+  }
+
+  .post-row {
+    padding: 16px 12px !important;
+  }
+
+  /* 6. 검색 및 기타 최소 폭 고정 버튼 유연화 */
+  .board-restaurant-search .button {
+    min-width: 0;
+    padding-inline: 10px;
+  }
+
+  .comment-reply-actions .button,
+  .comment-reply-actions .comment-action {
+    min-width: 0;
+    padding: 6px 8px;
+    font-size: 0.68rem;
   }
 }

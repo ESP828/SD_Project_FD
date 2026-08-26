@@ -18,19 +18,23 @@
   justify-content: space-between;
   gap: 14px;
   margin-bottom: 18px;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .accounts-role-filter {
   display: inline-flex;
-  gap: 8px;
+  gap: 6px;
   padding: 5px;
   border: 1px solid var(--color-line);
   border-radius: 14px;
   background: #fff;
+  box-sizing: border-box;
+  max-width: 100%;
 }
 
 .accounts-role-btn {
-  padding: 8px 16px;
+  padding: 8px 14px;
   border: 0;
   border-radius: 10px;
   color: var(--color-muted);
@@ -38,6 +42,8 @@
   font-weight: 800;
   background: transparent;
   cursor: pointer;
+  white-space: nowrap;
+  box-sizing: border-box;
   transition: background 150ms ease, color 150ms ease;
 }
 
@@ -54,17 +60,30 @@
   display: flex;
   align-items: center;
   gap: 10px;
+  flex-wrap: wrap;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
+/* 검색창 컨테이너 너비 계산 및 박스 모델 안정화 */
 .accounts-search {
   display: flex;
   align-items: center;
   gap: 8px;
-  min-width: 280px;
-  padding: 6px 8px 6px 16px;
+  width: auto;
+  min-width: 240px;
+  max-width: 100%;
+  padding: 6px 12px;
   border: 1px solid var(--color-line);
   border-radius: 14px;
   background: #fff;
+  box-sizing: border-box;
+}
+
+.accounts-mode-toggle {
+  box-sizing: border-box;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .accounts-mode-toggle.is-active {
@@ -75,22 +94,30 @@
 
 .accounts-search .material-symbols-rounded {
   color: var(--color-subtle);
+  flex-shrink: 0;
 }
 
 .accounts-search input {
   flex: 1;
   min-width: 0;
+  width: 100%;
   border: 0;
   outline: none;
   background: transparent;
+  font-size: 0.85rem;
+  box-sizing: border-box;
 }
 
 .accounts-table-wrap {
+  width: 100%;
+  max-width: 100%;
   overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
   border: 1px solid var(--color-line);
   border-radius: var(--radius-lg);
   background: #fff;
   box-shadow: var(--shadow-sm);
+  box-sizing: border-box;
 }
 
 .accounts-table {
@@ -138,6 +165,7 @@
   border-radius: 999px;
   font-size: 0.74rem;
   font-weight: 800;
+  white-space: nowrap;
 }
 
 .accounts-badge--role-ROLE_USER {
@@ -206,6 +234,7 @@
   border: 0;
   border-radius: 22px;
   box-shadow: var(--shadow-float);
+  box-sizing: border-box;
 }
 
 .account-edit-dialog::backdrop {
@@ -232,6 +261,7 @@
   flex-direction: column;
   gap: 14px;
   padding: 0 28px 26px;
+  box-sizing: border-box;
 }
 
 .account-edit-field {
@@ -243,12 +273,14 @@
 }
 
 .account-edit-field select {
+  width: 100%;
   min-height: 46px;
   padding: 0 12px;
   border: 1px solid var(--color-line);
   border-radius: 12px;
   background: #f9fbfd;
   font-weight: 600;
+  box-sizing: border-box;
 }
 
 .account-edit-status-msg {
@@ -266,29 +298,46 @@
   margin-top: 4px;
 }
 
+/* 모바일 반응형 최적화 */
 @media (max-width: 680px) {
   .accounts-toolbar {
     flex-direction: column;
     align-items: stretch;
+    gap: 12px;
   }
 
   .accounts-role-filter {
     display: grid;
     width: 100%;
     grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 4px;
+    padding: 4px;
   }
 
   .accounts-role-btn {
     width: 100%;
-    padding-inline: 8px;
+    padding: 8px 4px;
+    font-size: 0.75rem;
+    text-align: center;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   .accounts-toolbar-right {
+    display: flex;
     flex-direction: column;
     align-items: stretch;
+    width: 100%;
+    gap: 8px;
   }
 
   .accounts-search {
+    width: 100%;
     min-width: 0;
+  }
+
+  .accounts-mode-toggle {
+    width: 100%;
+    justify-content: center;
   }
 }
