@@ -60,10 +60,13 @@
           <strong id="result-title">검색 결과</strong>
           <span id="result-count">0</span>
         </div>
-        <button id="preset-manage-back" class="result-summary-list-button" type="button"
-                title="보물지도 맛집 목록으로" aria-label="보물지도 맛집 목록으로" hidden>
-          <span class="material-symbols-rounded" aria-hidden="true">list</span>
-        </button>
+        <div class="result-summary-status-group">
+          <p id="map-status" class="map-status" role="status" aria-live="polite"></p>
+          <button id="preset-manage-back" class="result-summary-list-button" type="button"
+                  title="보물지도 맛집 목록으로" aria-label="보물지도 맛집 목록으로" hidden>
+            <span class="material-symbols-rounded" aria-hidden="true">list</span>
+          </button>
+        </div>
       </div>
 
       <section id="place-results" class="place-results" aria-label="음식점 검색 결과">
