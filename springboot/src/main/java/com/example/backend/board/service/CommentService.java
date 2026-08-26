@@ -683,6 +683,9 @@ public class CommentService {
                 ));
         assertCommunityPost(post);
         accessPolicy.assertCanRead(post.getBoardType(), currentAccount);
+        if (post.getAuthor().getStatus() == AccountStatus.WITHDRAWN) {
+            throw badRequest("탈퇴한 회원의 게시물입니다.");
+        }
         return post;
     }
 

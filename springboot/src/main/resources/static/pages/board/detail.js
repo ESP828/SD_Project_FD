@@ -310,6 +310,10 @@
     });
   }
 
+  function isWithdrawnAuthor(author) {
+    return author?.authorNickname === "탈퇴한 회원";
+  }
+
   function isNewsPost(post = state.post) {
     return post?.category === "NEWS";
   }
@@ -1668,6 +1672,7 @@
 
   function renderPost(post) {
     state.post = post;
+    const withdrawnAuthor = isWithdrawnAuthor(post);
     const newsPost = isNewsPost(post);
     const newsTarget = newsPost ? newsSource(post) : null;
     const newsReturnPath = newsPost ? restaurantNewsPath(post) : null;
@@ -1765,6 +1770,22 @@
     likeButton.disabled = likeInFlight;
     activeLikeButton = likeButton;
     actions.append(likeButton);
+
+    if (commentContent) {
+      commentContent.disabled = withdrawnAuthor;
+      commentContent.placeholder = withdrawnAuthor
+        ? "탈퇴한 회원의 게시물입니다."
+        : "맛있는 이야기에 댓글을 남겨 보세요.";
+    }
+    if (commentImageInput) commentImageInput.disabled = withdrawnAuthor;
+    if (commentImageSelect) commentImageSelect.disabled = withdrawnAuthor;
+    if (commentEmojiToggle) commentEmojiToggle.disabled = withdrawnAuthor;
+    if (commentSubmitButton) commentSubmitButton.disabled = withdrawnAuthor;
+    if (commentWriteShortcut) commentWriteShortcut.hidden = withdrawnAuthor;
+    if (withdrawnAuthor) {
+      clearCommentImageSelection();
+      closeEmojiPicker();
+    }
     const canManage = newsPost
       ? post.newsManageableByCurrentUser === true && Boolean(newsTarget)
       : post.ownedByCurrentUser || session.isAdmin;
@@ -1928,6 +1949,10 @@
   }
 
   async function toggleLike() {
+    if (isWithdrawnAuthor(state.post)) {
+      showToast(toast, "탈퇴한 회원의 게시물입니다.", true);
+      return;
+    }
     if (!session.authenticated) {
       openDetailLogin({
         successMessage: "로그인되었습니다. 추천을 이어갑니다.",
@@ -2526,7 +2551,7 @@
 
   function renderCommentItem(comment, options = {}) {
     const { isReply = false, hasReplies = false } = options;
-    const withdrawnAuthor = comment.authorNickname === "탈퇴한 회원";
+    const withdrawnAuthor = isWithdrawnAuthor(comment);
     const item = element(
       "article",
       isReply ? "comment-item comment-reply" : "comment-item",
@@ -3119,6 +3144,10 @@
 
   commentForm.addEventListener("submit", async (event) => {
     event.preventDefault();
+    if (isWithdrawnAuthor(state.post)) {
+      showToast(toast, "탈퇴한 회원의 게시물입니다.", true);
+      return;
+    }
     if (!session.authenticated) {
       if (completeDetailLoginIfReady()) {
         window.setTimeout(() => commentForm.requestSubmit(), 0);
