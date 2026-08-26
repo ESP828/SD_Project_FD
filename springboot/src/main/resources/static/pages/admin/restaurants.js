@@ -15,6 +15,8 @@
   const searchInput = document.getElementById("restaurants-search-input");
   const tableBody = document.getElementById("restaurants-table-body");
   const countLabel = document.getElementById("restaurants-count");
+  const paginationHost = document.getElementById("restaurants-pagination");
+  const PAGE_SIZE = 25;
 
   const editDialog = document.getElementById("restaurant-edit-dialog");
   const editForm = document.getElementById("restaurant-edit-form");
@@ -33,6 +35,7 @@
 
   let currentStatus = "";
   let editingRestaurantId = null;
+  let currentPage = 0;
 
   const STATUS_LABELS = { ACTIVE: "활성", INACTIVE: "비활성", DELETED: "삭제" };
 
@@ -72,19 +75,26 @@
 
   let currentRestaurants = [];
 
-  async function loadRestaurants() {
+  async function loadRestaurants(page = 0) {
     tableBody.innerHTML = '<tr><td colspan="8" class="restaurants-loading">불러오는 중...</td></tr>';
     try {
-      const params = new URLSearchParams();
+      const params = new URLSearchParams({ page: String(page), size: String(PAGE_SIZE) });
       if (searchInput.value.trim()) params.set("keyword", searchInput.value.trim());
       if (currentStatus) params.set("status", currentStatus);
       const response = await Api.get(`/admin/restaurants?${params.toString()}`);
-      currentRestaurants = response.data || [];
+      const pageData = window.FooduckPagination.normalize(response.data, { pageKey: "page" });
+      currentRestaurants = pageData.content;
+      currentPage = pageData.number;
       renderRows(currentRestaurants);
-      countLabel.textContent = `총 ${currentRestaurants.length}곳`;
+      countLabel.textContent = `총 ${pageData.totalElements.toLocaleString("ko-KR")}곳`;
+      window.FooduckPagination.render(paginationHost, pageData, (nextPage) => {
+        loadRestaurants(nextPage);
+        paginationHost.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
     } catch (error) {
       tableBody.innerHTML = `<tr><td colspan="8" class="restaurants-empty">${error.message || "음식점 목록을 불러오지 못했습니다."}</td></tr>`;
       countLabel.textContent = "";
+      paginationHost.replaceChildren();
     }
   }
 

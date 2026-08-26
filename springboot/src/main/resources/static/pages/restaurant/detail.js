@@ -438,12 +438,9 @@
     const totalPages = Math.max(0, Number(pageData?.totalPages) || 0);
     if (totalPages <= 1) return "";
     const currentPage = Math.max(0, Number(pageData?.page) || 0);
-    const first = pageData?.first === true || currentPage === 0;
-    const last = pageData?.last === true || currentPage + 1 >= totalPages;
-    const start = Math.max(0, Math.min(currentPage - 2, totalPages - 5));
-    const end = Math.min(totalPages, start + 5);
+    const block = window.FooduckPagination.block(currentPage, totalPages);
     const buttons = [];
-    for (let page = start; page < end; page += 1) {
+    for (let page = block.start; page < block.end; page += 1) {
       buttons.push(`
         <button type="button" class="store-review-page-button${page === currentPage ? " is-active" : ""}"
                 data-review-page="${page}"${page === currentPage ? ' aria-current="page"' : ""}>${page + 1}</button>
@@ -451,11 +448,11 @@
     }
     return `
       <nav class="store-review-pagination" aria-label="리뷰 페이지">
-        <button type="button" class="store-review-page-button" data-review-page="${currentPage - 1}"
-                aria-label="이전 페이지"${first ? " disabled" : ""}>‹</button>
+        <button type="button" class="store-review-page-button" data-review-page="${block.previousPage}"
+                aria-label="이전 페이지 묶음"${block.hasPrevious ? "" : " disabled"}>‹</button>
         ${buttons.join("")}
-        <button type="button" class="store-review-page-button" data-review-page="${currentPage + 1}"
-                aria-label="다음 페이지"${last ? " disabled" : ""}>›</button>
+        <button type="button" class="store-review-page-button" data-review-page="${block.nextPage}"
+                aria-label="다음 페이지 묶음"${block.hasNext ? "" : " disabled"}>›</button>
       </nav>
     `;
   }
@@ -2007,25 +2004,25 @@
       return button;
     };
 
-    nav.append(makeButton("이전", state.page - 1, {
+    const block = window.FooduckPagination.block(state.page, state.totalPages);
+
+    nav.append(makeButton("이전", block.previousPage, {
       direction: true,
-      disabled: state.page <= 0,
-      label: "이전 댓글 페이지",
+      disabled: !block.hasPrevious,
+      label: "이전 댓글 페이지 묶음",
     }));
 
-    const start = Math.max(0, Math.min(state.page - 2, state.totalPages - 5));
-    const end = Math.min(state.totalPages, start + 5);
-    for (let page = start; page < end; page += 1) {
+    for (let page = block.start; page < block.end; page += 1) {
       nav.append(makeButton(String(page + 1), page, {
         current: page === state.page,
         label: `${page + 1}번째 댓글 페이지`,
       }));
     }
 
-    nav.append(makeButton("다음", state.page + 1, {
+    nav.append(makeButton("다음", block.nextPage, {
       direction: true,
-      disabled: state.page >= state.totalPages - 1,
-      label: "다음 댓글 페이지",
+      disabled: !block.hasNext,
+      label: "다음 댓글 페이지 묶음",
     }));
     return nav;
   }
@@ -3501,12 +3498,9 @@
     if (totalPages <= 1) return "";
 
     const currentPage = Math.max(0, Number(pageData.page) || 0);
-    const first = pageData.first === true || currentPage === 0;
-    const last = pageData.last === true || currentPage + 1 >= totalPages;
-    const start = Math.max(0, Math.min(currentPage - 2, totalPages - 5));
-    const end = Math.min(totalPages, start + 5);
+    const block = window.FooduckPagination.block(currentPage, totalPages);
     const pageButtons = [];
-    for (let page = start; page < end; page += 1) {
+    for (let page = block.start; page < block.end; page += 1) {
       pageButtons.push(`
         <button type="button" class="store-news-page-button${page === currentPage ? " is-active" : ""}"
                 data-news-page="${page}"${page === currentPage ? ' aria-current="page"' : ""}>${page + 1}</button>
@@ -3514,11 +3508,11 @@
     }
     return `
       <nav class="store-news-pagination" aria-label="소식 페이지">
-        <button type="button" class="store-news-page-button" aria-label="이전 페이지"
-                data-news-page="${currentPage - 1}"${first ? " disabled" : ""}>‹</button>
+        <button type="button" class="store-news-page-button" aria-label="이전 페이지 묶음"
+                data-news-page="${block.previousPage}"${block.hasPrevious ? "" : " disabled"}>‹</button>
         ${pageButtons.join("")}
-        <button type="button" class="store-news-page-button" aria-label="다음 페이지"
-                data-news-page="${currentPage + 1}"${last ? " disabled" : ""}>›</button>
+        <button type="button" class="store-news-page-button" aria-label="다음 페이지 묶음"
+                data-news-page="${block.nextPage}"${block.hasNext ? "" : " disabled"}>›</button>
       </nav>
     `;
   }

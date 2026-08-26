@@ -10,8 +10,11 @@
   const form = document.querySelector("#preset-form");
   const message = document.querySelector("#preset-form-message");
   const requestedId = Number(new URLSearchParams(location.search).get("presetId"));
+  const paginationHost = document.querySelector("#preset-admin-pagination");
+  const PAGE_SIZE = 25;
   let presets = [];
   let editingId = null;
+  let currentPage = 0;
   const pendingPresetDeleteIds = new Set();
 
   function escapeHtml(value) {
@@ -41,17 +44,33 @@
     </tr>`).join("");
   }
 
-  async function load() {
+  async function load(page = 0) {
     try {
-      const response = await Api.get("/admin/presets");
-      presets = response.data || [];
+      const params = new URLSearchParams({ page: String(page), size: String(PAGE_SIZE) });
+      const response = await Api.get(`/admin/presets?${params.toString()}`);
+      const pageData = window.FooduckPagination.normalize(response.data, { pageKey: "page" });
+      presets = pageData.content;
+      currentPage = pageData.number;
       render();
-      if (Number.isSafeInteger(requestedId) && requestedId > 0) {
-        const target = presets.find((preset) => preset.presetId === requestedId);
-        if (target) openForm(target);
-      }
+      window.FooduckPagination.render(paginationHost, pageData, (nextPage) => {
+        load(nextPage);
+        paginationHost.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
     } catch (error) {
       body.innerHTML = `<tr><td colspan="7">${escapeHtml(error.message)}</td></tr>`;
+      paginationHost.replaceChildren();
+    }
+  }
+
+  async function openRequestedPreset() {
+    if (!Number.isSafeInteger(requestedId) || requestedId <= 0) return;
+    try {
+      const response = await Api.get(`/admin/presets?page=0&size=1000`);
+      const pageData = window.FooduckPagination.normalize(response.data, { pageKey: "page" });
+      const target = pageData.content.find((preset) => preset.presetId === requestedId);
+      if (target) openForm(target);
+    } catch {
+      // 목록 로드 실패 시 무시 - 화면은 이미 일반 목록 오류를 표시함
     }
   }
 
@@ -103,4 +122,5 @@
     } catch (error) { message.textContent = error.message; }
   });
   load();
+  openRequestedPreset();
 })();

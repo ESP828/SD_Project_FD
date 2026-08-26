@@ -229,7 +229,12 @@
     }
   }
 
-  function renderItems(restaurants) {
+  const BUSINESS_PAGE_SIZE = 25;
+  let businessPage = 0;
+
+  // 사업자 계정에 연결된 음식점은 한 번에 전부 받아오므로(API가 페이지네이션을 안 함),
+  // 화면에서만 25개 단위로 잘라 보여준다.
+  function renderItems(restaurants, paginationHost) {
     const filtered = restaurants
       .filter(activeConfig.filter)
       .sort((left, right) => activeConfig.itemCountKey
@@ -244,15 +249,42 @@
         element("h3", "", activeConfig.emptyTitle),
         element("p", "", activeConfig.emptyCopy),
       );
+      paginationHost?.replaceChildren();
       return empty;
     }
 
+    const totalPages = Math.max(1, Math.ceil(filtered.length / BUSINESS_PAGE_SIZE));
+    businessPage = Math.min(businessPage, totalPages - 1);
+    const start = businessPage * BUSINESS_PAGE_SIZE;
+    const pageItems = filtered.slice(start, start + BUSINESS_PAGE_SIZE);
+
     const list = element("div", "mypage-detail-list");
-    filtered.forEach((restaurant) => list.append(restaurantCard(restaurant)));
+    pageItems.forEach((restaurant) => list.append(restaurantCard(restaurant)));
+    if (paginationHost) {
+      window.FooduckPagination.render(
+        paginationHost,
+        {
+          totalPages,
+          number: businessPage,
+          first: businessPage === 0,
+          last: businessPage >= totalPages - 1,
+        },
+        (page) => {
+          businessPage = page;
+          render(currentProfile, currentOverview);
+          paginationHost.scrollIntoView({ behavior: "smooth", block: "start" });
+        },
+      );
+    }
     return list;
   }
 
+  let currentProfile = null;
+  let currentOverview = null;
+
   function render(profile, overview) {
+    currentProfile = profile;
+    currentOverview = overview;
     content.replaceChildren();
     document.title = `${activeConfig.label} · 사업자 페이지 · 푸드덕`;
     const restaurants = Array.isArray(overview.restaurants)
@@ -285,8 +317,10 @@
     heading.append(copy, headingActions);
     const menuBar = detailLayout.createMenuBar(items, "사업자 상세 메뉴");
     const body = element("div", "mypage-detail-body");
-    body.append(renderItems(restaurants));
-    surface.append(heading, menuBar, body);
+    const pagination = element("nav", "fooduck-pagination");
+    pagination.setAttribute("aria-label", `${activeConfig.label} 페이지`);
+    body.append(renderItems(restaurants, pagination));
+    surface.append(heading, menuBar, body, pagination);
     main.append(surface);
 
     const layout = element("div", "mypage-detail-layout");

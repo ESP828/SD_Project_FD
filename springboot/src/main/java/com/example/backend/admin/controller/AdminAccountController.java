@@ -4,6 +4,7 @@ import com.example.backend.admin.dto.request.AdminAccountUpdateRequest;
 import com.example.backend.admin.dto.response.AdminAccountResponse;
 import com.example.backend.admin.service.AdminAccountService;
 import com.example.backend.global.response.ApiResponse;
+import com.example.backend.global.response.PageResponse;
 import com.example.backend.global.security.principal.AuthenticatedAccount;
 import jakarta.validation.Valid;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -29,11 +30,13 @@ public class AdminAccountController {
     }
 
     @GetMapping
-    public ApiResponse<List<AdminAccountResponse>> search(
+    public ApiResponse<PageResponse<AdminAccountResponse>> search(
             @RequestParam(required = false) String keyword,
-            @RequestParam(required = false) String role
+            @RequestParam(required = false) String role,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "25") int size
     ) {
-        return ApiResponse.success(adminAccountService.search(keyword, role));
+        return ApiResponse.success(adminAccountService.search(keyword, role, page, size));
     }
 
     @PatchMapping("/{accountId}")

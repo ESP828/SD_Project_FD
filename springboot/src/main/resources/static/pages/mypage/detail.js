@@ -82,9 +82,15 @@
     ? requestedTab
     : "presets";
   const activeConfig = tabs[activeTab];
+  const PAGE_SIZE = 25;
   const state = {
     overview: {},
     items: [],
+    page: 0,
+    // 백엔드가 페이지네이션을 지원하는 탭(찜/리뷰/글/댓글)은 서버에 다시 요청하고,
+    // 아직 전체 목록만 내려주는 탭(보물지도/알림)은 받아둔 배열을 화면에서만 잘라 보여준다.
+    serverPaged: false,
+    totalPages: 1,
   };
   const pendingReviewDeleteIds = new Set();
 
@@ -587,11 +593,42 @@
     const menuBar = createMenuBar(menuItems);
     const body = element("div", "mypage-detail-body");
     body.append(renderItems(items));
-    surface.append( heading,menuBar, body);
+    const pagination = element("nav", "fooduck-pagination");
+    pagination.id = "mypage-detail-pagination";
+    pagination.setAttribute("aria-label", `${activeConfig.label} 페이지`);
+    surface.append(heading, menuBar, body, pagination);
     main.append(surface);
     layout.append(main);
     content.append(layout);
     window.FooduckIcons?.enhance(content);
+
+    const totalPages = Math.max(1, state.totalPages);
+    window.FooduckPagination.render(
+      pagination,
+      {
+        totalPages,
+        number: state.page,
+        first: state.page <= 0,
+        last: state.page >= totalPages - 1,
+      },
+      changeMypagePage,
+    );
+  }
+
+  // 찜/리뷰/글/댓글처럼 백엔드가 페이지 단위로 잘라 주는 탭은 페이지를 바꿀 때마다
+  // 다시 요청하고, 보물지도/알림처럼 아직 전체 배열만 내려주는 탭은 받아둔 데이터를
+  // 화면에서만 다시 잘라 보여준다(불필요한 재요청을 피한다).
+  function changeMypagePage(page) {
+    state.page = page;
+    if (state.serverPaged) {
+      loadTab();
+    } else {
+      const start = page * PAGE_SIZE;
+      state.items = (state.allItems || []).slice(start, start + PAGE_SIZE);
+      render(state.overview, state.items);
+    }
+    document.getElementById("mypage-detail-pagination")
+      ?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
   function renderError(error) {
@@ -617,28 +654,48 @@
     return;
   }
 
-  Promise.all([
-    Api.get("/mypage/overview"),
-    Api.get(activeConfig.endpoint),
-  ])
-    .then(([overviewPayload, activityPayload]) => {
-      state.overview = overviewPayload.data || {};
-      state.items = Array.isArray(activityPayload.data) ? activityPayload.data : [];
-      render(state.overview, state.items);
-      if (activeTab === "notifications") {
-        window.FooduckNotifications?.setUnreadCount(
-          Number(state.overview.unreadNotificationCount || 0),
-        );
-      }
-    })
-    .catch((error) => {
-      if (!localStorage.getItem("accessToken")) {
-        window.location.assign(
-          "/auth/login?next=" +
-          encodeURIComponent(`${window.location.pathname}${window.location.search}`),
-        );
-        return;
-      }
-      renderError(error);
-    });
+  function loadTab() {
+    const params = new URLSearchParams({ page: String(state.page), size: String(PAGE_SIZE) });
+    const separator = activeConfig.endpoint.includes("?") ? "&" : "?";
+    return Promise.all([
+      Api.get("/mypage/overview"),
+      Api.get(`${activeConfig.endpoint}${separator}${params}`),
+    ])
+      .then(([overviewPayload, activityPayload]) => {
+        state.overview = overviewPayload.data || {};
+        const data = activityPayload.data;
+        if (Array.isArray(data)) {
+          // 아직 페이지네이션을 지원하지 않는 탭: 전체 배열을 받아 화면에서만 자른다.
+          state.serverPaged = false;
+          state.allItems = data;
+          state.totalPages = Math.max(1, Math.ceil(data.length / PAGE_SIZE));
+          state.page = Math.min(state.page, state.totalPages - 1);
+          const start = state.page * PAGE_SIZE;
+          state.items = data.slice(start, start + PAGE_SIZE);
+        } else {
+          state.serverPaged = true;
+          state.items = Array.isArray(data?.content) ? data.content : [];
+          state.totalPages = Math.max(1, Number(data?.totalPages) || 1);
+          state.page = Number(data?.page) || 0;
+        }
+        render(state.overview, state.items);
+        if (activeTab === "notifications") {
+          window.FooduckNotifications?.setUnreadCount(
+            Number(state.overview.unreadNotificationCount || 0),
+          );
+        }
+      })
+      .catch((error) => {
+        if (!localStorage.getItem("accessToken")) {
+          window.location.assign(
+            "/auth/login?next=" +
+            encodeURIComponent(`${window.location.pathname}${window.location.search}`),
+          );
+          return;
+        }
+        renderError(error);
+      });
+  }
+
+  loadTab();
 })();

@@ -452,16 +452,16 @@
       return;
     }
 
+    const block = window.FooduckPagination.block(state.page, pageData.totalPages);
+
     const previous = element("button", "page-button", "‹");
     previous.type = "button";
-    previous.disabled = pageData.first;
-    previous.setAttribute("aria-label", "이전 페이지");
-    previous.addEventListener("click", () => changePage(state.page - 1));
+    previous.disabled = !block.hasPrevious;
+    previous.setAttribute("aria-label", "이전 페이지 묶음");
+    previous.addEventListener("click", () => changePage(block.previousPage));
     pagination.append(previous);
 
-    const start = Math.max(0, Math.min(state.page - 2, pageData.totalPages - 5));
-    const end = Math.min(pageData.totalPages, start + 5);
-    for (let page = start; page < end; page += 1) {
+    for (let page = block.start; page < block.end; page += 1) {
       const button = element("button", "page-button", String(page + 1));
       button.type = "button";
       button.classList.toggle("is-active", page === state.page);
@@ -472,9 +472,9 @@
 
     const next = element("button", "page-button", "›");
     next.type = "button";
-    next.disabled = pageData.last;
-    next.setAttribute("aria-label", "다음 페이지");
-    next.addEventListener("click", () => changePage(state.page + 1));
+    next.disabled = !block.hasNext;
+    next.setAttribute("aria-label", "다음 페이지 묶음");
+    next.addEventListener("click", () => changePage(block.nextPage));
     pagination.append(next);
   }
 

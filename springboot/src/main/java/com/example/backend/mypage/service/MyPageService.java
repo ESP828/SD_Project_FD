@@ -13,6 +13,7 @@ import com.example.backend.mypage.dto.response.MyPageActivityResponse.PostItem;
 import com.example.backend.mypage.dto.response.MyPageActivityResponse.ReviewItem;
 import com.example.backend.mypage.dto.response.MyPageOverviewResponse;
 import com.example.backend.mypage.query.MyPageActivityQueryRepository;
+import com.example.backend.global.response.PageResponse;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -75,27 +76,35 @@ public class MyPageService {
     }
 
     @Transactional(readOnly = true)
-    public List<FavoriteItem> getFavorites(Long accountId) {
+    public PageResponse<FavoriteItem> getFavorites(Long accountId, int page, int size) {
         requireActiveAccount(accountId);
-        return activityQueryRepository.findFavorites(accountId);
+        List<FavoriteItem> content = activityQueryRepository.findFavorites(accountId, page, size);
+        long total = activityQueryRepository.countFavorites(accountId);
+        return PageResponse.of(content, page, size, total);
     }
 
     @Transactional(readOnly = true)
-    public List<ReviewItem> getReviews(Long accountId) {
+    public PageResponse<ReviewItem> getReviews(Long accountId, int page, int size) {
         requireActiveAccount(accountId);
-        return activityQueryRepository.findReviews(accountId);
+        List<ReviewItem> content = activityQueryRepository.findReviews(accountId, page, size);
+        long total = activityQueryRepository.countReviews(accountId);
+        return PageResponse.of(content, page, size, total);
     }
 
     @Transactional(readOnly = true)
-    public List<PostItem> getPosts(Long accountId) {
+    public PageResponse<PostItem> getPosts(Long accountId, int page, int size) {
         requireActiveAccount(accountId);
-        return activityQueryRepository.findPosts(accountId);
+        List<PostItem> content = activityQueryRepository.findPosts(accountId, page, size);
+        long total = activityQueryRepository.countPosts(accountId);
+        return PageResponse.of(content, page, size, total);
     }
 
     @Transactional(readOnly = true)
-    public List<CommentItem> getComments(Long accountId) {
+    public PageResponse<CommentItem> getComments(Long accountId, int page, int size) {
         requireActiveAccount(accountId);
-        return activityQueryRepository.findComments(accountId);
+        List<CommentItem> content = activityQueryRepository.findComments(accountId, page, size);
+        long total = activityQueryRepository.countComments(accountId);
+        return PageResponse.of(content, page, size, total);
     }
 
     @Transactional(readOnly = true)

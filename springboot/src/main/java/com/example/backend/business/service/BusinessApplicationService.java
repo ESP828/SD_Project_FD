@@ -14,7 +14,10 @@ import com.example.backend.business.repository.BusinessApplicationRepository;
 import com.example.backend.business.repository.BusinessProfileRepository;
 import com.example.backend.global.exception.BusinessException;
 import com.example.backend.global.exception.ErrorCode;
+import com.example.backend.global.response.PageResponse;
 import com.example.backend.notification.service.NotificationService;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -110,11 +113,26 @@ public class BusinessApplicationService {
     }
 
     @Transactional(readOnly = true)
-    public List<BusinessApplicationResponse> findAllApplications() {
-        return businessApplicationRepository.findAllByOrderByCreatedAtDesc()
-                .stream()
+    public PageResponse<BusinessApplicationResponse> findAllApplications(int page, int size, String statusFilter) {
+        int safeSize = Math.max(1, size);
+        int safePage = Math.max(0, page);
+        PageRequest pageRequest = PageRequest.of(safePage, safeSize);
+        Page<BusinessApplication> result;
+        if (statusFilter != null && !statusFilter.isBlank()) {
+            BusinessApplication.Status status;
+            try {
+                status = BusinessApplication.Status.valueOf(statusFilter.trim());
+            } catch (IllegalArgumentException exception) {
+                throw new BusinessException(ErrorCode.INVALID_INPUT);
+            }
+            result = businessApplicationRepository.findAllByStatusOrderByCreatedAtDesc(status, pageRequest);
+        } else {
+            result = businessApplicationRepository.findAllByOrderByCreatedAtDesc(pageRequest);
+        }
+        List<BusinessApplicationResponse> content = result.getContent().stream()
                 .map(BusinessApplicationResponse::from)
                 .toList();
+        return PageResponse.of(content, safePage, safeSize, result.getTotalElements());
     }
 
     @Transactional

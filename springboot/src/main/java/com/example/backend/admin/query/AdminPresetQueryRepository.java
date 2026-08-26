@@ -10,6 +10,7 @@ import org.springframework.jdbc.support.GeneratedKeyHolder;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.Map;
 
 @Repository
 public class AdminPresetQueryRepository {
@@ -20,7 +21,12 @@ public class AdminPresetQueryRepository {
         this.jdbcTemplate = jdbcTemplate;
     }
 
-    public List<AdminPresetResponse> findAll() {
+    public long countAll() {
+        Long value = jdbcTemplate.queryForObject("select count(*) from preset", Map.of(), Long.class);
+        return value == null ? 0 : value;
+    }
+
+    public List<AdminPresetResponse> findAll(int page, int size) {
         String sql = """
                 select p.preset_id, p.title,
                        p.category, p.view_count, p.display_order, p.status,
@@ -34,8 +40,14 @@ public class AdminPresetQueryRepository {
                   from preset p
                  order by case when p.status = 'DELETED' then 1 else 0 end,
                           p.display_order, p.preset_id desc
+                 limit :limit offset :offset
                 """;
-        return jdbcTemplate.query(sql, (rs, rowNumber) -> new AdminPresetResponse(
+        int safeSize = Math.max(1, size);
+        int safeOffset = Math.max(0, page) * safeSize;
+        return jdbcTemplate.query(
+                sql,
+                Map.of("limit", safeSize, "offset", safeOffset),
+                (rs, rowNumber) -> new AdminPresetResponse(
                 rs.getLong("preset_id"),
                 rs.getString("title"),
                 rs.getString("category"),

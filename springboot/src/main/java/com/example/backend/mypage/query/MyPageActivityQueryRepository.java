@@ -73,44 +73,50 @@ public class MyPageActivityQueryRepository {
      * 단일 JOIN restaurant만 쓰면 공공데이터 가게 대상 활동이 통계 카운트에는 잡히지만 목록에서는
      * 조용히 빠지는 불일치가 생긴다.
      */
-    public List<FavoriteItem> findFavorites(Long accountId) {
-        return jdbcTemplate.query("""
-                        select restaurant_source, restaurant_id, public_restaurant_id,
-                               restaurant_name, category_name, address, description, created_at
-                          from (
-                                select 'OWNED' as restaurant_source,
-                                       r.restaurant_id as restaurant_id,
-                                       null as public_restaurant_id,
-                                       r.name as restaurant_name,
-                                       rc.name as category_name,
-                                       r.address as address,
-                                       r.description as description,
-                                       f.created_at as created_at
-                                  from favorite f
-                                  join restaurant r
-                                    on r.restaurant_id = f.restaurant_id
-                                  left join restaurant_category rc
-                                    on rc.category_id = r.category_id
-                                 where f.account_id = :accountId
-                                   and r.status = 'ACTIVE'
-                                union all
-                                select 'PUBLIC' as restaurant_source,
-                                       null as restaurant_id,
-                                       p.public_restaurant_id as public_restaurant_id,
-                                       p.name as restaurant_name,
-                                       coalesce(p.category_medium_name, p.category_small_name, p.category_large_name) as category_name,
-                                       coalesce(p.road_address, p.lot_address) as address,
-                                       null as description,
-                                       f.created_at as created_at
-                                  from favorite f
-                                  join public_restaurant p
-                                    on p.public_restaurant_id = f.public_restaurant_id
-                                 where f.account_id = :accountId
-                               ) combined
-                         order by created_at desc
-                         limit 100
-                        """,
-                parameters(accountId),
+    private static final String FAVORITES_BASE_SQL = """
+            from (
+                  select 'OWNED' as restaurant_source,
+                         r.restaurant_id as restaurant_id,
+                         null as public_restaurant_id,
+                         r.name as restaurant_name,
+                         rc.name as category_name,
+                         r.address as address,
+                         r.description as description,
+                         f.created_at as created_at
+                    from favorite f
+                    join restaurant r
+                      on r.restaurant_id = f.restaurant_id
+                    left join restaurant_category rc
+                      on rc.category_id = r.category_id
+                   where f.account_id = :accountId
+                     and r.status = 'ACTIVE'
+                  union all
+                  select 'PUBLIC' as restaurant_source,
+                         null as restaurant_id,
+                         p.public_restaurant_id as public_restaurant_id,
+                         p.name as restaurant_name,
+                         coalesce(p.category_medium_name, p.category_small_name, p.category_large_name) as category_name,
+                         coalesce(p.road_address, p.lot_address) as address,
+                         null as description,
+                         f.created_at as created_at
+                    from favorite f
+                    join public_restaurant p
+                      on p.public_restaurant_id = f.public_restaurant_id
+                   where f.account_id = :accountId
+                 ) combined
+            """;
+
+    public long countFavorites(Long accountId) {
+        return count("select count(*) " + FAVORITES_BASE_SQL, parameters(accountId));
+    }
+
+    public List<FavoriteItem> findFavorites(Long accountId, int page, int size) {
+        return jdbcTemplate.query(
+                "select restaurant_source, restaurant_id, public_restaurant_id, "
+                        + "restaurant_name, category_name, address, description, created_at "
+                        + FAVORITES_BASE_SQL
+                        + " order by created_at desc limit :limit offset :offset",
+                pageParameters(accountId, page, size),
                 (resultSet, rowNumber) -> new FavoriteItem(
                         resultSet.getString("restaurant_source"),
                         toNullableLong(resultSet.getObject("restaurant_id")),
@@ -123,45 +129,51 @@ public class MyPageActivityQueryRepository {
                 ));
     }
 
-    public List<ReviewItem> findReviews(Long accountId) {
-        return jdbcTemplate.query("""
-                        select review_id, restaurant_source, restaurant_id, public_restaurant_id,
-                               restaurant_name, rating, content, created_at, updated_at
-                          from (
-                                select rv.review_id as review_id,
-                                       'OWNED' as restaurant_source,
-                                       rv.restaurant_id as restaurant_id,
-                                       null as public_restaurant_id,
-                                       r.name as restaurant_name,
-                                       rv.rating as rating,
-                                       rv.content as content,
-                                       rv.created_at as created_at,
-                                       rv.updated_at as updated_at
-                                  from review rv
-                                  join restaurant r
-                                    on r.restaurant_id = rv.restaurant_id
-                                 where rv.account_id = :accountId
-                                   and rv.status = 'ACTIVE'
-                                union all
-                                select rv.review_id as review_id,
-                                       'PUBLIC' as restaurant_source,
-                                       null as restaurant_id,
-                                       rv.public_restaurant_id as public_restaurant_id,
-                                       p.name as restaurant_name,
-                                       rv.rating as rating,
-                                       rv.content as content,
-                                       rv.created_at as created_at,
-                                       rv.updated_at as updated_at
-                                  from review rv
-                                  join public_restaurant p
-                                    on p.public_restaurant_id = rv.public_restaurant_id
-                                 where rv.account_id = :accountId
-                                   and rv.status = 'ACTIVE'
-                               ) combined
-                         order by created_at desc
-                         limit 100
-                        """,
-                parameters(accountId),
+    private static final String REVIEWS_BASE_SQL = """
+            from (
+                  select rv.review_id as review_id,
+                         'OWNED' as restaurant_source,
+                         rv.restaurant_id as restaurant_id,
+                         null as public_restaurant_id,
+                         r.name as restaurant_name,
+                         rv.rating as rating,
+                         rv.content as content,
+                         rv.created_at as created_at,
+                         rv.updated_at as updated_at
+                    from review rv
+                    join restaurant r
+                      on r.restaurant_id = rv.restaurant_id
+                   where rv.account_id = :accountId
+                     and rv.status = 'ACTIVE'
+                  union all
+                  select rv.review_id as review_id,
+                         'PUBLIC' as restaurant_source,
+                         null as restaurant_id,
+                         rv.public_restaurant_id as public_restaurant_id,
+                         p.name as restaurant_name,
+                         rv.rating as rating,
+                         rv.content as content,
+                         rv.created_at as created_at,
+                         rv.updated_at as updated_at
+                    from review rv
+                    join public_restaurant p
+                      on p.public_restaurant_id = rv.public_restaurant_id
+                   where rv.account_id = :accountId
+                     and rv.status = 'ACTIVE'
+                 ) combined
+            """;
+
+    public long countReviews(Long accountId) {
+        return count("select count(*) " + REVIEWS_BASE_SQL, parameters(accountId));
+    }
+
+    public List<ReviewItem> findReviews(Long accountId, int page, int size) {
+        return jdbcTemplate.query(
+                "select review_id, restaurant_source, restaurant_id, public_restaurant_id, "
+                        + "restaurant_name, rating, content, created_at, updated_at "
+                        + REVIEWS_BASE_SQL
+                        + " order by created_at desc limit :limit offset :offset",
+                pageParameters(accountId, page, size),
                 (resultSet, rowNumber) -> new ReviewItem(
                         resultSet.getLong("review_id"),
                         resultSet.getString("restaurant_source"),
@@ -175,7 +187,16 @@ public class MyPageActivityQueryRepository {
                 ));
     }
 
-    public List<PostItem> findPosts(Long accountId) {
+    public long countPosts(Long accountId) {
+        return count("""
+                select count(*)
+                  from post p
+                 where p.account_id = :accountId
+                   and p.status = 'ACTIVE'
+                """, parameters(accountId));
+    }
+
+    public List<PostItem> findPosts(Long accountId, int page, int size) {
         return jdbcTemplate.query("""
                         select p.post_id,
                                p.board_type,
@@ -195,9 +216,9 @@ public class MyPageActivityQueryRepository {
                          where p.account_id = :accountId
                            and p.status = 'ACTIVE'
                          order by p.created_at desc
-                         limit 100
+                         limit :limit offset :offset
                         """,
-                parameters(accountId),
+                pageParameters(accountId, page, size),
                 (resultSet, rowNumber) -> new PostItem(
                         resultSet.getLong("post_id"),
                         resultSet.getString("board_type"),
@@ -211,7 +232,19 @@ public class MyPageActivityQueryRepository {
                 ));
     }
 
-    public List<CommentItem> findComments(Long accountId) {
+    public long countComments(Long accountId) {
+        return count("""
+                select count(*)
+                  from post_comment pc
+                  join post p
+                    on p.post_id = pc.post_id
+                 where pc.account_id = :accountId
+                   and pc.status = 'ACTIVE'
+                   and p.status = 'ACTIVE'
+                """, parameters(accountId));
+    }
+
+    public List<CommentItem> findComments(Long accountId, int page, int size) {
         return jdbcTemplate.query("""
                         select pc.comment_id,
                                pc.post_id,
@@ -226,9 +259,9 @@ public class MyPageActivityQueryRepository {
                            and pc.status = 'ACTIVE'
                            and p.status = 'ACTIVE'
                          order by pc.created_at desc
-                         limit 100
+                         limit :limit offset :offset
                         """,
-                parameters(accountId),
+                pageParameters(accountId, page, size),
                 (resultSet, rowNumber) -> new CommentItem(
                         resultSet.getLong("comment_id"),
                         resultSet.getLong("post_id"),
@@ -274,6 +307,14 @@ public class MyPageActivityQueryRepository {
 
     private MapSqlParameterSource parameters(Long accountId) {
         return new MapSqlParameterSource("accountId", accountId);
+    }
+
+    private MapSqlParameterSource pageParameters(Long accountId, int page, int size) {
+        int safeSize = Math.max(1, size);
+        int safePage = Math.max(0, page);
+        return parameters(accountId)
+                .addValue("limit", safeSize)
+                .addValue("offset", safePage * safeSize);
     }
 
     private long count(String sql, MapSqlParameterSource parameters) {

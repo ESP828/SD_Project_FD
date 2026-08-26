@@ -21,7 +21,7 @@
   const requestedPage = Number.parseInt(initialParams.get("page"), 10);
   const state = {
     page: Number.isSafeInteger(requestedPage) && requestedPage > 0 ? requestedPage - 1 : 0,
-    size: 12,
+    size: 10,
     sort: initialSort,
     keyword: normalizeKeyword(initialParams.get("keyword")),
   };
@@ -286,27 +286,16 @@
     loadPresets();
   }
 
+  // 전체 페이지 수만큼 번호를 다 그리면 보물지도가 많아질수록 버튼이 한 줄에
+  // 계속 늘어나므로, 커뮤니티와 같은 공용 컴포넌트로 현재 페이지 주변 5개만 보여준다.
   function renderPagination(pageData) {
-    pagination.replaceChildren();
-    if ((pageData.totalPages || 0) <= 1) return;
-    const add = (label, page, disabled, current = false) => {
-      const button = element("button", "preset-page-button", label);
-      button.type = "button";
-      button.disabled = disabled;
-      if (current) button.setAttribute("aria-current", "page");
-      button.addEventListener("click", () => {
-        state.page = page;
-        syncListUrl("push");
-        loadPresets();
-        document.querySelector("#preset-collection")?.scrollIntoView({ behavior: "smooth" });
-      });
-      pagination.append(button);
-    };
-    add("이전", Math.max(0, pageData.page - 1), pageData.first);
-    for (let page = 0; page < pageData.totalPages; page += 1) {
-      add(String(page + 1), page, false, page === pageData.page);
-    }
-    add("다음", pageData.page + 1, pageData.last);
+    const normalized = window.FooduckPagination.normalize(pageData, { pageKey: "page" });
+    window.FooduckPagination.render(pagination, normalized, (page) => {
+      state.page = page;
+      syncListUrl("push");
+      loadPresets();
+      document.querySelector("#preset-collection")?.scrollIntoView({ behavior: "smooth" });
+    });
   }
 
   function renderPage(pageData) {

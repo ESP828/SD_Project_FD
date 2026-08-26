@@ -49,12 +49,32 @@ public interface AccountRepository extends JpaRepository<Account, Long> {
             GROUP BY a.account_id, a.login_id, a.nickname, a.email, a.status, a.created_at, a.last_login_at
             HAVING (:roleId = -1 OR COALESCE(MAX(aa.authority_id), 0) = :roleId)
             ORDER BY a.created_at DESC
-            LIMIT :limit
+            LIMIT :limit OFFSET :offset
             """, nativeQuery = true)
     List<AdminAccountRow> searchAccounts(
             @Param("keyword") String keyword,
             @Param("roleId") int roleId,
-            @Param("limit") int limit
+            @Param("limit") int limit,
+            @Param("offset") int offset
+    );
+
+    /** searchAccounts와 같은 조건(검색어·권한 필터)의 전체 건수. 페이지네이션 totalPages 계산용. */
+    @Query(value = """
+            SELECT COUNT(*) FROM (
+                SELECT a.account_id
+                FROM account a
+                LEFT JOIN account_authority aa ON aa.account_id = a.account_id
+                WHERE a.deleted_at IS NULL
+                  AND (:keyword = '' OR a.login_id LIKE CONCAT('%', :keyword, '%')
+                       OR a.nickname LIKE CONCAT('%', :keyword, '%')
+                       OR a.email LIKE CONCAT('%', :keyword, '%'))
+                GROUP BY a.account_id
+                HAVING (:roleId = -1 OR COALESCE(MAX(aa.authority_id), 0) = :roleId)
+            ) counted
+            """, nativeQuery = true)
+    long countSearchAccounts(
+            @Param("keyword") String keyword,
+            @Param("roleId") int roleId
     );
 
     interface AdminAccountRow {

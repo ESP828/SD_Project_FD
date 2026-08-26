@@ -321,18 +321,44 @@
     return card;
   }
 
-  function renderRestaurants(host) {
+  const RESTAURANT_PAGE_SIZE = 10;
+  let restaurantPage = 0;
+
+  // 프리셋 하나에 담기는 맛집은 서버에서 이미 전부 받아와 있으므로(최대 담기 개수 제한이 있음),
+  // 여기서는 API를 다시 부르지 않고 화면에서만 10개 단위로 잘라 보여준다.
+  function renderRestaurants(host, paginationHost) {
     host.replaceChildren();
     const restaurants = Array.isArray(preset.restaurants) ? preset.restaurants : [];
     if (!restaurants.length) {
       const empty = element("div", "preset-state preset-state--surface surface-card");
       empty.append(element("h3", "", "이 보물지도에 등록된 음식점이 없습니다."));
       host.append(empty);
+      paginationHost?.replaceChildren();
       return;
     }
+    const totalPages = Math.max(1, Math.ceil(restaurants.length / RESTAURANT_PAGE_SIZE));
+    restaurantPage = Math.min(restaurantPage, totalPages - 1);
+    const start = restaurantPage * RESTAURANT_PAGE_SIZE;
+    const pageItems = restaurants.slice(start, start + RESTAURANT_PAGE_SIZE);
     const fragment = document.createDocumentFragment();
-    restaurants.forEach((restaurant, index) => fragment.append(createRestaurantCard(restaurant, index)));
+    pageItems.forEach((restaurant, index) => fragment.append(createRestaurantCard(restaurant, start + index)));
     host.append(fragment);
+    if (paginationHost) {
+      window.FooduckPagination.render(
+        paginationHost,
+        {
+          totalPages,
+          number: restaurantPage,
+          first: restaurantPage === 0,
+          last: restaurantPage >= totalPages - 1,
+        },
+        (page) => {
+          restaurantPage = page;
+          renderRestaurants(host, paginationHost);
+          host.scrollIntoView({ behavior: "smooth", block: "start" });
+        },
+      );
+    }
   }
 
   function render(data) {
@@ -419,11 +445,14 @@
     }
 
     const restaurantList = element("div", "preset-restaurant-list");
+    const restaurantPagination = element("nav", "fooduck-pagination");
+    restaurantPagination.setAttribute("aria-label", "맛집 목록 페이지");
     const listPanel = element("section", "preset-restaurants-panel");
     listPanel.setAttribute("aria-labelledby", listTitle.id);
-    listPanel.append(sectionHeading, restaurantList);
+    listPanel.append(sectionHeading, restaurantList, restaurantPagination);
     section.append(listPanel);
-    renderRestaurants(restaurantList);
+    restaurantPage = 0;
+    renderRestaurants(restaurantList, restaurantPagination);
     content.append(hero, section);
   }
 

@@ -48,9 +48,7 @@
   const resultHeading = document.getElementById("result-heading");
   const count = document.getElementById("search-result-count");
   const status = document.getElementById("search-status");
-  const previousButton = document.getElementById("search-prev");
-  const nextButton = document.getElementById("search-next");
-  const pageLabel = document.getElementById("search-page-label");
+  const paginationContainer = document.getElementById("search-pagination");
   const quickButtons = document.querySelectorAll("[data-quick-category]");
 
   let isAiMode = false;
@@ -353,13 +351,18 @@
     count.textContent = "0";
   }
 
-  // 페이징 UI 업데이트 (일반 / AI 통합 지원)
+  // 페이징 UI 업데이트 (일반 / AI 통합 지원). 뒤쪽 페이지로 가려고 다음 버튼을
+  // 계속 누르지 않아도 되도록, 현재 페이지 주변 번호를 바로 눌러 이동할 수 있게 한다.
   function updatePagination(response) {
-    const current = response.page + 1;
-    const total = Math.max(1, response.totalPages);
-    pageLabel.textContent = `${current} / ${total}`;
-    previousButton.disabled = !response.hasPrevPage;
-    nextButton.disabled = !response.hasNextPage;
+    const pageData = window.FooduckPagination.normalize(response, {
+      contentKey: "items",
+      totalKey: "totalCount",
+      pageKey: "page",
+    });
+    window.FooduckPagination.render(paginationContainer, pageData, (page) => {
+      runSearch(page);
+      scrollToTop();
+    });
   }
 
 function updateUrlState(page = 0) {
@@ -419,9 +422,7 @@ function updateUrlState(page = 0) {
     if (!data.items || data.items.length === 0) {
       renderEmpty("다른 검색어나 지역으로 다시 찾아보세요.");
       setStatus("조건에 맞는 맛집을 찾지 못했습니다.");
-      previousButton.disabled = true;
-      nextButton.disabled = true;
-      pageLabel.textContent = "1 / 1";
+      paginationContainer.replaceChildren();
       if (cache) saveSearchCache("public", data.page, data);
       return;
     }
@@ -593,9 +594,7 @@ function updateUrlState(page = 0) {
         aiRecommendationMeta = recommendationMeta(data);
         renderEmpty("다른 검색어나 지역으로 다시 찾아보세요.");
         setStatus("조건에 맞는 맛집을 찾지 못했습니다.");
-        previousButton.disabled = true;
-        nextButton.disabled = true;
-        pageLabel.textContent = "1 / 1";
+        paginationContainer.replaceChildren();
         return;
       }
 
@@ -740,20 +739,6 @@ function scrollToTop() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 }
-
-  // 이전 페이지 버튼 클릭
-  previousButton.addEventListener("click", () => {
-    if (currentPage > 0) {
-      runSearch(currentPage - 1);
-      scrollToTop();
-    }
-  });
-
-  // 다음 페이지 버튼 클릭
-  nextButton.addEventListener("click", () => {
-    runSearch(currentPage + 1);
-    scrollToTop();
-  });
 
   // BFCache 복원과 일반 페이지 이동 모두에서 마지막으로 보던 결과를 보존한다.
   window.addEventListener("pagehide", persistVisibleSearchState);

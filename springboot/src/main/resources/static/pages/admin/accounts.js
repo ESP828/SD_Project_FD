@@ -15,7 +15,9 @@
   const searchInput = document.getElementById("accounts-search-input");
   const tableBody = document.getElementById("accounts-table-body");
   const countLabel = document.getElementById("accounts-count");
+  const paginationHost = document.getElementById("accounts-pagination");
   const deleteModeToggle = document.getElementById("accounts-delete-mode-toggle");
+  const PAGE_SIZE = 25;
 
   const editDialog = document.getElementById("account-edit-dialog");
   const editForm = document.getElementById("account-edit-form");
@@ -28,6 +30,7 @@
   let editingAccountId = null;
   let isDeleteMode = false;
   let currentAccounts = [];
+  let currentPage = 0;
   const pendingAccountDeleteIds = new Set();
 
   const STATUS_LABELS = { ACTIVE: "활성", INACTIVE: "비활성", SUSPENDED: "정지", WITHDRAWN: "탈퇴" };
@@ -76,19 +79,26 @@
     }).join("");
   }
 
-  async function loadAccounts() {
+  async function loadAccounts(page = 0) {
     tableBody.innerHTML = '<tr><td colspan="7" class="accounts-loading">불러오는 중...</td></tr>';
     try {
-      const params = new URLSearchParams();
+      const params = new URLSearchParams({ page: String(page), size: String(PAGE_SIZE) });
       if (searchInput.value.trim()) params.set("keyword", searchInput.value.trim());
       if (currentRole) params.set("role", currentRole);
       const response = await Api.get(`/admin/accounts?${params.toString()}`);
-      currentAccounts = response.data || [];
+      const pageData = window.FooduckPagination.normalize(response.data, { pageKey: "page" });
+      currentAccounts = pageData.content;
+      currentPage = pageData.number;
       renderRows();
-      countLabel.textContent = `총 ${currentAccounts.length}명`;
+      countLabel.textContent = `총 ${pageData.totalElements.toLocaleString("ko-KR")}명`;
+      window.FooduckPagination.render(paginationHost, pageData, (nextPage) => {
+        loadAccounts(nextPage);
+        paginationHost.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
     } catch (error) {
       tableBody.innerHTML = `<tr><td colspan="7" class="accounts-empty">${error.message || "계정 목록을 불러오지 못했습니다."}</td></tr>`;
       countLabel.textContent = "";
+      paginationHost.replaceChildren();
     }
   }
 

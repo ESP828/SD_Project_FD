@@ -4,6 +4,7 @@ import com.example.backend.business.dto.request.BusinessApplicationRequest;
 import com.example.backend.business.dto.response.BusinessApplicationResponse;
 import com.example.backend.business.service.BusinessApplicationService;
 import com.example.backend.global.response.ApiResponse;
+import com.example.backend.global.response.PageResponse;
 import com.example.backend.global.security.principal.AuthenticatedAccount;
 import jakarta.validation.Valid;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -44,10 +45,13 @@ public class BusinessApplicationController {
     }
 
     @GetMapping("/admin/business-applications")
-    public ApiResponse<List<BusinessApplicationResponse>> getAllApplications(
-            @AuthenticationPrincipal AuthenticatedAccount account
+    public ApiResponse<PageResponse<BusinessApplicationResponse>> getAllApplications(
+            @AuthenticationPrincipal AuthenticatedAccount account,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "25") int size,
+            @RequestParam(required = false) String status
     ) {
-        return ApiResponse.success(businessApplicationService.findAllApplications());
+        return ApiResponse.success(businessApplicationService.findAllApplications(page, size, status));
     }
 
     @PatchMapping("/admin/business-applications/{applicationId}/approve")

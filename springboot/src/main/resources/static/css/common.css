@@ -1644,3 +1644,35 @@ h4 {
     flex-shrink: 0 !important;
   }
 }
+
+/* 공용 페이지네이션(검색·보물지도·마이페이지·사업자·관리자 상세에서 공유) */
+.fooduck-pagination {
+  display: flex;
+  min-height: 60px;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.fooduck-pagination .page-button {
+  display: grid;
+  width: 36px;
+  height: 36px;
+  place-items: center;
+  border: 1px solid var(--color-line);
+  border-radius: 10px;
+  color: var(--color-muted);
+  background: #fff;
+  font-size: 0.78rem;
+  font-weight: 850;
+}
+
+.fooduck-pagination .page-button.is-active {
+  border-color: var(--color-navy);
+  color: #fff;
+  background: var(--color-navy);
+}
+
+.fooduck-pagination .page-button:disabled {
+  opacity: 0.45;
+}

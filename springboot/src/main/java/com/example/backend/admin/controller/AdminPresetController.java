@@ -7,6 +7,7 @@ import com.example.backend.admin.dto.request.AdminPresetUpsertRequest;
 import com.example.backend.admin.dto.response.AdminPresetResponse;
 import com.example.backend.admin.service.AdminPresetService;
 import com.example.backend.global.response.ApiResponse;
+import com.example.backend.global.response.PageResponse;
 import com.example.backend.global.security.principal.AuthenticatedAccount;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Positive;
@@ -19,6 +20,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
@@ -35,8 +37,11 @@ public class AdminPresetController {
     }
 
     @GetMapping
-    public ApiResponse<List<AdminPresetResponse>> getAll() {
-        return ApiResponse.success(adminPresetService.getAll());
+    public ApiResponse<PageResponse<AdminPresetResponse>> getAll(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "25") int size
+    ) {
+        return ApiResponse.success(adminPresetService.getAll(page, size));
     }
 
     @PostMapping

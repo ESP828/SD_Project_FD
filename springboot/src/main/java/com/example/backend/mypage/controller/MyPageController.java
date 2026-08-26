@@ -3,6 +3,7 @@ package com.example.backend.mypage.controller;
 import com.example.backend.auth.dto.request.ChangePasswordRequest;
 import com.example.backend.auth.service.AuthService;
 import com.example.backend.global.response.ApiResponse;
+import com.example.backend.global.response.PageResponse;
 import com.example.backend.global.security.principal.AuthenticatedAccount;
 import com.example.backend.mypage.dto.request.MyPageProfileUpdateRequest;
 import com.example.backend.mypage.dto.request.WithdrawAccountRequest;
@@ -20,6 +21,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
@@ -61,38 +63,48 @@ public class MyPageController {
     }
 
     @GetMapping("/favorites")
-    public ApiResponse<List<FavoriteItem>> getFavorites(
-            @AuthenticationPrincipal AuthenticatedAccount account
+    public ApiResponse<PageResponse<FavoriteItem>> getFavorites(
+            @AuthenticationPrincipal AuthenticatedAccount account,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "25") int size
     ) {
-        return ApiResponse.success(myPageService.getFavorites(account.accountId()));
+        return ApiResponse.success(myPageService.getFavorites(account.accountId(), page, size));
     }
 
     @GetMapping("/restaurants")
-    public ApiResponse<List<FavoriteItem>> getSavedRestaurants(
-            @AuthenticationPrincipal AuthenticatedAccount account
+    public ApiResponse<PageResponse<FavoriteItem>> getSavedRestaurants(
+            @AuthenticationPrincipal AuthenticatedAccount account,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "25") int size
     ) {
-        return ApiResponse.success(myPageService.getFavorites(account.accountId()));
+        return ApiResponse.success(myPageService.getFavorites(account.accountId(), page, size));
     }
 
     @GetMapping("/reviews")
-    public ApiResponse<List<ReviewItem>> getReviews(
-            @AuthenticationPrincipal AuthenticatedAccount account
+    public ApiResponse<PageResponse<ReviewItem>> getReviews(
+            @AuthenticationPrincipal AuthenticatedAccount account,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "25") int size
     ) {
-        return ApiResponse.success(myPageService.getReviews(account.accountId()));
+        return ApiResponse.success(myPageService.getReviews(account.accountId(), page, size));
     }
 
     @GetMapping("/posts")
-    public ApiResponse<List<PostItem>> getPosts(
-            @AuthenticationPrincipal AuthenticatedAccount account
+    public ApiResponse<PageResponse<PostItem>> getPosts(
+            @AuthenticationPrincipal AuthenticatedAccount account,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "25") int size
     ) {
-        return ApiResponse.success(myPageService.getPosts(account.accountId()));
+        return ApiResponse.success(myPageService.getPosts(account.accountId(), page, size));
     }
 
     @GetMapping("/comments")
-    public ApiResponse<List<CommentItem>> getComments(
-            @AuthenticationPrincipal AuthenticatedAccount account
+    public ApiResponse<PageResponse<CommentItem>> getComments(
+            @AuthenticationPrincipal AuthenticatedAccount account,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "25") int size
     ) {
-        return ApiResponse.success(myPageService.getComments(account.accountId()));
+        return ApiResponse.success(myPageService.getComments(account.accountId(), page, size));
     }
 
     @GetMapping("/notifications/unread")

@@ -11,6 +11,7 @@ import com.example.backend.auth.service.AuthorityService;
 import com.example.backend.auth.service.RefreshTokenService;
 import com.example.backend.global.exception.BusinessException;
 import com.example.backend.global.exception.ErrorCode;
+import com.example.backend.global.response.PageResponse;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -39,14 +40,19 @@ public class AdminAccountService {
     }
 
     @Transactional(readOnly = true)
-    public List<AdminAccountResponse> search(String keyword, String roleFilter) {
+    public PageResponse<AdminAccountResponse> search(String keyword, String roleFilter, int page, int size) {
         String normalizedKeyword = keyword == null ? "" : keyword.trim();
         int roleId = AuthorityCode.fromCode(roleFilter)
                 .map(code -> (int) code.authorityId())
                 .orElse(-1);
-        return accountRepository.searchAccounts(normalizedKeyword, roleId, MAX_RESULTS).stream()
+        int safeSize = Math.min(Math.max(1, size), MAX_RESULTS);
+        int safePage = Math.max(0, page);
+        List<AdminAccountResponse> content = accountRepository
+                .searchAccounts(normalizedKeyword, roleId, safeSize, safePage * safeSize).stream()
                 .map(AdminAccountResponse::from)
                 .toList();
+        long total = accountRepository.countSearchAccounts(normalizedKeyword, roleId);
+        return PageResponse.of(content, safePage, safeSize, total);
     }
 
     @Transactional

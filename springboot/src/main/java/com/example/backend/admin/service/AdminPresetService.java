@@ -10,6 +10,7 @@ import com.example.backend.global.exception.BusinessException;
 import com.example.backend.global.exception.ErrorCode;
 import com.example.backend.preset.query.PresetImageQueryRepository;
 import com.example.backend.preset.storage.PresetImageStorage;
+import com.example.backend.global.response.PageResponse;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -35,8 +36,12 @@ public class AdminPresetService {
     }
 
     @Transactional(readOnly = true)
-    public List<AdminPresetResponse> getAll() {
-        return queryRepository.findAll();
+    public PageResponse<AdminPresetResponse> getAll(int page, int size) {
+        int safeSize = Math.max(1, size);
+        int safePage = Math.max(0, page);
+        List<AdminPresetResponse> content = queryRepository.findAll(safePage, safeSize);
+        long total = queryRepository.countAll();
+        return PageResponse.of(content, safePage, safeSize, total);
     }
 
     @Transactional

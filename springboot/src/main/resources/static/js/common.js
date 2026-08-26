@@ -1667,6 +1667,102 @@
     return entries ? entries.map((entry) => `${entry.label} : ${entry.value}`) : null;
   }
 
+  /**
+   * 여러 화면(검색·보물지도·마이페이지·사업자·관리자)이 공유하는 번호형 페이지네이션.
+   * 페이지 번호를 5개씩 묶어서 보여준다 (1~5, 6~10, 11~15 ...).
+   * ‹/›는 한 페이지씩 이동하지 않고 묶음 단위로 이동한다:
+   * [‹][1][2][3][4][5][›] 에서 ›를 누르면 [‹][6][7][8][9][10][›] 로 넘어가고,
+   * 그 상태에서 ‹를 누르면 다시 [‹][1][2][3][4][5][›] 로 돌아간다.
+   * pageData는 normalizePageData()로 {content, totalElements, totalPages, number, first, last}
+   * 모양으로 맞춘 뒤 넘긴다. onChange(page)는 0부터 시작하는 페이지 번호로 불린다.
+   */
+  /**
+   * 현재 페이지가 속한 번호 묶음(기본 5개)의 범위를 계산한다.
+   * 1~5페이지에 있으면 언제나 start=0,end=5 이므로 5페이지에 들어가도 [1][2][3][4][5]가 유지되고,
+   * 6페이지로 넘어가야 [6][7][8][9][10] 묶음으로 바뀐다.
+   * previousPage/nextPage는 이전·다음 "묶음"으로 건너뛰는 목적지 페이지다.
+   */
+  function pageBlock(currentPage, totalPages, blockSize = 5) {
+    const total = Math.max(0, Number(totalPages) || 0);
+    const size = Math.max(1, Number(blockSize) || 5);
+    const current = Math.min(Math.max(0, Number(currentPage) || 0), Math.max(0, total - 1));
+    const start = Math.floor(current / size) * size;
+    const end = Math.min(total, start + size);
+    return {
+      start,
+      end,
+      hasPrevious: start > 0,
+      hasNext: end < total,
+      previousPage: Math.max(0, start - 1),
+      nextPage: Math.min(Math.max(0, total - 1), end),
+    };
+  }
+
+  function renderPagination(container, pageData, onChange) {
+    if (!container) return;
+    container.replaceChildren();
+    const totalPages = Math.max(0, Number(pageData?.totalPages) || 0);
+    if (totalPages <= 1) return;
+    const current = Math.max(0, Number(pageData?.number) || 0);
+
+    const makeButton = (label, { page, disabled = false, active = false, ariaLabel } = {}) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "page-button";
+      button.textContent = label;
+      if (ariaLabel) button.setAttribute("aria-label", ariaLabel);
+      if (active) {
+        button.classList.add("is-active");
+        button.setAttribute("aria-current", "page");
+      }
+      button.disabled = disabled;
+      if (!disabled) button.addEventListener("click", () => onChange(page));
+      return button;
+    };
+
+    const block = pageBlock(current, totalPages);
+
+    container.append(makeButton("‹", {
+      page: block.previousPage,
+      disabled: !block.hasPrevious,
+      ariaLabel: "이전 페이지 묶음",
+    }));
+
+    for (let page = block.start; page < block.end; page += 1) {
+      container.append(makeButton(String(page + 1), { page, active: page === current }));
+    }
+
+    container.append(makeButton("›", {
+      page: block.nextPage,
+      disabled: !block.hasNext,
+      ariaLabel: "다음 페이지 묶음",
+    }));
+  }
+
+  /**
+   * 화면마다 다른 페이지 응답 모양({items,totalCount,page} 등)을
+   * {content, totalElements, totalPages, number, first, last} 로 통일한다.
+   */
+  function normalizePageData(payload, options = {}) {
+    const contentKey = options.contentKey || "content";
+    const totalKey = options.totalKey || "totalElements";
+    const pageKey = options.pageKey || "number";
+    const content = payload?.[contentKey] ?? [];
+    const totalElements = Number(payload?.[totalKey] ?? content.length) || 0;
+    const totalPages = Math.max(1, Number(payload?.totalPages) || 1);
+    const number = Math.max(0, Number(payload?.[pageKey]) || 0);
+    return {
+      content,
+      totalElements,
+      totalPages,
+      number,
+      first: payload?.first ?? number <= 0,
+      last: payload?.last ?? number >= totalPages - 1,
+    };
+  }
+
+  window.FooduckPagination = { render: renderPagination, normalize: normalizePageData, block: pageBlock };
+
   window.FooduckHours = {
     parse: parseOpeningHours,
     lines: openingHoursLines,

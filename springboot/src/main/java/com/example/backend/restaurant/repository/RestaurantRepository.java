@@ -2,6 +2,7 @@ package com.example.backend.restaurant.repository;
 
 import com.example.backend.restaurant.domain.entity.Restaurant;
 import com.example.backend.restaurant.domain.type.RestaurantStatus;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -55,7 +56,7 @@ public interface RestaurantRepository extends JpaRepository<Restaurant, Long> {
             + "(:status IS NULL OR r.status = :status) AND "
             + "(:keyword = '' OR r.name LIKE CONCAT('%', :keyword, '%') OR r.address LIKE CONCAT('%', :keyword, '%')) "
             + "ORDER BY r.createdAt DESC")
-    List<Restaurant> search(
+    Page<Restaurant> search(
             @Param("keyword") String keyword,
             @Param("status") RestaurantStatus status,
             Pageable pageable

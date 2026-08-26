@@ -39,10 +39,10 @@ class MyPageActivityQueryRepositoryTest {
         long accountId = Long.MAX_VALUE;
 
         assertAll(
-                () -> assertTrue(repository.findFavorites(accountId).isEmpty()),
-                () -> assertTrue(repository.findReviews(accountId).isEmpty()),
-                () -> assertTrue(repository.findPosts(accountId).isEmpty()),
-                () -> assertTrue(repository.findComments(accountId).isEmpty()),
+                () -> assertTrue(repository.findFavorites(accountId, 0, 25).isEmpty()),
+                () -> assertTrue(repository.findReviews(accountId, 0, 25).isEmpty()),
+                () -> assertTrue(repository.findPosts(accountId, 0, 25).isEmpty()),
+                () -> assertTrue(repository.findComments(accountId, 0, 25).isEmpty()),
                 () -> assertTrue(repository.findUnreadNotifications(accountId).isEmpty())
         );
     }
@@ -77,7 +77,7 @@ class MyPageActivityQueryRepositoryTest {
         );
 
         var counts = repository.findCounts(accountId);
-        var favorites = repository.findFavorites(accountId);
+        var favorites = repository.findFavorites(accountId, 0, 25);
         var ownedFavorite = favorites.stream()
                 .filter(item -> item.restaurantName().equals("마이페이지 활성 식당"))
                 .findFirst()
@@ -119,7 +119,7 @@ class MyPageActivityQueryRepositoryTest {
                 ) values (?, ?, 4, '공공 리뷰', 'ACTIVE', current_timestamp, current_timestamp)
                 """, accountId, publicRestaurantId);
 
-        var reviews = repository.findReviews(accountId);
+        var reviews = repository.findReviews(accountId, 0, 25);
         var ownedReview = reviews.stream()
                 .filter(item -> item.content().equals("자체 리뷰"))
                 .findFirst()

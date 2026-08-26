@@ -4,6 +4,7 @@ import com.example.backend.admin.dto.request.AdminRestaurantUpdateRequest;
 import com.example.backend.admin.dto.response.AdminRestaurantResponse;
 import com.example.backend.admin.service.AdminRestaurantService;
 import com.example.backend.global.response.ApiResponse;
+import com.example.backend.global.response.PageResponse;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -26,11 +27,13 @@ public class AdminRestaurantController {
     }
 
     @GetMapping
-    public ApiResponse<List<AdminRestaurantResponse>> search(
+    public ApiResponse<PageResponse<AdminRestaurantResponse>> search(
             @RequestParam(required = false) String keyword,
-            @RequestParam(required = false) String status
+            @RequestParam(required = false) String status,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "25") int size
     ) {
-        return ApiResponse.success(adminRestaurantService.search(keyword, status));
+        return ApiResponse.success(adminRestaurantService.search(keyword, status, page, size));
     }
 
     @PatchMapping("/{restaurantId}")

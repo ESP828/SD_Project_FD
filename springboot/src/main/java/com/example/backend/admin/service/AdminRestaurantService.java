@@ -7,6 +7,8 @@ import com.example.backend.global.exception.ErrorCode;
 import com.example.backend.restaurant.domain.entity.Restaurant;
 import com.example.backend.restaurant.domain.type.RestaurantStatus;
 import com.example.backend.restaurant.repository.RestaurantRepository;
+import com.example.backend.global.response.PageResponse;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -17,7 +19,7 @@ import java.util.List;
 @Service
 public class AdminRestaurantService {
 
-    private static final int MAX_RESULTS = 100;
+    private static final int MAX_PAGE_SIZE = 100;
 
     private final RestaurantRepository restaurantRepository;
 
@@ -26,13 +28,16 @@ public class AdminRestaurantService {
     }
 
     @Transactional(readOnly = true)
-    public List<AdminRestaurantResponse> search(String keyword, String statusFilter) {
+    public PageResponse<AdminRestaurantResponse> search(String keyword, String statusFilter, int page, int size) {
         String normalizedKeyword = keyword == null ? "" : keyword.trim();
         RestaurantStatus status = parseStatusOrNull(statusFilter);
-        Pageable limit = PageRequest.of(0, MAX_RESULTS);
-        return restaurantRepository.search(normalizedKeyword, status, limit).stream()
+        int safeSize = Math.min(Math.max(1, size), MAX_PAGE_SIZE);
+        Pageable pageable = PageRequest.of(Math.max(0, page), safeSize);
+        Page<Restaurant> result = restaurantRepository.search(normalizedKeyword, status, pageable);
+        List<AdminRestaurantResponse> content = result.getContent().stream()
                 .map(AdminRestaurantResponse::from)
                 .toList();
+        return PageResponse.of(content, result.getNumber(), safeSize, result.getTotalElements());
     }
 
     @Transactional

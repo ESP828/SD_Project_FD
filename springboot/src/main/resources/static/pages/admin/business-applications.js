@@ -13,8 +13,11 @@
   const statusButtons = document.querySelectorAll(".apps-status-btn");
   const tableBody = document.getElementById("apps-table-body");
   const countLabel = document.getElementById("apps-count");
+  const paginationHost = document.getElementById("apps-pagination");
+  const PAGE_SIZE = 25;
 
   let currentStatus = "";
+  let currentPage = 0;
   let applications = [];
 
   const STATUS_LABELS = { PENDING: "대기", APPROVED: "승인", REJECTED: "거절", CANCELED: "취소" };
@@ -33,17 +36,12 @@
   }
 
   function renderRows() {
-    const filtered = currentStatus
-      ? applications.filter((app) => app.status === currentStatus)
-      : applications;
-
-    if (filtered.length === 0) {
+    if (applications.length === 0) {
       tableBody.innerHTML = '<tr><td colspan="8" class="apps-empty">조건에 맞는 신청이 없습니다.</td></tr>';
-      countLabel.textContent = "";
       return;
     }
 
-    tableBody.innerHTML = filtered.map((app) => {
+    tableBody.innerHTML = applications.map((app) => {
       const applicant = escapeHtml(app.applicantLoginId || app.applicantNickname || "알 수 없음");
       const nickname = escapeHtml(app.applicantNickname || "");
       const actions = app.status === "PENDING"
@@ -68,19 +66,27 @@
       </tr>
       `;
     }).join("");
-
-    countLabel.textContent = `총 ${filtered.length}건`;
   }
 
-  async function loadApplications() {
+  async function loadApplications(page = 0) {
     tableBody.innerHTML = '<tr><td colspan="8" class="apps-loading">불러오는 중...</td></tr>';
     try {
-      const response = await Api.get("/admin/business-applications");
-      applications = response.data || [];
+      const params = new URLSearchParams({ page: String(page), size: String(PAGE_SIZE) });
+      if (currentStatus) params.set("status", currentStatus);
+      const response = await Api.get(`/admin/business-applications?${params.toString()}`);
+      const pageData = window.FooduckPagination.normalize(response.data, { pageKey: "page" });
+      applications = pageData.content;
+      currentPage = pageData.number;
       renderRows();
+      countLabel.textContent = `총 ${pageData.totalElements.toLocaleString("ko-KR")}건`;
+      window.FooduckPagination.render(paginationHost, pageData, (nextPage) => {
+        loadApplications(nextPage);
+        paginationHost.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
     } catch (error) {
       tableBody.innerHTML = `<tr><td colspan="8" class="apps-empty">${error.message || "신청 목록을 불러오지 못했습니다."}</td></tr>`;
       countLabel.textContent = "";
+      paginationHost.replaceChildren();
     }
   }
 
@@ -89,7 +95,7 @@
       statusButtons.forEach((b) => b.classList.remove("is-active"));
       button.classList.add("is-active");
       currentStatus = button.dataset.status;
-      renderRows();
+      loadApplications();
     });
   });
 
