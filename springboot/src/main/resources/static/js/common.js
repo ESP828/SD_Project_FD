@@ -519,6 +519,20 @@
       "M7 15l1.5 5h3L10 15",
       "M20 9v6",
     ],
+    sports_esports: [
+      "M6 8h12a4 4 0 0 1 4 4l-1.2 6a2 2 0 0 1-3.4 1.1L15 17H9l-2.4 2.1A2 2 0 0 1 3.2 18L2 12a4 4 0 0 1 4-4z",
+      "M7 10v4",
+      "M5 12h4",
+      "M16 11h.01",
+      "M18 13h.01",
+    ],
+    ladder: [
+      "M7 3v18",
+      "M17 3v18",
+      "M7 7h10",
+      "M7 12h10",
+      "M7 17h10",
+    ],
   };
 
   function setIcon(element, iconName) {
@@ -1190,6 +1204,9 @@
     if (path === "/search") {
       return "search";
     }
+    if (path === "/game") {
+      return "game";
+    }
     return "";
   }
 
@@ -1219,6 +1236,12 @@
         label: "검색",
         icon: "search",
         href: "/search",
+      },
+      {
+        id: "game",
+        label: "게임",
+        icon: "sports_esports",
+        href: "/game",
       },
     ];
     const active = currentQuickTarget();
