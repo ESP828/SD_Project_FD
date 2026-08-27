@@ -768,7 +768,10 @@
 .hero-copy h1 {
   max-width: 720px;
   margin-bottom: 28px;
-  font-size: clamp(2.6rem, 5vw, 4.4rem);
+  /* 320px~데스크톱까지 하나의 clamp()로만 처리한다. 폭 구간별로 다른
+     clamp()를 미디어쿼리로 나눠 두면 구간이 바뀌는 경계에서 vw 계수가
+     달라져 글자 크기가 순간적으로 튀어 오르는 문제가 생긴다. */
+  font-size: clamp(1.7rem, 5.9vw, 4.4rem);
 }
 
 .hero-actions {
@@ -841,10 +844,6 @@
     min-height: auto;
     grid-template-columns: 1fr;
     gap: 28px;
-  }
-
-  .hero-copy h1 {
-    font-size: clamp(2.45rem, 11vw, 3.6rem);
   }
 
   /* 두 버튼이 세로로 쌓이지 않고 한 줄에 나란히 놓이도록 폭을 절반씩 나눠 갖는다. */
