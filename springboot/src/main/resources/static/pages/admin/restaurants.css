@@ -65,25 +65,45 @@
 
 .restaurants-search {
   display: flex;
+  width: 100%;
+  max-width: 100%;
   align-items: center;
   gap: 8px;
-  min-width: 280px;
-  padding: 6px 8px 6px 16px;
+  min-width: 0;                    /* 강제 최소너비 해제 (오버플로우 방지) */
+  padding: 6px 8px 6px 14px;
   border: 1px solid var(--color-line);
   border-radius: 14px;
   background: #fff;
+  box-sizing: border-box;          /* 패딩 포함 100% 계산 (튀어나옴 해결) */
 }
 
 .restaurants-search .material-symbols-rounded {
+  flex-shrink: 0;                  /* 아이콘 찌그러짐 방지 */
   color: var(--color-subtle);
 }
 
 .restaurants-search input {
   flex: 1;
+  width: 100%;
   min-width: 0;
   border: 0;
   outline: none;
   background: transparent;
+  font-family: inherit;
+}
+
+/* 2. 상태 버튼 내부 패딩 유연화 (모바일에서 버튼이 넘쳐 필터가 깨지는 것 방지) */
+.restaurants-status-btn {
+  padding: 8px 6px;                /* 좌우 16px -> 6px로 축소하여 텍스트 잘림 방지 */
+  border: 0;
+  border-radius: 10px;
+  color: var(--color-muted);
+  font-size: 0.8rem;
+  font-weight: 800;
+  background: transparent;
+  cursor: pointer;
+  white-space: nowrap;             /* 줄바꿈 방지 */
+  transition: background 150ms ease, color 150ms ease;
 }
 
 .restaurants-table-wrap {
@@ -274,7 +294,7 @@
   margin-top: 4px;
 }
 
-@media (max-width: 680px) {
+@media (max-width: 380px) {
   .restaurants-toolbar {
     flex-direction: column;
     align-items: stretch;

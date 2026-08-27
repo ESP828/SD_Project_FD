@@ -1540,7 +1540,7 @@ h4 {
     justify-content: center;
   }
 }
-@media (max-width: 768px) {
+@media (max-width: 720px) {
   /* 1. 절대 위치(absolute)로 겹쳐 있는 경우 */
   /* 닫기 버튼이 우측 끝(right: 16px)에 위치할 때 */
   .map-detail-close,
@@ -1601,7 +1601,7 @@ h4 {
 /* ===================================================
    모바일 전용 (768px 이하): 너비에 맞춰 1행 비례 유동 축소
 =================================================== */
-@media (max-width: 768px) {
+@media (max-width: 720px) {
   .recommendation-hero-actions {
     display: flex !important;
     flex-direction: row !important;
@@ -1675,4 +1675,76 @@ h4 {
 
 .fooduck-pagination .page-button:disabled {
   opacity: 0.45;
+}
+/* 1. 클래스명이 'hero-grid'로 끝나는 모든 컨테이너만 적용 */
+[class$="hero-grid"] {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: clamp(16px, 3vw, 32px) !important; /* 글자와 이미지 사이 간격 축소 */
+  max-width: 860px !important;            /* 양 끝으로 벌어짐 방지 */
+  margin: 0 auto !important;
+}
+
+/* 2. 좌측 텍스트 묶음 영역 */
+[class$="hero-grid"] > div:first-child {
+  flex: 0 1 auto !important;
+  min-width: 0 !important;
+}
+
+/* 3. h1 기본 여백 제거 및 줄바꿈 최적화 */
+[class$="hero-grid"] h1 {
+  margin: 0 !important;
+  line-height: 1.2 !important;
+  white-space: nowrap !important;
+  word-break: keep-all;
+}
+
+/* 4. 우측 캐릭터 이미지 */
+[class$="hero-grid"] > img,
+[class$="hero-grid"] > [class*="visual"] {
+  flex: 0 0 auto !important;
+  margin: 0 !important;
+}
+
+
+/* 1. select 요소 및 부모 label 너비 제어 (sort-select 추가) */
+.preset-search-select,
+.preset-sort-select,
+.preset-search select {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  text-overflow: ellipsis;
+}
+
+/* 2. preset-sort-select가 search-select의 크기를 초과하지 않도록 제한 */
+.preset-sort-select {
+  /* search-select가 고정폭/최대폭을 가질 경우 동일하게 상속 또는 제한 */
+  max-width: 100%;
+  flex: 0 1 auto; /* flex 컨테이너 안에서 혼자 커지는 현상 방지 */
+  white-space: nowrap;
+  overflow: hidden;
+}
+/* 1. 부모 라벨 박스: 블록화 및 가로 넘침 방지 */
+.preset-search-select {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+/* 2. 내부 select 태그: 부모 라벨 상자를 100% 초과하지 못하도록 제한 */
+.preset-search-select select,
+#preset-sort-select {
+  display: block;
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+  box-sizing: border-box !important;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  overflow: hidden;
 }

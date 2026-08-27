@@ -13,12 +13,12 @@
 
 .accounts-toolbar {
   display: flex;
+  width: 100%;
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 14px;
   margin-bottom: 18px;
-  width: 100%;
   box-sizing: border-box;
 }
 
@@ -56,40 +56,29 @@
   background: var(--color-navy);
 }
 
+/* 1. 기본 상태에서도 줄바꿈 절대 방지 */
 .accounts-toolbar-right {
   display: flex;
   align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
+  gap: 8px;
+  flex-wrap: nowrap; /* 줄바꿈 방지 */
   max-width: 100%;
   box-sizing: border-box;
 }
 
-/* 검색창 컨테이너 너비 계산 및 박스 모델 안정화 */
+/* 2. 검색창 박스 모델 및 유연성 확보 */
 .accounts-search {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
+  flex: 1 1 auto;
+  min-width: 0;      /* 강제 최소너비 해제로 줄바꿈 방지 */
   width: auto;
-  min-width: 240px;
-  max-width: 100%;
-  padding: 6px 12px;
+  padding: 6px 8px 6px 12px;
   border: 1px solid var(--color-line);
   border-radius: 14px;
   background: #fff;
   box-sizing: border-box;
-}
-
-.accounts-mode-toggle {
-  box-sizing: border-box;
-  white-space: nowrap;
-  flex-shrink: 0;
-}
-
-.accounts-mode-toggle.is-active {
-  border-color: var(--color-danger);
-  color: #fff;
-  background: var(--color-danger);
 }
 
 .accounts-search .material-symbols-rounded {
@@ -104,8 +93,26 @@
   border: 0;
   outline: none;
   background: transparent;
-  font-size: 0.85rem;
+  font-size: 0.82rem;
   box-sizing: border-box;
+}
+
+.accounts-search .button {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+/* 3. 삭제 버튼 축소 및 줄바꿈 방지 */
+.accounts-mode-toggle {
+  box-sizing: border-box;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.accounts-mode-toggle.is-active {
+  border-color: var(--color-danger);
+  color: #fff;
+  background: var(--color-danger);
 }
 
 .accounts-table-wrap {
@@ -298,46 +305,183 @@
   margin-top: 4px;
 }
 
-/* 모바일 반응형 최적화 */
-@media (max-width: 680px) {
+/* ===================================================
+   미디어 쿼리 영역
+   =================================================== */
+@media (max-width: 745px) {
+  /* 툴바 상하 2단 분리 */
   .accounts-toolbar {
     flex-direction: column;
     align-items: stretch;
-    gap: 12px;
+    width: 100%;
+    gap: 10px;
   }
 
+  /* 권한 필터 100% 4등분 */
   .accounts-role-filter {
-    display: grid;
+    display: flex;
     width: 100%;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 4px;
-    padding: 4px;
   }
 
-  .accounts-role-btn {
-    width: 100%;
-    padding: 8px 4px;
-    font-size: 0.75rem;
+  .accounts-role-filter > * {
+    flex: 1 1 0;
+    min-width: 0;
     text-align: center;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    padding: 8px 4px;
+    font-size: 0.78rem;
   }
 
+  /* 오른쪽 영역 전체 폭 확장 & 줄바꿈 절대 방지 */
   .accounts-toolbar-right {
     display: flex;
-    flex-direction: column;
-    align-items: stretch;
+    flex-wrap: nowrap !important;
     width: 100%;
+    flex: 1 1 100%;
     gap: 8px;
   }
 
   .accounts-search {
-    width: 100%;
+    flex: 1 1 auto;
     min-width: 0;
+    width: auto;
   }
 
   .accounts-mode-toggle {
-    width: 100%;
-    justify-content: center;
+    flex-shrink: 0;
+    padding: 0 12px;
+  }
+}
+
+@media (max-width: 425px) {
+  body .management-hero {
+    padding: 24px 0 20px;
+  }
+
+  body .management-hero-grid {
+    min-height: auto;
+    gap: 12px;
+  }
+
+  body .management-hero .mypage-detail-back {
+    margin-bottom: 4px;
+    font-size: 0.78rem;
+  }
+
+  body .management-hero .eyebrow {
+    margin-bottom: 2px;
+    font-size: 0.72rem;
+  }
+
+  body .management-hero h1 {
+    font-size: 1.55rem;
+    line-height: 1.2;
+  }
+
+  body .management-hero img {
+    width: 95px;
+  }
+
+  body .management-content {
+    padding-top: 18px;
+  }
+
+  body .access-card {
+    padding: 20px 16px;
+    gap: 16px;
+  }
+
+  body .access-card img {
+    width: 100px;
+  }
+
+  body .management-summary {
+    padding: 16px;
+    border-radius: 14px;
+    gap: 12px;
+  }
+
+  body .management-summary h2 {
+    font-size: 1.15rem;
+  }
+
+  body .management-card {
+    min-height: auto;
+    padding: 16px;
+    border-radius: 14px;
+  }
+
+  body .management-card .material-symbols-rounded {
+    width: 38px;
+    height: 38px;
+    margin-bottom: 12px;
+    border-radius: 10px;
+  }
+
+  body .management-panel-body {
+    padding: 16px;
+  }
+
+  body .application-form {
+    gap: 10px;
+  }
+
+  body .application-form input {
+    min-height: 40px;
+    padding: 0 10px;
+    font-size: 0.85rem;
+  }
+
+  body .application-form textarea {
+    padding: 10px;
+    font-size: 0.85rem;
+  }
+
+  body .management-preview-row {
+    padding: 14px 16px;
+    gap: 12px;
+  }
+
+  body .management-preview-list--compact .management-preview-row {
+    padding: 12px 14px;
+  }
+
+  body .management-preview-heading strong {
+    font-size: 0.88rem;
+  }
+
+  /* 425px 이하 초소형 화면에서 툴바 컴팩트화 (줄바꿈 방지 유지) */
+  .accounts-role-btn {
+    padding: 6px 2px;
+    font-size: 0.72rem;
+  }
+
+  .accounts-toolbar-right {
+    gap: 6px;
+  }
+
+  .accounts-search {
+    padding: 4px 6px 4px 10px;
+    border-radius: 10px;
+    gap: 4px;
+  }
+
+  .accounts-search .material-symbols-rounded {
+    font-size: 1.1rem;
+  }
+
+  .accounts-search input {
+    font-size: 0.76rem;
+  }
+
+  .accounts-search .button {
+    padding: 4px 8px;
+    font-size: 0.72rem;
+    min-height: 28px;
+  }
+
+  .accounts-mode-toggle {
+    padding: 4px 8px;
+    font-size: 0.72rem;
+    min-height: 28px;
   }
 }

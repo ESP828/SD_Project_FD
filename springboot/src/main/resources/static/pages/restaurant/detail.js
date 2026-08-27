@@ -6,6 +6,57 @@
   const content = document.getElementById("store-content");
   if (!loading || !errorView || !content) return;
 
+  function ensureStoreScrollTopButton() {
+    let button = document.querySelector(".board-scroll-top");
+    if (!button) {
+      button = document.createElement("button");
+      button.type = "button";
+      button.className = "board-scroll-top";
+      button.textContent = "↑";
+      button.title = "맨 위로 이동";
+      button.setAttribute("aria-label", "맨 위로 이동");
+      button.hidden = true;
+      document.body.append(button);
+    }
+
+    if (button.dataset.storeScrollTopBound === "true") return;
+    button.dataset.storeScrollTopBound = "true";
+
+    let ticking = false;
+    const currentScrollTop = () => Math.max(
+      Number(window.scrollY) || 0,
+      Number(document.documentElement?.scrollTop) || 0,
+      Number(document.body?.scrollTop) || 0,
+    );
+    const updateVisibility = () => {
+      const visible = currentScrollTop() > 450;
+      button.hidden = !visible;
+      document.body.classList.toggle("board-scroll-top-visible", visible);
+      ticking = false;
+    };
+    const scheduleVisibilityUpdate = () => {
+      if (ticking) return;
+      ticking = true;
+      window.requestAnimationFrame(updateVisibility);
+    };
+
+    window.addEventListener("scroll", scheduleVisibilityUpdate, { passive: true });
+    window.addEventListener("resize", scheduleVisibilityUpdate, { passive: true });
+    window.addEventListener("pageshow", updateVisibility);
+
+    button.addEventListener("click", () => {
+      const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      window.scrollTo({
+        top: 0,
+        behavior: reduceMotion ? "auto" : "smooth",
+      });
+    });
+
+    updateVisibility();
+  }
+
+  ensureStoreScrollTopButton();
+
   const params = new URLSearchParams(window.location.search);
   const source = params.get("source") === "public" ? "public" : "owned";
   const id = params.get("id");
@@ -1573,6 +1624,7 @@
     if (!state) {
       state = {
         postId: key,
+        post: null,
         open: false,
         loaded: false,
         loading: false,
@@ -1597,6 +1649,7 @@
   function seedNewsCommentCount(news) {
     if (news?.postId == null) return null;
     const state = getNewsCommentState(news.postId);
+    state.post = news;
     const listCount = Number(news.commentCount);
     if (!state.loaded && Number.isFinite(listCount)) {
       state.totalCount = Math.max(0, listCount);
@@ -1643,6 +1696,24 @@
   function newsCommentEmojiElement(tagName, className, text) {
     const node = newsCommentElement(tagName, className);
     renderCustomEmojiText(node, text);
+    return node;
+  }
+
+  function newsCommentContentElement(comment, isReply = false) {
+    const value = String(comment?.content ?? "");
+    if (!isReply) return newsCommentEmojiElement("p", "comment-content", value);
+
+    const mentionMatch = value.match(/^(@\S+)([\s\S]*)$/);
+    if (!mentionMatch) return newsCommentEmojiElement("p", "comment-content", value);
+
+    const node = newsCommentElement("p", "comment-content");
+    node.append(newsCommentElement("span", "comment-content-mention", mentionMatch[1]));
+
+    if (mentionMatch[2]) {
+      const body = newsCommentElement("span", "comment-content-body");
+      renderCustomEmojiText(body, mentionMatch[2]);
+      node.append(body);
+    }
     return node;
   }
 
@@ -1876,6 +1947,10 @@
       !event.isComposing &&
       event.keyCode !== 229
     );
+  }
+
+  function isWithdrawnNewsAuthor(author) {
+    return author?.authorNickname === "탈퇴한 회원";
   }
 
   function bindNewsCommentEditorSubmitEnter(textarea, editor) {
@@ -2127,6 +2202,7 @@
   }
 
   function openNewsReplyComposer(postId, comment, mountTarget) {
+    if (isWithdrawnNewsAuthor(comment)) return;
     if (!isLoggedIn) {
       openNewsCommentLogin(() => openNewsReplyComposer(postId, comment, mountTarget));
       return;
@@ -2229,8 +2305,9 @@
     row.append(submitTools, actions);
 
     const hasBody = () => Boolean(textarea.value.trim());
+    const isPostWithdrawn = () => isWithdrawnNewsAuthor(getNewsCommentState(postId).post);
     const sync = () => {
-      submit.disabled = !hasBody();
+      submit.disabled = isPostWithdrawn() || !hasBody();
       characterCount.textContent = `${newsReplyContentValue(textarea.value, targetName).length} / 1000`;
       resizeNewsCommentTextarea(textarea, 78);
     };
@@ -2275,6 +2352,11 @@
     textarea.addEventListener("keydown", (event) => {
       if (!isNewsCommentSubmitEnter(event)) return;
       event.preventDefault();
+      if (isPostWithdrawn()) {
+        showNewsCommentToast("작성자가 탈퇴한 게시물에는 댓글을 작성할 수 없습니다.", true);
+        sync();
+        return;
+      }
       if (!submit.disabled) form.requestSubmit();
     });
     cancel.addEventListener("click", () => {
@@ -2285,6 +2367,11 @@
     });
     form.addEventListener("submit", async (event) => {
       event.preventDefault();
+      if (isPostWithdrawn()) {
+        showNewsCommentToast("작성자가 탈퇴한 게시물에는 댓글을 작성할 수 없습니다.", true);
+        sync();
+        return;
+      }
       if (!hasBody()) return;
       const otherDrafts = newsInlineCommentDrafts(panel).filter((candidate) => candidate !== textarea);
       const otherImageDrafts = newsInlineCommentImageDraftForms(panel).filter((candidate) => candidate !== form);
@@ -2333,9 +2420,9 @@
         else await loadNewsComments(postId, state.page, { forceRefresh: true });
       } catch (error) {
         textarea.disabled = false;
-        submit.disabled = false;
         imageButton.disabled = false;
         emojiButton.disabled = false;
+        sync();
         const status = panel.querySelector("[data-news-comment-status]");
         if (status) status.textContent = error.message || "답글 등록에 실패했습니다.";
       }
@@ -2578,6 +2665,7 @@
   }
 
   function renderNewsCommentItem(postId, comment, options = {}) {
+    const withdrawnAuthor = isWithdrawnNewsAuthor(comment);
     const item = newsCommentElement(
       "article",
       options.isReply ? "comment-item comment-reply" : "comment-item",
@@ -2594,16 +2682,18 @@
     );
     top.append(author, date);
 
-    const contentNode = newsCommentEmojiElement("p", "comment-content", comment.content || "");
+    const contentNode = newsCommentContentElement(comment, Boolean(options.isReply));
     item.append(top, contentNode);
     const image = newsCommentImageNode(comment);
     if (image) item.append(image);
 
     const actions = newsCommentElement("div", "comment-actions");
-    const reply = newsCommentElement("button", "comment-action", "답글");
-    reply.type = "button";
-    reply.addEventListener("click", () => openNewsReplyComposer(postId, comment, item));
-    actions.append(reply);
+    if (!withdrawnAuthor) {
+      const reply = newsCommentElement("button", "comment-action", "답글");
+      reply.type = "button";
+      reply.addEventListener("click", () => openNewsReplyComposer(postId, comment, item));
+      actions.append(reply);
+    }
 
     if (comment.ownedByCurrentUser || isAdmin) {
       const edit = newsCommentElement("button", "comment-action", "수정");
@@ -2615,12 +2705,14 @@
       actions.append(edit, remove);
     }
     item.append(actions);
-    item.classList.add("comment-item--replyable");
-    item.addEventListener("click", (event) => {
-      if (item.querySelector(":scope > .store-news-comment-reply-form")) return;
-      if (shouldIgnoreNewsCommentAreaReplyClick(event, item)) return;
-      openNewsReplyComposer(postId, comment, item);
-    });
+    if (!withdrawnAuthor) {
+      item.classList.add("comment-item--replyable");
+      item.addEventListener("click", (event) => {
+        if (item.querySelector(":scope > .store-news-comment-reply-form")) return;
+        if (shouldIgnoreNewsCommentAreaReplyClick(event, item)) return;
+        openNewsReplyComposer(postId, comment, item);
+      });
+    }
     return item;
   }
 
@@ -2716,12 +2808,19 @@
   function renderNewsCommentForm(postId, state) {
     let selectedImage = null;
     let previewUrl = null;
+    const withdrawnAuthor = isWithdrawnNewsAuthor(state?.post);
 
     const form = newsCommentElement("form", "comment-form comment-form--bottom store-news-comment-form");
     const heading = newsCommentElement("div", "comment-form-heading");
     heading.append(
       newsCommentElement("strong", "", "댓글 작성"),
-      newsCommentElement("span", "", "이야기를 읽고 의견을 남겨 보세요."),
+      newsCommentElement(
+        "span",
+        "",
+        withdrawnAuthor
+          ? "작성자가 탈퇴한 게시물에는 댓글을 작성할 수 없습니다."
+          : "이야기를 읽고 의견을 남겨 보세요.",
+      ),
     );
 
     const label = newsCommentElement("label", "sr-only", "댓글 내용");
@@ -2731,7 +2830,10 @@
     textarea.id = textareaId;
     textarea.maxLength = 1000;
     textarea.rows = 4;
-    textarea.placeholder = "맛있는 이야기에 댓글을 남겨 보세요.";
+    textarea.disabled = withdrawnAuthor;
+    textarea.placeholder = withdrawnAuthor
+      ? "작성자가 탈퇴하여 댓글을 작성할 수 없습니다."
+      : "맛있는 이야기에 댓글을 남겨 보세요.";
     textarea.dataset.newsCommentDraft = "true";
     textarea.dataset.initialValue = "";
 
@@ -2748,8 +2850,11 @@
     fileInput.accept = ".jpg,.jpeg,.png,.gif,.webp,image/jpeg,image/png,image/gif,image/webp";
     const imageButton = newsCommentElement("button", "comment-image-select", "사진 첨부");
     imageButton.type = "button";
+    imageButton.disabled = withdrawnAuthor;
+    fileInput.disabled = withdrawnAuthor;
     const emojiButton = newsCommentElement("button", "comment-emoji-toggle", "🐸 이모지");
     emojiButton.type = "button";
+    emojiButton.disabled = withdrawnAuthor;
     const emojiPanel = newsCommentElement("div", "comment-emoji-panel");
     emojiPanel.hidden = true;
     emojiPanel.setAttribute("role", "group");
@@ -2777,8 +2882,9 @@
     submitTools.append(tools, inputMeta);
     const submit = newsCommentElement("button", "button button-sm button-primary", "댓글 등록");
     submit.type = "submit";
+    submit.disabled = withdrawnAuthor;
     submitRow.append(submitTools);
-    if (isLoggedIn) {
+    if (isLoggedIn || withdrawnAuthor) {
       submitRow.append(submit);
     } else {
       const loginNote = newsCommentElement(
@@ -2834,10 +2940,18 @@
     textarea.addEventListener("keydown", (event) => {
       if (!isNewsCommentSubmitEnter(event)) return;
       event.preventDefault();
+      if (withdrawnAuthor) {
+        showNewsCommentToast("작성자가 탈퇴한 게시물에는 댓글을 작성할 수 없습니다.", true);
+        return;
+      }
       if (textarea.value.trim()) form.requestSubmit();
     });
     form.addEventListener("submit", async (event) => {
       event.preventDefault();
+      if (withdrawnAuthor) {
+        showNewsCommentToast("작성자가 탈퇴한 게시물에는 댓글을 작성할 수 없습니다.", true);
+        return;
+      }
       const value = textarea.value.trim();
       if (!value) {
         showNewsCommentToast("댓글 내용을 입력해 주세요.", true);
@@ -2903,10 +3017,10 @@
           await loadNewsComments(postId, targetPage, { forceRefresh: true });
         }
       } catch (error) {
-        textarea.disabled = false;
-        submit.disabled = false;
-        imageButton.disabled = false;
-        emojiButton.disabled = false;
+        textarea.disabled = withdrawnAuthor;
+        submit.disabled = withdrawnAuthor;
+        imageButton.disabled = withdrawnAuthor;
+        emojiButton.disabled = withdrawnAuthor;
         const panel = form.closest("[data-news-comments-post-id]");
         const status = panel?.querySelector("[data-news-comment-status]");
         if (status) status.textContent = error.message || "댓글 등록에 실패했습니다.";
