@@ -1646,6 +1646,24 @@
     return node;
   }
 
+  function newsCommentContentElement(comment, isReply = false) {
+    const value = String(comment?.content ?? "");
+    if (!isReply) return newsCommentEmojiElement("p", "comment-content", value);
+
+    const mentionMatch = value.match(/^(@\S+)([\s\S]*)$/);
+    if (!mentionMatch) return newsCommentEmojiElement("p", "comment-content", value);
+
+    const node = newsCommentElement("p", "comment-content");
+    node.append(newsCommentElement("span", "comment-content-mention", mentionMatch[1]));
+
+    if (mentionMatch[2]) {
+      const body = newsCommentElement("span", "comment-content-body");
+      renderCustomEmojiText(body, mentionMatch[2]);
+      node.append(body);
+    }
+    return node;
+  }
+
   let activeNewsEmojiPicker = null;
   let newsEmojiGlyphsPrewarmed = false;
 
@@ -2594,7 +2612,7 @@
     );
     top.append(author, date);
 
-    const contentNode = newsCommentEmojiElement("p", "comment-content", comment.content || "");
+    const contentNode = newsCommentContentElement(comment, Boolean(options.isReply));
     item.append(top, contentNode);
     const image = newsCommentImageNode(comment);
     if (image) item.append(image);

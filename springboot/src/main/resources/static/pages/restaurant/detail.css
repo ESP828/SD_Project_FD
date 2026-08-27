@@ -1856,3 +1856,9 @@ body > [data-site-header] > .site-header {
     flex-direction: column;
   }
 }
+/* 게시판 댓글과 동일한 답글 멘션 본문 구분 */
+.store-news-comments-body .comment-content-mention {
+  color: #526f8a;
+  font-weight: 700;
+}
+
