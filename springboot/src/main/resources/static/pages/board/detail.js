@@ -214,37 +214,82 @@
     return `/board/detail?${params.toString()}`;
   }
 
-  // Track IME composition explicitly and keep keyCode 229 only as a narrow
-  // compatibility fallback for browser/IME ordering edge cases.
+  // Comments/replies use Discord-style submit behavior:
+  // Enter always submits and manual line breaks are not allowed.
+  // Korean/Japanese/Chinese IME may use the same Enter key to finish composition,
+  // so defer submission until compositionend instead of swallowing that Enter.
   const composingCommentInputs = new WeakSet();
 
-  function bindCommentCompositionState(textarea) {
-    if (!textarea) return;
+  function normalizeCommentInputValue(value) {
+    return String(value ?? "").replace(/[\r\n]+/g, " ");
+  }
+
+  function sanitizeCommentTextarea(textarea) {
+    if (!(textarea instanceof HTMLTextAreaElement) || composingCommentInputs.has(textarea)) return;
+    const value = textarea.value || "";
+    const normalized = normalizeCommentInputValue(value);
+    if (normalized === value) return;
+
+    const start = Number.isInteger(textarea.selectionStart) ? textarea.selectionStart : value.length;
+    const end = Number.isInteger(textarea.selectionEnd) ? textarea.selectionEnd : start;
+    const nextStart = normalizeCommentInputValue(value.slice(0, start)).length;
+    const nextEnd = normalizeCommentInputValue(value.slice(0, end)).length;
+    textarea.value = normalized;
+    textarea.setSelectionRange(nextStart, nextEnd);
+  }
+
+  function bindCommentSubmitInput(textarea, submitAction) {
+    if (!(textarea instanceof HTMLTextAreaElement)) return;
+    let submitAfterComposition = false;
+
     textarea.addEventListener("compositionstart", () => {
       composingCommentInputs.add(textarea);
     });
+
     textarea.addEventListener("compositionend", () => {
       composingCommentInputs.delete(textarea);
+      sanitizeCommentTextarea(textarea);
+      if (!submitAfterComposition) return;
+      window.setTimeout(() => {
+        if (!submitAfterComposition || composingCommentInputs.has(textarea)) return;
+        submitAfterComposition = false;
+        sanitizeCommentTextarea(textarea);
+        submitAction?.();
+      }, 0);
     });
-  }
 
-  function handleCommentSubmitEnter(event, submitAction) {
-    if (event.key !== "Enter" || event.shiftKey) return false;
+    // Block the browser's actual newline insertion path as well as keydown.
+    textarea.addEventListener("beforeinput", (event) => {
+      if (event.inputType === "insertLineBreak" || event.inputType === "insertParagraph") {
+        event.preventDefault();
+      }
+    });
 
-    // Plain Enter is reserved for submit. During IME composition, consume the
-    // Enter key without submitting so it cannot fall through to a newline.
-    // keyCode 229 is kept only as a compatibility fallback for IME edge cases.
-    event.preventDefault();
-    if (
-      event.isComposing ||
-      composingCommentInputs.has(event.currentTarget) ||
-      event.keyCode === 229
-    ) {
-      return true;
-    }
+    textarea.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter") return;
 
-    submitAction?.();
-    return true;
+      if (event.isComposing || composingCommentInputs.has(textarea) || event.keyCode === 229) {
+        submitAfterComposition = true;
+        window.setTimeout(() => {
+          if (!submitAfterComposition || composingCommentInputs.has(textarea)) return;
+          submitAfterComposition = false;
+          sanitizeCommentTextarea(textarea);
+          submitAction?.();
+        }, 0);
+        return;
+      }
+
+      event.preventDefault();
+      event.stopPropagation();
+      submitAction?.();
+    });
+
+    textarea.addEventListener("keyup", (event) => {
+      if (event.key !== "Enter" || !submitAfterComposition || composingCommentInputs.has(textarea)) return;
+      submitAfterComposition = false;
+      event.preventDefault();
+      submitAction?.();
+    });
   }
 
   function updateCharacterCount(target, counter) {
@@ -2337,10 +2382,13 @@
     return String(raw).replace(/^@+/, "").trim() || "작성자";
   }
 
-  function hasReplyBody(value, targetName) {
-    const content = String(value || "").trim();
-    if (!content) return false;
-    return content !== `@${targetName}`;
+  function hasReplyBody(value) {
+    return Boolean(normalizeCommentInputValue(value).trim());
+  }
+
+  function replyContentValue(value, targetName) {
+    const body = normalizeCommentInputValue(value).trim();
+    return body ? `@${targetName} ${body}` : `@${targetName}`;
   }
 
   function validateReplyImage(file) {
@@ -2378,19 +2426,25 @@
       "comment-reply-target",
       `@${targetName}님에게 답글 남기기`,
     );
+    const replyMentionText = `@${targetName}`;
+    const replyEditor = element("div", "comment-reply-editor");
+    const replyMention = element("span", "comment-reply-mention", replyMentionText);
+    replyMention.setAttribute("aria-hidden", "true");
     const textarea = document.createElement("textarea");
     textarea.className = "comment-reply-textarea";
-    textarea.maxLength = 1000;
+    textarea.maxLength = Math.max(1, 1000 - replyMentionText.length - 1);
     textarea.rows = 3;
-    textarea.setAttribute("aria-label", `${targetName}님에게 답글`);
-    textarea.value = `@${targetName} `;
-    form.dataset.initialValue = textarea.value;
+    textarea.setAttribute("aria-label", `${targetName}님에게 답글 내용`);
+    textarea.placeholder = "답글을 입력하세요";
+    textarea.value = "";
+    form.dataset.initialValue = "";
+    replyEditor.append(replyMention, textarea);
 
     const inputMeta = element("div", "comment-input-meta comment-input-meta--compact comment-input-meta--footer");
-    inputMeta.append(element("span", "", "Enter로 등록 · Shift + Enter로 줄바꿈"));
+    inputMeta.append(element("span", "", "Enter로 바로 등록"));
     const characterCount = element("span", "comment-character-count");
     inputMeta.append(characterCount);
-    updateCharacterCount(textarea, characterCount);
+    characterCount.textContent = `${replyMentionText.length} / 1000`;
     resizeCommentTextarea(textarea, 78);
 
     const tools = element("div", "comment-image-tools");
@@ -2438,7 +2492,7 @@
     submitRow.append(submitTools, submitActions);
 
     function syncReplySubmitState() {
-      submit.disabled = !hasReplyBody(textarea.value, targetName);
+      submit.disabled = !hasReplyBody(textarea.value);
     }
 
     function clearReplyImage() {
@@ -2478,22 +2532,22 @@
       await confirmReplyComposerDiscard(null);
     });
     textarea.addEventListener("input", () => {
+      sanitizeCommentTextarea(textarea);
       syncReplySubmitState();
-      updateCharacterCount(textarea, characterCount);
+      characterCount.textContent = `${replyContentValue(textarea.value, targetName).length} / 1000`;
       resizeCommentTextarea(textarea, 78);
     });
-    bindCommentCompositionState(textarea);
-    textarea.addEventListener("keydown", (event) => {
-      handleCommentSubmitEnter(event, () => {
-        if (submit.disabled || !hasReplyBody(textarea.value, targetName)) return;
-        form.requestSubmit();
-      });
+    bindCommentSubmitInput(textarea, () => {
+      sanitizeCommentTextarea(textarea);
+      if (submit.disabled || !hasReplyBody(textarea.value)) return;
+      form.requestSubmit();
     });
 
     form.addEventListener("submit", async (event) => {
       event.preventDefault();
-      const content = textarea.value.trim();
-      if (!hasReplyBody(content, targetName)) {
+      sanitizeCommentTextarea(textarea);
+      const content = replyContentValue(textarea.value, targetName);
+      if (!hasReplyBody(textarea.value)) {
         syncReplySubmitState();
         showToast(toast, "답글 내용을 입력해 주세요.", true);
         return;
@@ -2554,7 +2608,7 @@
       }
     });
 
-    form.append(label, textarea, emojiPanel, preview, submitRow);
+    form.append(label, replyEditor, emojiPanel, preview, submitRow);
     setupCommentEmojiPicker(textarea, emojiButton, emojiPanel);
     mountTarget.append(form);
     activeReplyForm = form;
@@ -3017,7 +3071,7 @@
     form.dataset.initialValue = textarea.value;
 
     const inputMeta = element("div", "comment-input-meta comment-input-meta--compact");
-    inputMeta.append(element("span", "", "Enter로 수정 · Shift + Enter로 줄바꿈"));
+    inputMeta.append(element("span", "", " "));
     const characterCount = element("span", "comment-character-count");
     inputMeta.append(characterCount);
     updateCharacterCount(textarea, characterCount);
@@ -3048,23 +3102,25 @@
     cancel.addEventListener("click", async () => {
       await confirmCommentEditorDiscard(null);
     });
-    textarea.addEventListener("input", syncEditState);
-    bindCommentCompositionState(textarea);
+    textarea.addEventListener("input", () => {
+      sanitizeCommentTextarea(textarea);
+      syncEditState();
+    });
     textarea.addEventListener("keydown", async (event) => {
-      if (event.key === "Escape") {
-        event.preventDefault();
-        await confirmCommentEditorDiscard(null);
-        return;
-      }
-      handleCommentSubmitEnter(event, () => {
-        if (save.disabled) return;
-        form.requestSubmit();
-      });
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      await confirmCommentEditorDiscard(null);
+    });
+    bindCommentSubmitInput(textarea, () => {
+      sanitizeCommentTextarea(textarea);
+      if (save.disabled) return;
+      form.requestSubmit();
     });
 
     form.addEventListener("submit", async (event) => {
       event.preventDefault();
-      const content = textarea.value.trim();
+      sanitizeCommentTextarea(textarea);
+      const content = normalizeCommentInputValue(textarea.value).trim();
       if (!content) {
         showToast(toast, "댓글 내용을 입력해 주세요.", true);
         return;
@@ -3159,10 +3215,10 @@
   updateCharacterCount(commentContent, commentCharacterCount);
   resizeCommentTextarea(commentContent, 105);
   commentContent.addEventListener("input", () => {
+    sanitizeCommentTextarea(commentContent);
     updateCharacterCount(commentContent, commentCharacterCount);
     resizeCommentTextarea(commentContent, 105);
   });
-  bindCommentCompositionState(commentContent);
 
   commentWriteShortcut?.addEventListener("click", () => {
     if (commentForm.hidden) return;
@@ -3173,11 +3229,10 @@
     commentContent.focus({ preventScroll: true });
   });
 
-  commentContent.addEventListener("keydown", (event) => {
-    handleCommentSubmitEnter(event, () => {
-      if (commentSubmitButton?.disabled || !commentContent.value.trim()) return;
-      commentForm.requestSubmit();
-    });
+  bindCommentSubmitInput(commentContent, () => {
+    sanitizeCommentTextarea(commentContent);
+    if (commentSubmitButton?.disabled || !commentContent.value.trim()) return;
+    commentForm.requestSubmit();
   });
 
   commentForm.addEventListener("submit", async (event) => {
@@ -3197,7 +3252,8 @@
       }
       return;
     }
-    const content = commentContent.value.trim();
+    sanitizeCommentTextarea(commentContent);
+    const content = normalizeCommentInputValue(commentContent.value).trim();
     if (!content) {
       showToast(toast, "댓글 내용을 입력해 주세요.", true);
       return;

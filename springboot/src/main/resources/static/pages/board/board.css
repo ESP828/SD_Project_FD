@@ -2879,23 +2879,51 @@ button.author-menu-notification-link {
   font-weight: 800;
 }
 
-.comment-reply-textarea {
+.comment-reply-editor {
+  display: flex;
+  align-items: flex-start;
   width: 100%;
-  min-height: 78px;
-  resize: none;
-  overflow-y: hidden;
   border: 1px solid var(--color-line);
   border-radius: 10px;
   padding: 10px 12px;
   background: #fff;
+}
+
+.comment-reply-editor:focus-within {
+  border-color: var(--color-orange);
+  box-shadow: 0 0 0 3px rgba(255, 152, 0, 0.12);
+}
+
+.comment-reply-mention {
+  flex: 0 0 auto;
+  padding-top: 1px;
+  color: var(--color-orange-dark, #d97706);
+  font: inherit;
+  font-weight: 800;
+  line-height: 1.5;
+  white-space: nowrap;
+}
+
+.comment-reply-textarea {
+  flex: 1 1 auto;
+  min-width: 0;
+  width: 100%;
+  min-height: 78px;
+  resize: none;
+  overflow-y: hidden;
+  border: 0;
+  border-radius: 0;
+  padding: 0 0 0 6px;
+  outline: 0;
+  background: transparent;
   color: var(--color-text);
   font: inherit;
 }
 
 .comment-reply-textarea:focus {
-  border-color: var(--color-orange);
+  border-color: transparent;
   outline: 0;
-  box-shadow: 0 0 0 3px rgba(255, 152, 0, 0.12);
+  box-shadow: none;
 }
 
 .comment-edit-form {
