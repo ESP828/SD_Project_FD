@@ -214,12 +214,26 @@
     return `/board/detail?${params.toString()}`;
   }
 
+  // Track IME composition explicitly instead of relying on deprecated keyCode 229,
+  // which can also appear on a valid Enter after composition has finished.
+  const composingCommentInputs = new WeakSet();
+
+  function bindCommentCompositionState(textarea) {
+    if (!textarea) return;
+    textarea.addEventListener("compositionstart", () => {
+      composingCommentInputs.add(textarea);
+    });
+    textarea.addEventListener("compositionend", () => {
+      composingCommentInputs.delete(textarea);
+    });
+  }
+
   function isCommentSubmitEnter(event) {
     return (
       event.key === "Enter" &&
       !event.shiftKey &&
       !event.isComposing &&
-      event.keyCode !== 229
+      !composingCommentInputs.has(event.currentTarget)
     );
   }
 
@@ -2457,6 +2471,7 @@
       updateCharacterCount(textarea, characterCount);
       resizeCommentTextarea(textarea, 78);
     });
+    bindCommentCompositionState(textarea);
     textarea.addEventListener("keydown", (event) => {
       if (!isCommentSubmitEnter(event)) return;
       event.preventDefault();
@@ -3023,6 +3038,7 @@
       await confirmCommentEditorDiscard(null);
     });
     textarea.addEventListener("input", syncEditState);
+    bindCommentCompositionState(textarea);
     textarea.addEventListener("keydown", async (event) => {
       if (event.key === "Escape") {
         event.preventDefault();
@@ -3135,6 +3151,7 @@
     updateCharacterCount(commentContent, commentCharacterCount);
     resizeCommentTextarea(commentContent, 105);
   });
+  bindCommentCompositionState(commentContent);
 
   commentWriteShortcut?.addEventListener("click", () => {
     if (commentForm.hidden) return;
