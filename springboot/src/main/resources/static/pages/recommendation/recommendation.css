@@ -632,8 +632,8 @@
   color: #1565c0;
   background: #e3f2fd;
 }
-/* 모바일 (768px 이하) 탭 2분할 50% 고정 */
-@media (max-width: 768px) {
+/* 모바일 (720px 이하) 탭 2분할 50% 고정 */
+@media (max-width: 720px) {
   /* 탭 전체 컨테이너: flex 너비 100% 보장 및 박스 사이징 */
   .reco-tabs {
     display: flex !important;
@@ -683,10 +683,29 @@
   box-sizing: border-box;
 }
 
-/* 모바일 화면 (768px 이하): 한 줄에 카드 1개씩 배치 */
-@media (max-width: 768px) {
+/* 모바일 화면 (720px 이하): 한 줄에 카드 1개씩 배치 */
+@media (max-width: 720px) {
   .personal-cards-grid {
     grid-template-columns: 1fr !important; /* 1열로 변경 */
     gap: 12px;
+  }
+}
+@media (max-width: 720px) {
+  /* 1. 추천 사유 뱃지 전체(아이콘 + span 텍스트) 숨김 */
+  #personal-cards-container .personal-reason-badge,
+  .personal-item-card .personal-reason-badge,
+  .personal-reason-badge {
+    display: none !important;
+  }
+
+  /* 2. 매장 이름 옆의 거리 표시 span 숨기기 (필요한 경우) */
+  .personal-item-card h4 + span,
+  .personal-item-card span[style*="color: #ff9800"] {
+    display: none !important;
+  }
+
+  /* 3. 우측 상단 카테고리 태그 span 숨기기 (필요한 경우) */
+  .personal-item-card span[style*="background: #ffe0b2"] {
+    display: none !important;
   }
 }

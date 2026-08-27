@@ -352,7 +352,7 @@
 /* ===================================================
    6. 반응형 미디어 쿼리 (768px 이하 모바일 전 구간 적용)
 =================================================== */
-@media (max-width: 768px) {
+@media (max-width: 720px) {
   .community-table {
     min-width: 540px;
   }
@@ -419,4 +419,36 @@
   .community-comment-item {
     grid-template-columns: 1fr;
   }
+}
+/* 검색 폼 전체 레이아웃 (반응형 대비) */
+.community-search-form {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap; /* 작은 화면에서 입력창과 버튼 그룹이 자연스럽게 분리 */
+  width: 100%;
+}
+
+.community-search-form input[type="search"] {
+  flex: 1 1 180px;
+  min-width: 0; /* 입력창이 넘치지 않고 유동 축소 */
+}
+
+/* 버튼 묶음: 항상 100% 너비 차지 및 1행 유지 */
+.community-search-actions {
+  display: flex !important;
+  width: 100% !important;
+  gap: 8px;
+  flex-wrap: nowrap !important;
+  box-sizing: border-box;
+}
+
+/* 내부 검색 / 초기화 버튼: 너비를 반반(50:50)씩 균등 차지 */
+.community-search-actions .button {
+  flex: 1 1 0% !important;
+  width: 100%;
+  min-width: 0;
+  text-align: center;
+  justify-content: center;
+  white-space: nowrap;
 }
