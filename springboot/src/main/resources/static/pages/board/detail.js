@@ -72,7 +72,7 @@
   const commentImageRemove = document.getElementById("comment-image-remove");
   const commentEmojiToggle = document.getElementById("comment-emoji-toggle");
   const commentEmojiPanel = document.getElementById("comment-emoji-panel");
-  const commentSubmitButton = commentForm?.querySelector('button[type="submit"]');
+  const commentSubmitButton = document.getElementById("comment-submit-button");
   const commentFormDescription = commentForm?.querySelector(".comment-form-heading span");
   const toast = document.getElementById("board-toast");
 
@@ -148,7 +148,7 @@
     if (!textarea || !toggle || !panel) return null;
 
     if (!emojis) return null;
-    emojis.attachEditor?.(textarea);
+    const editorApi = emojis.attachEditor?.(textarea);
     emojis.populatePicker(panel, {
       gridClass: "comment-emoji-grid fooduck-custom-emoji-grid",
       buttonClass: "comment-emoji-option fooduck-custom-emoji-option",
@@ -156,7 +156,7 @@
       onSelect: (emoji) => insertCommentEmoji(textarea, emoji.code),
     });
 
-    const picker = { textarea, toggle, panel };
+    const picker = { textarea, toggle, panel, editor: editorApi?.editor || null };
     toggle.addEventListener("click", (event) => {
       event.stopPropagation();
       if (panel.hidden) openEmojiPicker(picker);
@@ -237,64 +237,73 @@
     textarea.setSelectionRange(nextStart, nextEnd);
   }
 
-  function clickCommentSubmitButton(submitButton) {
-    if (!(submitButton instanceof HTMLButtonElement) || submitButton.disabled) return;
-    submitButton.click();
+  function clickCommentSubmitButton(submitButton, form = null) {
+    const resolvedButton =
+      submitButton instanceof HTMLButtonElement && submitButton.isConnected
+        ? submitButton
+        : form?.querySelector?.('button[type="submit"]');
+    if (!(resolvedButton instanceof HTMLButtonElement) || resolvedButton.disabled) return false;
+    resolvedButton.click();
+    return true;
   }
 
-  function bindCommentSubmitInput(textarea, submitButton) {
+  function bindCommentSubmitInput(textarea, submitButton, interactiveEditor = null) {
     if (!(textarea instanceof HTMLTextAreaElement)) return;
     let submitAfterComposition = false;
+    const keyboardTarget = interactiveEditor instanceof HTMLElement ? interactiveEditor : textarea;
+    const form = textarea.form;
 
-    textarea.addEventListener("compositionstart", () => {
+    keyboardTarget.addEventListener("compositionstart", () => {
       composingCommentInputs.add(textarea);
     });
 
-    textarea.addEventListener("compositionend", () => {
+    keyboardTarget.addEventListener("compositionend", () => {
       composingCommentInputs.delete(textarea);
       if (!submitAfterComposition) return;
       window.setTimeout(() => {
         if (!submitAfterComposition || composingCommentInputs.has(textarea)) return;
         submitAfterComposition = false;
         sanitizeCommentTextarea(textarea);
-        clickCommentSubmitButton(submitButton);
+        clickCommentSubmitButton(submitButton, form);
       }, 0);
     });
 
-    // If an IME-confirming Enter would also try to insert a line break, suppress only
-    // that trailing line break. Shift+Enter never sets this flag, so its newline remains.
-    textarea.addEventListener("beforeinput", (event) => {
+    // During an IME-confirming Enter, block only the trailing line-break input.
+    // Shift+Enter is not queued for submit, so the rich editor keeps its normal newline.
+    keyboardTarget.addEventListener("beforeinput", (event) => {
       if (!submitAfterComposition) return;
       if (event.inputType === "insertLineBreak" || event.inputType === "insertParagraph") {
         event.preventDefault();
       }
-    });
+    }, true);
 
-    textarea.addEventListener("keydown", (event) => {
+    // The visible comment input can be the contenteditable editor created by common.js.
+    // Capture Enter before common.js converts it into a newline, then click the real submit button.
+    keyboardTarget.addEventListener("keydown", (event) => {
       if (event.key !== "Enter" || event.shiftKey) return;
 
       if (event.isComposing || composingCommentInputs.has(textarea) || event.keyCode === 229) {
-        // Let the IME finish the current syllable/word. compositionend (or keyup
-        // fallback below) will click the real submit button immediately afterward.
         submitAfterComposition = true;
+        event.stopImmediatePropagation();
         return;
       }
 
       event.preventDefault();
-      event.stopPropagation();
+      event.stopImmediatePropagation();
       submitAfterComposition = false;
       sanitizeCommentTextarea(textarea);
-      clickCommentSubmitButton(submitButton);
-    });
+      clickCommentSubmitButton(submitButton, form);
+    }, true);
 
-    textarea.addEventListener("keyup", (event) => {
+    keyboardTarget.addEventListener("keyup", (event) => {
       if (event.key !== "Enter" || event.shiftKey || !submitAfterComposition) return;
       if (composingCommentInputs.has(textarea) || event.isComposing) return;
       event.preventDefault();
+      event.stopImmediatePropagation();
       submitAfterComposition = false;
       sanitizeCommentTextarea(textarea);
-      clickCommentSubmitButton(submitButton);
-    });
+      clickCommentSubmitButton(submitButton, form);
+    }, true);
   }
 
   function updateCharacterCount(target, counter) {
@@ -2541,8 +2550,6 @@
       characterCount.textContent = `${replyContentValue(textarea.value, targetName).length} / 1000`;
       resizeCommentTextarea(textarea, 78);
     });
-    bindCommentSubmitInput(textarea, submit);
-
     form.addEventListener("submit", async (event) => {
       event.preventDefault();
       sanitizeCommentTextarea(textarea);
@@ -2609,7 +2616,8 @@
     });
 
     form.append(label, replyEditor, emojiPanel, preview, submitRow);
-    setupCommentEmojiPicker(textarea, emojiButton, emojiPanel);
+    const replyEmojiPicker = setupCommentEmojiPicker(textarea, emojiButton, emojiPanel);
+    bindCommentSubmitInput(textarea, submit, replyEmojiPicker?.editor);
     mountTarget.append(form);
     activeReplyForm = form;
     textarea.focus();
@@ -3185,7 +3193,11 @@
     }
   }
 
-  setupCommentEmojiPicker(commentContent, commentEmojiToggle, commentEmojiPanel);
+  const rootCommentEmojiPicker = setupCommentEmojiPicker(
+    commentContent,
+    commentEmojiToggle,
+    commentEmojiPanel,
+  );
 
   document.addEventListener("click", () => closeEmojiPicker());
   document.addEventListener("keydown", (event) => {
@@ -3224,7 +3236,11 @@
     commentContent.focus({ preventScroll: true });
   });
 
-  bindCommentSubmitInput(commentContent, commentSubmitButton);
+  bindCommentSubmitInput(
+    commentContent,
+    commentSubmitButton,
+    rootCommentEmojiPicker?.editor,
+  );
 
   commentForm.addEventListener("submit", async (event) => {
     event.preventDefault();
@@ -3234,11 +3250,11 @@
     }
     if (!session.authenticated) {
       if (completeDetailLoginIfReady()) {
-        window.setTimeout(() => clickCommentSubmitButton(commentSubmitButton), 0);
+        window.setTimeout(() => clickCommentSubmitButton(commentSubmitButton, commentForm), 0);
       } else {
         openDetailLogin({
           successMessage: "로그인되었습니다. 작성 중인 댓글을 등록합니다.",
-          onSuccess: () => clickCommentSubmitButton(commentSubmitButton),
+          onSuccess: () => clickCommentSubmitButton(commentSubmitButton, commentForm),
         });
       }
       return;
