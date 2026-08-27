@@ -247,11 +247,25 @@
     return true;
   }
 
-  function bindCommentSubmitInput(textarea, submitButton, interactiveEditor = null) {
+  function bindCommentSubmitInput(
+    textarea,
+    submitButton,
+    interactiveEditor = null,
+    onDisabledSubmit = null,
+  ) {
     if (!(textarea instanceof HTMLTextAreaElement)) return;
     let submitAfterComposition = false;
     const keyboardTarget = interactiveEditor instanceof HTMLElement ? interactiveEditor : textarea;
     const form = textarea.form;
+
+    const submitFromKeyboard = () => {
+      sanitizeCommentTextarea(textarea);
+      if (submitButton instanceof HTMLButtonElement && submitButton.disabled) {
+        if (typeof onDisabledSubmit === "function") onDisabledSubmit();
+        return false;
+      }
+      return clickCommentSubmitButton(submitButton, form);
+    };
 
     keyboardTarget.addEventListener("compositionstart", () => {
       composingCommentInputs.add(textarea);
@@ -263,8 +277,7 @@
       window.setTimeout(() => {
         if (!submitAfterComposition || composingCommentInputs.has(textarea)) return;
         submitAfterComposition = false;
-        sanitizeCommentTextarea(textarea);
-        clickCommentSubmitButton(submitButton, form);
+        submitFromKeyboard();
       }, 0);
     });
 
@@ -291,8 +304,7 @@
       event.preventDefault();
       event.stopImmediatePropagation();
       submitAfterComposition = false;
-      sanitizeCommentTextarea(textarea);
-      clickCommentSubmitButton(submitButton, form);
+      submitFromKeyboard();
     }, true);
 
     keyboardTarget.addEventListener("keyup", (event) => {
@@ -301,8 +313,7 @@
       event.preventDefault();
       event.stopImmediatePropagation();
       submitAfterComposition = false;
-      sanitizeCommentTextarea(textarea);
-      clickCommentSubmitButton(submitButton, form);
+      submitFromKeyboard();
     }, true);
   }
 
@@ -2505,7 +2516,7 @@
     submitRow.append(submitTools, submitActions);
 
     function syncReplySubmitState() {
-      submit.disabled = !hasReplyBody(textarea.value);
+      submit.disabled = isWithdrawnAuthor(state.post) || !hasReplyBody(textarea.value);
     }
 
     function clearReplyImage() {
@@ -2552,6 +2563,11 @@
     });
     form.addEventListener("submit", async (event) => {
       event.preventDefault();
+      if (isWithdrawnAuthor(state.post)) {
+        showToast(toast, "작성자가 탈퇴한 게시물에는 댓글을 작성할 수 없습니다.", true);
+        syncReplySubmitState();
+        return;
+      }
       sanitizeCommentTextarea(textarea);
       const content = replyContentValue(textarea.value, targetName);
       if (!hasReplyBody(textarea.value)) {
@@ -2617,7 +2633,15 @@
 
     form.append(label, replyEditor, emojiPanel, preview, submitRow);
     const replyEmojiPicker = setupCommentEmojiPicker(textarea, emojiButton, emojiPanel);
-    bindCommentSubmitInput(textarea, submit, replyEmojiPicker?.editor);
+    bindCommentSubmitInput(
+      textarea,
+      submit,
+      replyEmojiPicker?.editor,
+      () => {
+        if (!isWithdrawnAuthor(state.post)) return;
+        showToast(toast, "작성자가 탈퇴한 게시물에는 댓글을 작성할 수 없습니다.", true);
+      },
+    );
     mountTarget.append(form);
     activeReplyForm = form;
     textarea.focus();
@@ -3240,6 +3264,10 @@
     commentContent,
     commentSubmitButton,
     rootCommentEmojiPicker?.editor,
+    () => {
+      if (!isWithdrawnAuthor(state.post)) return;
+      showToast(toast, "작성자가 탈퇴한 게시물에는 댓글을 작성할 수 없습니다.", true);
+    },
   );
 
   commentForm.addEventListener("submit", async (event) => {
