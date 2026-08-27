@@ -6,6 +6,57 @@
   const content = document.getElementById("store-content");
   if (!loading || !errorView || !content) return;
 
+  function ensureStoreScrollTopButton() {
+    let button = document.querySelector(".board-scroll-top");
+    if (!button) {
+      button = document.createElement("button");
+      button.type = "button";
+      button.className = "board-scroll-top";
+      button.textContent = "↑";
+      button.title = "맨 위로 이동";
+      button.setAttribute("aria-label", "맨 위로 이동");
+      button.hidden = true;
+      document.body.append(button);
+    }
+
+    if (button.dataset.storeScrollTopBound === "true") return;
+    button.dataset.storeScrollTopBound = "true";
+
+    let ticking = false;
+    const currentScrollTop = () => Math.max(
+      Number(window.scrollY) || 0,
+      Number(document.documentElement?.scrollTop) || 0,
+      Number(document.body?.scrollTop) || 0,
+    );
+    const updateVisibility = () => {
+      const visible = currentScrollTop() > 450;
+      button.hidden = !visible;
+      document.body.classList.toggle("board-scroll-top-visible", visible);
+      ticking = false;
+    };
+    const scheduleVisibilityUpdate = () => {
+      if (ticking) return;
+      ticking = true;
+      window.requestAnimationFrame(updateVisibility);
+    };
+
+    window.addEventListener("scroll", scheduleVisibilityUpdate, { passive: true });
+    window.addEventListener("resize", scheduleVisibilityUpdate, { passive: true });
+    window.addEventListener("pageshow", updateVisibility);
+
+    button.addEventListener("click", () => {
+      const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      window.scrollTo({
+        top: 0,
+        behavior: reduceMotion ? "auto" : "smooth",
+      });
+    });
+
+    updateVisibility();
+  }
+
+  ensureStoreScrollTopButton();
+
   const params = new URLSearchParams(window.location.search);
   const source = params.get("source") === "public" ? "public" : "owned";
   const id = params.get("id");
