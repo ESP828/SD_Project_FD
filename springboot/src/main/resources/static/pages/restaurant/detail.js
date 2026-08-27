@@ -1724,7 +1724,8 @@
     if (!(textarea instanceof HTMLTextAreaElement) || !toggle || !panel) return null;
 
     if (!emojis) return null;
-    emojis.attachEditor?.(textarea);
+    const editorApi = emojis.attachEditor?.(textarea);
+    bindNewsCommentEditorSubmitEnter(textarea, editorApi?.editor);
     emojis.populatePicker(panel, {
       gridClass: "comment-emoji-grid fooduck-custom-emoji-grid",
       buttonClass: "comment-emoji-option fooduck-custom-emoji-option",
@@ -1875,6 +1876,45 @@
       !event.isComposing &&
       event.keyCode !== 229
     );
+  }
+
+  function bindNewsCommentEditorSubmitEnter(textarea, editor) {
+    if (!(textarea instanceof HTMLTextAreaElement) || !(editor instanceof HTMLElement)) return;
+
+    let composing = false;
+    let submitAfterComposition = false;
+    const submitFromTextarea = () => {
+      textarea.dispatchEvent(new KeyboardEvent("keydown", {
+        key: "Enter",
+        bubbles: true,
+        cancelable: true,
+      }));
+    };
+
+    editor.addEventListener("compositionstart", () => {
+      composing = true;
+    });
+    editor.addEventListener("compositionend", () => {
+      composing = false;
+      if (!submitAfterComposition) return;
+      submitAfterComposition = false;
+      window.setTimeout(submitFromTextarea, 0);
+    });
+    editor.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter" || event.shiftKey) return;
+
+      if (event.isComposing || composing || event.keyCode === 229) {
+        submitAfterComposition = true;
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        return;
+      }
+
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      submitAfterComposition = false;
+      submitFromTextarea();
+    }, true);
   }
 
   function updateNewsCommentCharacterCount(target, counter) {
@@ -2081,6 +2121,11 @@
     return String(raw).replace(/^@+/, "").trim() || "작성자";
   }
 
+  function newsReplyContentValue(value, targetName) {
+    const body = String(value || "").trim();
+    return body ? `@${targetName} ${body}` : `@${targetName}`;
+  }
+
   function openNewsReplyComposer(postId, comment, mountTarget) {
     if (!isLoggedIn) {
       openNewsCommentLogin(() => openNewsReplyComposer(postId, comment, mountTarget));
@@ -2116,19 +2161,28 @@
 
     const form = newsCommentElement("form", "comment-reply-form store-news-comment-reply-form");
     const target = newsCommentElement("div", "comment-reply-target", `@${targetName}님에게 답글 남기기`);
+    const replyMentionText = `@${targetName}`;
+    const replyEditor = newsCommentElement("div", "comment-reply-editor");
+    const replyMention = newsCommentElement("span", "comment-reply-mention", replyMentionText);
+    replyMention.setAttribute("aria-hidden", "true");
     const textarea = document.createElement("textarea");
     textarea.className = "comment-reply-textarea";
-    textarea.maxLength = 1000;
+    textarea.maxLength = Math.max(1, 1000 - replyMentionText.length - 1);
     textarea.rows = 3;
-    textarea.value = `@${targetName} `;
+    textarea.value = "";
+    textarea.placeholder = "답글을 입력하세요";
     textarea.dataset.newsCommentDraft = "true";
-    textarea.dataset.initialValue = textarea.value;
-    textarea.setAttribute("aria-label", `${targetName}님에게 답글`);
+    textarea.dataset.initialValue = "";
+    textarea.setAttribute("aria-label", `${targetName}님에게 답글 내용`);
+    replyEditor.append(replyMention, textarea);
 
-    const inputMeta = newsCommentElement("div", "comment-input-meta comment-input-meta--compact");
+    const inputMeta = newsCommentElement(
+      "div",
+      "comment-input-meta comment-input-meta--compact comment-input-meta--footer",
+    );
     const characterCount = newsCommentElement("span", "comment-character-count");
     inputMeta.append(characterCount);
-    updateNewsCommentCharacterCount(textarea, characterCount);
+    characterCount.textContent = `${replyMentionText.length} / 1000`;
     resizeNewsCommentTextarea(textarea, 78);
 
     const tools = newsCommentElement("div", "comment-image-tools");
@@ -2163,20 +2217,21 @@
     preview.append(previewImage, previewCopy, removeImage);
 
     const row = newsCommentElement("div", "comment-reply-submit-row");
+    const submitTools = newsCommentElement("div", "comment-submit-tools");
+    submitTools.append(tools, inputMeta);
+    const actions = newsCommentElement("div", "comment-reply-actions");
     const cancel = newsCommentElement("button", "comment-action", "취소");
     cancel.type = "button";
     const submit = newsCommentElement("button", "button button-sm button-primary", "답글 등록");
     submit.type = "submit";
     submit.disabled = true;
-    row.append(cancel, submit);
+    actions.append(cancel, submit);
+    row.append(submitTools, actions);
 
-    const hasBody = () => {
-      const value = textarea.value.trim();
-      return Boolean(value && value !== `@${targetName}`);
-    };
+    const hasBody = () => Boolean(textarea.value.trim());
     const sync = () => {
       submit.disabled = !hasBody();
-      updateNewsCommentCharacterCount(textarea, characterCount);
+      characterCount.textContent = `${newsReplyContentValue(textarea.value, targetName).length} / 1000`;
       resizeNewsCommentTextarea(textarea, 78);
     };
     const clearImage = () => {
@@ -2246,7 +2301,7 @@
       closeNewsEmojiPicker();
       try {
         const payload = await Api.post(`/board/posts/${encodeURIComponent(postId)}/comments`, {
-          content: textarea.value.trim(),
+          content: newsReplyContentValue(textarea.value, targetName),
           parentCommentId: rootParentId,
         });
         const createdCommentId = payload.data?.commentId;
@@ -2286,7 +2341,7 @@
       }
     });
 
-    form.append(target, textarea, inputMeta, tools, emojiPanel, preview, row);
+    form.append(target, replyEditor, emojiPanel, preview, row);
     setupNewsEmojiPicker(textarea, emojiButton, emojiPanel);
     mountTarget.append(form);
     textarea.focus();
@@ -2680,7 +2735,7 @@
     textarea.dataset.newsCommentDraft = "true";
     textarea.dataset.initialValue = "";
 
-    const inputMeta = newsCommentElement("div", "comment-input-meta");
+    const inputMeta = newsCommentElement("div", "comment-input-meta comment-input-meta--footer");
     const characterCount = newsCommentElement("span", "comment-character-count");
     inputMeta.append(characterCount);
     updateNewsCommentCharacterCount(textarea, characterCount);
@@ -2718,8 +2773,11 @@
     preview.append(previewImage, previewCopy, removeImage);
 
     const submitRow = newsCommentElement("div", "comment-submit-row");
+    const submitTools = newsCommentElement("div", "comment-submit-tools");
+    submitTools.append(tools, inputMeta);
     const submit = newsCommentElement("button", "button button-sm button-primary", "댓글 등록");
     submit.type = "submit";
+    submitRow.append(submitTools);
     if (isLoggedIn) {
       submitRow.append(submit);
     } else {
@@ -2855,7 +2913,7 @@
       }
     });
 
-    form.append(heading, label, textarea, inputMeta, tools, emojiPanel, preview, submitRow);
+    form.append(heading, label, textarea, emojiPanel, preview, submitRow);
     setupNewsEmojiPicker(textarea, emojiButton, emojiPanel);
     return form;
   }
