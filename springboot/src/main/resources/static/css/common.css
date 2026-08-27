@@ -33,6 +33,13 @@
 }
 
 html {
+  overflow-x: hidden;
+  /* 스크롤바가 실제로 필요하든 아니든 그 자리를 항상 뷰포트 계산에서
+     미리 빼놓는다. 그래야 드로어를 열 때 body를 position:fixed로 고정해
+     스크롤바가 사라져도 뷰포트 폭(clientWidth)이 변하지 않아서, 뷰포트
+     기준으로 위치를 잡는 position:fixed 드로어가 그만큼 밀려나며
+     재조정되는 문제가 생기지 않는다. */
+  scrollbar-gutter: stable;
   color-scheme: light;
   scroll-behavior: smooth;
 }
@@ -1067,11 +1074,19 @@ h4 {
   gap: 5px;
   padding: 8px;
   transform: translateY(-50%);
+  /* 드래그로 좌/우 어느 쪽에 내려놓든, 다음 자리로는 이 트랜지션이
+     부드럽게 스냅시켜준다. 드래그하는 동안에는 .is-dragging이 이걸
+     꺼서 즉시 손가락/마우스를 따라오게 한다. */
+  transition: right 260ms cubic-bezier(0.22, 1, 0.36, 1);
   border: 1px solid #d9e1eb;
   border-radius: 20px;
   background: rgba(255, 255, 255, 0.96);
   box-shadow: none;
   backdrop-filter: blur(14px);
+}
+
+.quick-remote.is-dragging {
+  transition: none;
 }
 
 .quick-remote-title {
@@ -1081,6 +1096,14 @@ h4 {
   font-weight: 850;
   letter-spacing: -0.02em;
   text-align: center;
+  cursor: grab;
+  -webkit-user-select: none;
+  user-select: none;
+  touch-action: none;
+}
+
+.quick-remote.is-dragging .quick-remote-title {
+  cursor: grabbing;
 }
 
 .quick-remote a {
@@ -1120,6 +1143,66 @@ h4 {
   outline-offset: 2px;
 }
 
+.quick-remote-toggle {
+  display: flex;
+  width: 100%;
+  min-height: 34px;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: 13px;
+  color: var(--color-subtle);
+  background: transparent;
+  cursor: pointer;
+  transition: color 160ms ease, background 160ms ease;
+}
+
+.quick-remote-toggle:hover {
+  color: #087b39;
+  background: #f0f7f2;
+}
+
+.quick-remote-toggle:focus-visible {
+  outline: 3px solid rgba(255, 152, 0, 0.3);
+  outline-offset: 2px;
+}
+
+.quick-remote-toggle .material-symbols-rounded {
+  font-size: 20px;
+}
+
+/* 접고 펼치는 5개(맛집찾기·맛집추천·커뮤니티·보물지도·게임)를 감싸는
+   wrapper. 모바일 하단 바는 이 기능 대상이 아니므로 기본값은
+   display:contents로 둬서 wrapper가 레이아웃에서 사라지고 자식들이
+   그대로 가로 정렬에 합류하게 한다(= 항상 8개 전부 표시).
+   데스크톱 세로 위젯(min-width:1081px)에서만 실제 박스로 만들어
+   max-height/opacity를 애니메이션한다. 위젯 자신은 top:50% +
+   translateY(-50%)로 중앙 정렬되는데, 퍼센트 transform은 매 프레임
+   자기 높이를 기준으로 다시 계산되므로 wrapper 높이가 부드럽게
+   바뀌면 재정렬도 별도 코드 없이 같이 부드럽게 따라간다. */
+.quick-remote-extra {
+  display: contents;
+}
+
+@media (min-width: 1081px) {
+  .quick-remote-extra {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    overflow: hidden;
+    max-height: 0;
+    opacity: 0;
+    transition: max-height 260ms cubic-bezier(0.4, 0, 1, 1), opacity 160ms ease;
+  }
+
+  .quick-remote[data-expanded="true"] .quick-remote-extra {
+    max-height: 400px;
+    opacity: 1;
+    transition: max-height 320ms cubic-bezier(0, 0, 0.2, 1), opacity 260ms ease 60ms;
+  }
+}
+
 .sr-only {
   position: absolute;
   overflow: hidden;
@@ -1133,57 +1216,23 @@ h4 {
 }
 
 @media (max-width: 920px) {
-  .header-shell {
-    gap: 14px;
-  }
-
-  .nav a {
-    padding-inline: 9px;
-    font-size: 0.88rem;
-  }
-
   .footer-content-row {
     grid-template-columns: minmax(0, 1fr);
     gap: 22px;
   }
-
 }
 
-@media (max-width: 1080px) and (min-width: 761px) {
-  .header-shell {
-    gap: 14px;
-  }
-
-  .nav {
-    gap: 2px;
-  }
-
-  .nav a {
-    padding-inline: 7px;
-    font-size: 0.82rem;
-  }
-
-  .header-actions .icon-button:first-child {
-    display: none;
-  }
-}
-
-@media (max-width: 760px) {
-  :root {
-    --header-height: 68px;
-  }
-
-  .container,
-  .header-shell {
-    width: min(100% - 28px, 1180px);
-  }
-
-  .brand img {
-    width: 126px;
-  }
-
+/* ── 컴팩트 헤더(≤1080px): 상단 nav를 숨기고 햄버거로 드로어를 연다.
+   마이페이지·알림 아이콘은 nav가 사라지는 시점과 정확히 같은 지점에서만
+   함께 사라져야 하므로(둘 중 하나만 없는 상태 금지), 별도의 중간
+   브레이크포인트 없이 이 한 곳에서만 전환한다. ─────────────────────── */
+@media (max-width: 1080px) {
   .header-shell {
     justify-content: space-between;
+    /* nav가 display:none이 되면 gap은 브랜드-액션 사이 한 번만 적용되지만,
+       320px처럼 아주 좁은 화면에서는 32px 그대로 두면 로그인 버튼+햄버거가
+       컨테이너 폭을 넘어가 가로 스크롤이 생긴다. */
+    gap: 16px;
   }
 
   .nav-toggle {
@@ -1191,27 +1240,7 @@ h4 {
   }
 
   .nav {
-    position: absolute;
-    top: calc(100% - 1px);
-    right: 0;
-    left: 0;
     display: none;
-    align-items: stretch;
-    flex-direction: column;
-    gap: 4px;
-    padding: 12px;
-    border: 1px solid var(--color-line);
-    border-radius: 0 0 18px 18px;
-    background: #fff;
-    box-shadow: var(--shadow-card);
-  }
-
-  .site-header.is-nav-open .nav {
-    display: flex;
-  }
-
-  .nav a {
-    justify-content: center;
   }
 
   .header-actions .icon-button {
@@ -1231,6 +1260,252 @@ h4 {
 
   .header-actions .header-signup-button {
     display: none;
+  }
+
+  body {
+    padding-bottom: 84px;
+  }
+
+  .quick-remote {
+    top: auto;
+    right: auto;
+    bottom: max(10px, env(safe-area-inset-bottom));
+    left: 50%;
+    /* 항목이 8개로 늘어난 만큼 폭 상한도 같이 늘려서 아이콘·라벨이
+       비좁게 눌리지 않게 한다. */
+    width: min(480px, calc(100vw - 16px));
+    flex-direction: row;
+    padding: 7px 6px;
+    transform: translateX(-50%);
+    border-radius: 18px;
+  }
+
+  .quick-remote-title {
+    display: none;
+  }
+
+  .quick-remote a {
+    width: auto;
+    min-height: 54px;
+    flex: 1 1 0;
+  }
+
+  /* 접기/펼치기와 드래그 배치는 데스크톱 세로 위젯 전용 기능이다.
+     하단 바에서는 버튼 자체를 없애서 8개 전부 항상 보이게 한다. */
+  .quick-remote-toggle {
+    display: none;
+  }
+}
+
+/* ── 오른쪽에서 슬라이드로 열리는 메뉴 드로어.
+   표시 여부를 display가 아닌 pointer-events/opacity/transform으로만
+   제어해서, 열 때뿐 아니라 닫을 때도 슬라이드 애니메이션이 재생되게
+   한다(display:none은 트랜지션이 불가능하다).
+   .site-header는 backdrop-filter를 갖고 있어 그 자체가 자손 fixed
+   요소의 containing block이 되어버린다(뷰포트가 아니라 헤더 박스 안에
+   갇혀버림). 그래서 .nav-drawer는 header의 자손이 아니라 형제로 렌더링
+   하고, 인접 형제 결합자(+)로 열림 상태를 연결한다. ────────────────── */
+.nav-drawer {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.site-header.is-nav-open + .nav-drawer {
+  pointer-events: auto;
+}
+
+.nav-drawer-backdrop {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  margin: 0;
+  padding: 0;
+  background: rgba(9, 23, 41, 0.5);
+  opacity: 0;
+  /* 닫힐 때(가속) 곡선을 기본값으로 두고, 열릴 때는 아래에서 감속 곡선으로 덮어쓴다. */
+  transition: opacity 220ms cubic-bezier(0.4, 0, 1, 1);
+  cursor: default;
+}
+
+.site-header.is-nav-open + .nav-drawer .nav-drawer-backdrop {
+  opacity: 1;
+  transition: opacity 280ms cubic-bezier(0, 0, 0.2, 1);
+}
+
+.nav-drawer-panel {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  overflow-y: auto;
+  width: min(360px, 88vw);
+  flex-direction: column;
+  background: #fff;
+  box-shadow: var(--shadow-float);
+  transform: translateX(100%);
+  /* 닫힐 때: 빠르게 가속하며 사라짐 */
+  transition: transform 220ms cubic-bezier(0.4, 0, 1, 1);
+}
+
+.site-header.is-nav-open + .nav-drawer .nav-drawer-panel {
+  transform: translateX(0);
+  /* 열릴 때: 살짝 더 길게, 끝에서 부드럽게 감속하며 자리를 잡는다 */
+  transition: transform 300ms cubic-bezier(0, 0, 0.2, 1);
+}
+
+.nav-drawer-header {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 18px 14px;
+  border-bottom: 1px solid var(--color-line);
+}
+
+.nav-drawer-brand img {
+  width: 128px;
+  height: auto;
+}
+
+.nav-drawer-close {
+  display: inline-grid;
+  width: 38px;
+  height: 38px;
+  place-items: center;
+  padding: 0;
+  border: 1px solid var(--color-line);
+  border-radius: 12px;
+  color: var(--color-navy);
+  background: #fff;
+}
+
+.nav-drawer-account {
+  flex: 0 0 auto;
+  padding: 16px 18px;
+  border-bottom: 1px solid var(--color-line);
+}
+
+.nav-drawer-login-card {
+  padding: 16px;
+  border-radius: 16px;
+  background: var(--color-orange-soft);
+}
+
+.nav-drawer-login-title {
+  margin: 0;
+  color: var(--color-navy);
+  font-size: 1rem;
+  font-weight: 800;
+}
+
+.nav-drawer-login-desc {
+  margin: 4px 0 14px;
+  color: var(--color-muted);
+  font-size: 0.86rem;
+}
+
+.nav-drawer-login-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.nav-drawer-login-actions .button {
+  flex: 1 1 0;
+  justify-content: center;
+}
+
+.nav-drawer-greeting-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.nav-drawer-greeting-text {
+  margin: 0;
+  overflow: hidden;
+  color: var(--color-navy);
+  font-size: 1rem;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nav-drawer-greeting-row .icon-button {
+  flex: 0 0 auto;
+}
+
+.nav-drawer-greeting-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.nav-drawer-greeting-actions .button {
+  flex: 1 1 0;
+  justify-content: center;
+}
+
+.nav-drawer-menu {
+  flex: 1 1 auto;
+  padding: 14px 10px 22px;
+}
+
+.nav-drawer-menu-title {
+  margin: 0;
+  padding: 6px 12px;
+  color: var(--color-subtle);
+  font-size: 0.78rem;
+  font-weight: 850;
+}
+
+.nav-drawer-menu nav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.nav-drawer-menu nav a {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 13px 12px;
+  border-radius: 12px;
+  color: var(--color-ink);
+  font-size: 0.98rem;
+  font-weight: 750;
+}
+
+.nav-drawer-menu nav a:hover {
+  background: #f2f6fa;
+}
+
+.nav-drawer-menu nav a[aria-current="page"] {
+  color: var(--color-orange-dark);
+  background: var(--color-orange-soft);
+}
+
+.nav-drawer-menu nav .material-symbols-rounded {
+  color: var(--color-subtle);
+  font-size: 22px;
+}
+
+@media (max-width: 760px) {
+  :root {
+    --header-height: 68px;
+  }
+
+  .container,
+  .header-shell {
+    width: min(100% - 28px, 1180px);
+  }
+
+  .brand img {
+    width: 126px;
   }
 
   .site-header--simple .header-actions .button,
@@ -1270,31 +1545,13 @@ h4 {
     width: calc(100% - 40px);
     margin: 15px 20px 20px;
   }
+}
 
-  body {
-    padding-bottom: 84px;
-  }
-
-  .quick-remote {
-    top: auto;
-    right: auto;
-    bottom: max(10px, env(safe-area-inset-bottom));
-    left: 50%;
-    width: min(312px, calc(100vw - 24px));
-    flex-direction: row;
-    padding: 7px 8px;
-    transform: translateX(-50%);
-    border-radius: 18px;
-  }
-
-  .quick-remote-title {
-    display: none;
-  }
-
-  .quick-remote a {
-    width: auto;
-    min-height: 54px;
-    flex: 1 1 0;
+/* 320px 근처의 가장 좁은 화면에서는 로고를 한 단계 더 줄여야 컴팩트
+   헤더의 로그인 버튼 + 햄버거 버튼이 컨테이너 폭 안에 들어온다. */
+@media (max-width: 400px) {
+  .brand img {
+    width: 104px;
   }
 }
 
@@ -1329,6 +1586,9 @@ h4 {
   font-weight: 900;
   line-height: 1;
   cursor: pointer;
+  /* 하단 퀵바와 겹칠 때 JS가 bottom을 인라인으로 올려 위쪽에 띄운다 —
+     그 이동이 툭 튀지 않고 부드럽게 보이도록. */
+  transition: bottom 200ms ease;
 }
 
 .board-scroll-top[hidden] {

@@ -60,7 +60,8 @@
   let publicSearchPageData = null;
   let renderedSearchMode = null;
 
-  const DEFAULT_LOCATION = { latitude: 37.4979, longitude: 127.0276 };
+  // 위치 권한이 없거나 조회에 실패했을 때 기준으로 삼는 기본 위치: 신논현역.
+  const DEFAULT_LOCATION = { latitude: 37.5048, longitude: 127.0255 };
 
   // 상세페이지에 다녀와도 마지막 검색 상태가 남아 있도록 하는 저장소 키.
   // AI 모드는 사용자가 직접 끌 때까지 유지해야 해서 localStorage, 검색 결과는 탭 단위로만

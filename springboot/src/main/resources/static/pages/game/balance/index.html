@@ -53,7 +53,7 @@
     @keyframes grow{from{width:0!important}}
     .recommend{margin:20px 0;text-align:left;background:var(--ink);color:#fff;border-radius:20px;padding:20px 22px;display:flex;align-items:center;justify-content:space-between;gap:25px}
     .recommend-label{color:var(--lime);font-size:9px;letter-spacing:2px;font-weight:900}.recommend h2{margin:5px 0 0;font-size:18px;letter-spacing:-1px;white-space:nowrap}
-    .menu-list{display:flex;flex-wrap:wrap;gap:7px;justify-content:flex-end}.menu-list span{background:#fff;color:var(--ink);border-radius:100px;padding:8px 11px 8px 7px;font-size:11px;font-weight:850}
+    .menu-list{display:flex;flex-wrap:wrap;gap:7px;justify-content:flex-end}.menu-list a{display:inline-flex;align-items:center;background:#fff;color:var(--ink);text-decoration:none;border-radius:100px;padding:8px 11px 8px 7px;font-size:11px;font-weight:850;cursor:pointer;transition:.15s}.menu-list a:hover{background:var(--lime);transform:translateY(-1px)}
     .menu-list b{display:inline-grid;place-items:center;width:19px;height:19px;margin-right:5px;border-radius:50%;background:var(--red);color:#fff}
     .restart{padding:12px 20px;box-shadow:4px 5px 0 var(--red);font-size:13px}
     @media(max-width:640px){
@@ -104,7 +104,7 @@
     function result(){
       const trait=Object.entries(scores).sort((a,b)=>b[1]-a[1])[0][0],p=profiles[trait];
       const meters=[["매운맛 선호도",Math.min(95,35+scores.spicy*5)],["국물 음식 선호도",Math.min(95,35+scores.soup*6)],["새로운 음식 도전도",Math.min(95,30+scores.adventure*6)]];
-      app.innerHTML=`<div class="shell"><div class="brand">오늘 뭐 먹지?</div><section class="result"><p class="eyebrow">당신의 음식 취향은</p><div class="result-emoji">${p[0]}</div><h1>${p[1]}!</h1><p class="result-copy">${p[2]}</p><div class="meters">${meters.map(m=>`<div><div class="meter-label"><span>${m[0]}</span><strong>${m[1]}%</strong></div><div class="meter-track"><span style="width:${m[1]}%"></span></div></div>`).join("")}</div><div class="recommend"><div><span class="recommend-label">TODAY'S PICK</span><h2>오늘은 이거 어때요?</h2></div><div class="menu-list">${p[3].map((m,i)=>`<span><b>${i+1}</b>${m}</span>`).join("")}</div></div><button class="restart" onclick="start()">↻ 다시 해보기</button></section></div>`;
+      app.innerHTML=`<div class="shell"><div class="brand">오늘 뭐 먹지?</div><section class="result"><p class="eyebrow">당신의 음식 취향은</p><div class="result-emoji">${p[0]}</div><h1>${p[1]}!</h1><p class="result-copy">${p[2]}</p><div class="meters">${meters.map(m=>`<div><div class="meter-label"><span>${m[0]}</span><strong>${m[1]}%</strong></div><div class="meter-track"><span style="width:${m[1]}%"></span></div></div>`).join("")}</div><div class="recommend"><div><span class="recommend-label">TODAY'S PICK</span><h2>오늘은 이거 어때요?</h2></div><div class="menu-list">${p[3].map((m,i)=>`<a href="/search?keyword=${encodeURIComponent(m)}" target="_top"><b>${i+1}</b>${m}</a>`).join("")}</div></div><button class="restart" onclick="start()">↻ 다시 해보기</button></section></div>`;
     }
     home();
   </script>

@@ -133,14 +133,20 @@ function goToRestaurantDetail(targetId, targetName) {
 }
 
 const RecommendationPage = {
+  // 위치 권한이 없거나 조회에 실패했을 때 기준으로 삼는 기본 위치: 신논현역.
   defaultLocation: {
-    latitude: 37.4979,
-    longitude: 127.0276
+    latitude: 37.5048,
+    longitude: 127.0255
   },
 
   // 로드된 데이터 저장소
   personalList: [],
   rankingList: [],
+
+  // 실제 GPS 대신 defaultLocation(신논현역)을 썼는지 여부. 개인화 추천/랭킹 두 섹션이
+  // 위치를 각각 요청하므로, getCurrentLocation()의 캐시된 프로미스와 함께 한 번만 계산해서 공유한다.
+  usedFallbackLocation: false,
+  locationPromise: null,
 
   init: async function () {
     const container = document.getElementById("recommendation-content");
@@ -154,21 +160,46 @@ const RecommendationPage = {
   },
 
   getCurrentLocation: function () {
-    return new Promise((resolve) => {
-      if (!navigator.geolocation) {
-        resolve(this.defaultLocation);
-        return;
-      }
-      navigator.geolocation.getCurrentPosition(
-        (pos) => resolve({ latitude: pos.coords.latitude, longitude: pos.coords.longitude }),
-        () => resolve(this.defaultLocation),
-        { timeout: 5000 }
-      );
-    });
+    // 두 섹션이 각각 부르더라도 위치 권한 팝업은 한 번만 뜨게, 그리고 폴백 여부
+    // 판단도 한 번만 하게 프로미스를 캐시해서 재사용한다.
+    if (!this.locationPromise) {
+      this.locationPromise = new Promise((resolve) => {
+        if (!navigator.geolocation) {
+          this.usedFallbackLocation = true;
+          this.showLocationFallbackNotice();
+          resolve(this.defaultLocation);
+          return;
+        }
+        navigator.geolocation.getCurrentPosition(
+          (pos) => resolve({ latitude: pos.coords.latitude, longitude: pos.coords.longitude }),
+          () => {
+            this.usedFallbackLocation = true;
+            this.showLocationFallbackNotice();
+            resolve(this.defaultLocation);
+          },
+          { timeout: 5000 }
+        );
+      });
+    }
+    return this.locationPromise;
+  },
+
+  // "현재 위치를 찾을 수 없어 신논현역을 기준으로 추천했습니다" 안내를 보여준다.
+  // 맛집찾기(지도)와 달리 추천은 신논현역인 척 조용히 넘어가지 않고, 왜 이
+  // 매장들이 추천됐는지 사용자에게 밝혀야 해서 명시적인 배너로 알려준다.
+  showLocationFallbackNotice: function () {
+    const notice = document.getElementById("reco-location-notice");
+    if (notice) notice.hidden = false;
   },
 
   renderInitialLayout: function (container) {
     container.innerHTML = `
+      <div id="reco-location-notice" role="status"
+           style="display: flex; align-items: center; gap: 8px; margin-bottom: 14px; padding: 10px 14px; background: #e7f5ff; border-radius: 8px; color: #1971c2; font-size: 13px; font-weight: bold;"
+           hidden>
+        <i class="fa-solid fa-location-crosshairs" aria-hidden="true"></i> 현재 위치를 찾을 수 없어 신논현역을 기준으로 추천했습니다.
+      </div>
+
       <div class="reco-tabs" role="tablist" aria-label="맛집 추천 구분">
         <button id="reco-tab-personal" class="reco-tab is-active" type="button" role="tab"
                 aria-selected="true" aria-controls="personal-section">나를 위한 맛집</button>

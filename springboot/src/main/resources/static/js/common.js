@@ -495,6 +495,7 @@
       "M6 4h12a3 3 0 0 1 3 3v7a3 3 0 0 1-3 3H9l-5 4V7a3 3 0 0 1 3-3z",
     ],
     add: ["M12 5v14", "M5 12h14"],
+    remove: ["M5 12h14"],
     error: [
       "M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20z",
       "M12 7v6",
@@ -855,6 +856,19 @@
       : RECOMMENDATION_LOGIN_PATH;
   }
 
+  const DRAWER_MENU_ICONS = {
+    search: "search",
+    map: "near_me",
+    recommendation: "auto_awesome",
+    board: "forum",
+    presset: "map",
+    game: "sports_esports",
+  };
+
+  // 게임은 상단 데스크톱 nav에는 없고, 드로어 메뉴와 퀵바에만 보물지도 다음
+  // 순서로 노출되는 별도 항목이다.
+  const DRAWER_EXTRA_ITEM = { id: "game", label: "게임", href: "/game" };
+
   function renderHeader(host) {
     const active = host.dataset.activeNav || "";
     const items = [
@@ -871,13 +885,32 @@
       { id: "presset", label: "보물지도", href: "/presset" },
     ];
 
-    const nav = items.map((item) => {
+    const navLink = (item, extraAttrs = "") => {
       const current = item.id === active ? ' aria-current="page"' : "";
       const guard = item.protectedRecommendation
         ? ' data-recommendation-link'
         : "";
-      return `<a href="${item.href}"${current}${guard}>${item.label}</a>`;
-    }).join("");
+      return `<a href="${item.href}"${current}${guard}${extraAttrs}>${item.label}</a>`;
+    };
+
+    const nav = items.map((item) => navLink(item)).join("");
+
+    // 드로어의 "메뉴" 목록은 홈을 뺀다 — 홈은 드로어 상단 foodduck 로고로 대체된다.
+    // 게임은 상단 nav에는 없는 별도 항목이라 보물지도 다음에 이어 붙인다.
+    const drawerMenu = items
+      .filter((item) => item.id !== "home")
+      .concat(DRAWER_EXTRA_ITEM)
+      .map((item) => {
+        const icon = DRAWER_MENU_ICONS[item.id] || "chevron_right";
+        const current = item.id === active ? ' aria-current="page"' : "";
+        const guard = item.protectedRecommendation
+          ? ' data-recommendation-link'
+          : "";
+        return `<a href="${item.href}"${current}${guard} data-nav-drawer-dismiss>
+                  <span class="material-symbols-rounded" aria-hidden="true">${icon}</span>
+                  ${item.label}
+                </a>`;
+      }).join("");
 
     const authAction = session.authenticated
       ? `<button class="button button-sm button-outline-gray header-auth-button" type="button" data-logout>
@@ -891,6 +924,30 @@
          <a class="button button-sm button-orange header-auth-button" href="/auth/login">
            로그인
          </a>`;
+
+    const drawerAccount = session.authenticated
+      ? `<div class="nav-drawer-greeting">
+           <div class="nav-drawer-greeting-row">
+             <p class="nav-drawer-greeting-text" data-drawer-nickname>회원님 안녕하세요</p>
+             <a class="icon-button" href="/mypage/detail?tab=notifications"
+                aria-label="알림" data-notification-link data-nav-drawer-dismiss>
+               <span class="material-symbols-rounded" aria-hidden="true">notifications</span>
+               <span class="notification-badge" data-notification-badge hidden></span>
+             </a>
+           </div>
+           <div class="nav-drawer-greeting-actions">
+             <a class="button button-sm button-outline-gray" href="/mypage" data-nav-drawer-dismiss>마이페이지</a>
+             <button class="button button-sm button-outline-gray" type="button" data-logout>로그아웃</button>
+           </div>
+         </div>`
+      : `<div class="nav-drawer-login-card">
+           <p class="nav-drawer-login-title">로그인을 하시면</p>
+           <p class="nav-drawer-login-desc">찜, 맛집추천 기능을 이용할 수 있어요.</p>
+           <div class="nav-drawer-login-actions">
+             <a class="button button-sm button-outline-gray" href="/auth/login" data-nav-drawer-dismiss>로그인</a>
+             <a class="button button-sm button-orange" href="/auth/signup" data-nav-drawer-dismiss>회원가입</a>
+           </div>
+         </div>`;
 
     host.innerHTML = `
       <header class="site-header">
@@ -915,7 +972,63 @@
             </button>
           </div>
         </div>
-      </header>`;
+      </header>
+      <div class="nav-drawer" data-nav-drawer aria-hidden="true">
+        <button type="button" class="nav-drawer-backdrop" data-nav-drawer-dismiss
+                aria-label="메뉴 닫기" tabindex="-1"></button>
+        <div class="nav-drawer-panel" role="dialog" aria-modal="true" aria-label="메뉴">
+          <div class="nav-drawer-header">
+            <a class="nav-drawer-brand" href="/" aria-label="푸드덕 홈" data-nav-drawer-dismiss>
+              <img src="/images/logos/brand-horizontal.png" alt="foodduck">
+            </a>
+            <button type="button" class="nav-drawer-close" data-nav-drawer-close aria-label="메뉴 닫기">
+              <span class="material-symbols-rounded" aria-hidden="true">close</span>
+            </button>
+          </div>
+          <div class="nav-drawer-account">${drawerAccount}</div>
+          <div class="nav-drawer-menu">
+            <p class="nav-drawer-menu-title">메뉴</p>
+            <nav aria-label="드로어 메뉴">${drawerMenu}</nav>
+          </div>
+        </div>
+      </div>`;
+
+    if (session.authenticated) {
+      hydrateDrawerNickname(host);
+    }
+  }
+
+  let drawerNicknamePromise = null;
+  // 드로어가 열릴 때 body를 position:fixed로 고정하기 직전의 스크롤
+  // 위치. 닫을 때 이 위치로 되돌린다.
+  let scrollLockY = 0;
+
+  function hydrateDrawerNickname(host) {
+    if (!session.authenticated) return;
+    const apply = (nickname) => {
+      host.querySelectorAll("[data-drawer-nickname]").forEach((el) => {
+        el.textContent = `${nickname || "회원"}님 안녕하세요`;
+      });
+    };
+    if (session.nickname) {
+      apply(session.nickname);
+      return;
+    }
+    if (!drawerNicknamePromise) {
+      drawerNicknamePromise = Api.get("/mypage/overview")
+        .then((payload) => {
+          const nickname = String(payload?.data?.nickname || "").trim();
+          if (nickname) session.nickname = nickname;
+          return session.nickname || null;
+        })
+        .catch(() => null)
+        .finally(() => {
+          drawerNicknamePromise = null;
+        });
+    }
+    drawerNicknamePromise.then((nickname) => {
+      if (nickname) apply(nickname);
+    });
   }
 
   function renderFooter(host) {
@@ -1204,8 +1317,20 @@
     if (path === "/search") {
       return "search";
     }
+    if (path === "/board" || path.startsWith("/board/")) {
+      return "board";
+    }
+    if (path === "/presset" || path.startsWith("/presset/")) {
+      return "presset";
+    }
     if (path === "/game") {
       return "game";
+    }
+    if (path === "/map") {
+      return "map";
+    }
+    if (path === "/recommendation") {
+      return "recommendation";
     }
     return "";
   }
@@ -1221,47 +1346,225 @@
       return;
     }
 
+    // core = 접힌 상태에서도 항상 보이는 3개(홈·검색·내정보). 나머지는
+    // 데스크톱 세로 위젯에서 [+]를 눌러야 펼쳐진다(하단 바는 접지 않고
+    // 항상 8개 전부 보여준다 — CSS 쪽에서 min-width로 범위를 나눈다).
     const items = [
-      { id: "home", label: "홈", icon: "home", href: "/" },
-      ...(session.authenticated
-        ? [{
-            id: "mypage",
-            label: "마이페이지",
-            icon: "person",
-            href: "/mypage",
-          }]
-        : []),
+      { id: "home", label: "홈", icon: "home", href: "/", core: true },
+      { id: "search", label: "검색", icon: "search", href: "/search", core: true },
+      { id: "map", label: "맛집찾기", icon: "near_me", href: "/map" },
       {
-        id: "search",
-        label: "검색",
-        icon: "search",
-        href: "/search",
+        id: "recommendation",
+        label: "맛집추천",
+        icon: "auto_awesome",
+        href: recommendationHref(),
+        protectedRecommendation: true,
       },
+      { id: "board", label: "커뮤니티", icon: "forum", href: "/board" },
+      { id: "presset", label: "보물지도", icon: "map", href: "/presset" },
+      { id: "game", label: "게임", icon: "sports_esports", href: "/game" },
       {
-        id: "game",
-        label: "게임",
-        icon: "sports_esports",
-        href: "/game",
+        id: "mypage",
+        label: "내정보",
+        icon: "person",
+        href: session.authenticated ? "/mypage" : "/auth/login",
+        core: true,
       },
     ];
     const active = currentQuickTarget();
-    const links = items.map((item) => {
+    const linkHTML = (item) => {
       const current = item.id === active ? ' aria-current="page"' : "";
+      const guard = item.protectedRecommendation ? ' data-recommendation-link' : "";
       return `
-        <a href="${item.href}"${current} aria-label="${item.label} 페이지로 이동">
+        <a href="${item.href}"${current}${guard} aria-label="${item.label} 페이지로 이동">
           <span class="material-symbols-rounded" aria-hidden="true">${item.icon}</span>
           <small>${item.label}</small>
         </a>`;
-    }).join("");
+    };
+    // core 항목은 그대로 두고, 나머지(펼쳐야 보이는 항목)는 한 wrapper로
+    // 묶는다 — 접고 펼 때 wrapper 하나의 높이만 애니메이션하면 되고,
+    // 하단 바(모바일)에서는 이 wrapper를 display:contents로 없애서
+    // 자식들이 그대로 가로 정렬에 합류하게 한다(CSS에서 처리).
+    const coreBefore = items.filter((item) => item.core).slice(0, -1);
+    const extra = items.filter((item) => !item.core);
+    const coreLast = items.filter((item) => item.core).slice(-1);
+    const links = `
+      ${coreBefore.map(linkHTML).join("")}
+      <div class="quick-remote-extra" data-quick-remote-extra>
+        ${extra.map(linkHTML).join("")}
+      </div>
+      ${coreLast.map(linkHTML).join("")}`;
 
+    // 접힘/펼침 상태는 페이지를 이동해도 유지돼야 한다(세션 스토리지) —
+    // 그래서 처음 만들 때부터 저장된 상태를 그대로 반영해서 만든다.
+    // (마운트 "이후"에 attribute를 바꾸면 그 사이의 CSS 트랜지션이 붙어서
+    // 페이지 진입 때마다 펼쳐지는 애니메이션이 보이게 된다 — 그건 원치 않는
+    // 동작이라, 아예 처음부터 최종 상태로 태어나게 한다.)
+    const expandedInit = readQuickRemoteExpanded();
     const remote = document.createElement("nav");
     remote.className = "quick-remote";
     remote.dataset.quickRemote = "";
+    remote.dataset.expanded = String(expandedInit);
     remote.setAttribute("aria-label", "페이지 빠른 이동");
     remote.innerHTML = `
-      <span class="quick-remote-title">빠른 이동</span>
-      ${links}`;
+      <span class="quick-remote-title" data-quick-remote-handle>빠른 이동</span>
+      ${links}
+      <button type="button" class="quick-remote-toggle" data-quick-remote-toggle
+              aria-expanded="${expandedInit}" aria-label="${expandedInit ? "메뉴 접기" : "메뉴 더보기"}">
+        <span class="material-symbols-rounded" aria-hidden="true">${expandedInit ? "remove" : "add"}</span>
+      </button>`;
     document.body.append(remote);
+    setupQuickRemote(remote);
+  }
+
+  const QUICK_REMOTE_DOCK_KEY = "fooduck:quick-remote-dock";
+  const QUICK_REMOTE_EXPANDED_KEY = "fooduck:quick-remote-expanded";
+  const QUICK_REMOTE_DESKTOP_QUERY = "(min-width: 1081px)";
+  const QUICK_REMOTE_EDGE_GAP = 18; // .quick-remote의 CSS right 기본값과 동일
+
+  function readQuickRemoteDock() {
+    try {
+      const value = sessionStorage.getItem(QUICK_REMOTE_DOCK_KEY);
+      return value === "left" ? "left" : "right";
+    } catch {
+      return "right";
+    }
+  }
+
+  function writeQuickRemoteDock(dock) {
+    try {
+      sessionStorage.setItem(QUICK_REMOTE_DOCK_KEY, dock);
+    } catch {
+      // 세션 스토리지를 쓸 수 없어도(프라이빗 모드 등) 기능 자체는 계속 동작해야 한다.
+    }
+  }
+
+  function readQuickRemoteExpanded() {
+    try {
+      return sessionStorage.getItem(QUICK_REMOTE_EXPANDED_KEY) === "true";
+    } catch {
+      return false;
+    }
+  }
+
+  function writeQuickRemoteExpanded(expanded) {
+    try {
+      sessionStorage.setItem(QUICK_REMOTE_EXPANDED_KEY, String(expanded));
+    } catch {
+      // 세션 스토리지를 쓸 수 없어도(프라이빗 모드 등) 기능 자체는 계속 동작해야 한다.
+    }
+  }
+
+  // 접기/펼치기 + 좌우 드래그 배치는 데스크톱 세로 위젯 전용 기능이다.
+  // 하단 바(≤1080px)에서는 CSS가 이미 left:50% 중앙 정렬로 완전히
+  // 다른 레이아웃을 쓰므로, 이 스크립트가 남겨둔 인라인 right 값이
+  // 폭이 좁아진 뒤에도 남아 있으면 그 중앙 정렬을 깨버린다. 그래서
+  // 데스크톱 폭일 때만 인라인 위치를 관리하고, 좁아지면 즉시 지운다.
+  function setupQuickRemote(remote) {
+    const toggle = remote.querySelector("[data-quick-remote-toggle]");
+    const handle = remote.querySelector("[data-quick-remote-handle]");
+    const desktopQuery = window.matchMedia(QUICK_REMOTE_DESKTOP_QUERY);
+
+    toggle?.addEventListener("click", () => {
+      const expanded = remote.dataset.expanded === "true";
+      remote.dataset.expanded = String(!expanded);
+      toggle.setAttribute("aria-expanded", String(!expanded));
+      toggle.setAttribute("aria-label", expanded ? "메뉴 더보기" : "메뉴 접기");
+      setIcon(toggle.querySelector(".material-symbols-rounded"), expanded ? "add" : "remove");
+      writeQuickRemoteExpanded(!expanded);
+    });
+
+    function dockRightPx(dock) {
+      // "왼쪽에 붙이기"도 결국 CSS로는 right 값으로 표현한다(왼쪽 끝에서
+      // 18px 떨어지도록, 위젯 폭만큼 오른쪽으로 민 값).
+      if (dock === "left") {
+        return Math.max(QUICK_REMOTE_EDGE_GAP, window.innerWidth - remote.offsetWidth - QUICK_REMOTE_EDGE_GAP);
+      }
+      return QUICK_REMOTE_EDGE_GAP;
+    }
+
+    function applyDock(dock, { instant = false } = {}) {
+      if (!instant) {
+        remote.style.right = `${dockRightPx(dock)}px`;
+        return;
+      }
+      // 페이지에 처음 들어와서 저장된 위치를 적용하는 순간에는 애니메이션이
+      // 없어야 한다(드래그로 실제로 옮길 때만 스르륵 움직여야 자연스럽다).
+      // dockRightPx()가 읽는 remote.offsetWidth는 강제로 레이아웃을 확정
+      // 시키는데, 이때 CSS 트랜지션이 아직 켜져 있으면 그 순간의(기본
+      // right) 값이 "이전 상태"로 굳어버려서, 바로 이어지는 right 값
+      // 변경이 오른쪽 → 왼쪽으로 스르륵 움직이는 진짜 애니메이션처럼
+      // 보이게 된다. 그래서 값을 계산·적용하는 동안만 트랜지션을 꺼둔다.
+      const prevTransition = remote.style.transition;
+      remote.style.transition = "none";
+      remote.style.right = `${dockRightPx(dock)}px`;
+      void remote.offsetHeight;
+      remote.style.transition = prevTransition;
+    }
+
+    function syncWithViewport(opts) {
+      if (desktopQuery.matches) {
+        applyDock(readQuickRemoteDock(), opts);
+      } else {
+        // 하단 바 모드: 인라인 값을 지워서 CSS의 left:50% 중앙 정렬이 그대로 적용되게 한다.
+        remote.style.right = "";
+      }
+    }
+
+    syncWithViewport({ instant: true });
+    desktopQuery.addEventListener("change", syncWithViewport);
+    window.addEventListener("resize", () => {
+      if (!desktopQuery.matches || remote.classList.contains("is-dragging")) return;
+      applyDock(readQuickRemoteDock());
+    });
+
+    if (!handle) return;
+
+    let dragState = null;
+
+    handle.addEventListener("pointerdown", (event) => {
+      if (event.button !== 0 || !desktopQuery.matches) return;
+      const startRight = window.innerWidth - remote.getBoundingClientRect().right;
+      dragState = { startX: event.clientX, startRight };
+      remote.classList.add("is-dragging");
+      // 포인터 캡처가 실패해도(브라우저·상황에 따라 드물게 있을 수 있음)
+      // 드래그 로직 자체는 계속 진행돼야 하므로 예외를 삼킨다 — 여기서
+      // 안 잡으면 밑에서 벌어지는 pointermove/pointerup 처리가 아예
+      // 끊겨서 스냅 위치 저장까지 못 가는 문제가 있었다.
+      try {
+        handle.setPointerCapture(event.pointerId);
+      } catch {
+        // 캡처 없이도 이후 pointermove/pointerup은 정상적으로 들어온다.
+      }
+      event.preventDefault();
+    });
+
+    handle.addEventListener("pointermove", (event) => {
+      if (!dragState) return;
+      const deltaX = event.clientX - dragState.startX;
+      const maxRight = Math.max(QUICK_REMOTE_EDGE_GAP, window.innerWidth - remote.offsetWidth - QUICK_REMOTE_EDGE_GAP);
+      const nextRight = Math.min(maxRight, Math.max(QUICK_REMOTE_EDGE_GAP, dragState.startRight - deltaX));
+      remote.style.right = `${nextRight}px`;
+    });
+
+    const endDrag = (event) => {
+      if (!dragState) return;
+      dragState = null;
+      remote.classList.remove("is-dragging");
+      try {
+        handle.releasePointerCapture(event.pointerId);
+      } catch {
+        // 캡처가 애초에 안 걸려 있었을 수도 있다 — 무시하고 계속 진행.
+      }
+      // 뗀 지점에서 화면 중앙을 기준으로 더 가까운 쪽 가장자리로 스냅한다.
+      const centerX = remote.getBoundingClientRect().left + remote.offsetWidth / 2;
+      const dock = centerX < window.innerWidth / 2 ? "left" : "right";
+      applyDock(dock);
+      writeQuickRemoteDock(dock);
+    };
+
+    handle.addEventListener("pointerup", endDrag);
+    handle.addEventListener("pointercancel", endDrag);
   }
 
   const PASSWORD_RULES = [
@@ -1543,24 +1846,93 @@
 
   document.querySelectorAll(".site-header").forEach((header) => {
     const navToggle = header.querySelector("[data-nav-toggle]");
+    // 드로어는 헤더의 backdrop-filter가 fixed 포지셔닝의 containing block이
+    // 되는 것을 피하기 위해 <header> 밖(같은 부모 아래 형제)에 렌더링된다.
+    const drawer = header.parentElement?.querySelector("[data-nav-drawer]");
     if (!navToggle) {
       return;
     }
+
+    let pendingOpenLockCleanup = null;
+
+    const setDrawerOpen = (open) => {
+      // 직전에 걸어 둔 "열림 완료 후 잠금" 대기가 아직 안 끝났다면 취소한다
+      // (빠르게 열었다 닫았다 하는 경우 대비).
+      if (pendingOpenLockCleanup) {
+        pendingOpenLockCleanup();
+        pendingOpenLockCleanup = null;
+      }
+
+      // 트랜지션을 시작시키는 클래스 토글 + 가벼운 속성/아이콘 변경만
+      // 동기적으로 처리한다. 레이아웃에 영향을 주는 작업(배경 스크롤
+      // 잠금)은 아래에서 트랜지션이 "완전히 끝난 뒤"에만 실행한다 —
+      // 그래야 그 작업이 슬라이드 애니메이션과 절대 부딪힐 수 없다.
+      header.classList.toggle("is-nav-open", open);
+      navToggle.setAttribute("aria-expanded", String(open));
+      navToggle.setAttribute("aria-label", open ? "메뉴 닫기" : "메뉴 열기");
+      setIcon(navToggle.querySelector(".material-symbols-rounded"), open ? "close" : "menu");
+      if (drawer) {
+        drawer.setAttribute("aria-hidden", String(!open));
+      }
+
+      if (open) {
+        const panel = drawer?.querySelector(".nav-drawer-panel");
+        const lockNow = () => {
+          scrollLockY = window.scrollY;
+          document.body.style.position = "fixed";
+          document.body.style.top = `-${scrollLockY}px`;
+          document.body.style.left = "0";
+          document.body.style.right = "0";
+          drawer?.querySelector("[data-nav-drawer-close]")?.focus({ preventScroll: true });
+        };
+        if (panel) {
+          const onSlideEnd = (event) => {
+            if (event.target !== panel || event.propertyName !== "transform") return;
+            pendingOpenLockCleanup = null;
+            lockNow();
+          };
+          panel.addEventListener("transitionend", onSlideEnd, { once: true });
+          pendingOpenLockCleanup = () => panel.removeEventListener("transitionend", onSlideEnd);
+        } else {
+          lockNow();
+        }
+      } else {
+        // 닫을 때는 잠금을 즉시 풀어 배경 스크롤 위치를 되돌린다
+        // (이미 문제없이 자연스럽다고 확인된 동작이라 그대로 둔다).
+        document.body.style.position = "";
+        document.body.style.top = "";
+        document.body.style.left = "";
+        document.body.style.right = "";
+        window.scrollTo(0, scrollLockY);
+        navToggle.focus({ preventScroll: true });
+      }
+    };
+
     navToggle.addEventListener("click", () => {
-      const isOpen = header.classList.toggle("is-nav-open");
-      navToggle.setAttribute("aria-expanded", String(isOpen));
-      navToggle.setAttribute("aria-label", isOpen ? "메뉴 닫기" : "메뉴 열기");
-      setIcon(
-        navToggle.querySelector(".material-symbols-rounded"),
-        isOpen ? "close" : "menu",
-      );
+      setDrawerOpen(!header.classList.contains("is-nav-open"));
     });
+
     header.querySelectorAll(".nav a").forEach((link) => {
-      link.addEventListener("click", () => {
-        header.classList.remove("is-nav-open");
-        navToggle.setAttribute("aria-expanded", "false");
-        setIcon(navToggle.querySelector(".material-symbols-rounded"), "menu");
+      link.addEventListener("click", () => setDrawerOpen(false));
+    });
+
+    if (drawer) {
+      // 드로어 안의 링크·닫기 버튼·백드롭 클릭 시 이동 여부와 무관하게 드로어를 닫는다.
+      drawer.addEventListener("click", (event) => {
+        if (event.target.closest("[data-nav-drawer-dismiss], [data-nav-drawer-close]")) {
+          setDrawerOpen(false);
+        }
       });
+      // 로그아웃은 페이지 자체가 새로고침되지만, 그 전에 드로어부터 시각적으로 닫는다.
+      drawer.querySelector("[data-logout]")?.addEventListener("click", () => {
+        setDrawerOpen(false);
+      });
+    }
+
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape" && header.classList.contains("is-nav-open")) {
+        setDrawerOpen(false);
+      }
     });
   });
 
@@ -1840,6 +2212,35 @@
     button.hidden = true;
     document.body.append(button);
 
+    // 좁은 화면에서는 맨 위로 버튼(우하단)과 하단 퀵바(가로 8개, 화면
+    // 중앙 정렬)가 겹칠 수 있다. 겹칠 때만 버튼을 퀵바 위로 들어 올린다
+    // — 항상 들어 올리면 안 겹치는 넓은 화면에서도 불필요하게 위치가
+    // 달라 보인다. 좌우 위치(right)는 그대로 두고 bottom만 바꾼다.
+    function updateStackingWithQuickRemote() {
+      if (button.hidden) {
+        button.style.bottom = "";
+        return;
+      }
+      const bar = document.querySelector("[data-quick-remote]");
+      // 세로 위젯(데스크톱) 모드에서는 화면 중앙에 떠 있어서 절대 겹치지
+      // 않는다 — 가로 바(모바일) 모드일 때만 검사한다.
+      if (!bar || getComputedStyle(bar).flexDirection !== "row") {
+        button.style.bottom = "";
+        return;
+      }
+      const barRect = bar.getBoundingClientRect();
+      // 버튼의 좌우 위치(right)는 이 겹침 여부와 무관하게 항상 고정값이라
+      // 지금 시점의 rect를 그대로 읽어도 안전하다(달라지는 건 bottom뿐).
+      const buttonRect = button.getBoundingClientRect();
+      const overlaps = barRect.right > buttonRect.left - 4;
+      if (overlaps) {
+        const gap = 10;
+        button.style.bottom = `${Math.round(window.innerHeight - barRect.top + gap)}px`;
+      } else {
+        button.style.bottom = "";
+      }
+    }
+
     let ticking = false;
     let isVisible = false;
     const updateVisibility = () => {
@@ -1848,6 +2249,7 @@
         isVisible = nextVisible;
         button.hidden = !nextVisible;
       }
+      updateStackingWithQuickRemote();
       ticking = false;
     };
 
@@ -1856,6 +2258,10 @@
       ticking = true;
       window.requestAnimationFrame(updateVisibility);
     }, { passive: true });
+
+    window.addEventListener("resize", () => {
+      window.requestAnimationFrame(updateStackingWithQuickRemote);
+    });
 
     button.addEventListener("click", () => {
       const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
