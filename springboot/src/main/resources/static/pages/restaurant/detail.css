@@ -1862,3 +1862,54 @@ body > [data-site-header] > .site-header {
   font-weight: 700;
 }
 
+
+
+/* 가게 상세: 공통 CSS 캐시 상태와 무관하게 상단 이동 버튼 표시를 보장한다. */
+.board-scroll-top {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 250;
+  display: grid;
+  width: 46px;
+  height: 46px;
+  padding: 0;
+  place-items: center;
+  border: 1px solid var(--color-line);
+  border-radius: 50%;
+  color: var(--color-navy);
+  background: var(--color-surface);
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.16);
+  font-size: 1.35rem;
+  font-weight: 900;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.board-scroll-top[hidden] {
+  display: none;
+}
+
+.board-scroll-top:hover {
+  transform: translateY(-2px);
+}
+
+.board-scroll-top:focus-visible {
+  outline: 3px solid var(--color-orange);
+  outline-offset: 3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .board-scroll-top:hover {
+    transform: none;
+  }
+}
+
+@media (max-width: 720px) {
+  .board-scroll-top {
+    right: 16px;
+    bottom: calc(max(10px, env(safe-area-inset-bottom)) + 78px);
+    width: 44px;
+    height: 44px;
+  }
+}

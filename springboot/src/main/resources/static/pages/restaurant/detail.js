@@ -7,37 +7,42 @@
   if (!loading || !errorView || !content) return;
 
   function ensureStoreScrollTopButton() {
-    if (document.querySelector(".board-scroll-top")) return;
+    let button = document.querySelector(".board-scroll-top");
+    if (!button) {
+      button = document.createElement("button");
+      button.type = "button";
+      button.className = "board-scroll-top";
+      button.textContent = "↑";
+      button.title = "맨 위로 이동";
+      button.setAttribute("aria-label", "맨 위로 이동");
+      button.hidden = true;
+      document.body.append(button);
+    }
 
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = "board-scroll-top";
-    button.textContent = "↑";
-    button.title = "맨 위로 이동";
-    button.setAttribute("aria-label", "맨 위로 이동");
-    button.hidden = true;
-    document.body.append(button);
+    if (button.dataset.storeScrollTopBound === "true") return;
+    button.dataset.storeScrollTopBound = "true";
 
     let ticking = false;
-    let isVisible = false;
+    const currentScrollTop = () => Math.max(
+      Number(window.scrollY) || 0,
+      Number(document.documentElement?.scrollTop) || 0,
+      Number(document.body?.scrollTop) || 0,
+    );
     const updateVisibility = () => {
-      const nextVisible = window.scrollY > 450;
-      if (nextVisible !== isVisible) {
-        isVisible = nextVisible;
-        button.hidden = !nextVisible;
-      }
+      const visible = currentScrollTop() > 450;
+      button.hidden = !visible;
+      document.body.classList.toggle("board-scroll-top-visible", visible);
       ticking = false;
     };
+    const scheduleVisibilityUpdate = () => {
+      if (ticking) return;
+      ticking = true;
+      window.requestAnimationFrame(updateVisibility);
+    };
 
-    window.addEventListener(
-      "scroll",
-      () => {
-        if (ticking) return;
-        ticking = true;
-        window.requestAnimationFrame(updateVisibility);
-      },
-      { passive: true },
-    );
+    window.addEventListener("scroll", scheduleVisibilityUpdate, { passive: true });
+    window.addEventListener("resize", scheduleVisibilityUpdate, { passive: true });
+    window.addEventListener("pageshow", updateVisibility);
 
     button.addEventListener("click", () => {
       const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
