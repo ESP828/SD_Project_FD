@@ -15,7 +15,7 @@ public class CorsConfig {
 
     @Bean
     CorsConfigurationSource corsConfigurationSource(
-            @Value("${app.cors.allowed-origins:http://localhost:8081}") String allowedOrigins
+            @Value("${app.cors.allowed-origins:*}") String allowedOrigins
     ) {
         List<String> origins = Arrays.stream(allowedOrigins.split(","))
                 .map(String::trim)
@@ -23,7 +23,9 @@ public class CorsConfig {
                 .toList();
 
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOrigins(origins);
+        // allowCredentials(true)와 함께라면 setAllowedOrigins("*")는 스프링이 거부하므로,
+        // 어떤 출처든 허용하려면 setAllowedOriginPatterns를 써야 한다.
+        configuration.setAllowedOriginPatterns(origins);
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(List.of("Authorization", "Content-Type"));
         configuration.setAllowCredentials(true);
