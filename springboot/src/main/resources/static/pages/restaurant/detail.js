@@ -2718,16 +2718,18 @@
     preview.append(previewImage, previewCopy, removeImage);
 
     const submitRow = newsCommentElement("div", "comment-submit-row");
-    const loginNote = newsCommentElement(
-      "p",
-      "",
-      isLoggedIn
-        ? `${session.nickname || "회원"} 님으로 작성합니다.`
-        : "댓글 등록 시 로그인 화면으로 이동합니다.",
-    );
     const submit = newsCommentElement("button", "button button-sm button-primary", "댓글 등록");
     submit.type = "submit";
-    submitRow.append(loginNote, submit);
+    if (isLoggedIn) {
+      submitRow.append(submit);
+    } else {
+      const loginNote = newsCommentElement(
+        "p",
+        "",
+        "댓글 등록 시 로그인 화면으로 이동합니다.",
+      );
+      submitRow.append(loginNote, submit);
+    }
 
     const clearImage = () => {
       selectedImage = null;
