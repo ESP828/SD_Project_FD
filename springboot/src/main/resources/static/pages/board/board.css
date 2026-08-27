@@ -1035,8 +1035,9 @@
 }
 
 .author-nickname {
-  color: var(--color-muted);
+  color: #40566f;
   font-size: 0.72rem;
+  font-weight: 800;
 }
 
 .author-activity-trigger {
