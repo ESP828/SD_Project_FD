@@ -100,6 +100,25 @@
     return node;
   }
 
+  function commentContentElement(comment, isReply = false) {
+    const value = String(comment?.content ?? "");
+    if (!isReply) return emojiTextElement("div", "comment-content", value);
+
+    const mentionMatch = value.match(/^(@\S+)([\s\S]*)$/);
+    if (!mentionMatch) return emojiTextElement("div", "comment-content", value);
+
+    const node = element("div", "comment-content", "");
+    node.append(element("span", "comment-content-mention", mentionMatch[1]));
+
+    if (mentionMatch[2]) {
+      const body = element("span", "comment-content-body", "");
+      if (emojis) emojis.renderText(body, mentionMatch[2]);
+      else body.textContent = mentionMatch[2];
+      node.append(body);
+    }
+    return node;
+  }
+
   function resizeCommentTextarea(textarea, minimumHeight = 78) {
     if (!(textarea instanceof HTMLTextAreaElement)) return;
     textarea.style.height = "auto";
@@ -2692,7 +2711,7 @@
         `${formatDate(comment.createdAt)}${isEdited(comment) ? " · 수정됨" : ""}`,
       ),
     );
-    item.append(top, emojiTextElement("div", "comment-content", comment.content));
+    item.append(top, commentContentElement(comment, isReply));
 
     const image = commentImageNode(comment);
     if (image) item.append(image);

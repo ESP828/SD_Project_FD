@@ -835,6 +835,11 @@
   word-break: normal;
 }
 
+.comment-content-mention {
+  color: #526f8a;
+  font-weight: 700;
+}
+
 .comment-actions {
   display: flex;
   gap: 8px;
