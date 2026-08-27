@@ -163,3 +163,103 @@
   color: var(--color-muted);
   font-size: 0.78rem;
 }
+@media (max-width: 500px) {
+  /* 1. Hero 배경 높이 및 내부 요소 컴팩트 축소 */
+  .management-hero {
+    padding: 24px 0 20px; /* 기존 58px/48px -> 24px/20px로 대폭 축소 */
+  }
+
+  .management-hero-grid {
+    min-height: auto;
+    gap: 12px; /* 상하 요소 간격 최소화 */
+  }
+
+  .management-hero .mypage-detail-back {
+    margin-bottom: 4px;
+    font-size: 0.78rem;
+  }
+
+  .management-hero .eyebrow {
+    margin-bottom: 2px;
+    font-size: 0.72rem;
+  }
+
+  .management-hero h1 {
+    font-size: 1.55rem; /* 타이틀 크기 축소 */
+    line-height: 1.2;
+  }
+
+  .management-hero img {
+    width: 95px; /* 이미지 높이 축소로 배경 전체 높이 감소 */
+  }
+
+  .management-content {
+    padding-top: 18px; /* 본문과 배너 사이 간격도 함께 축소 */
+  }
+
+  /* 2. 카드 및 요약 영역 패딩/폰트 조절 */
+  .access-card {
+    padding: 20px 16px;
+    gap: 16px;
+  }
+
+  .access-card img {
+    width: 100px;
+  }
+
+  .management-summary {
+    padding: 16px;
+    border-radius: 14px;
+    gap: 12px;
+  }
+
+  .management-summary h2 {
+    font-size: 1.15rem;
+  }
+
+  .management-card {
+    min-height: auto;
+    padding: 16px;
+    border-radius: 14px;
+  }
+
+  .management-card .material-symbols-rounded {
+    width: 38px;
+    height: 38px;
+    margin-bottom: 12px;
+    border-radius: 10px;
+  }
+
+  /* 3. 폼 및 패널/리스트 간격 조절 */
+  .management-panel-body {
+    padding: 16px;
+  }
+
+  .application-form {
+    gap: 10px;
+  }
+
+  .application-form input {
+    min-height: 40px;
+    padding: 0 10px;
+    font-size: 0.85rem;
+  }
+
+  .application-form textarea {
+    padding: 10px;
+    font-size: 0.85rem;
+  }
+
+  .management-preview-row {
+    padding: 14px 16px;
+    gap: 12px;
+  }
+
+  .management-preview-list--compact .management-preview-row {
+    padding: 12px 14px;
+  }
+
+  .management-preview-heading strong {
+    font-size: 0.88rem;
+  }
+}

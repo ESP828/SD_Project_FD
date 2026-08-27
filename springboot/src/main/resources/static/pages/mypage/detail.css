@@ -484,7 +484,7 @@
   }
 }
 
-@media (max-width: 600px) {
+@media (max-width: 500px) {
   .mypage-detail-hero {
     padding: 34px 0;
   }
@@ -529,20 +529,23 @@
     display: none;
   }
 
-  .mypage-detail-nav-select {
-    display: block;
-    width: 100%;
-    min-height: 48px;
-    padding: 0 40px 0 14px;
-    border: 1px solid #e9e5de;
-    border-radius: 12px;
-    outline: 0;
-    color: var(--color-navy);
-    background: #fff;
-    font-size: 0.84rem;
-    font-weight: 800;
-    appearance: none;
-  }
+.mypage-detail-nav-select {
+  display: block;
+  width: 100%;
+  max-width: 100%;         /* 부모 너비를 넘지 않도록 제한 */
+  min-width: 0;            /* flex/grid 컨테이너 내부 오버플로우 방지 */
+  min-height: 48px;
+  padding: 0 40px 0 14px;
+  border: 1px solid #e9e5de;
+  border-radius: 12px;
+  outline: 0;
+  color: var(--color-navy);
+  background: #fff;
+  font-size: 0.84rem;
+  font-weight: 800;
+  appearance: none;
+  box-sizing: border-box;  /* 패딩과 테두리를 너비(100%) 안에 포함 */
+}
 
   /* 모든 카드의 상단 영역(h3 + badge)을 항상 가로 한 줄로 고정 */
   .mypage-detail-card-top {
