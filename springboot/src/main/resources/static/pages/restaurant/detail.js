@@ -6,6 +6,52 @@
   const content = document.getElementById("store-content");
   if (!loading || !errorView || !content) return;
 
+  function ensureStoreScrollTopButton() {
+    if (document.querySelector(".board-scroll-top")) return;
+
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "board-scroll-top";
+    button.textContent = "↑";
+    button.title = "맨 위로 이동";
+    button.setAttribute("aria-label", "맨 위로 이동");
+    button.hidden = true;
+    document.body.append(button);
+
+    let ticking = false;
+    let isVisible = false;
+    const updateVisibility = () => {
+      const nextVisible = window.scrollY > 450;
+      if (nextVisible !== isVisible) {
+        isVisible = nextVisible;
+        button.hidden = !nextVisible;
+      }
+      ticking = false;
+    };
+
+    window.addEventListener(
+      "scroll",
+      () => {
+        if (ticking) return;
+        ticking = true;
+        window.requestAnimationFrame(updateVisibility);
+      },
+      { passive: true },
+    );
+
+    button.addEventListener("click", () => {
+      const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      window.scrollTo({
+        top: 0,
+        behavior: reduceMotion ? "auto" : "smooth",
+      });
+    });
+
+    updateVisibility();
+  }
+
+  ensureStoreScrollTopButton();
+
   const params = new URLSearchParams(window.location.search);
   const source = params.get("source") === "public" ? "public" : "owned";
   const id = params.get("id");
