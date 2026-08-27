@@ -214,8 +214,8 @@
     return `/board/detail?${params.toString()}`;
   }
 
-  // Track IME composition explicitly instead of relying on deprecated keyCode 229,
-  // which can also appear on a valid Enter after composition has finished.
+  // Track IME composition explicitly and keep keyCode 229 only as a narrow
+  // compatibility fallback for browser/IME ordering edge cases.
   const composingCommentInputs = new WeakSet();
 
   function bindCommentCompositionState(textarea) {
@@ -228,13 +228,23 @@
     });
   }
 
-  function isCommentSubmitEnter(event) {
-    return (
-      event.key === "Enter" &&
-      !event.shiftKey &&
-      !event.isComposing &&
-      !composingCommentInputs.has(event.currentTarget)
-    );
+  function handleCommentSubmitEnter(event, submitAction) {
+    if (event.key !== "Enter" || event.shiftKey) return false;
+
+    // Plain Enter is reserved for submit. During IME composition, consume the
+    // Enter key without submitting so it cannot fall through to a newline.
+    // keyCode 229 is kept only as a compatibility fallback for IME edge cases.
+    event.preventDefault();
+    if (
+      event.isComposing ||
+      composingCommentInputs.has(event.currentTarget) ||
+      event.keyCode === 229
+    ) {
+      return true;
+    }
+
+    submitAction?.();
+    return true;
   }
 
   function updateCharacterCount(target, counter) {
@@ -2377,6 +2387,7 @@
     form.dataset.initialValue = textarea.value;
 
     const inputMeta = element("div", "comment-input-meta comment-input-meta--compact comment-input-meta--footer");
+    inputMeta.append(element("span", "", "Enter로 등록 · Shift + Enter로 줄바꿈"));
     const characterCount = element("span", "comment-character-count");
     inputMeta.append(characterCount);
     updateCharacterCount(textarea, characterCount);
@@ -2473,10 +2484,10 @@
     });
     bindCommentCompositionState(textarea);
     textarea.addEventListener("keydown", (event) => {
-      if (!isCommentSubmitEnter(event)) return;
-      event.preventDefault();
-      if (submit.disabled || !hasReplyBody(textarea.value, targetName)) return;
-      form.requestSubmit();
+      handleCommentSubmitEnter(event, () => {
+        if (submit.disabled || !hasReplyBody(textarea.value, targetName)) return;
+        form.requestSubmit();
+      });
     });
 
     form.addEventListener("submit", async (event) => {
@@ -3045,10 +3056,10 @@
         await confirmCommentEditorDiscard(null);
         return;
       }
-      if (!isCommentSubmitEnter(event)) return;
-      event.preventDefault();
-      if (save.disabled) return;
-      form.requestSubmit();
+      handleCommentSubmitEnter(event, () => {
+        if (save.disabled) return;
+        form.requestSubmit();
+      });
     });
 
     form.addEventListener("submit", async (event) => {
@@ -3163,10 +3174,10 @@
   });
 
   commentContent.addEventListener("keydown", (event) => {
-    if (!isCommentSubmitEnter(event)) return;
-    event.preventDefault();
-    if (commentSubmitButton?.disabled || !commentContent.value.trim()) return;
-    commentForm.requestSubmit();
+    handleCommentSubmitEnter(event, () => {
+      if (commentSubmitButton?.disabled || !commentContent.value.trim()) return;
+      commentForm.requestSubmit();
+    });
   });
 
   commentForm.addEventListener("submit", async (event) => {
