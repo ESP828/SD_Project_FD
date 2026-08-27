@@ -1724,7 +1724,8 @@
     if (!(textarea instanceof HTMLTextAreaElement) || !toggle || !panel) return null;
 
     if (!emojis) return null;
-    emojis.attachEditor?.(textarea);
+    const editorApi = emojis.attachEditor?.(textarea);
+    bindNewsCommentEditorSubmitEnter(textarea, editorApi?.editor);
     emojis.populatePicker(panel, {
       gridClass: "comment-emoji-grid fooduck-custom-emoji-grid",
       buttonClass: "comment-emoji-option fooduck-custom-emoji-option",
@@ -1875,6 +1876,45 @@
       !event.isComposing &&
       event.keyCode !== 229
     );
+  }
+
+  function bindNewsCommentEditorSubmitEnter(textarea, editor) {
+    if (!(textarea instanceof HTMLTextAreaElement) || !(editor instanceof HTMLElement)) return;
+
+    let composing = false;
+    let submitAfterComposition = false;
+    const submitFromTextarea = () => {
+      textarea.dispatchEvent(new KeyboardEvent("keydown", {
+        key: "Enter",
+        bubbles: true,
+        cancelable: true,
+      }));
+    };
+
+    editor.addEventListener("compositionstart", () => {
+      composing = true;
+    });
+    editor.addEventListener("compositionend", () => {
+      composing = false;
+      if (!submitAfterComposition) return;
+      submitAfterComposition = false;
+      window.setTimeout(submitFromTextarea, 0);
+    });
+    editor.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter" || event.shiftKey) return;
+
+      if (event.isComposing || composing || event.keyCode === 229) {
+        submitAfterComposition = true;
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        return;
+      }
+
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      submitAfterComposition = false;
+      submitFromTextarea();
+    }, true);
   }
 
   function updateNewsCommentCharacterCount(target, counter) {

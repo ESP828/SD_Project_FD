@@ -1402,10 +1402,6 @@ body > [data-site-header] > .site-header {
   font-size: 0.75rem;
 }
 
-.store-news-comment-list {
-  border-top: 1px solid var(--color-line);
-}
-
 .store-news-comments-panel .comment-item {
   padding: 12px 0;
 }
