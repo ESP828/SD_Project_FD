@@ -35,6 +35,11 @@
   const SEARCH_RADIUS_METERS = 500;
   // 첫 진입 시 보여줄 "내 주변 맛집"은 검색보다 조금 넓은 반경으로 잡는다.
   const NEARBY_RADIUS_METERS = 1200;
+  // 위치 권한을 차단했거나 조회에 실패했을 때 기준으로 삼는 기본 위치: 신논현역.
+  // "내 주변" 검색이 통째로 멈춰버리지 않도록, 실제 위치처럼 취급해서 이 좌표를
+  // userLocation에 그대로 채워 넣는다(지도에서는 조용히 신논현역에 있는 것처럼
+  // 동작한다 — 맛집 추천 페이지처럼 별도 안내 문구는 띄우지 않는다).
+  const MAP_FALLBACK_LOCATION = { latitude: 37.5048, longitude: 127.0255 };
   const markerAssetRoot = "/images/markers";
   const markerImageCache = new Map();
 
@@ -1086,11 +1091,14 @@
   }
 
   // 위치는 지도 생성 전에 한 번 받아두고 이후에는 캐시된 값을 재사용한다.
+  // 권한이 없거나 조회에 실패해도 null을 돌려주지 않는다 — "내 주변" 검색과 현재 위치
+  // 마커가 통째로 사라지는 대신, 신논현역을 기준으로 삼아 실제 위치인 것처럼 동작한다.
   function getCurrentLocation() {
     if (userLocation) return Promise.resolve(userLocation);
     return new Promise((resolve) => {
       if (!navigator.geolocation) {
-        resolve(null);
+        userLocation = MAP_FALLBACK_LOCATION;
+        resolve(userLocation);
         return;
       }
       navigator.geolocation.getCurrentPosition(
@@ -1098,7 +1106,10 @@
           userLocation = { latitude: coords.latitude, longitude: coords.longitude };
           resolve(userLocation);
         },
-        () => resolve(null),
+        () => {
+          userLocation = MAP_FALLBACK_LOCATION;
+          resolve(userLocation);
+        },
         { timeout: 5000 },
       );
     });
