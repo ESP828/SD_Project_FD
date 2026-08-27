@@ -214,14 +214,13 @@
     return `/board/detail?${params.toString()}`;
   }
 
-  // Comments/replies use Discord-style submit behavior:
-  // Enter always submits and manual line breaks are not allowed.
-  // Korean/Japanese/Chinese IME may use the same Enter key to finish composition,
-  // so defer submission until compositionend instead of swallowing that Enter.
+  // Comment/reply keyboard behavior:
+  // Enter clicks the real submit button; Shift+Enter keeps the textarea line break.
+  // IME Enter is deferred until composition finishes so the final composed text is submitted.
   const composingCommentInputs = new WeakSet();
 
   function normalizeCommentInputValue(value) {
-    return String(value ?? "").replace(/[\r\n]+/g, " ");
+    return String(value ?? "").replace(/\r\n?/g, "\n");
   }
 
   function sanitizeCommentTextarea(textarea) {
@@ -238,7 +237,12 @@
     textarea.setSelectionRange(nextStart, nextEnd);
   }
 
-  function bindCommentSubmitInput(textarea, submitAction) {
+  function clickCommentSubmitButton(submitButton) {
+    if (!(submitButton instanceof HTMLButtonElement) || submitButton.disabled) return;
+    submitButton.click();
+  }
+
+  function bindCommentSubmitInput(textarea, submitButton) {
     if (!(textarea instanceof HTMLTextAreaElement)) return;
     let submitAfterComposition = false;
 
@@ -248,47 +252,48 @@
 
     textarea.addEventListener("compositionend", () => {
       composingCommentInputs.delete(textarea);
-      sanitizeCommentTextarea(textarea);
       if (!submitAfterComposition) return;
       window.setTimeout(() => {
         if (!submitAfterComposition || composingCommentInputs.has(textarea)) return;
         submitAfterComposition = false;
         sanitizeCommentTextarea(textarea);
-        submitAction?.();
+        clickCommentSubmitButton(submitButton);
       }, 0);
     });
 
-    // Block the browser's actual newline insertion path as well as keydown.
+    // If an IME-confirming Enter would also try to insert a line break, suppress only
+    // that trailing line break. Shift+Enter never sets this flag, so its newline remains.
     textarea.addEventListener("beforeinput", (event) => {
+      if (!submitAfterComposition) return;
       if (event.inputType === "insertLineBreak" || event.inputType === "insertParagraph") {
         event.preventDefault();
       }
     });
 
     textarea.addEventListener("keydown", (event) => {
-      if (event.key !== "Enter") return;
+      if (event.key !== "Enter" || event.shiftKey) return;
 
       if (event.isComposing || composingCommentInputs.has(textarea) || event.keyCode === 229) {
+        // Let the IME finish the current syllable/word. compositionend (or keyup
+        // fallback below) will click the real submit button immediately afterward.
         submitAfterComposition = true;
-        window.setTimeout(() => {
-          if (!submitAfterComposition || composingCommentInputs.has(textarea)) return;
-          submitAfterComposition = false;
-          sanitizeCommentTextarea(textarea);
-          submitAction?.();
-        }, 0);
         return;
       }
 
       event.preventDefault();
       event.stopPropagation();
-      submitAction?.();
+      submitAfterComposition = false;
+      sanitizeCommentTextarea(textarea);
+      clickCommentSubmitButton(submitButton);
     });
 
     textarea.addEventListener("keyup", (event) => {
-      if (event.key !== "Enter" || !submitAfterComposition || composingCommentInputs.has(textarea)) return;
-      submitAfterComposition = false;
+      if (event.key !== "Enter" || event.shiftKey || !submitAfterComposition) return;
+      if (composingCommentInputs.has(textarea) || event.isComposing) return;
       event.preventDefault();
-      submitAction?.();
+      submitAfterComposition = false;
+      sanitizeCommentTextarea(textarea);
+      clickCommentSubmitButton(submitButton);
     });
   }
 
@@ -2441,7 +2446,6 @@
     replyEditor.append(replyMention, textarea);
 
     const inputMeta = element("div", "comment-input-meta comment-input-meta--compact comment-input-meta--footer");
-    inputMeta.append(element("span", "", "Enter로 바로 등록"));
     const characterCount = element("span", "comment-character-count");
     inputMeta.append(characterCount);
     characterCount.textContent = `${replyMentionText.length} / 1000`;
@@ -2537,11 +2541,7 @@
       characterCount.textContent = `${replyContentValue(textarea.value, targetName).length} / 1000`;
       resizeCommentTextarea(textarea, 78);
     });
-    bindCommentSubmitInput(textarea, () => {
-      sanitizeCommentTextarea(textarea);
-      if (submit.disabled || !hasReplyBody(textarea.value)) return;
-      form.requestSubmit();
-    });
+    bindCommentSubmitInput(textarea, submit);
 
     form.addEventListener("submit", async (event) => {
       event.preventDefault();
@@ -3071,7 +3071,6 @@
     form.dataset.initialValue = textarea.value;
 
     const inputMeta = element("div", "comment-input-meta comment-input-meta--compact");
-    inputMeta.append(element("span", "", " "));
     const characterCount = element("span", "comment-character-count");
     inputMeta.append(characterCount);
     updateCharacterCount(textarea, characterCount);
@@ -3111,11 +3110,7 @@
       event.preventDefault();
       await confirmCommentEditorDiscard(null);
     });
-    bindCommentSubmitInput(textarea, () => {
-      sanitizeCommentTextarea(textarea);
-      if (save.disabled) return;
-      form.requestSubmit();
-    });
+    bindCommentSubmitInput(textarea, save);
 
     form.addEventListener("submit", async (event) => {
       event.preventDefault();
@@ -3229,11 +3224,7 @@
     commentContent.focus({ preventScroll: true });
   });
 
-  bindCommentSubmitInput(commentContent, () => {
-    sanitizeCommentTextarea(commentContent);
-    if (commentSubmitButton?.disabled || !commentContent.value.trim()) return;
-    commentForm.requestSubmit();
-  });
+  bindCommentSubmitInput(commentContent, commentSubmitButton);
 
   commentForm.addEventListener("submit", async (event) => {
     event.preventDefault();
@@ -3243,11 +3234,11 @@
     }
     if (!session.authenticated) {
       if (completeDetailLoginIfReady()) {
-        window.setTimeout(() => commentForm.requestSubmit(), 0);
+        window.setTimeout(() => clickCommentSubmitButton(commentSubmitButton), 0);
       } else {
         openDetailLogin({
           successMessage: "로그인되었습니다. 작성 중인 댓글을 등록합니다.",
-          onSuccess: () => commentForm.requestSubmit(),
+          onSuccess: () => clickCommentSubmitButton(commentSubmitButton),
         });
       }
       return;
