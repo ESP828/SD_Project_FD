@@ -1028,6 +1028,7 @@
 }
 
 .author-login-id {
+  display: none !important;
   color: var(--color-navy);
   font-size: 0.78rem;
   font-weight: 900;
