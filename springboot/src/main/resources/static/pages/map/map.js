@@ -184,17 +184,44 @@
     return actions;
   }
 
+  // 카카오맵 SDK가 로딩된 뒤(autoload=false) kakao.maps.load()로 넘기는 콜백은 SDK 내부에서
+  // t1.daumcdn.net의 지도 엔진 스크립트를 추가로 동적 로딩한 뒤에야 호출된다. 그 두 번째
+  // 스크립트는 SDK 코드 안에서 onerror 처리 없이 로딩되기 때문에, 그게 네트워크 문제(차단된
+  // 와이파이, 느린 회선 등)로 실패하면 우리 쪽에서는 성공도 실패도 아닌 "영원한 대기" 상태가
+  // 된다 - 화면은 "카카오맵을 준비하고 있어요"에서 멈추고 아무 에러도 안 뜬다. 일정 시간 안에
+  // 안 끝나면 명시적으로 실패 처리해서 최소한 사용자가 재시도할 수 있게 한다.
+  const KAKAO_SDK_LOAD_TIMEOUT_MS = 10000;
+
   function loadKakaoSdk(javascriptKey) {
     return new Promise((resolve, reject) => {
+      let settled = false;
+      const timeoutId = window.setTimeout(() => {
+        if (settled) return;
+        settled = true;
+        reject(new Error("카카오맵을 불러오는 데 시간이 너무 오래 걸립니다. 네트워크 상태를 확인한 뒤 새로고침해 주세요."));
+      }, KAKAO_SDK_LOAD_TIMEOUT_MS);
+      const settleResolve = () => {
+        if (settled) return;
+        settled = true;
+        window.clearTimeout(timeoutId);
+        resolve();
+      };
+      const settleReject = (error) => {
+        if (settled) return;
+        settled = true;
+        window.clearTimeout(timeoutId);
+        reject(error);
+      };
+
       if (window.kakao?.maps) {
-        window.kakao.maps.load(resolve);
+        window.kakao.maps.load(settleResolve);
         return;
       }
       const script = document.createElement("script");
       script.async = true;
       script.src = `https://dapi.kakao.com/v2/maps/sdk.js?appkey=${encodeURIComponent(javascriptKey)}&autoload=false`;
-      script.onload = () => window.kakao.maps.load(resolve);
-      script.onerror = () => reject(new Error("카카오맵 SDK를 불러오지 못했습니다."));
+      script.onload = () => window.kakao.maps.load(settleResolve);
+      script.onerror = () => settleReject(new Error("카카오맵 SDK를 불러오지 못했습니다."));
       document.head.appendChild(script);
     });
   }
@@ -1802,6 +1829,16 @@
     } catch (error) {
       setMapStatus(error.message || "지도를 준비하지 못했습니다.", true);
       renderEmptyResults(error.message || "잠시 후 다시 시도해 주세요.");
+      // kakaoMap이 아예 안 만들어진 실패(SDK 로딩 실패/타임아웃)는 지도 자리를 덮고 있는
+      // placeholder도 "준비 중" 문구에 계속 머물러 있으므로, 실패했다는 걸 명확히 보여주고
+      // 새로고침을 안내한다.
+      if (!kakaoMap && mapPlaceholder) {
+        mapPlaceholder.hidden = false;
+        const title = mapPlaceholder.querySelector("strong");
+        const description = mapPlaceholder.querySelector("small");
+        if (title) title.textContent = "지도를 불러오지 못했어요";
+        if (description) description.textContent = error.message || "네트워크 상태를 확인한 뒤 새로고침해 주세요.";
+      }
     }
   })();
 })();
