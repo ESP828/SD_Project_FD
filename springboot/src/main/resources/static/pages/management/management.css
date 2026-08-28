@@ -414,3 +414,9 @@
     font-size: 0.88rem;
   }
 }
+@media (max-width: 600px) {
+  .management-preview-row {
+    align-items: flex-start;
+    padding-left: 22px;
+  }
+}
