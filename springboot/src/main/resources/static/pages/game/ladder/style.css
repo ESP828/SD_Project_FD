@@ -46,7 +46,7 @@ button { cursor:pointer; }
 .name-grid { margin-bottom:12px; }
 .name-grid input { min-width:0; width:100%; padding:11px 6px; border:1px solid var(--line); border-radius:11px; text-align:center; font-weight:750; outline:none; }
 .ladder-wrap { overflow-x:auto; padding-bottom:6px; }
-#ladderCanvas { width:100%; min-width:520px; height:410px; display:block; border-radius:18px; background:linear-gradient(#fffaf4,#fff); }
+#ladderCanvas { width:100%; height:410px; display:block; border-radius:18px; background:linear-gradient(#fffaf4,#fff); }
 .prize-grid { display:none; min-width:520px; margin-top:8px; }
 .prize-grid span { font-size:.78rem; text-align:center; font-weight:800; color:#d85b45; white-space:nowrap; }
 .result-card { text-align:center; }
@@ -61,5 +61,5 @@ button { cursor:pointer; }
 .secondary-button { margin-top:8px; color:var(--ink); background:#f1ebe4; }
 @keyframes pop { from { opacity:0; transform:translateY(8px); } }
 @keyframes ladder-shuffle { 50% { opacity:.45; transform:scale(.992); } }
-@media (max-width:600px) { .app-shell{width:min(100% - 20px,920px);padding-top:32px}.card{border-radius:22px}.amount-row{grid-template-columns:56px 1fr 28px}.amount-heading{align-items:flex-start}.add-button{font-size:.82rem}.name-grid input{font-size:.8rem;padding:10px 2px}.ladder-actions{grid-template-columns:1fr}.shuffle-button{order:2} }
+@media (max-width:600px) { .app-shell{width:min(100% - 20px,920px);padding-top:32px}.card{border-radius:22px;padding:20px 16px}.amount-row{grid-template-columns:56px minmax(0,1fr) 28px;gap:8px}.amount-input-wrap input{min-height:52px;padding:15px 42px 15px 12px;font-size:1.05rem}.amount-heading{align-items:flex-start}.add-button{font-size:.82rem}.name-grid input{font-size:.8rem;padding:10px 2px}.name-grid[data-people="4"] input{font-size:.74rem}.name-grid[data-people="5"] input{font-size:.68rem}.name-grid[data-people="6"] input{font-size:.64rem}.name-grid[data-people="7"] input{font-size:.6rem}.name-grid[data-people="8"] input{font-size:.5rem}.ladder-wrap{width:100%;overflow:hidden}.ladder-actions{grid-template-columns:1fr}.shuffle-button{order:2} }
 @media (prefers-reduced-motion:reduce) { *,*::before,*::after { scroll-behavior:auto!important; animation-duration:.01ms!important; transition-duration:.01ms!important; } }

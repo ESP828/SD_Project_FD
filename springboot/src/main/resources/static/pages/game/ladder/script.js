@@ -76,6 +76,7 @@ function generateRungs(count) {
 function setupLadder() {
   const oldNames = [...document.querySelectorAll('#nameInputs input')].map((i) => i.value);
   $('#nameInputs').style.gridTemplateColumns = `repeat(${state.people},1fr)`;
+  $('#nameInputs').dataset.people = state.people;
   $('#prizeLabels').style.gridTemplateColumns = `repeat(${state.people},1fr)`;
   $('#nameInputs').innerHTML = Array.from({ length: state.people }, (_, i) => `<input type="text" maxlength="10" value="${oldNames[i] || `참여자 ${i + 1}`}" aria-label="${i + 1}번 참여자 이름">`).join('');
   state.shares = createShares(state.total, state.people);
@@ -89,7 +90,7 @@ function setupLadder() {
 function canvasMetrics() {
   const canvas = $('#ladderCanvas');
   const availableWidth = canvas.parentElement.getBoundingClientRect().width;
-  const width = Math.max(520, Math.floor(availableWidth));
+  const width = Math.max(280, Math.floor(availableWidth));
   const height = 410; const dpr = window.devicePixelRatio || 1;
   // canvas.width/height를 다시 대입하면 매번 캔버스 비트맵을 통째로 새로 만들어서
   // 비용이 큰데, 출발 애니메이션은 requestAnimationFrame으로 초당 60번씩 이 함수를
@@ -102,7 +103,7 @@ function canvasMetrics() {
     canvas.getContext('2d').scale(dpr, dpr);
   }
   const ctx = canvas.getContext('2d');
-  const marginX = 44, top = 24, bottom = 342;
+  const marginX = Math.min(44, Math.max(24, width * .1)), top = 24, bottom = 342;
   return { canvas, ctx, width, height, marginX, top, bottom, gap:(width - marginX * 2) / (state.people - 1), rowGap:(bottom - top) / (state.rows + 1) };
 }
 
